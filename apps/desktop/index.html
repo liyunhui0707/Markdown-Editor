@@ -70,10 +70,22 @@
         color: #57606a;
         border-bottom: 1px solid #eaeef2;
         background: #fafbfc;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .new-note-btn {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid #c7d2de;
+        background: white;
+        cursor: pointer;
       }
 
       .panel-body {
-        padding: 12px;
+        padding: 14px;
         overflow: auto;
         flex: 1;
       }
@@ -136,10 +148,14 @@
         border-radius: 14px;
         background: #fbfcfe;
         padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
       }
 
       .placeholder-box h2 {
         margin-top: 0;
+        margin-bottom: 10px;
         font-size: 18px;
       }
 
@@ -164,15 +180,15 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-title">Markdown Vault App</div>
-        <div class="topbar-status">Vault: 拾贰 Vault</div>
+        <div class="topbar-status">Vault: Personal Notes</div>
       </header>
 
       <main class="main-layout">
         <aside class="panel">
-          <div class="panel-header">Navigation</div>
+          <div class="panel-header">Folders</div>
           <div class="panel-body">
             <div class="nav-item active">
-              <div class="nav-label">Vault Home</div>
+              <div class="nav-label">All Notes</div>
             </div>
             <div class="nav-item">
               <div class="nav-label">Inbox</div>
@@ -181,71 +197,71 @@
               <div class="nav-label">Projects</div>
             </div>
             <div class="nav-item">
-              <div class="nav-label">AI Imports</div>
-            </div>
-            <div class="nav-item">
-              <div class="nav-label">Settings</div>
+              <div class="nav-label">Archive</div>
             </div>
           </div>
         </aside>
 
         <section class="panel">
-          <div class="panel-header">Notes</div>
+          <div class="panel-header">
+            <span>Note List</span>
+            <button class="new-note-btn">+ New Note</button>
+          </div>
           <div class="panel-body">
             <div class="note-item active">
               <div class="note-title">Welcome Note</div>
-              <div class="note-meta">Modified today</div>
+              <div class="note-meta">Selected note</div>
             </div>
             <div class="note-item">
-              <div class="note-title">Project Ideas</div>
-              <div class="note-meta">Modified yesterday</div>
+              <div class="note-title">MVP Scope</div>
+              <div class="note-meta">Project outline</div>
             </div>
             <div class="note-item">
-              <div class="note-title">Claude Output Example</div>
-              <div class="note-meta">AI import placeholder</div>
+              <div class="note-title">Daily Note</div>
+              <div class="note-meta">March 24</div>
             </div>
             <div class="note-item">
-              <div class="note-title">Codex Output Example</div>
-              <div class="note-meta">AI import placeholder</div>
+              <div class="note-title">App Sketch</div>
+              <div class="note-meta">Layout ideas</div>
             </div>
           </div>
         </section>
 
         <section class="workspace">
           <div class="workspace-panel">
-            <div class="panel-header">Editor</div>
+            <div class="panel-header">Note Editor</div>
             <div class="workspace-body">
               <div class="placeholder-box">
-                <h2>Editor Area</h2>
+                <h2>Selected Note</h2>
                 <p>
-                  This area will later become the Markdown editing surface.
+                  This panel will hold the plain note editor for the currently
+                  selected file.
                 </p>
                 <p>
-                  For now, it is only a layout placeholder so the app starts to
-                  feel like a real product.
+                  For Day 3, it is only a visual shell with realistic spacing
+                  and labels.
                 </p>
-                <span class="placeholder-chip">Markdown input</span>
-                <span class="placeholder-chip">Toolbar later</span>
-                <span class="placeholder-chip">Save logic later</span>
+                <span class="placeholder-chip">Note title later</span>
+                <span class="placeholder-chip">Text area later</span>
+                <span class="placeholder-chip">Save action later</span>
               </div>
             </div>
           </div>
 
           <div class="workspace-panel">
-            <div class="panel-header">Preview</div>
+            <div class="panel-header">Preview Panel</div>
             <div class="workspace-body">
               <div class="placeholder-box">
-                <h2>Preview Area</h2>
+                <h2>Preview Placeholder</h2>
                 <p>
-                  This area will later show rendered Markdown or note details.
+                  This area reserves space for the future note preview.
                 </p>
                 <p>
-                  Today it is only a visual placeholder for the future preview
-                  panel.
+                  Markdown rendering is intentionally not added yet.
                 </p>
-                <span class="placeholder-chip">Rendered markdown later</span>
+                <span class="placeholder-chip">Rendered note later</span>
+                <span class="placeholder-chip">Read view later</span>
                 <span class="placeholder-chip">Metadata later</span>
-                <span class="placeholder-chip">Read mode later</span>
               </div>
             </div>
           </div>
