@@ -130,9 +130,33 @@
         overflow: auto;
       }
 
+      .editor-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        height: 100%;
+      }
+
+      .title-input {
+        width: 100%;
+        border: 1px solid #cdd9e5;
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-size: 20px;
+        font-weight: 600;
+        outline: none;
+        background: #fbfcfe;
+      }
+
+      .title-input:focus,
+      .editor-textarea:focus {
+        border-color: #4c8bf5;
+        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+      }
+
       .editor-textarea {
         width: 100%;
-        height: 100%;
+        flex: 1;
         resize: none;
         border: 1px solid #cdd9e5;
         border-radius: 14px;
@@ -145,9 +169,9 @@
         outline: none;
       }
 
-      .editor-textarea:focus {
-        border-color: #4c8bf5;
-        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+      .helper-line {
+        font-size: 12px;
+        color: #57606a;
       }
 
       .preview-box {
@@ -155,8 +179,17 @@
         border: 1px solid #cdd9e5;
         border-radius: 14px;
         background: #fbfcfe;
-        padding: 16px;
+        padding: 18px;
         overflow: auto;
+      }
+
+      .preview-title {
+        margin: 0 0 16px 0;
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      .preview-body {
         white-space: pre-wrap;
         line-height: 1.6;
       }
@@ -166,10 +199,14 @@
         font-style: italic;
       }
 
-      .helper-line {
-        margin-top: 10px;
-        font-size: 12px;
-        color: #57606a;
+      .status-draft {
+        color: #b54708;
+        font-weight: 600;
+      }
+
+      .status-ready {
+        color: #1a7f37;
+        font-weight: 600;
       }
     </style>
   </head>
@@ -177,28 +214,18 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-title">Markdown Vault App</div>
-        <div class="topbar-status">Day 4 editable note surface</div>
+        <div id="statusText" class="topbar-status status-ready">Ready</div>
       </header>
 
       <main class="main-layout">
         <aside class="panel">
           <div class="panel-header">Navigation</div>
           <div class="panel-body">
-            <div class="nav-item active">
-              <div class="nav-label">Vault Home</div>
-            </div>
-            <div class="nav-item">
-              <div class="nav-label">Inbox</div>
-            </div>
-            <div class="nav-item">
-              <div class="nav-label">Projects</div>
-            </div>
-            <div class="nav-item">
-              <div class="nav-label">AI Imports</div>
-            </div>
-            <div class="nav-item">
-              <div class="nav-label">Settings</div>
-            </div>
+            <div class="nav-item active"><div class="nav-label">Vault Home</div></div>
+            <div class="nav-item"><div class="nav-label">Inbox</div></div>
+            <div class="nav-item"><div class="nav-label">Projects</div></div>
+            <div class="nav-item"><div class="nav-label">AI Imports</div></div>
+            <div class="nav-item"><div class="nav-label">Settings</div></div>
           </div>
         </aside>
 
@@ -207,7 +234,7 @@
           <div class="panel-body">
             <div class="note-item active">
               <div class="note-title">Welcome Note</div>
-              <div class="note-meta">Editable demo note</div>
+              <div class="note-meta">Current draft note</div>
             </div>
             <div class="note-item">
               <div class="note-title">Project Ideas</div>
@@ -228,18 +255,28 @@
           <div class="workspace-panel">
             <div class="panel-header">Editor</div>
             <div class="workspace-body">
-              <textarea id="editor" class="editor-textarea"># Welcome to Markdown Vault App
+              <div class="editor-stack">
+                <input
+                  id="titleInput"
+                  class="title-input"
+                  type="text"
+                  value="Welcome to Markdown Vault App"
+                  placeholder="Untitled note"
+                />
 
-This is the first editable note surface.
+                <textarea id="bodyInput" class="editor-textarea">This is the first structured note editor.
 
 ## Today’s progress
 - The app shell exists
-- The editor is now interactive
-- The preview updates as you type
+- The editor supports title + body
+- The preview reflects both parts
+- The app can now show a draft state
 
-You can now type here and see the result reflected below.</textarea>
-              <div class="helper-line">
-                Type in the editor. The preview panel will update live.
+You can edit both the title and body.</textarea>
+
+                <div class="helper-line">
+                  Edit the title and note body. The preview and draft state will update live.
+                </div>
               </div>
             </div>
           </div>
@@ -247,7 +284,10 @@ You can now type here and see the result reflected below.</textarea>
           <div class="workspace-panel">
             <div class="panel-header">Preview</div>
             <div class="workspace-body">
-              <div id="preview" class="preview-box"></div>
+              <div class="preview-box">
+                <h1 id="previewTitle" class="preview-title"></h1>
+                <div id="previewBody" class="preview-body"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -255,22 +295,53 @@ You can now type here and see the result reflected below.</textarea>
     </div>
 
     <script>
-      const editor = document.getElementById('editor');
-      const preview = document.getElementById('preview');
+      const titleInput = document.getElementById('titleInput');
+      const bodyInput = document.getElementById('bodyInput');
+      const previewTitle = document.getElementById('previewTitle');
+      const previewBody = document.getElementById('previewBody');
+      const statusText = document.getElementById('statusText');
 
-      function updatePreview() {
-        const value = editor.value.trim();
+      let isDraft = false;
 
-        if (value.length === 0) {
-          preview.innerHTML = '<div class="preview-empty">Nothing to preview yet. Start typing in the editor.</div>';
-          return;
+      function renderNote() {
+        const titleValue = titleInput.value.trim();
+        const bodyValue = bodyInput.value.trim();
+
+        if (titleValue.length === 0) {
+          previewTitle.textContent = 'Untitled note';
+        } else {
+          previewTitle.textContent = titleInput.value;
         }
 
-        preview.textContent = editor.value;
+        if (bodyValue.length === 0) {
+          previewBody.innerHTML = '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
+        } else {
+          previewBody.textContent = bodyInput.value;
+        }
       }
 
-      editor.addEventListener('input', updatePreview);
-      updatePreview();
+      function setDraftState(draft) {
+        isDraft = draft;
+
+        if (isDraft) {
+          statusText.textContent = 'Draft';
+          statusText.className = 'topbar-status status-draft';
+        } else {
+          statusText.textContent = 'Ready';
+          statusText.className = 'topbar-status status-ready';
+        }
+      }
+
+      function handleEdit() {
+        setDraftState(true);
+        renderNote();
+      }
+
+      titleInput.addEventListener('input', handleEdit);
+      bodyInput.addEventListener('input', handleEdit);
+
+      renderNote();
+      setDraftState(false);
     </script>
   </body>
 </html>
