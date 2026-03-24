@@ -70,22 +70,10 @@
         color: #57606a;
         border-bottom: 1px solid #eaeef2;
         background: #fafbfc;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .new-note-btn {
-        font-size: 12px;
-        padding: 4px 10px;
-        border-radius: 8px;
-        border: 1px solid #c7d2de;
-        background: white;
-        cursor: pointer;
       }
 
       .panel-body {
-        padding: 14px;
+        padding: 12px;
         overflow: auto;
         flex: 1;
       }
@@ -142,37 +130,46 @@
         overflow: auto;
       }
 
-      .placeholder-box {
+      .editor-textarea {
+        width: 100%;
         height: 100%;
-        border: 2px dashed #c7d2de;
+        resize: none;
+        border: 1px solid #cdd9e5;
+        border-radius: 14px;
+        padding: 16px;
+        font-size: 15px;
+        line-height: 1.6;
+        font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        background: #fbfcfe;
+        color: #1f2328;
+        outline: none;
+      }
+
+      .editor-textarea:focus {
+        border-color: #4c8bf5;
+        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+      }
+
+      .preview-box {
+        height: 100%;
+        border: 1px solid #cdd9e5;
         border-radius: 14px;
         background: #fbfcfe;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        padding: 16px;
+        overflow: auto;
+        white-space: pre-wrap;
+        line-height: 1.6;
       }
 
-      .placeholder-box h2 {
-        margin-top: 0;
-        margin-bottom: 10px;
-        font-size: 18px;
-      }
-
-      .placeholder-box p {
-        margin-bottom: 12px;
-        line-height: 1.5;
+      .preview-empty {
         color: #57606a;
+        font-style: italic;
       }
 
-      .placeholder-chip {
-        display: inline-block;
-        padding: 6px 10px;
-        margin: 4px 8px 0 0;
-        border-radius: 999px;
-        background: #eaf2ff;
+      .helper-line {
+        margin-top: 10px;
         font-size: 12px;
-        color: #274c77;
+        color: #57606a;
       }
     </style>
   </head>
@@ -180,15 +177,15 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-title">Markdown Vault App</div>
-        <div class="topbar-status">Vault: Personal Notes</div>
+        <div class="topbar-status">Day 4 editable note surface</div>
       </header>
 
       <main class="main-layout">
         <aside class="panel">
-          <div class="panel-header">Folders</div>
+          <div class="panel-header">Navigation</div>
           <div class="panel-body">
             <div class="nav-item active">
-              <div class="nav-label">All Notes</div>
+              <div class="nav-label">Vault Home</div>
             </div>
             <div class="nav-item">
               <div class="nav-label">Inbox</div>
@@ -197,76 +194,83 @@
               <div class="nav-label">Projects</div>
             </div>
             <div class="nav-item">
-              <div class="nav-label">Archive</div>
+              <div class="nav-label">AI Imports</div>
+            </div>
+            <div class="nav-item">
+              <div class="nav-label">Settings</div>
             </div>
           </div>
         </aside>
 
         <section class="panel">
-          <div class="panel-header">
-            <span>Note List</span>
-            <button class="new-note-btn">+ New Note</button>
-          </div>
+          <div class="panel-header">Notes</div>
           <div class="panel-body">
             <div class="note-item active">
               <div class="note-title">Welcome Note</div>
-              <div class="note-meta">Selected note</div>
+              <div class="note-meta">Editable demo note</div>
             </div>
             <div class="note-item">
-              <div class="note-title">MVP Scope</div>
-              <div class="note-meta">Project outline</div>
+              <div class="note-title">Project Ideas</div>
+              <div class="note-meta">Placeholder only</div>
             </div>
             <div class="note-item">
-              <div class="note-title">Daily Note</div>
-              <div class="note-meta">March 24</div>
+              <div class="note-title">Claude Output Example</div>
+              <div class="note-meta">Future MCP import</div>
             </div>
             <div class="note-item">
-              <div class="note-title">App Sketch</div>
-              <div class="note-meta">Layout ideas</div>
+              <div class="note-title">Codex Output Example</div>
+              <div class="note-meta">Future MCP import</div>
             </div>
           </div>
         </section>
 
         <section class="workspace">
           <div class="workspace-panel">
-            <div class="panel-header">Note Editor</div>
+            <div class="panel-header">Editor</div>
             <div class="workspace-body">
-              <div class="placeholder-box">
-                <h2>Selected Note</h2>
-                <p>
-                  This panel will hold the plain note editor for the currently
-                  selected file.
-                </p>
-                <p>
-                  For Day 3, it is only a visual shell with realistic spacing
-                  and labels.
-                </p>
-                <span class="placeholder-chip">Note title later</span>
-                <span class="placeholder-chip">Text area later</span>
-                <span class="placeholder-chip">Save action later</span>
+              <textarea id="editor" class="editor-textarea"># Welcome to Markdown Vault App
+
+This is the first editable note surface.
+
+## Today’s progress
+- The app shell exists
+- The editor is now interactive
+- The preview updates as you type
+
+You can now type here and see the result reflected below.</textarea>
+              <div class="helper-line">
+                Type in the editor. The preview panel will update live.
               </div>
             </div>
           </div>
 
           <div class="workspace-panel">
-            <div class="panel-header">Preview Panel</div>
+            <div class="panel-header">Preview</div>
             <div class="workspace-body">
-              <div class="placeholder-box">
-                <h2>Preview Placeholder</h2>
-                <p>
-                  This area reserves space for the future note preview.
-                </p>
-                <p>
-                  Markdown rendering is intentionally not added yet.
-                </p>
-                <span class="placeholder-chip">Rendered note later</span>
-                <span class="placeholder-chip">Read view later</span>
-                <span class="placeholder-chip">Metadata later</span>
-              </div>
+              <div id="preview" class="preview-box"></div>
             </div>
           </div>
         </section>
       </main>
     </div>
+
+    <script>
+      const editor = document.getElementById('editor');
+      const preview = document.getElementById('preview');
+
+      function updatePreview() {
+        const value = editor.value.trim();
+
+        if (value.length === 0) {
+          preview.innerHTML = '<div class="preview-empty">Nothing to preview yet. Start typing in the editor.</div>';
+          return;
+        }
+
+        preview.textContent = editor.value;
+      }
+
+      editor.addEventListener('input', updatePreview);
+      updatePreview();
+    </script>
   </body>
 </html>
