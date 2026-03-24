@@ -5,52 +5,252 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown Vault App</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f5f5f5;
-        color: #222;
+        background: #f4f5f7;
+        color: #1f2328;
+        height: 100vh;
+        overflow: hidden;
       }
 
-      .container {
-        max-width: 900px;
-        margin: 80px auto;
-        padding: 32px;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
       }
 
-      h1 {
-        margin-top: 0;
+      .topbar {
+        height: 56px;
+        background: #ffffff;
+        border-bottom: 1px solid #d8dee4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
       }
 
-      .status {
-        margin-top: 24px;
+      .topbar-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .topbar-status {
+        font-size: 13px;
+        color: #57606a;
+      }
+
+      .main-layout {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 220px 260px 1fr;
+        min-height: 0;
+      }
+
+      .panel {
+        border-right: 1px solid #d8dee4;
+        background: #ffffff;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel:last-child {
+        border-right: none;
+      }
+
+      .panel-header {
+        padding: 14px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #57606a;
+        border-bottom: 1px solid #eaeef2;
+        background: #fafbfc;
+      }
+
+      .panel-body {
+        padding: 12px;
+        overflow: auto;
+        flex: 1;
+      }
+
+      .nav-item,
+      .note-item {
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        border-radius: 10px;
+        background: #f6f8fa;
+      }
+
+      .nav-item.active,
+      .note-item.active {
+        background: #ddefff;
+      }
+
+      .nav-label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .note-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .note-meta {
+        font-size: 12px;
+        color: #57606a;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: 1fr 1fr;
+        min-height: 0;
+      }
+
+      .workspace-panel {
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        border-bottom: 1px solid #d8dee4;
+      }
+
+      .workspace-panel:last-child {
+        border-bottom: none;
+      }
+
+      .workspace-body {
         padding: 16px;
-        background: #eef6ff;
-        border-radius: 12px;
+        flex: 1;
+        overflow: auto;
       }
 
-      code {
-        background: #f0f0f0;
-        padding: 2px 6px;
-        border-radius: 6px;
+      .placeholder-box {
+        height: 100%;
+        border: 2px dashed #c7d2de;
+        border-radius: 14px;
+        background: #fbfcfe;
+        padding: 20px;
+      }
+
+      .placeholder-box h2 {
+        margin-top: 0;
+        font-size: 18px;
+      }
+
+      .placeholder-box p {
+        margin-bottom: 12px;
+        line-height: 1.5;
+        color: #57606a;
+      }
+
+      .placeholder-chip {
+        display: inline-block;
+        padding: 6px 10px;
+        margin: 4px 8px 0 0;
+        border-radius: 999px;
+        background: #eaf2ff;
+        font-size: 12px;
+        color: #274c77;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>Markdown Vault App</h1>
-      <p>This is the Day 2 Electron app skeleton.</p>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-title">Markdown Vault App</div>
+        <div class="topbar-status">Vault: 拾贰 Vault</div>
+      </header>
 
-      <div class="status">
-        <strong>Current status:</strong>
-        <p>The desktop window is running successfully on macOS.</p>
-        <p>Next steps will add the real editor, vault browsing, and local note handling.</p>
-      </div>
+      <main class="main-layout">
+        <aside class="panel">
+          <div class="panel-header">Navigation</div>
+          <div class="panel-body">
+            <div class="nav-item active">
+              <div class="nav-label">Vault Home</div>
+            </div>
+            <div class="nav-item">
+              <div class="nav-label">Inbox</div>
+            </div>
+            <div class="nav-item">
+              <div class="nav-label">Projects</div>
+            </div>
+            <div class="nav-item">
+              <div class="nav-label">AI Imports</div>
+            </div>
+            <div class="nav-item">
+              <div class="nav-label">Settings</div>
+            </div>
+          </div>
+        </aside>
 
-      <p>Project path: <code>apps/desktop</code></p>
+        <section class="panel">
+          <div class="panel-header">Notes</div>
+          <div class="panel-body">
+            <div class="note-item active">
+              <div class="note-title">Welcome Note</div>
+              <div class="note-meta">Modified today</div>
+            </div>
+            <div class="note-item">
+              <div class="note-title">Project Ideas</div>
+              <div class="note-meta">Modified yesterday</div>
+            </div>
+            <div class="note-item">
+              <div class="note-title">Claude Output Example</div>
+              <div class="note-meta">AI import placeholder</div>
+            </div>
+            <div class="note-item">
+              <div class="note-title">Codex Output Example</div>
+              <div class="note-meta">AI import placeholder</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <div class="workspace-panel">
+            <div class="panel-header">Editor</div>
+            <div class="workspace-body">
+              <div class="placeholder-box">
+                <h2>Editor Area</h2>
+                <p>
+                  This area will later become the Markdown editing surface.
+                </p>
+                <p>
+                  For now, it is only a layout placeholder so the app starts to
+                  feel like a real product.
+                </p>
+                <span class="placeholder-chip">Markdown input</span>
+                <span class="placeholder-chip">Toolbar later</span>
+                <span class="placeholder-chip">Save logic later</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="workspace-panel">
+            <div class="panel-header">Preview</div>
+            <div class="workspace-body">
+              <div class="placeholder-box">
+                <h2>Preview Area</h2>
+                <p>
+                  This area will later show rendered Markdown or note details.
+                </p>
+                <p>
+                  Today it is only a visual placeholder for the future preview
+                  panel.
+                </p>
+                <span class="placeholder-chip">Rendered markdown later</span>
+                <span class="placeholder-chip">Metadata later</span>
+                <span class="placeholder-chip">Read mode later</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   </body>
 </html>
