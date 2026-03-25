@@ -35,8 +35,7 @@
         gap: 12px;
       }
 
-      .topbar-left,
-      .topbar-right {
+      .topbar-left {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -59,6 +58,16 @@
 
       .status-ready {
         color: #1a7f37;
+        font-weight: 600;
+      }
+
+      .status-saving {
+        color: #0969da;
+        font-weight: 600;
+      }
+
+      .status-error {
+        color: #cf222e;
         font-weight: 600;
       }
 
@@ -111,22 +120,32 @@
         flex: 1;
       }
 
-      .nav-item,
-      .note-item {
+      .nav-item {
         padding: 10px 12px;
         margin-bottom: 8px;
         border-radius: 10px;
         background: #f6f8fa;
       }
 
-      .nav-item.active,
-      .note-item.active {
+      .nav-item.active {
         background: #ddefff;
       }
 
       .nav-label {
         font-size: 14px;
         font-weight: 500;
+      }
+
+      .note-item {
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        border-radius: 10px;
+        background: #f6f8fa;
+        cursor: pointer;
+      }
+
+      .note-item.active {
+        background: #ddefff;
       }
 
       .note-title {
@@ -239,6 +258,7 @@
         <div class="topbar-left">
           <div class="topbar-title">Markdown Vault App</div>
           <button id="newNoteButton" class="action-button">New Note</button>
+          <button id="saveNoteButton" class="action-button">Save Note</button>
         </div>
         <div id="statusText" class="topbar-status status-ready">Ready</div>
       </header>
@@ -257,24 +277,7 @@
 
         <section class="panel">
           <div class="panel-header">Notes</div>
-          <div class="panel-body">
-            <div class="note-item active">
-              <div class="note-title">Current Draft</div>
-              <div class="note-meta">UI-only note workflow</div>
-            </div>
-            <div class="note-item">
-              <div class="note-title">Project Ideas</div>
-              <div class="note-meta">Placeholder only</div>
-            </div>
-            <div class="note-item">
-              <div class="note-title">Claude Output Example</div>
-              <div class="note-meta">Future MCP import</div>
-            </div>
-            <div class="note-item">
-              <div class="note-title">Codex Output Example</div>
-              <div class="note-meta">Future MCP import</div>
-            </div>
-          </div>
+          <div id="noteList" class="panel-body"></div>
         </section>
 
         <section class="workspace">
@@ -289,10 +292,14 @@
                   placeholder="Untitled note"
                 />
 
-                <textarea id="bodyInput" class="editor-textarea" placeholder="Start writing your note..."></textarea>
+                <textarea
+                  id="bodyInput"
+                  class="editor-textarea"
+                  placeholder="Start writing your note..."
+                ></textarea>
 
                 <div class="helper-line">
-                  Use <strong>New Note</strong> to reset the current note draft.
+                  Click <strong>Save Note</strong> to write the current note into <code>vault-demo/</code>.
                 </div>
               </div>
             </div>
@@ -318,70 +325,163 @@
       const previewBody = document.getElementById('previewBody');
       const statusText = document.getElementById('statusText');
       const newNoteButton = document.getElementById('newNoteButton');
+      const saveNoteButton = document.getElementById('saveNoteButton');
+      const noteList = document.getElementById('noteList');
 
-      const initialNote = {
-        title: 'Welcome to Markdown Vault App',
-        body: `This is the current demo note.
+      let notes = [
+        {
+          id: 1,
+          title: 'Welcome to Markdown Vault App',
+          body: `This is the first real file-save demo.
 
 ## Today’s progress
-- The app shell exists
-- The editor supports title + body
-- The app can now create a fresh draft note
-- The preview updates live
+- The app can manage notes in memory
+- The app can now save the selected note as a real Markdown file
+- Files are written into the vault-demo folder`,
+          meta: 'Demo note'
+        },
+        {
+          id: 2,
+          title: 'Project Ideas',
+          body: `Next steps after save:
+- open files from disk
+- load note list from vault
+- add Markdown rendering
+- add MCP ingestion`,
+          meta: 'Idea note'
+        }
+      ];
 
-Click "New Note" to reset into a clean draft.`
-      };
+      let selectedNoteId = 1;
+      let nextNoteId = 3;
 
-      function renderNote() {
-        const titleValue = titleInput.value.trim();
-        const bodyValue = bodyInput.value.trim();
+      function getSelectedNote() {
+        return notes.find(note => note.id === selectedNoteId);
+      }
 
-        previewTitle.textContent = titleValue.length === 0 ? 'Untitled note' : titleInput.value;
+      function setStatus(mode, message) {
+        if (mode === 'draft') {
+          statusText.textContent = message || 'Draft';
+          statusText.className = 'topbar-status status-draft';
+        } else if (mode === 'saving') {
+          statusText.textContent = message || 'Saving...';
+          statusText.className = 'topbar-status status-saving';
+        } else if (mode === 'error') {
+          statusText.textContent = message || 'Error';
+          statusText.className = 'topbar-status status-error';
+        } else {
+          statusText.textContent = message || 'Ready';
+          statusText.className = 'topbar-status status-ready';
+        }
+      }
+
+      function renderPreview(note) {
+        const titleValue = note.title.trim();
+        const bodyValue = note.body.trim();
+
+        previewTitle.textContent = titleValue.length === 0 ? 'Untitled note' : note.title;
 
         if (bodyValue.length === 0) {
           previewBody.innerHTML =
             '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
         } else {
-          previewBody.textContent = bodyInput.value;
+          previewBody.textContent = note.body;
         }
       }
 
-      function setStatus(mode) {
-        if (mode === 'draft') {
-          statusText.textContent = 'Draft';
-          statusText.className = 'topbar-status status-draft';
-        } else {
-          statusText.textContent = 'Ready';
-          statusText.className = 'topbar-status status-ready';
-        }
+      function renderEditor(note) {
+        titleInput.value = note.title;
+        bodyInput.value = note.body;
       }
 
-      function loadInitialNote() {
-        titleInput.value = initialNote.title;
-        bodyInput.value = initialNote.body;
-        renderNote();
-        setStatus('ready');
+      function renderNoteList() {
+        noteList.innerHTML = '';
+
+        notes.forEach(note => {
+          const item = document.createElement('div');
+          item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
+
+          const displayTitle = note.title.trim().length === 0 ? 'Untitled note' : note.title;
+          const bodyPreview =
+            note.body.trim().length === 0
+              ? 'Empty note'
+              : note.body.trim().split('\n')[0].slice(0, 40);
+
+          item.innerHTML = `
+            <div class="note-title">${displayTitle}</div>
+            <div class="note-meta">${bodyPreview}</div>
+          `;
+
+          item.addEventListener('click', () => {
+            selectedNoteId = note.id;
+            renderApp();
+            setStatus('ready', 'Ready');
+          });
+
+          noteList.appendChild(item);
+        });
+      }
+
+      function renderApp() {
+        const selectedNote = getSelectedNote();
+        renderNoteList();
+        renderEditor(selectedNote);
+        renderPreview(selectedNote);
+      }
+
+      function updateSelectedNoteFromInputs() {
+        const selectedNote = getSelectedNote();
+        selectedNote.title = titleInput.value;
+        selectedNote.body = bodyInput.value;
+        renderNoteList();
+        renderPreview(selectedNote);
+      }
+
+      function handleEdit() {
+        updateSelectedNoteFromInputs();
+        setStatus('draft', 'Draft');
       }
 
       function createNewNote() {
-        titleInput.value = 'Untitled note';
-        bodyInput.value = '';
-        renderNote();
-        setStatus('draft');
+        const newNote = {
+          id: nextNoteId,
+          title: 'Untitled note',
+          body: '',
+          meta: 'New draft'
+        };
+
+        nextNoteId += 1;
+        notes.unshift(newNote);
+        selectedNoteId = newNote.id;
+        renderApp();
+        setStatus('draft', 'Draft');
         titleInput.focus();
         titleInput.select();
       }
 
-      function handleEdit() {
-        setStatus('draft');
-        renderNote();
+      async function saveCurrentNote() {
+        const selectedNote = getSelectedNote();
+        setStatus('saving', 'Saving...');
+
+        const result = await window.vaultApi.saveNote({
+          title: selectedNote.title,
+          body: selectedNote.body
+        });
+
+        if (result.ok) {
+          setStatus('ready', `Saved: ${result.fileName}`);
+        } else {
+          setStatus('error', `Save failed: ${result.error}`);
+        }
       }
 
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
       newNoteButton.addEventListener('click', createNewNote);
+      saveNoteButton.addEventListener('click', saveCurrentNote);
 
-      loadInitialNote();
+      renderApp();
+      setStatus('ready', 'Ready');
     </script>
   </body>
 </html>
