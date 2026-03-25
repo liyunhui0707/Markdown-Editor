@@ -32,6 +32,14 @@
         align-items: center;
         justify-content: space-between;
         padding: 0 16px;
+        gap: 12px;
+      }
+
+      .topbar-left,
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
       }
 
       .topbar-title {
@@ -42,6 +50,31 @@
       .topbar-status {
         font-size: 13px;
         color: #57606a;
+      }
+
+      .status-draft {
+        color: #b54708;
+        font-weight: 600;
+      }
+
+      .status-ready {
+        color: #1a7f37;
+        font-weight: 600;
+      }
+
+      .action-button {
+        border: 1px solid #cdd9e5;
+        background: #ffffff;
+        color: #1f2328;
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .action-button:hover {
+        background: #f6f8fa;
       }
 
       .main-layout {
@@ -198,22 +231,15 @@
         color: #57606a;
         font-style: italic;
       }
-
-      .status-draft {
-        color: #b54708;
-        font-weight: 600;
-      }
-
-      .status-ready {
-        color: #1a7f37;
-        font-weight: 600;
-      }
     </style>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div class="topbar-title">Markdown Vault App</div>
+        <div class="topbar-left">
+          <div class="topbar-title">Markdown Vault App</div>
+          <button id="newNoteButton" class="action-button">New Note</button>
+        </div>
         <div id="statusText" class="topbar-status status-ready">Ready</div>
       </header>
 
@@ -233,8 +259,8 @@
           <div class="panel-header">Notes</div>
           <div class="panel-body">
             <div class="note-item active">
-              <div class="note-title">Welcome Note</div>
-              <div class="note-meta">Current draft note</div>
+              <div class="note-title">Current Draft</div>
+              <div class="note-meta">UI-only note workflow</div>
             </div>
             <div class="note-item">
               <div class="note-title">Project Ideas</div>
@@ -260,22 +286,13 @@
                   id="titleInput"
                   class="title-input"
                   type="text"
-                  value="Welcome to Markdown Vault App"
                   placeholder="Untitled note"
                 />
 
-                <textarea id="bodyInput" class="editor-textarea">This is the first structured note editor.
-
-## Today’s progress
-- The app shell exists
-- The editor supports title + body
-- The preview reflects both parts
-- The app can now show a draft state
-
-You can edit both the title and body.</textarea>
+                <textarea id="bodyInput" class="editor-textarea" placeholder="Start writing your note..."></textarea>
 
                 <div class="helper-line">
-                  Edit the title and note body. The preview and draft state will update live.
+                  Use <strong>New Note</strong> to reset the current note draft.
                 </div>
               </div>
             </div>
@@ -300,30 +317,37 @@ You can edit both the title and body.</textarea>
       const previewTitle = document.getElementById('previewTitle');
       const previewBody = document.getElementById('previewBody');
       const statusText = document.getElementById('statusText');
+      const newNoteButton = document.getElementById('newNoteButton');
 
-      let isDraft = false;
+      const initialNote = {
+        title: 'Welcome to Markdown Vault App',
+        body: `This is the current demo note.
+
+## Today’s progress
+- The app shell exists
+- The editor supports title + body
+- The app can now create a fresh draft note
+- The preview updates live
+
+Click "New Note" to reset into a clean draft.`
+      };
 
       function renderNote() {
         const titleValue = titleInput.value.trim();
         const bodyValue = bodyInput.value.trim();
 
-        if (titleValue.length === 0) {
-          previewTitle.textContent = 'Untitled note';
-        } else {
-          previewTitle.textContent = titleInput.value;
-        }
+        previewTitle.textContent = titleValue.length === 0 ? 'Untitled note' : titleInput.value;
 
         if (bodyValue.length === 0) {
-          previewBody.innerHTML = '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
+          previewBody.innerHTML =
+            '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
         } else {
           previewBody.textContent = bodyInput.value;
         }
       }
 
-      function setDraftState(draft) {
-        isDraft = draft;
-
-        if (isDraft) {
+      function setStatus(mode) {
+        if (mode === 'draft') {
           statusText.textContent = 'Draft';
           statusText.className = 'topbar-status status-draft';
         } else {
@@ -332,16 +356,32 @@ You can edit both the title and body.</textarea>
         }
       }
 
+      function loadInitialNote() {
+        titleInput.value = initialNote.title;
+        bodyInput.value = initialNote.body;
+        renderNote();
+        setStatus('ready');
+      }
+
+      function createNewNote() {
+        titleInput.value = 'Untitled note';
+        bodyInput.value = '';
+        renderNote();
+        setStatus('draft');
+        titleInput.focus();
+        titleInput.select();
+      }
+
       function handleEdit() {
-        setDraftState(true);
+        setStatus('draft');
         renderNote();
       }
 
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
+      newNoteButton.addEventListener('click', createNewNote);
 
-      renderNote();
-      setDraftState(false);
+      loadInitialNote();
     </script>
   </body>
 </html>
