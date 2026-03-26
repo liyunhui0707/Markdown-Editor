@@ -259,6 +259,7 @@
           <div class="topbar-title">Markdown Vault App</div>
           <button id="newNoteButton" class="action-button">New Note</button>
           <button id="saveNoteButton" class="action-button">Save Note</button>
+          <button id="loadVaultButton" class="action-button">Load Vault</button>
         </div>
         <div id="statusText" class="topbar-status status-ready">Ready</div>
       </header>
@@ -299,7 +300,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Click <strong>Save Note</strong> to write the current note into <code>vault-demo/</code>.
+                  Save the selected note to <code>vault-demo/</code>, then click <strong>Load Vault</strong> to rebuild the note list from real files.
                 </div>
               </div>
             </div>
@@ -326,37 +327,28 @@
       const statusText = document.getElementById('statusText');
       const newNoteButton = document.getElementById('newNoteButton');
       const saveNoteButton = document.getElementById('saveNoteButton');
+      const loadVaultButton = document.getElementById('loadVaultButton');
       const noteList = document.getElementById('noteList');
 
       let notes = [
         {
           id: 1,
           title: 'Welcome to Markdown Vault App',
-          body: `This is the first real file-save demo.
+          body: `This is the first file loading demo.
 
 ## Today’s progress
-- The app can manage notes in memory
-- The app can now save the selected note as a real Markdown file
-- Files are written into the vault-demo folder`,
+- The app can save notes
+- The app can now load notes from the demo vault folder
+- The note list can come from real files`,
           meta: 'Demo note'
-        },
-        {
-          id: 2,
-          title: 'Project Ideas',
-          body: `Next steps after save:
-- open files from disk
-- load note list from vault
-- add Markdown rendering
-- add MCP ingestion`,
-          meta: 'Idea note'
         }
       ];
 
       let selectedNoteId = 1;
-      let nextNoteId = 3;
+      let nextNoteId = 2;
 
       function getSelectedNote() {
-        return notes.find(note => note.id === selectedNoteId);
+        return notes.find((note) => note.id === selectedNoteId);
       }
 
       function setStatus(mode, message) {
@@ -397,7 +389,7 @@
       function renderNoteList() {
         noteList.innerHTML = '';
 
-        notes.forEach(note => {
+        notes.forEach((note) => {
           const item = document.createElement('div');
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
@@ -409,7 +401,7 @@
 
           item.innerHTML = `
             <div class="note-title">${displayTitle}</div>
-            <div class="note-meta">${bodyPreview}</div>
+            <div class="note-meta">${note.meta || bodyPreview}</div>
           `;
 
           item.addEventListener('click', () => {
@@ -424,6 +416,7 @@
 
       function renderApp() {
         const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
         renderNoteList();
         renderEditor(selectedNote);
         renderPreview(selectedNote);
@@ -475,10 +468,44 @@
         }
       }
 
+      async function loadVaultNotes() {
+        setStatus('saving', 'Loading vault...');
+
+        const result = await window.vaultApi.loadVaultNotes();
+
+        if (!result.ok) {
+          setStatus('error', `Load failed: ${result.error}`);
+          return;
+        }
+
+        if (result.notes.length === 0) {
+          notes = [
+            {
+              id: 1,
+              title: 'Untitled note',
+              body: '',
+              meta: 'Vault is empty'
+            }
+          ];
+          selectedNoteId = 1;
+          nextNoteId = 2;
+          renderApp();
+          setStatus('ready', 'Vault loaded: 0 notes');
+          return;
+        }
+
+        notes = result.notes;
+        selectedNoteId = notes[0].id;
+        nextNoteId = Math.max(...notes.map((note) => note.id)) + 1;
+        renderApp();
+        setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
+      }
+
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
+      loadVaultButton.addEventListener('click', loadVaultNotes);
 
       renderApp();
       setStatus('ready', 'Ready');

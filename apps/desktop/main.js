@@ -25,10 +25,38 @@ function sanitizeFileName(name) {
     .toLowerCase();
 }
 
+function getVaultPath() {
+  const projectRoot = path.resolve(__dirname, '..', '..');
+  return path.join(projectRoot, 'vault-demo');
+}
+
+function parseMarkdownFile(fileName, content, fallbackId) {
+  const lines = content.split('\n');
+
+  let title = '';
+  let body = content;
+
+  if (lines.length > 0 && lines[0].startsWith('# ')) {
+    title = lines[0].replace(/^# /, '').trim();
+    body = lines.slice(2).join('\n').trimStart();
+  }
+
+  if (!title) {
+    title = fileName.replace(/\.md$/i, '');
+  }
+
+  return {
+    id: fallbackId,
+    title,
+    body,
+    meta: `Loaded from ${fileName}`,
+    fileName
+  };
+}
+
 ipcMain.handle('save-note', async (_event, note) => {
   try {
-    const projectRoot = path.resolve(__dirname, '..', '..');
-    const vaultPath = path.join(projectRoot, 'vault-demo');
+    const vaultPath = getVaultPath();
 
     if (!fs.existsSync(vaultPath)) {
       fs.mkdirSync(vaultPath, { recursive: true });
@@ -51,6 +79,36 @@ ipcMain.handle('save-note', async (_event, note) => {
       ok: true,
       path: fullPath,
       fileName
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('load-vault-notes', async () => {
+  try {
+    const vaultPath = getVaultPath();
+
+    if (!fs.existsSync(vaultPath)) {
+      fs.mkdirSync(vaultPath, { recursive: true });
+    }
+
+    const fileNames = fs
+      .readdirSync(vaultPath)
+      .filter((fileName) => fileName.toLowerCase().endsWith('.md'));
+
+    const notes = fileNames.map((fileName, index) => {
+      const fullPath = path.join(vaultPath, fileName);
+      const content = fs.readFileSync(fullPath, 'utf8');
+      return parseMarkdownFile(fileName, content, index + 1);
+    });
+
+    return {
+      ok: true,
+      notes
     };
   } catch (error) {
     return {

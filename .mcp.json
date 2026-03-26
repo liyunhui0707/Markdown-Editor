@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "codex-bridge": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/liyunhui/code/mcp-codex-bridge-lab",
+        "python",
+        "mcp_server.py"
+      ],
+      "env": {
+        "LAB_REPO_ROOT": "/Users/liyunhui/code",
+        "CODEX_BRIDGE_MOCK": "0"
+      }
+    }
+  }
+}
