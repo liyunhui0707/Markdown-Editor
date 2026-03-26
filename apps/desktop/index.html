@@ -241,9 +241,52 @@
         font-weight: 700;
       }
 
-      .preview-body {
-        white-space: pre-wrap;
-        line-height: 1.6;
+      .preview-markdown {
+        line-height: 1.7;
+      }
+
+      .preview-markdown h1,
+      .preview-markdown h2,
+      .preview-markdown h3 {
+        margin-top: 1.2em;
+        margin-bottom: 0.5em;
+      }
+
+      .preview-markdown h1:first-child,
+      .preview-markdown h2:first-child,
+      .preview-markdown h3:first-child {
+        margin-top: 0;
+      }
+
+      .preview-markdown p {
+        margin: 0 0 1em 0;
+      }
+
+      .preview-markdown ul,
+      .preview-markdown ol {
+        padding-left: 1.5em;
+        margin: 0 0 1em 0;
+      }
+
+      .preview-markdown code {
+        background: #eef2f6;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 0.95em;
+      }
+
+      .preview-markdown pre {
+        background: #eef2f6;
+        padding: 12px;
+        border-radius: 10px;
+        overflow: auto;
+      }
+
+      .preview-markdown blockquote {
+        border-left: 4px solid #cdd9e5;
+        padding-left: 12px;
+        margin-left: 0;
+        color: #57606a;
       }
 
       .preview-empty {
@@ -300,7 +343,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Save the selected note to <code>vault-demo/</code>, then click <strong>Load Vault</strong> to rebuild the note list from real files.
+                  The editor remains plain Markdown text. The preview below now renders real Markdown.
                 </div>
               </div>
             </div>
@@ -311,7 +354,7 @@
             <div class="workspace-body">
               <div class="preview-box">
                 <h1 id="previewTitle" class="preview-title"></h1>
-                <div id="previewBody" class="preview-body"></div>
+                <div id="previewBody" class="preview-markdown"></div>
               </div>
             </div>
           </div>
@@ -319,7 +362,11 @@
       </main>
     </div>
 
+    <script src="./node_modules/marked/lib/marked.umd.js"></script>
+
     <script>
+      marked.use({ breaks: false });
+
       const titleInput = document.getElementById('titleInput');
       const bodyInput = document.getElementById('bodyInput');
       const previewTitle = document.getElementById('previewTitle');
@@ -334,12 +381,16 @@
         {
           id: 1,
           title: 'Welcome to Markdown Vault App',
-          body: `This is the first file loading demo.
+          body: `# Markdown Preview
+
+This is the first true Markdown preview demo.
 
 ## Today’s progress
 - The app can save notes
-- The app can now load notes from the demo vault folder
-- The note list can come from real files`,
+- The app can load notes
+- The preview now renders headings, lists, and formatting
+
+Try editing this note with **bold**, *italic*, and \`inline code\`.`,
           meta: 'Demo note'
         }
       ];
@@ -377,7 +428,7 @@
           previewBody.innerHTML =
             '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
         } else {
-          previewBody.textContent = note.body;
+          previewBody.innerHTML = marked.parse(note.body);
         }
       }
 
