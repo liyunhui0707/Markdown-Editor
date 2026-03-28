@@ -50,8 +50,9 @@ function parseMarkdownFile(fileName, content, fallbackId) {
     id: fallbackId,
     title,
     body,
-    meta: `Loaded from ${fileName}`,
-    fileName
+    meta: 'File note',
+    fileName,
+    source: 'vault'
   };
 }
 
@@ -134,7 +135,8 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
 
     const fileNames = fs
       .readdirSync(vaultPath)
-      .filter((fileName) => fileName.toLowerCase().endsWith('.md'));
+      .filter((fileName) => fileName.toLowerCase().endsWith('.md'))
+      .sort((a, b) => a.localeCompare(b));
 
     const notes = fileNames.map((fileName, index) => {
       const fullPath = path.join(vaultPath, fileName);

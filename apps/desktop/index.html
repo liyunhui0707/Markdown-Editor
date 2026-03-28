@@ -364,7 +364,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Choose a vault folder first. Save and Load will use that selected folder.
+                  Choose a vault folder first. Save refreshes the vault-backed note list automatically.
                 </div>
               </div>
             </div>
@@ -412,15 +412,17 @@
         {
           id: 1,
           title: 'Welcome to Markdown Vault App',
-          body: `# Vault Selection
+          body: `# Day 12
 
-Today the app begins supporting a user-chosen vault folder.
+Today the note list becomes more clearly file-backed.
 
 ## Goal
-- choose a folder
-- save notes there
-- load notes from there`,
-          meta: 'Demo note'
+- show draft notes clearly
+- show file-backed notes clearly
+- refresh vault after save`,
+          meta: 'Demo note',
+          fileName: '',
+          source: 'draft'
         }
       ];
       let selectedNoteId = 1;
@@ -473,6 +475,26 @@ Today the app begins supporting a user-chosen vault folder.
         bodyInput.value = note.body;
       }
 
+      function getNoteSecondaryText(note) {
+        if (note.source === 'vault' && note.fileName) {
+          return `file: ${note.fileName}`;
+        }
+
+        if (note.source === 'draft') {
+          return 'unsaved draft';
+        }
+
+        if (note.meta) {
+          return note.meta;
+        }
+
+        if (note.body.trim().length === 0) {
+          return 'Empty note';
+        }
+
+        return note.body.trim().split('\n')[0].slice(0, 40);
+      }
+
       function renderNoteList() {
         noteList.innerHTML = '';
 
@@ -481,14 +503,11 @@ Today the app begins supporting a user-chosen vault folder.
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
           const displayTitle = note.title.trim().length === 0 ? 'Untitled note' : note.title;
-          const bodyPreview =
-            note.body.trim().length === 0
-              ? 'Empty note'
-              : note.body.trim().split('\n')[0].slice(0, 40);
+          const secondaryText = getNoteSecondaryText(note);
 
           item.innerHTML = `
             <div class="note-title">${displayTitle}</div>
-            <div class="note-meta">${note.meta || bodyPreview}</div>
+            <div class="note-meta">${secondaryText}</div>
           `;
 
           item.addEventListener('click', () => {
@@ -514,6 +533,13 @@ Today the app begins supporting a user-chosen vault folder.
         const selectedNote = getSelectedNote();
         selectedNote.title = titleInput.value;
         selectedNote.body = bodyInput.value;
+
+        if (selectedNote.source === 'vault') {
+          selectedNote.meta = 'Edited file note';
+        } else {
+          selectedNote.meta = 'Unsaved draft';
+        }
+
         renderNoteList();
         renderPreview(selectedNote);
       }
@@ -528,7 +554,9 @@ Today the app begins supporting a user-chosen vault folder.
           id: nextNoteId,
           title: 'Untitled note',
           body: '',
-          meta: 'New draft'
+          meta: 'Unsaved draft',
+          source: 'draft',
+          fileName: ''
         };
 
         nextNoteId += 1;
@@ -559,6 +587,47 @@ Today the app begins supporting a user-chosen vault folder.
         setStatus('ready', 'Vault selected');
       }
 
+      async function refreshVaultNotes(preferredFileName = '') {
+        const result = await window.vaultApi.loadVaultNotes({
+          vaultPath: currentVaultPath
+        });
+
+        if (!result.ok) {
+          setStatus('error', `Load failed: ${result.error}`);
+          return false;
+        }
+
+        if (result.notes.length === 0) {
+          notes = [
+            {
+              id: 1,
+              title: 'Untitled note',
+              body: '',
+              meta: 'Vault is empty',
+              source: 'draft',
+              fileName: ''
+            }
+          ];
+          selectedNoteId = 1;
+          nextNoteId = 2;
+          renderApp();
+          return true;
+        }
+
+        notes = result.notes;
+
+        if (preferredFileName) {
+          const matchingNote = notes.find((note) => note.fileName === preferredFileName);
+          selectedNoteId = matchingNote ? matchingNote.id : notes[0].id;
+        } else {
+          selectedNoteId = notes[0].id;
+        }
+
+        nextNoteId = Math.max(...notes.map((note) => note.id), 0) + 1;
+        renderApp();
+        return true;
+      }
+
       async function saveCurrentNote() {
         if (!currentVaultPath) {
           setStatus('error', 'Choose a vault first');
@@ -576,10 +645,15 @@ Today the app begins supporting a user-chosen vault folder.
           }
         });
 
-        if (result.ok) {
-          setStatus('ready', `Saved: ${result.fileName}`);
-        } else {
+        if (!result.ok) {
           setStatus('error', `Save failed: ${result.error}`);
+          return;
+        }
+
+        const refreshed = await refreshVaultNotes(result.fileName);
+
+        if (refreshed) {
+          setStatus('ready', `Saved: ${result.fileName}`);
         }
       }
 
@@ -591,36 +665,19 @@ Today the app begins supporting a user-chosen vault folder.
 
         setStatus('saving', 'Loading vault...');
 
-        const result = await window.vaultApi.loadVaultNotes({
-          vaultPath: currentVaultPath
-        });
+        const refreshed = await refreshVaultNotes();
 
-        if (!result.ok) {
-          setStatus('error', `Load failed: ${result.error}`);
-          return;
+        if (refreshed) {
+          if (
+            notes.length === 1 &&
+            notes[0].source === 'draft' &&
+            notes[0].meta === 'Vault is empty'
+          ) {
+            setStatus('ready', 'Vault loaded: 0 notes');
+          } else {
+            setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
+          }
         }
-
-        if (result.notes.length === 0) {
-          notes = [
-            {
-              id: 1,
-              title: 'Untitled note',
-              body: '',
-              meta: 'Vault is empty'
-            }
-          ];
-          selectedNoteId = 1;
-          nextNoteId = 2;
-          renderApp();
-          setStatus('ready', 'Vault loaded: 0 notes');
-          return;
-        }
-
-        notes = result.notes;
-        selectedNoteId = notes[0].id;
-        nextNoteId = Math.max(...notes.map((note) => note.id)) + 1;
-        renderApp();
-        setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
       }
 
       titleInput.addEventListener('input', handleEdit);
