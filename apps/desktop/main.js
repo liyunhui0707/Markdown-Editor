@@ -99,8 +99,10 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
-    const fileNameBase = sanitizeFileName(safeTitle) || 'untitled-note';
-    const fileName = `${fileNameBase}.md`;
+    const fileName =
+      note.fileName && note.fileName.trim().length > 0
+        ? note.fileName
+        : `${sanitizeFileName(safeTitle) || 'untitled-note'}.md`;
     const fullPath = path.join(vaultPath, fileName);
 
     const markdownContent = `# ${safeTitle}\n\n${note.body || ''}`;

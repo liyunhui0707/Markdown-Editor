@@ -477,11 +477,15 @@ Today the note list becomes more clearly file-backed.
 
       function getNoteSecondaryText(note) {
         if (note.source === 'vault' && note.fileName) {
-          return `file: ${note.fileName}`;
+          return `saved file: ${note.fileName}`;
+        }
+
+        if (note.source === 'draft' && note.fileName) {
+          return `draft changes for ${note.fileName}`;
         }
 
         if (note.source === 'draft') {
-          return 'unsaved draft';
+          return 'draft: not saved';
         }
 
         if (note.meta) {
@@ -535,9 +539,7 @@ Today the note list becomes more clearly file-backed.
         selectedNote.body = bodyInput.value;
 
         if (selectedNote.source === 'vault') {
-          selectedNote.meta = 'Edited file note';
-        } else {
-          selectedNote.meta = 'Unsaved draft';
+          selectedNote.source = 'draft';
         }
 
         renderNoteList();
@@ -641,7 +643,8 @@ Today the note list becomes more clearly file-backed.
           vaultPath: currentVaultPath,
           note: {
             title: selectedNote.title,
-            body: selectedNote.body
+            body: selectedNote.body,
+            fileName: selectedNote.fileName
           }
         });
 
