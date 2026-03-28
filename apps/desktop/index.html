@@ -25,17 +25,24 @@
       }
 
       .topbar {
-        height: 56px;
+        min-height: 64px;
         background: #ffffff;
         border-bottom: 1px solid #d8dee4;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 16px;
+        padding: 8px 16px;
         gap: 12px;
       }
 
       .topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .topbar-right {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -84,6 +91,15 @@
 
       .action-button:hover {
         background: #f6f8fa;
+      }
+
+      .vault-path {
+        font-size: 12px;
+        color: #57606a;
+        max-width: 520px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .main-layout {
@@ -300,11 +316,16 @@
       <header class="topbar">
         <div class="topbar-left">
           <div class="topbar-title">Markdown Vault App</div>
+          <button id="chooseVaultButton" class="action-button">Choose Vault</button>
           <button id="newNoteButton" class="action-button">New Note</button>
           <button id="saveNoteButton" class="action-button">Save Note</button>
           <button id="loadVaultButton" class="action-button">Load Vault</button>
         </div>
-        <div id="statusText" class="topbar-status status-ready">Ready</div>
+
+        <div class="topbar-right">
+          <div id="vaultPathText" class="vault-path">Vault: not selected</div>
+          <div id="statusText" class="topbar-status status-ready">Ready</div>
+        </div>
       </header>
 
       <main class="main-layout">
@@ -343,7 +364,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  The editor remains plain Markdown text. The preview below now renders real Markdown.
+                  Choose a vault folder first. Save and Load will use that selected folder.
                 </div>
               </div>
             </div>
@@ -367,34 +388,41 @@
     <script>
       marked.use({ breaks: false });
 
+      function escapeHtml(text) {
+        return text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
       const titleInput = document.getElementById('titleInput');
       const bodyInput = document.getElementById('bodyInput');
       const previewTitle = document.getElementById('previewTitle');
       const previewBody = document.getElementById('previewBody');
       const statusText = document.getElementById('statusText');
+      const vaultPathText = document.getElementById('vaultPathText');
+      const chooseVaultButton = document.getElementById('chooseVaultButton');
       const newNoteButton = document.getElementById('newNoteButton');
       const saveNoteButton = document.getElementById('saveNoteButton');
       const loadVaultButton = document.getElementById('loadVaultButton');
       const noteList = document.getElementById('noteList');
 
+      let currentVaultPath = '';
       let notes = [
         {
           id: 1,
           title: 'Welcome to Markdown Vault App',
-          body: `# Markdown Preview
+          body: `# Vault Selection
 
-This is the first true Markdown preview demo.
+Today the app begins supporting a user-chosen vault folder.
 
-## Today’s progress
-- The app can save notes
-- The app can load notes
-- The preview now renders headings, lists, and formatting
-
-Try editing this note with **bold**, *italic*, and \`inline code\`.`,
+## Goal
+- choose a folder
+- save notes there
+- load notes from there`,
           meta: 'Demo note'
         }
       ];
-
       let selectedNoteId = 1;
       let nextNoteId = 2;
 
@@ -407,7 +435,7 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
           statusText.textContent = message || 'Draft';
           statusText.className = 'topbar-status status-draft';
         } else if (mode === 'saving') {
-          statusText.textContent = message || 'Saving...';
+          statusText.textContent = message || 'Working...';
           statusText.className = 'topbar-status status-saving';
         } else if (mode === 'error') {
           statusText.textContent = message || 'Error';
@@ -415,6 +443,14 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
         } else {
           statusText.textContent = message || 'Ready';
           statusText.className = 'topbar-status status-ready';
+        }
+      }
+
+      function updateVaultPathDisplay() {
+        if (!currentVaultPath) {
+          vaultPathText.textContent = 'Vault: not selected';
+        } else {
+          vaultPathText.textContent = `Vault: ${currentVaultPath}`;
         }
       }
 
@@ -428,7 +464,7 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
           previewBody.innerHTML =
             '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
         } else {
-          previewBody.innerHTML = marked.parse(note.body);
+          previewBody.innerHTML = marked.parse(escapeHtml(note.body));
         }
       }
 
@@ -468,6 +504,7 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
       function renderApp() {
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
+        updateVaultPathDisplay();
         renderNoteList();
         renderEditor(selectedNote);
         renderPreview(selectedNote);
@@ -503,13 +540,40 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
         titleInput.select();
       }
 
+      async function chooseVaultFolder() {
+        setStatus('saving', 'Choosing vault...');
+
+        const result = await window.vaultApi.chooseVaultFolder();
+
+        if (!result.ok) {
+          if (result.canceled) {
+            setStatus('ready', 'Vault selection canceled');
+          } else {
+            setStatus('error', `Choose vault failed: ${result.error}`);
+          }
+          return;
+        }
+
+        currentVaultPath = result.vaultPath;
+        updateVaultPathDisplay();
+        setStatus('ready', 'Vault selected');
+      }
+
       async function saveCurrentNote() {
+        if (!currentVaultPath) {
+          setStatus('error', 'Choose a vault first');
+          return;
+        }
+
         const selectedNote = getSelectedNote();
         setStatus('saving', 'Saving...');
 
         const result = await window.vaultApi.saveNote({
-          title: selectedNote.title,
-          body: selectedNote.body
+          vaultPath: currentVaultPath,
+          note: {
+            title: selectedNote.title,
+            body: selectedNote.body
+          }
         });
 
         if (result.ok) {
@@ -520,9 +584,16 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
       }
 
       async function loadVaultNotes() {
+        if (!currentVaultPath) {
+          setStatus('error', 'Choose a vault first');
+          return;
+        }
+
         setStatus('saving', 'Loading vault...');
 
-        const result = await window.vaultApi.loadVaultNotes();
+        const result = await window.vaultApi.loadVaultNotes({
+          vaultPath: currentVaultPath
+        });
 
         if (!result.ok) {
           setStatus('error', `Load failed: ${result.error}`);
@@ -554,11 +625,13 @@ Try editing this note with **bold**, *italic*, and \`inline code\`.`,
 
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
+      chooseVaultButton.addEventListener('click', chooseVaultFolder);
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
       loadVaultButton.addEventListener('click', loadVaultNotes);
 
       renderApp();
+      updateVaultPathDisplay();
       setStatus('ready', 'Ready');
     </script>
   </body>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -25,9 +25,10 @@ function sanitizeFileName(name) {
     .toLowerCase();
 }
 
-function getVaultPath() {
-  const projectRoot = path.resolve(__dirname, '..', '..');
-  return path.join(projectRoot, 'vault-demo');
+function ensureVaultExists(vaultPath) {
+  if (!fs.existsSync(vaultPath)) {
+    fs.mkdirSync(vaultPath, { recursive: true });
+  }
 }
 
 function parseMarkdownFile(fileName, content, fallbackId) {
@@ -54,13 +55,43 @@ function parseMarkdownFile(fileName, content, fallbackId) {
   };
 }
 
-ipcMain.handle('save-note', async (_event, note) => {
+ipcMain.handle('choose-vault-folder', async () => {
   try {
-    const vaultPath = getVaultPath();
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory']
+    });
 
-    if (!fs.existsSync(vaultPath)) {
-      fs.mkdirSync(vaultPath, { recursive: true });
+    if (result.canceled || result.filePaths.length === 0) {
+      return {
+        ok: false,
+        canceled: true
+      };
     }
+
+    return {
+      ok: true,
+      vaultPath: result.filePaths[0]
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('save-note', async (_event, payload) => {
+  try {
+    const { vaultPath, note } = payload;
+
+    if (!vaultPath) {
+      return {
+        ok: false,
+        error: 'No vault folder selected.'
+      };
+    }
+
+    ensureVaultExists(vaultPath);
 
     const safeTitle =
       note.title && note.title.trim().length > 0
@@ -88,13 +119,18 @@ ipcMain.handle('save-note', async (_event, note) => {
   }
 });
 
-ipcMain.handle('load-vault-notes', async () => {
+ipcMain.handle('load-vault-notes', async (_event, payload) => {
   try {
-    const vaultPath = getVaultPath();
+    const { vaultPath } = payload;
 
-    if (!fs.existsSync(vaultPath)) {
-      fs.mkdirSync(vaultPath, { recursive: true });
+    if (!vaultPath) {
+      return {
+        ok: false,
+        error: 'No vault folder selected.'
+      };
     }
+
+    ensureVaultExists(vaultPath);
 
     const fileNames = fs
       .readdirSync(vaultPath)
