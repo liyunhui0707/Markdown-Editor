@@ -364,7 +364,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Choose a vault folder first. Save refreshes the vault-backed note list automatically.
+                  File-backed notes now save back to the same file. Draft notes create a new file on first save.
                 </div>
               </div>
             </div>
@@ -410,23 +410,22 @@
       let currentVaultPath = '';
       let notes = [
         {
-          id: 1,
+          id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 12
+          body: `# Day 13
 
-Today the note list becomes more clearly file-backed.
+Today the app improves file identity and save/load consistency.
 
-## Goal
-- show draft notes clearly
-- show file-backed notes clearly
-- refresh vault after save`,
-          meta: 'Demo note',
+## Rule
+- file-backed notes save back to the same file
+- draft notes create a new file on first save`,
+          meta: 'Unsaved draft',
           fileName: '',
           source: 'draft'
         }
       ];
-      let selectedNoteId = 1;
-      let nextNoteId = 2;
+      let selectedNoteId = 'draft:1';
+      let nextDraftId = 2;
 
       function getSelectedNote() {
         return notes.find((note) => note.id === selectedNoteId);
@@ -477,15 +476,11 @@ Today the note list becomes more clearly file-backed.
 
       function getNoteSecondaryText(note) {
         if (note.source === 'vault' && note.fileName) {
-          return `saved file: ${note.fileName}`;
-        }
-
-        if (note.source === 'draft' && note.fileName) {
-          return `draft changes for ${note.fileName}`;
+          return `file: ${note.fileName}`;
         }
 
         if (note.source === 'draft') {
-          return 'draft: not saved';
+          return 'unsaved draft';
         }
 
         if (note.meta) {
@@ -539,7 +534,9 @@ Today the note list becomes more clearly file-backed.
         selectedNote.body = bodyInput.value;
 
         if (selectedNote.source === 'vault') {
-          selectedNote.source = 'draft';
+          selectedNote.meta = 'File note';
+        } else {
+          selectedNote.meta = 'Unsaved draft';
         }
 
         renderNoteList();
@@ -553,7 +550,7 @@ Today the note list becomes more clearly file-backed.
 
       function createNewNote() {
         const newNote = {
-          id: nextNoteId,
+          id: `draft:${nextDraftId}`,
           title: 'Untitled note',
           body: '',
           meta: 'Unsaved draft',
@@ -561,7 +558,7 @@ Today the note list becomes more clearly file-backed.
           fileName: ''
         };
 
-        nextNoteId += 1;
+        nextDraftId += 1;
         notes.unshift(newNote);
         selectedNoteId = newNote.id;
         renderApp();
@@ -602,7 +599,7 @@ Today the note list becomes more clearly file-backed.
         if (result.notes.length === 0) {
           notes = [
             {
-              id: 1,
+              id: 'draft:1',
               title: 'Untitled note',
               body: '',
               meta: 'Vault is empty',
@@ -610,8 +607,8 @@ Today the note list becomes more clearly file-backed.
               fileName: ''
             }
           ];
-          selectedNoteId = 1;
-          nextNoteId = 2;
+          selectedNoteId = 'draft:1';
+          nextDraftId = 2;
           renderApp();
           return true;
         }
@@ -625,7 +622,11 @@ Today the note list becomes more clearly file-backed.
           selectedNoteId = notes[0].id;
         }
 
-        nextNoteId = Math.max(...notes.map((note) => note.id), 0) + 1;
+        nextDraftId = 1;
+        while (notes.some((note) => note.id === `draft:${nextDraftId}`)) {
+          nextDraftId += 1;
+        }
+
         renderApp();
         return true;
       }
@@ -644,6 +645,7 @@ Today the note list becomes more clearly file-backed.
           note: {
             title: selectedNote.title,
             body: selectedNote.body,
+            source: selectedNote.source,
             fileName: selectedNote.fileName
           }
         });

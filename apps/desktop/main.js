@@ -31,7 +31,7 @@ function ensureVaultExists(vaultPath) {
   }
 }
 
-function parseMarkdownFile(fileName, content, fallbackId) {
+function parseMarkdownFile(fileName, content) {
   const lines = content.split('\n');
 
   let title = '';
@@ -47,7 +47,7 @@ function parseMarkdownFile(fileName, content, fallbackId) {
   }
 
   return {
-    id: fallbackId,
+    id: `vault:${fileName}`,
     title,
     body,
     meta: 'File note',
@@ -99,12 +99,16 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
-    const fileName =
-      note.fileName && note.fileName.trim().length > 0
-        ? note.fileName
-        : `${sanitizeFileName(safeTitle) || 'untitled-note'}.md`;
-    const fullPath = path.join(vaultPath, fileName);
+    let fileName = '';
 
+    if (note.source === 'vault' && note.fileName) {
+      fileName = note.fileName;
+    } else {
+      const fileNameBase = sanitizeFileName(safeTitle) || 'untitled-note';
+      fileName = `${fileNameBase}.md`;
+    }
+
+    const fullPath = path.join(vaultPath, fileName);
     const markdownContent = `# ${safeTitle}\n\n${note.body || ''}`;
 
     fs.writeFileSync(fullPath, markdownContent, 'utf8');
@@ -140,10 +144,10 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
       .filter((fileName) => fileName.toLowerCase().endsWith('.md'))
       .sort((a, b) => a.localeCompare(b));
 
-    const notes = fileNames.map((fileName, index) => {
+    const notes = fileNames.map((fileName) => {
       const fullPath = path.join(vaultPath, fileName);
       const content = fs.readFileSync(fullPath, 'utf8');
-      return parseMarkdownFile(fileName, content, index + 1);
+      return parseMarkdownFile(fileName, content);
     });
 
     return {
