@@ -126,6 +126,49 @@ ipcMain.handle('save-note', async (_event, payload) => {
   }
 });
 
+ipcMain.handle('delete-note-file', async (_event, payload) => {
+  try {
+    const { vaultPath, fileName } = payload;
+
+    if (!vaultPath) {
+      return {
+        ok: false,
+        error: 'No vault folder selected.'
+      };
+    }
+
+    if (!fileName) {
+      return {
+        ok: false,
+        error: 'No file name provided.'
+      };
+    }
+
+    ensureVaultExists(vaultPath);
+
+    const fullPath = path.join(vaultPath, fileName);
+
+    if (!fs.existsSync(fullPath)) {
+      return {
+        ok: false,
+        error: 'File does not exist.'
+      };
+    }
+
+    fs.unlinkSync(fullPath);
+
+    return {
+      ok: true,
+      fileName
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
 ipcMain.handle('load-vault-notes', async (_event, payload) => {
   try {
     const { vaultPath } = payload;

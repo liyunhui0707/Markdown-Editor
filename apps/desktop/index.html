@@ -319,6 +319,7 @@
           <button id="chooseVaultButton" class="action-button">Choose Vault</button>
           <button id="newNoteButton" class="action-button">New Note</button>
           <button id="saveNoteButton" class="action-button">Save Note</button>
+          <button id="deleteNoteButton" class="action-button">Delete Note</button>
           <button id="loadVaultButton" class="action-button">Load Vault</button>
         </div>
 
@@ -364,7 +365,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  File-backed notes now save back to the same file. Draft notes create a new file on first save.
+                  Delete removes drafts from memory only. File-backed notes delete the real file from the selected vault.
                 </div>
               </div>
             </div>
@@ -404,6 +405,7 @@
       const chooseVaultButton = document.getElementById('chooseVaultButton');
       const newNoteButton = document.getElementById('newNoteButton');
       const saveNoteButton = document.getElementById('saveNoteButton');
+      const deleteNoteButton = document.getElementById('deleteNoteButton');
       const loadVaultButton = document.getElementById('loadVaultButton');
       const noteList = document.getElementById('noteList');
 
@@ -412,13 +414,13 @@
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 13
+          body: `# Day 14
 
-Today the app improves file identity and save/load consistency.
+Today the app adds safe deletion.
 
 ## Rule
-- file-backed notes save back to the same file
-- draft notes create a new file on first save`,
+- drafts delete from memory
+- file-backed notes delete the real file`,
           meta: 'Unsaved draft',
           fileName: '',
           source: 'draft'
@@ -521,15 +523,26 @@ Today the app improves file identity and save/load consistency.
 
       function renderApp() {
         const selectedNote = getSelectedNote();
-        if (!selectedNote) return;
         updateVaultPathDisplay();
         renderNoteList();
+
+        if (!selectedNote) {
+          previewTitle.textContent = 'No note selected';
+          previewBody.innerHTML =
+            '<div class="preview-empty">Create a new note or load a vault note.</div>';
+          titleInput.value = '';
+          bodyInput.value = '';
+          return;
+        }
+
         renderEditor(selectedNote);
         renderPreview(selectedNote);
       }
 
       function updateSelectedNoteFromInputs() {
         const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
+
         selectedNote.title = titleInput.value;
         selectedNote.body = bodyInput.value;
 
@@ -638,6 +651,11 @@ Today the app improves file identity and save/load consistency.
         }
 
         const selectedNote = getSelectedNote();
+        if (!selectedNote) {
+          setStatus('error', 'No note selected');
+          return;
+        }
+
         setStatus('saving', 'Saving...');
 
         const result = await window.vaultApi.saveNote({
@@ -685,11 +703,113 @@ Today the app improves file identity and save/load consistency.
         }
       }
 
+      function deleteDraftNote() {
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) {
+          setStatus('error', 'No note selected');
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Delete draft note "${selectedNote.title || 'Untitled note'}"?`
+        );
+
+        if (!confirmed) {
+          setStatus('ready', 'Delete canceled');
+          return;
+        }
+
+        notes = notes.filter((note) => note.id !== selectedNote.id);
+
+        if (notes.length === 0) {
+          const fallbackNote = {
+            id: `draft:${nextDraftId}`,
+            title: 'Untitled note',
+            body: '',
+            meta: 'Unsaved draft',
+            source: 'draft',
+            fileName: ''
+          };
+          nextDraftId += 1;
+          notes = [fallbackNote];
+          selectedNoteId = fallbackNote.id;
+        } else {
+          selectedNoteId = notes[0].id;
+        }
+
+        renderApp();
+        setStatus('ready', 'Draft deleted');
+      }
+
+      async function deleteFileBackedNote() {
+        if (!currentVaultPath) {
+          setStatus('error', 'Choose a vault first');
+          return;
+        }
+
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) {
+          setStatus('error', 'No note selected');
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Delete file-backed note "${selectedNote.title || 'Untitled note'}"?\n\nThis will remove ${selectedNote.fileName} from the selected vault.`
+        );
+
+        if (!confirmed) {
+          setStatus('ready', 'Delete canceled');
+          return;
+        }
+
+        setStatus('saving', 'Deleting...');
+
+        const result = await window.vaultApi.deleteNoteFile({
+          vaultPath: currentVaultPath,
+          fileName: selectedNote.fileName
+        });
+
+        if (!result.ok) {
+          setStatus('error', `Delete failed: ${result.error}`);
+          return;
+        }
+
+        const refreshed = await refreshVaultNotes();
+
+        if (refreshed) {
+          if (
+            notes.length === 1 &&
+            notes[0].source === 'draft' &&
+            notes[0].meta === 'Vault is empty'
+          ) {
+            setStatus('ready', `Deleted: ${result.fileName}`);
+          } else {
+            setStatus('ready', `Deleted: ${result.fileName}`);
+          }
+        }
+      }
+
+      async function deleteCurrentNote() {
+        const selectedNote = getSelectedNote();
+
+        if (!selectedNote) {
+          setStatus('error', 'No note selected');
+          return;
+        }
+
+        if (selectedNote.source === 'vault') {
+          await deleteFileBackedNote();
+        } else {
+          deleteDraftNote();
+        }
+      }
+
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
+      deleteNoteButton.addEventListener('click', deleteCurrentNote);
       loadVaultButton.addEventListener('click', loadVaultNotes);
 
       renderApp();
