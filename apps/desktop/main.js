@@ -42,9 +42,7 @@ function normalizeTags(value) {
   }
 
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   if (typeof value === 'string') {
@@ -92,7 +90,6 @@ function parseFrontmatter(content) {
 
   const frontmatterBlock = content.slice(4, endIndex);
   const body = content.slice(endIndex + 5);
-
   const lines = frontmatterBlock.split('\n');
 
   for (const line of lines) {
@@ -143,7 +140,28 @@ function serializeFrontmatter(frontmatter) {
   return `---\n${lines.join('\n')}\n---\n\n`;
 }
 
-function parseMarkdownFile(fileName, content) {
+function isAiImported(relativePath, frontmatterSource) {
+  const normalizedPath = relativePath.split(path.sep).join('/').toLowerCase();
+  const source = String(frontmatterSource || '').trim().toLowerCase();
+
+  if (normalizedPath.startsWith('inbox/ai chats/')) {
+    return true;
+  }
+
+  const aiSources = new Set([
+    'claude',
+    'codex',
+    'chatgpt',
+    'gpt',
+    'gemini',
+    'ai'
+  ]);
+
+  return aiSources.has(source);
+}
+
+function parseMarkdownFile(relativePath, content) {
+  const fileName = path.basename(relativePath);
   const { frontmatter, body: contentWithoutFrontmatter } = parseFrontmatter(content);
   const lines = contentWithoutFrontmatter.split('\n');
 
@@ -159,18 +177,46 @@ function parseMarkdownFile(fileName, content) {
     title = fileName.replace(/\.md$/i, '');
   }
 
+  const aiImported = isAiImported(relativePath, frontmatter.source);
+
   return {
-    id: `vault:${fileName}`,
+    id: `vault:${relativePath}`,
     title,
     body,
-    meta: 'File note',
+    meta: aiImported ? 'AI import note' : 'File note',
     fileName,
+    relativePath,
     source: 'vault',
+    aiImported,
     frontmatter: {
       tags: normalizeTags(frontmatter.tags),
       source: frontmatter.source || ''
     }
   };
+}
+
+function walkMarkdownFiles(rootPath, currentPath = rootPath) {
+  const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+  const results = [];
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+
+    const fullPath = path.join(currentPath, entry.name);
+
+    if (entry.isDirectory()) {
+      results.push(...walkMarkdownFiles(rootPath, fullPath));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+      results.push(path.relative(rootPath, fullPath));
+    }
+  }
+
+  return results.sort((a, b) => a.localeCompare(b));
 }
 
 function stopWatchingVault() {
@@ -193,7 +239,7 @@ function startWatchingVault(vaultPath) {
   ensureVaultExists(vaultPath);
   currentWatchedVaultPath = vaultPath;
 
-  currentVaultWatcher = fs.watch(vaultPath, (eventType, fileName) => {
+  currentVaultWatcher = fs.watch(vaultPath, { recursive: true }, (eventType, fileName) => {
     const isMarkdownFile =
       !fileName || String(fileName).toLowerCase().endsWith('.md');
 
@@ -297,16 +343,22 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
-    let fileName = '';
+    let relativePath = '';
 
-    if (note.source === 'vault' && note.fileName) {
-      fileName = note.fileName;
+    if (note.source === 'vault' && note.relativePath) {
+      relativePath = note.relativePath;
     } else {
       const fileNameBase = sanitizeFileName(safeTitle) || 'untitled-note';
-      fileName = `${fileNameBase}.md`;
+      relativePath = `${fileNameBase}.md`;
     }
 
-    const fullPath = path.join(vaultPath, fileName);
+    const fullPath = path.join(vaultPath, relativePath);
+    const parentDir = path.dirname(fullPath);
+
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
     const frontmatterText = serializeFrontmatter(note.frontmatter);
     const markdownContent = `${frontmatterText}# ${safeTitle}\n\n${note.body || ''}`;
 
@@ -315,7 +367,8 @@ ipcMain.handle('save-note', async (_event, payload) => {
     return {
       ok: true,
       path: fullPath,
-      fileName
+      fileName: path.basename(relativePath),
+      relativePath
     };
   } catch (error) {
     return {
@@ -327,7 +380,7 @@ ipcMain.handle('save-note', async (_event, payload) => {
 
 ipcMain.handle('delete-note-file', async (_event, payload) => {
   try {
-    const { vaultPath, fileName } = payload;
+    const { vaultPath, relativePath } = payload;
 
     if (!vaultPath) {
       return {
@@ -336,16 +389,16 @@ ipcMain.handle('delete-note-file', async (_event, payload) => {
       };
     }
 
-    if (!fileName) {
+    if (!relativePath) {
       return {
         ok: false,
-        error: 'No file name provided.'
+        error: 'No relative path provided.'
       };
     }
 
     ensureVaultExists(vaultPath);
 
-    const fullPath = path.join(vaultPath, fileName);
+    const fullPath = path.join(vaultPath, relativePath);
 
     if (!fs.existsSync(fullPath)) {
       return {
@@ -358,7 +411,8 @@ ipcMain.handle('delete-note-file', async (_event, payload) => {
 
     return {
       ok: true,
-      fileName
+      relativePath,
+      fileName: path.basename(relativePath)
     };
   } catch (error) {
     return {
@@ -381,15 +435,12 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
 
     ensureVaultExists(vaultPath);
 
-    const fileNames = fs
-      .readdirSync(vaultPath)
-      .filter((fileName) => fileName.toLowerCase().endsWith('.md'))
-      .sort((a, b) => a.localeCompare(b));
+    const relativePaths = walkMarkdownFiles(vaultPath);
 
-    const notes = fileNames.map((fileName) => {
-      const fullPath = path.join(vaultPath, fileName);
+    const notes = relativePaths.map((relativePath) => {
+      const fullPath = path.join(vaultPath, relativePath);
       const content = fs.readFileSync(fullPath, 'utf8');
-      return parseMarkdownFile(fileName, content);
+      return parseMarkdownFile(relativePath, content);
     });
 
     return {

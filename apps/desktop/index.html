@@ -113,7 +113,7 @@
       .main-layout {
         flex: 1;
         display: grid;
-        grid-template-columns: 220px 260px 1fr;
+        grid-template-columns: 220px 320px 1fr;
         min-height: 0;
       }
 
@@ -149,6 +149,7 @@
         margin-bottom: 8px;
         border-radius: 10px;
         background: #f6f8fa;
+        cursor: pointer;
       }
 
       .nav-item.active {
@@ -158,6 +159,12 @@
       .nav-label {
         font-size: 14px;
         font-weight: 500;
+      }
+
+      .nav-meta {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #57606a;
       }
 
       .note-item {
@@ -181,6 +188,7 @@
       .note-meta {
         font-size: 12px;
         color: #57606a;
+        line-height: 1.5;
       }
 
       .workspace {
@@ -382,11 +390,25 @@
         <aside class="panel">
           <div class="panel-header">Navigation</div>
           <div class="panel-body">
-            <div class="nav-item active"><div class="nav-label">Vault Home</div></div>
-            <div class="nav-item"><div class="nav-label">Inbox</div></div>
-            <div class="nav-item"><div class="nav-label">Projects</div></div>
-            <div class="nav-item"><div class="nav-label">AI Imports</div></div>
-            <div class="nav-item"><div class="nav-label">Settings</div></div>
+            <div class="nav-item active" data-filter="all" id="filterAll">
+              <div class="nav-label">All Notes</div>
+              <div class="nav-meta" id="filterAllMeta">0 notes</div>
+            </div>
+
+            <div class="nav-item" data-filter="ai" id="filterAi">
+              <div class="nav-label">AI Imports</div>
+              <div class="nav-meta" id="filterAiMeta">0 notes</div>
+            </div>
+
+            <div class="nav-item" data-filter="drafts" id="filterDrafts">
+              <div class="nav-label">Drafts</div>
+              <div class="nav-meta" id="filterDraftsMeta">0 notes</div>
+            </div>
+
+            <div class="nav-item" data-filter="vault" id="filterVault">
+              <div class="nav-label">Vault Files</div>
+              <div class="nav-meta" id="filterVaultMeta">0 notes</div>
+            </div>
           </div>
         </aside>
 
@@ -436,7 +458,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Lightweight frontmatter is now supported for tags and source.
+                  AI-imported notes are grouped under the AI Imports filter, especially files inside <code>Inbox/AI Chats/</code>.
                 </div>
               </div>
             </div>
@@ -563,25 +585,37 @@ Write the core idea here.
       const loadVaultButton = document.getElementById('loadVaultButton');
       const noteList = document.getElementById('noteList');
 
+      const filterAll = document.getElementById('filterAll');
+      const filterAi = document.getElementById('filterAi');
+      const filterDrafts = document.getElementById('filterDrafts');
+      const filterVault = document.getElementById('filterVault');
+      const filterAllMeta = document.getElementById('filterAllMeta');
+      const filterAiMeta = document.getElementById('filterAiMeta');
+      const filterDraftsMeta = document.getElementById('filterDraftsMeta');
+      const filterVaultMeta = document.getElementById('filterVaultMeta');
+
       let stopVaultWatcher = null;
       let currentVaultPath = '';
+      let currentFilter = 'all';
       let notes = [
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 17
+          body: `# Day 18
 
-Today the app supports lightweight frontmatter.
+Today the app adds Inbox / AI Chats UX.
 
 ## Goal
-- parse tags
-- parse source
-- display them clearly`,
+- dedicated AI Imports filter
+- recursive file loading
+- clearer place for AI notes`,
           meta: 'Unsaved draft',
           fileName: '',
+          relativePath: '',
           source: 'draft',
+          aiImported: false,
           frontmatter: {
-            tags: ['metadata', 'frontmatter'],
+            tags: ['ux'],
             source: 'manual'
           }
         }
@@ -620,8 +654,10 @@ Today the app supports lightweight frontmatter.
       function renderFrontmatterPreview(note) {
         const tags = normalizeTags(note.frontmatter?.tags);
         const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+        const aiImported = note.aiImported === true;
+        const pathLine = note.relativePath ? `<strong>Path:</strong> ${escapeHtml(note.relativePath)}` : '';
 
-        if (tags.length === 0 && !source) {
+        if (tags.length === 0 && !source && !aiImported && !pathLine) {
           previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
           return;
         }
@@ -634,6 +670,14 @@ Today the app supports lightweight frontmatter.
 
         if (source) {
           parts.push(`<strong>Source:</strong> ${escapeHtml(source)}`);
+        }
+
+        if (aiImported) {
+          parts.push('<strong>AI Import:</strong> yes');
+        }
+
+        if (pathLine) {
+          parts.push(pathLine);
         }
 
         previewFrontmatter.innerHTML = parts.join('<br />');
@@ -661,42 +705,78 @@ Today the app supports lightweight frontmatter.
         bodyInput.value = note.body;
       }
 
+      function getFilteredNotes() {
+        if (currentFilter === 'ai') {
+          return notes.filter((note) => note.aiImported === true);
+        }
+
+        if (currentFilter === 'drafts') {
+          return notes.filter((note) => note.source === 'draft');
+        }
+
+        if (currentFilter === 'vault') {
+          return notes.filter((note) => note.source === 'vault');
+        }
+
+        return notes;
+      }
+
+      function ensureSelectionMatchesFilter() {
+        const selectedNote = getSelectedNote();
+        const filteredNotes = getFilteredNotes();
+
+        if (!selectedNote || !filteredNotes.some((note) => note.id === selectedNote.id)) {
+          selectedNoteId = filteredNotes.length > 0 ? filteredNotes[0].id : '';
+        }
+      }
+
+      function updateFilterCounts() {
+        filterAllMeta.textContent = `${notes.length} note(s)`;
+        filterAiMeta.textContent = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
+        filterDraftsMeta.textContent = `${notes.filter((note) => note.source === 'draft').length} note(s)`;
+        filterVaultMeta.textContent = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
+      }
+
+      function renderFilterNav() {
+        const items = [
+          [filterAll, 'all'],
+          [filterAi, 'ai'],
+          [filterDrafts, 'drafts'],
+          [filterVault, 'vault']
+        ];
+
+        items.forEach(([element, filterKey]) => {
+          element.className = filterKey === currentFilter ? 'nav-item active' : 'nav-item';
+        });
+
+        updateFilterCounts();
+      }
+
       function getNoteSecondaryText(note) {
         const tags = normalizeTags(note.frontmatter?.tags);
         const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+        const metadataBits = [];
 
-        if (note.source === 'vault' && note.fileName) {
-          const metadataBits = [];
-
-          metadataBits.push(`file: ${note.fileName}`);
-
-          if (tags.length > 0) {
-            metadataBits.push(`tags: ${tags.join(', ')}`);
-          }
-
-          if (source) {
-            metadataBits.push(`source: ${source}`);
-          }
-
-          return metadataBits.join(' • ');
+        if (note.aiImported) {
+          metadataBits.push('AI import');
         }
 
-        if (note.source === 'draft') {
-          const metadataBits = ['unsaved draft'];
-
-          if (tags.length > 0) {
-            metadataBits.push(`tags: ${tags.join(', ')}`);
-          }
-
-          if (source) {
-            metadataBits.push(`source: ${source}`);
-          }
-
-          return metadataBits.join(' • ');
+        if (note.source === 'vault' && note.relativePath) {
+          metadataBits.push(`path: ${note.relativePath}`);
+        } else if (note.source === 'draft') {
+          metadataBits.push('unsaved draft');
         }
 
-        if (note.meta) {
-          return note.meta;
+        if (tags.length > 0) {
+          metadataBits.push(`tags: ${tags.join(', ')}`);
+        }
+
+        if (source) {
+          metadataBits.push(`source: ${source}`);
+        }
+
+        if (metadataBits.length > 0) {
+          return metadataBits.join(' • ');
         }
 
         if (note.body.trim().length === 0) {
@@ -709,7 +789,9 @@ Today the app supports lightweight frontmatter.
       function renderNoteList() {
         noteList.innerHTML = '';
 
-        notes.forEach((note) => {
+        const filteredNotes = getFilteredNotes();
+
+        filteredNotes.forEach((note) => {
           const item = document.createElement('div');
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
@@ -717,7 +799,7 @@ Today the app supports lightweight frontmatter.
           const secondaryText = getNoteSecondaryText(note);
 
           item.innerHTML = `
-            <div class="note-title">${displayTitle}</div>
+            <div class="note-title">${escapeHtml(displayTitle)}</div>
             <div class="note-meta">${escapeHtml(secondaryText)}</div>
           `;
 
@@ -729,18 +811,25 @@ Today the app supports lightweight frontmatter.
 
           noteList.appendChild(item);
         });
+
+        if (filteredNotes.length === 0) {
+          noteList.innerHTML = `<div class="note-meta">No notes in this filter.</div>`;
+        }
       }
 
       function renderApp() {
+        ensureSelectionMatchesFilter();
         const selectedNote = getSelectedNote();
+
         updateVaultPathDisplay();
+        renderFilterNav();
         renderNoteList();
 
         if (!selectedNote) {
           previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
           previewTitle.textContent = 'No note selected';
           previewBody.innerHTML =
-            '<div class="preview-empty">Create a new note or load a vault note.</div>';
+            '<div class="preview-empty">Create a new note, switch filters, or load a vault note.</div>';
           titleInput.value = '';
           tagsInput.value = '';
           sourceInput.value = '';
@@ -764,13 +853,12 @@ Today the app supports lightweight frontmatter.
         };
 
         if (selectedNote.source === 'vault') {
-          selectedNote.meta = 'File note';
+          selectedNote.meta = selectedNote.aiImported ? 'AI import note' : 'File note';
         } else {
           selectedNote.meta = 'Unsaved draft';
         }
 
-        renderNoteList();
-        renderPreview(selectedNote);
+        renderApp();
       }
 
       function handleEdit() {
@@ -791,8 +879,10 @@ Today the app supports lightweight frontmatter.
           title: template.title,
           body: template.body,
           meta: 'Unsaved draft',
-          source: 'draft',
           fileName: '',
+          relativePath: '',
+          source: 'draft',
+          aiImported: false,
           frontmatter: {
             tags: normalizeTags(template.frontmatter?.tags),
             source: template.frontmatter?.source || ''
@@ -801,6 +891,7 @@ Today the app supports lightweight frontmatter.
 
         nextDraftId += 1;
         notes.unshift(newNote);
+        currentFilter = 'drafts';
         selectedNoteId = newNote.id;
         renderApp();
         setStatus('draft', `Draft created from template: ${templateSelect.value}`);
@@ -833,12 +924,12 @@ Today the app supports lightweight frontmatter.
           }
 
           const selectedNote = getSelectedNote();
-          const preferredFileName =
+          const preferredRelativePath =
             selectedNote && selectedNote.source === 'vault'
-              ? selectedNote.fileName
+              ? selectedNote.relativePath
               : '';
 
-          const refreshed = await refreshVaultNotes(preferredFileName, false);
+          const refreshed = await refreshVaultNotes(preferredRelativePath, false);
 
           if (refreshed) {
             setStatus('ready', 'Vault auto-refreshed');
@@ -877,7 +968,7 @@ Today the app supports lightweight frontmatter.
         setStatus('ready', 'Vault selected');
       }
 
-      async function refreshVaultNotes(preferredFileName = '', updateStatus = true) {
+      async function refreshVaultNotes(preferredRelativePath = '', updateStatus = true) {
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
         });
@@ -894,14 +985,17 @@ Today the app supports lightweight frontmatter.
               title: 'Untitled note',
               body: '',
               meta: 'Vault is empty',
-              source: 'draft',
               fileName: '',
+              relativePath: '',
+              source: 'draft',
+              aiImported: false,
               frontmatter: {
                 tags: [],
                 source: ''
               }
             }
           ];
+          currentFilter = 'all';
           selectedNoteId = 'draft:1';
           nextDraftId = 2;
           renderApp();
@@ -915,8 +1009,8 @@ Today the app supports lightweight frontmatter.
 
         notes = result.notes;
 
-        if (preferredFileName) {
-          const matchingNote = notes.find((note) => note.fileName === preferredFileName);
+        if (preferredRelativePath) {
+          const matchingNote = notes.find((note) => note.relativePath === preferredRelativePath);
           selectedNoteId = matchingNote ? matchingNote.id : notes[0].id;
         } else {
           selectedNoteId = notes[0].id;
@@ -957,6 +1051,7 @@ Today the app supports lightweight frontmatter.
             body: selectedNote.body,
             source: selectedNote.source,
             fileName: selectedNote.fileName,
+            relativePath: selectedNote.relativePath,
             frontmatter: {
               tags: normalizeTags(selectedNote.frontmatter?.tags),
               source: selectedNote.frontmatter?.source || ''
@@ -969,7 +1064,7 @@ Today the app supports lightweight frontmatter.
           return;
         }
 
-        const refreshed = await refreshVaultNotes(result.fileName, false);
+        const refreshed = await refreshVaultNotes(result.relativePath, false);
 
         if (refreshed) {
           setStatus('ready', `Saved: ${result.fileName}`);
@@ -1010,8 +1105,10 @@ Today the app supports lightweight frontmatter.
             title: 'Untitled note',
             body: '',
             meta: 'Unsaved draft',
-            source: 'draft',
             fileName: '',
+            relativePath: '',
+            source: 'draft',
+            aiImported: false,
             frontmatter: {
               tags: [],
               source: ''
@@ -1020,6 +1117,7 @@ Today the app supports lightweight frontmatter.
           nextDraftId += 1;
           notes = [fallbackNote];
           selectedNoteId = fallbackNote.id;
+          currentFilter = 'drafts';
         } else {
           selectedNoteId = notes[0].id;
         }
@@ -1041,7 +1139,7 @@ Today the app supports lightweight frontmatter.
         }
 
         const confirmed = window.confirm(
-          `Delete file-backed note "${selectedNote.title || 'Untitled note'}"?\n\nThis will remove ${selectedNote.fileName} from the selected vault.`
+          `Delete file-backed note "${selectedNote.title || 'Untitled note'}"?\n\nThis will remove ${selectedNote.relativePath || selectedNote.fileName} from the selected vault.`
         );
 
         if (!confirmed) {
@@ -1053,7 +1151,7 @@ Today the app supports lightweight frontmatter.
 
         const result = await window.vaultApi.deleteNoteFile({
           vaultPath: currentVaultPath,
-          fileName: selectedNote.fileName
+          relativePath: selectedNote.relativePath
         });
 
         if (!result.ok) {
@@ -1083,6 +1181,12 @@ Today the app supports lightweight frontmatter.
         }
       }
 
+      function setFilter(filterKey) {
+        currentFilter = filterKey;
+        renderApp();
+        setStatus('ready', `Filter: ${filterKey}`);
+      }
+
       window.addEventListener('beforeunload', () => {
         stopWatchingVault();
       });
@@ -1096,6 +1200,11 @@ Today the app supports lightweight frontmatter.
       saveNoteButton.addEventListener('click', saveCurrentNote);
       deleteNoteButton.addEventListener('click', deleteCurrentNote);
       loadVaultButton.addEventListener('click', loadVaultNotes);
+
+      filterAll.addEventListener('click', () => setFilter('all'));
+      filterAi.addEventListener('click', () => setFilter('ai'));
+      filterDrafts.addEventListener('click', () => setFilter('drafts'));
+      filterVault.addEventListener('click', () => setFilter('vault'));
 
       renderApp();
       updateVaultPathDisplay();
