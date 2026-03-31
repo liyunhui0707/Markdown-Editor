@@ -36,11 +36,119 @@ function ensureVaultExists(vaultPath) {
   }
 }
 
+function normalizeTags(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      return trimmed
+        .slice(1, -1)
+        .split(',')
+        .map((item) => item.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean);
+    }
+
+    return trimmed
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function parseFrontmatter(content) {
+  const result = {
+    frontmatter: {
+      tags: [],
+      source: ''
+    },
+    body: content
+  };
+
+  if (!content.startsWith('---\n')) {
+    return result;
+  }
+
+  const endIndex = content.indexOf('\n---\n', 4);
+
+  if (endIndex === -1) {
+    return result;
+  }
+
+  const frontmatterBlock = content.slice(4, endIndex);
+  const body = content.slice(endIndex + 5);
+
+  const lines = frontmatterBlock.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf(':');
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+
+    if (key === 'tags') {
+      result.frontmatter.tags = normalizeTags(rawValue);
+    } else if (key === 'source') {
+      result.frontmatter.source = rawValue.replace(/^['"]|['"]$/g, '');
+    }
+  }
+
+  result.body = body.trimStart();
+  return result;
+}
+
+function serializeFrontmatter(frontmatter) {
+  const lines = [];
+
+  const tags = normalizeTags(frontmatter?.tags);
+  const source = frontmatter?.source ? String(frontmatter.source).trim() : '';
+
+  if (tags.length > 0) {
+    lines.push(`tags: [${tags.join(', ')}]`);
+  }
+
+  if (source) {
+    lines.push(`source: ${source}`);
+  }
+
+  if (lines.length === 0) {
+    return '';
+  }
+
+  return `---\n${lines.join('\n')}\n---\n\n`;
+}
+
 function parseMarkdownFile(fileName, content) {
-  const lines = content.split('\n');
+  const { frontmatter, body: contentWithoutFrontmatter } = parseFrontmatter(content);
+  const lines = contentWithoutFrontmatter.split('\n');
 
   let title = '';
-  let body = content;
+  let body = contentWithoutFrontmatter;
 
   if (lines.length > 0 && lines[0].startsWith('# ')) {
     title = lines[0].replace(/^# /, '').trim();
@@ -57,7 +165,11 @@ function parseMarkdownFile(fileName, content) {
     body,
     meta: 'File note',
     fileName,
-    source: 'vault'
+    source: 'vault',
+    frontmatter: {
+      tags: normalizeTags(frontmatter.tags),
+      source: frontmatter.source || ''
+    }
   };
 }
 
@@ -79,7 +191,6 @@ function startWatchingVault(vaultPath) {
   stopWatchingVault();
 
   ensureVaultExists(vaultPath);
-
   currentWatchedVaultPath = vaultPath;
 
   currentVaultWatcher = fs.watch(vaultPath, (eventType, fileName) => {
@@ -159,10 +270,7 @@ ipcMain.handle('watch-vault-folder', async (_event, payload) => {
 ipcMain.handle('unwatch-vault-folder', async () => {
   try {
     stopWatchingVault();
-
-    return {
-      ok: true
-    };
+    return { ok: true };
   } catch (error) {
     return {
       ok: false,
@@ -199,7 +307,8 @@ ipcMain.handle('save-note', async (_event, payload) => {
     }
 
     const fullPath = path.join(vaultPath, fileName);
-    const markdownContent = `# ${safeTitle}\n\n${note.body || ''}`;
+    const frontmatterText = serializeFrontmatter(note.frontmatter);
+    const markdownContent = `${frontmatterText}# ${safeTitle}\n\n${note.body || ''}`;
 
     fs.writeFileSync(fullPath, markdownContent, 'utf8');
 

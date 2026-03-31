@@ -213,21 +213,41 @@
         height: 100%;
       }
 
-      .title-input {
+      .title-input,
+      .meta-input {
         width: 100%;
         border: 1px solid #cdd9e5;
         border-radius: 12px;
-        padding: 14px 16px;
-        font-size: 20px;
-        font-weight: 600;
+        padding: 12px 14px;
+        font-size: 14px;
         outline: none;
         background: #fbfcfe;
       }
 
+      .title-input {
+        font-size: 20px;
+        font-weight: 600;
+        padding: 14px 16px;
+      }
+
       .title-input:focus,
+      .meta-input:focus,
       .editor-textarea:focus {
         border-color: #4c8bf5;
         box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .meta-label {
+        display: block;
+        font-size: 12px;
+        color: #57606a;
+        margin-bottom: 6px;
       }
 
       .editor-textarea {
@@ -257,6 +277,19 @@
         background: #fbfcfe;
         padding: 18px;
         overflow: auto;
+      }
+
+      .preview-frontmatter {
+        margin-bottom: 16px;
+        padding: 12px;
+        background: #eef5ff;
+        border-radius: 10px;
+        font-size: 13px;
+        color: #334155;
+      }
+
+      .preview-frontmatter strong {
+        color: #0f172a;
       }
 
       .preview-title {
@@ -374,6 +407,28 @@
                   placeholder="Untitled note"
                 />
 
+                <div class="meta-row">
+                  <div>
+                    <label class="meta-label" for="tagsInput">Tags (comma-separated)</label>
+                    <input
+                      id="tagsInput"
+                      class="meta-input"
+                      type="text"
+                      placeholder="ai, notes, project"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="meta-label" for="sourceInput">Source</label>
+                    <input
+                      id="sourceInput"
+                      class="meta-input"
+                      type="text"
+                      placeholder="claude, codex, manual"
+                    />
+                  </div>
+                </div>
+
                 <textarea
                   id="bodyInput"
                   class="editor-textarea"
@@ -381,7 +436,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  New notes now start from the selected template.
+                  Lightweight frontmatter is now supported for tags and source.
                 </div>
               </div>
             </div>
@@ -391,6 +446,7 @@
             <div class="panel-header">Preview</div>
             <div class="workspace-body">
               <div class="preview-box">
+                <div id="previewFrontmatter" class="preview-frontmatter"></div>
                 <h1 id="previewTitle" class="preview-title"></h1>
                 <div id="previewBody" class="preview-markdown"></div>
               </div>
@@ -412,10 +468,27 @@
           .replace(/>/g, '&gt;');
       }
 
+      function normalizeTags(value) {
+        if (!value) return [];
+
+        if (Array.isArray(value)) {
+          return value.map((item) => String(item).trim()).filter(Boolean);
+        }
+
+        return String(value)
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
       const templates = {
         blank: {
           title: 'Untitled note',
-          body: ''
+          body: '',
+          frontmatter: {
+            tags: [],
+            source: ''
+          }
         },
         daily: {
           title: 'Daily Note',
@@ -428,7 +501,11 @@
 - 
 
 ## Reflection
-- `
+- `,
+          frontmatter: {
+            tags: ['daily'],
+            source: 'manual'
+          }
         },
         meeting: {
           title: 'Meeting Note',
@@ -444,7 +521,11 @@
 - 
 
 ## Action Items
-- `
+- `,
+          frontmatter: {
+            tags: ['meeting'],
+            source: 'manual'
+          }
         },
         idea: {
           title: 'Idea Note',
@@ -457,12 +538,19 @@ Write the core idea here.
 - 
 
 ## Next steps
-- `
+- `,
+          frontmatter: {
+            tags: ['idea'],
+            source: 'manual'
+          }
         }
       };
 
       const titleInput = document.getElementById('titleInput');
+      const tagsInput = document.getElementById('tagsInput');
+      const sourceInput = document.getElementById('sourceInput');
       const bodyInput = document.getElementById('bodyInput');
+      const previewFrontmatter = document.getElementById('previewFrontmatter');
       const previewTitle = document.getElementById('previewTitle');
       const previewBody = document.getElementById('previewBody');
       const statusText = document.getElementById('statusText');
@@ -481,17 +569,21 @@ Write the core idea here.
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 16
+          body: `# Day 17
 
-Today the app adds simple built-in note templates.
+Today the app supports lightweight frontmatter.
 
 ## Goal
-- choose a template
-- click New Note
-- start from helpful structure`,
+- parse tags
+- parse source
+- display them clearly`,
           meta: 'Unsaved draft',
           fileName: '',
-          source: 'draft'
+          source: 'draft',
+          frontmatter: {
+            tags: ['metadata', 'frontmatter'],
+            source: 'manual'
+          }
         }
       ];
       let selectedNoteId = 'draft:1';
@@ -525,10 +617,33 @@ Today the app adds simple built-in note templates.
         }
       }
 
+      function renderFrontmatterPreview(note) {
+        const tags = normalizeTags(note.frontmatter?.tags);
+        const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+
+        if (tags.length === 0 && !source) {
+          previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
+          return;
+        }
+
+        const parts = [];
+
+        if (tags.length > 0) {
+          parts.push(`<strong>Tags:</strong> ${escapeHtml(tags.join(', '))}`);
+        }
+
+        if (source) {
+          parts.push(`<strong>Source:</strong> ${escapeHtml(source)}`);
+        }
+
+        previewFrontmatter.innerHTML = parts.join('<br />');
+      }
+
       function renderPreview(note) {
         const titleValue = note.title.trim();
         const bodyValue = note.body.trim();
 
+        renderFrontmatterPreview(note);
         previewTitle.textContent = titleValue.length === 0 ? 'Untitled note' : note.title;
 
         if (bodyValue.length === 0) {
@@ -541,16 +656,43 @@ Today the app adds simple built-in note templates.
 
       function renderEditor(note) {
         titleInput.value = note.title;
+        tagsInput.value = normalizeTags(note.frontmatter?.tags).join(', ');
+        sourceInput.value = note.frontmatter?.source || '';
         bodyInput.value = note.body;
       }
 
       function getNoteSecondaryText(note) {
+        const tags = normalizeTags(note.frontmatter?.tags);
+        const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+
         if (note.source === 'vault' && note.fileName) {
-          return `file: ${note.fileName}`;
+          const metadataBits = [];
+
+          metadataBits.push(`file: ${note.fileName}`);
+
+          if (tags.length > 0) {
+            metadataBits.push(`tags: ${tags.join(', ')}`);
+          }
+
+          if (source) {
+            metadataBits.push(`source: ${source}`);
+          }
+
+          return metadataBits.join(' • ');
         }
 
         if (note.source === 'draft') {
-          return 'unsaved draft';
+          const metadataBits = ['unsaved draft'];
+
+          if (tags.length > 0) {
+            metadataBits.push(`tags: ${tags.join(', ')}`);
+          }
+
+          if (source) {
+            metadataBits.push(`source: ${source}`);
+          }
+
+          return metadataBits.join(' • ');
         }
 
         if (note.meta) {
@@ -576,7 +718,7 @@ Today the app adds simple built-in note templates.
 
           item.innerHTML = `
             <div class="note-title">${displayTitle}</div>
-            <div class="note-meta">${secondaryText}</div>
+            <div class="note-meta">${escapeHtml(secondaryText)}</div>
           `;
 
           item.addEventListener('click', () => {
@@ -595,10 +737,13 @@ Today the app adds simple built-in note templates.
         renderNoteList();
 
         if (!selectedNote) {
+          previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
           previewTitle.textContent = 'No note selected';
           previewBody.innerHTML =
             '<div class="preview-empty">Create a new note or load a vault note.</div>';
           titleInput.value = '';
+          tagsInput.value = '';
+          sourceInput.value = '';
           bodyInput.value = '';
           return;
         }
@@ -613,6 +758,10 @@ Today the app adds simple built-in note templates.
 
         selectedNote.title = titleInput.value;
         selectedNote.body = bodyInput.value;
+        selectedNote.frontmatter = {
+          tags: normalizeTags(tagsInput.value),
+          source: sourceInput.value.trim()
+        };
 
         if (selectedNote.source === 'vault') {
           selectedNote.meta = 'File note';
@@ -643,7 +792,11 @@ Today the app adds simple built-in note templates.
           body: template.body,
           meta: 'Unsaved draft',
           source: 'draft',
-          fileName: ''
+          fileName: '',
+          frontmatter: {
+            tags: normalizeTags(template.frontmatter?.tags),
+            source: template.frontmatter?.source || ''
+          }
         };
 
         nextDraftId += 1;
@@ -742,7 +895,11 @@ Today the app adds simple built-in note templates.
               body: '',
               meta: 'Vault is empty',
               source: 'draft',
-              fileName: ''
+              fileName: '',
+              frontmatter: {
+                tags: [],
+                source: ''
+              }
             }
           ];
           selectedNoteId = 'draft:1';
@@ -799,7 +956,11 @@ Today the app adds simple built-in note templates.
             title: selectedNote.title,
             body: selectedNote.body,
             source: selectedNote.source,
-            fileName: selectedNote.fileName
+            fileName: selectedNote.fileName,
+            frontmatter: {
+              tags: normalizeTags(selectedNote.frontmatter?.tags),
+              source: selectedNote.frontmatter?.source || ''
+            }
           }
         });
 
@@ -850,7 +1011,11 @@ Today the app adds simple built-in note templates.
             body: '',
             meta: 'Unsaved draft',
             source: 'draft',
-            fileName: ''
+            fileName: '',
+            frontmatter: {
+              tags: [],
+              source: ''
+            }
           };
           nextDraftId += 1;
           notes = [fallbackNote];
@@ -923,6 +1088,8 @@ Today the app adds simple built-in note templates.
       });
 
       titleInput.addEventListener('input', handleEdit);
+      tagsInput.addEventListener('input', handleEdit);
+      sourceInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
       newNoteButton.addEventListener('click', createNewNote);
