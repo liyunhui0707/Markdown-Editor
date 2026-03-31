@@ -79,7 +79,8 @@
       }
 
       .action-button,
-      .template-select {
+      .template-select,
+      .search-input {
         border: 1px solid #cdd9e5;
         background: #ffffff;
         color: #1f2328;
@@ -99,6 +100,17 @@
 
       .template-select {
         cursor: pointer;
+      }
+
+      .search-input {
+        width: 100%;
+        font-weight: 400;
+        outline: none;
+      }
+
+      .search-input:focus {
+        border-color: #4c8bf5;
+        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
       }
 
       .vault-path {
@@ -142,6 +154,18 @@
         padding: 12px;
         overflow: auto;
         flex: 1;
+      }
+
+      .panel-tools {
+        padding: 12px;
+        border-bottom: 1px solid #eaeef2;
+        background: #ffffff;
+      }
+
+      .search-meta {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #57606a;
       }
 
       .nav-item {
@@ -189,6 +213,19 @@
         font-size: 12px;
         color: #57606a;
         line-height: 1.5;
+      }
+
+      .note-snippet {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #334155;
+        line-height: 1.5;
+      }
+
+      mark {
+        background: #fff3b0;
+        padding: 0 2px;
+        border-radius: 3px;
       }
 
       .workspace {
@@ -414,6 +451,15 @@
 
         <section class="panel">
           <div class="panel-header">Notes</div>
+          <div class="panel-tools">
+            <input
+              id="searchInput"
+              class="search-input"
+              type="text"
+              placeholder="Search notes by title, body, tags, source, or path..."
+            />
+            <div id="searchMeta" class="search-meta">Search all visible notes.</div>
+          </div>
           <div id="noteList" class="panel-body"></div>
         </section>
 
@@ -458,7 +504,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  AI-imported notes are grouped under the AI Imports filter, especially files inside <code>Inbox/AI Chats/</code>.
+                  Search now shows result snippets and match context.
                 </div>
               </div>
             </div>
@@ -484,10 +530,14 @@
       marked.use({ breaks: false });
 
       function escapeHtml(text) {
-        return text
+        return String(text)
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
+      }
+
+      function escapeRegExp(text) {
+        return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       }
 
       function normalizeTags(value) {
@@ -501,6 +551,146 @@
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean);
+      }
+
+      function normalizeSearchText(value) {
+        return String(value || '').toLowerCase();
+      }
+
+      function highlightText(text, query) {
+        if (!query) {
+          return escapeHtml(text);
+        }
+
+        const safeText = String(text || '');
+        const regex = new RegExp(`(${escapeRegExp(query)})`, 'ig');
+        return escapeHtml(safeText).replace(regex, '<mark>$1</mark>');
+      }
+
+      function getSnippetFromText(text, query, radius = 55) {
+        const raw = String(text || '').replace(/\s+/g, ' ').trim();
+
+        if (!raw) {
+          return '';
+        }
+
+        if (!query) {
+          return raw.slice(0, 110);
+        }
+
+        const lowerRaw = raw.toLowerCase();
+        const lowerQuery = query.toLowerCase();
+        const matchIndex = lowerRaw.indexOf(lowerQuery);
+
+        if (matchIndex === -1) {
+          return raw.slice(0, 110);
+        }
+
+        const start = Math.max(0, matchIndex - radius);
+        const end = Math.min(raw.length, matchIndex + lowerQuery.length + radius);
+        let snippet = raw.slice(start, end);
+
+        if (start > 0) {
+          snippet = `…${snippet}`;
+        }
+
+        if (end < raw.length) {
+          snippet = `${snippet}…`;
+        }
+
+        return snippet;
+      }
+
+      function buildSearchCorpus(note) {
+        const tags = normalizeTags(note.frontmatter?.tags).join(', ');
+        const sourceValue = note.frontmatter?.source || '';
+        return [
+          note.title || '',
+          note.body || '',
+          tags,
+          sourceValue,
+          note.relativePath || '',
+          note.fileName || ''
+        ].join('\n');
+      }
+
+      function computeSearchResult(note, query) {
+        const normalizedQuery = normalizeSearchText(query);
+        const corpus = buildSearchCorpus(note);
+        const normalizedCorpus = normalizeSearchText(corpus);
+
+        if (!normalizedQuery) {
+          return {
+            note,
+            score: 0,
+            snippet: '',
+            matchField: ''
+          };
+        }
+
+        if (!normalizedCorpus.includes(normalizedQuery)) {
+          return null;
+        }
+
+        const title = normalizeSearchText(note.title);
+        const body = normalizeSearchText(note.body);
+        const tags = normalizeSearchText(normalizeTags(note.frontmatter?.tags).join(', '));
+        const sourceValue = normalizeSearchText(note.frontmatter?.source || '');
+        const relativePath = normalizeSearchText(note.relativePath || '');
+        const fileName = normalizeSearchText(note.fileName || '');
+
+        let score = 0;
+        let snippet = '';
+        let matchField = '';
+
+        if (title.includes(normalizedQuery)) {
+          score += 50;
+          snippet = getSnippetFromText(note.title, query, 30);
+          matchField = 'title';
+        }
+
+        if (tags.includes(normalizedQuery)) {
+          score += 35;
+          if (!snippet) {
+            snippet = getSnippetFromText(normalizeTags(note.frontmatter?.tags).join(', '), query, 30);
+            matchField = 'tags';
+          }
+        }
+
+        if (sourceValue.includes(normalizedQuery)) {
+          score += 30;
+          if (!snippet) {
+            snippet = getSnippetFromText(note.frontmatter?.source || '', query, 30);
+            matchField = 'source';
+          }
+        }
+
+        if (relativePath.includes(normalizedQuery) || fileName.includes(normalizedQuery)) {
+          score += 25;
+          if (!snippet) {
+            snippet = getSnippetFromText(note.relativePath || note.fileName || '', query, 40);
+            matchField = 'path';
+          }
+        }
+
+        if (body.includes(normalizedQuery)) {
+          score += 20;
+          if (!snippet) {
+            snippet = getSnippetFromText(note.body, query, 60);
+            matchField = 'body';
+          }
+        }
+
+        if (!snippet) {
+          snippet = getSnippetFromText(note.body || note.title, query, 60);
+        }
+
+        return {
+          note,
+          score,
+          snippet,
+          matchField
+        };
       }
 
       const templates = {
@@ -572,6 +762,8 @@ Write the core idea here.
       const tagsInput = document.getElementById('tagsInput');
       const sourceInput = document.getElementById('sourceInput');
       const bodyInput = document.getElementById('bodyInput');
+      const searchInput = document.getElementById('searchInput');
+      const searchMeta = document.getElementById('searchMeta');
       const previewFrontmatter = document.getElementById('previewFrontmatter');
       const previewTitle = document.getElementById('previewTitle');
       const previewBody = document.getElementById('previewBody');
@@ -597,25 +789,27 @@ Write the core idea here.
       let stopVaultWatcher = null;
       let currentVaultPath = '';
       let currentFilter = 'all';
+      let currentSearchQuery = '';
+
       let notes = [
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 18
+          body: `# Day 19
 
-Today the app adds Inbox / AI Chats UX.
+Today the app improves search quality.
 
 ## Goal
-- dedicated AI Imports filter
-- recursive file loading
-- clearer place for AI notes`,
+- add a search box
+- show better result snippets
+- make search easier to understand`,
           meta: 'Unsaved draft',
           fileName: '',
           relativePath: '',
           source: 'draft',
           aiImported: false,
           frontmatter: {
-            tags: ['ux'],
+            tags: ['search'],
             source: 'manual'
           }
         }
@@ -653,11 +847,13 @@ Today the app adds Inbox / AI Chats UX.
 
       function renderFrontmatterPreview(note) {
         const tags = normalizeTags(note.frontmatter?.tags);
-        const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+        const sourceValue = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
         const aiImported = note.aiImported === true;
-        const pathLine = note.relativePath ? `<strong>Path:</strong> ${escapeHtml(note.relativePath)}` : '';
+        const pathLine = note.relativePath
+          ? `<strong>Path:</strong> ${escapeHtml(note.relativePath)}`
+          : '';
 
-        if (tags.length === 0 && !source && !aiImported && !pathLine) {
+        if (tags.length === 0 && !sourceValue && !aiImported && !pathLine) {
           previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
           return;
         }
@@ -668,8 +864,8 @@ Today the app adds Inbox / AI Chats UX.
           parts.push(`<strong>Tags:</strong> ${escapeHtml(tags.join(', '))}`);
         }
 
-        if (source) {
-          parts.push(`<strong>Source:</strong> ${escapeHtml(source)}`);
+        if (sourceValue) {
+          parts.push(`<strong>Source:</strong> ${escapeHtml(sourceValue)}`);
         }
 
         if (aiImported) {
@@ -705,7 +901,7 @@ Today the app adds Inbox / AI Chats UX.
         bodyInput.value = note.body;
       }
 
-      function getFilteredNotes() {
+      function getBaseFilteredNotes() {
         if (currentFilter === 'ai') {
           return notes.filter((note) => note.aiImported === true);
         }
@@ -721,12 +917,30 @@ Today the app adds Inbox / AI Chats UX.
         return notes;
       }
 
-      function ensureSelectionMatchesFilter() {
-        const selectedNote = getSelectedNote();
-        const filteredNotes = getFilteredNotes();
+      function getVisibleResults() {
+        const baseNotes = getBaseFilteredNotes();
 
-        if (!selectedNote || !filteredNotes.some((note) => note.id === selectedNote.id)) {
-          selectedNoteId = filteredNotes.length > 0 ? filteredNotes[0].id : '';
+        if (!currentSearchQuery.trim()) {
+          return baseNotes.map((note) => ({
+            note,
+            score: 0,
+            snippet: '',
+            matchField: ''
+          }));
+        }
+
+        return baseNotes
+          .map((note) => computeSearchResult(note, currentSearchQuery))
+          .filter(Boolean)
+          .sort((a, b) => b.score - a.score || a.note.title.localeCompare(b.note.title));
+      }
+
+      function ensureSelectionMatchesVisibleResults() {
+        const selectedNote = getSelectedNote();
+        const visibleResults = getVisibleResults();
+
+        if (!selectedNote || !visibleResults.some((result) => result.note.id === selectedNote.id)) {
+          selectedNoteId = visibleResults.length > 0 ? visibleResults[0].note.id : '';
         }
       }
 
@@ -754,7 +968,7 @@ Today the app adds Inbox / AI Chats UX.
 
       function getNoteSecondaryText(note) {
         const tags = normalizeTags(note.frontmatter?.tags);
-        const source = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
+        const sourceValue = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
         const metadataBits = [];
 
         if (note.aiImported) {
@@ -771,8 +985,8 @@ Today the app adds Inbox / AI Chats UX.
           metadataBits.push(`tags: ${tags.join(', ')}`);
         }
 
-        if (source) {
-          metadataBits.push(`source: ${source}`);
+        if (sourceValue) {
+          metadataBits.push(`source: ${sourceValue}`);
         }
 
         if (metadataBits.length > 0) {
@@ -786,21 +1000,38 @@ Today the app adds Inbox / AI Chats UX.
         return note.body.trim().split('\n')[0].slice(0, 40);
       }
 
+      function renderSearchMeta(visibleResults) {
+        const query = currentSearchQuery.trim();
+
+        if (!query) {
+          searchMeta.textContent = `Showing ${visibleResults.length} note(s) in the current filter.`;
+          return;
+        }
+
+        searchMeta.textContent = `Found ${visibleResults.length} result(s) for "${query}" in the current filter.`;
+      }
+
       function renderNoteList() {
         noteList.innerHTML = '';
 
-        const filteredNotes = getFilteredNotes();
+        const visibleResults = getVisibleResults();
+        renderSearchMeta(visibleResults);
 
-        filteredNotes.forEach((note) => {
+        visibleResults.forEach((result) => {
+          const note = result.note;
           const item = document.createElement('div');
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
           const displayTitle = note.title.trim().length === 0 ? 'Untitled note' : note.title;
           const secondaryText = getNoteSecondaryText(note);
+          const snippetHtml = result.snippet
+            ? `<div class="note-snippet">${highlightText(result.snippet, currentSearchQuery)}</div>`
+            : '';
 
           item.innerHTML = `
-            <div class="note-title">${escapeHtml(displayTitle)}</div>
-            <div class="note-meta">${escapeHtml(secondaryText)}</div>
+            <div class="note-title">${highlightText(displayTitle, currentSearchQuery)}</div>
+            <div class="note-meta">${highlightText(secondaryText, currentSearchQuery)}</div>
+            ${snippetHtml}
           `;
 
           item.addEventListener('click', () => {
@@ -812,13 +1043,13 @@ Today the app adds Inbox / AI Chats UX.
           noteList.appendChild(item);
         });
 
-        if (filteredNotes.length === 0) {
-          noteList.innerHTML = `<div class="note-meta">No notes in this filter.</div>`;
+        if (visibleResults.length === 0) {
+          noteList.innerHTML = `<div class="note-meta">No search results in this filter.</div>`;
         }
       }
 
       function renderApp() {
-        ensureSelectionMatchesFilter();
+        ensureSelectionMatchesVisibleResults();
         const selectedNote = getSelectedNote();
 
         updateVaultPathDisplay();
@@ -892,6 +1123,8 @@ Today the app adds Inbox / AI Chats UX.
         nextDraftId += 1;
         notes.unshift(newNote);
         currentFilter = 'drafts';
+        currentSearchQuery = '';
+        searchInput.value = '';
         selectedNoteId = newNote.id;
         renderApp();
         setStatus('draft', `Draft created from template: ${templateSelect.value}`);
@@ -1187,6 +1420,17 @@ Today the app adds Inbox / AI Chats UX.
         setStatus('ready', `Filter: ${filterKey}`);
       }
 
+      function handleSearchInput() {
+        currentSearchQuery = searchInput.value.trim();
+        renderApp();
+
+        if (currentSearchQuery) {
+          setStatus('ready', `Search: ${currentSearchQuery}`);
+        } else {
+          setStatus('ready', 'Search cleared');
+        }
+      }
+
       window.addEventListener('beforeunload', () => {
         stopWatchingVault();
       });
@@ -1195,6 +1439,8 @@ Today the app adds Inbox / AI Chats UX.
       tagsInput.addEventListener('input', handleEdit);
       sourceInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
+      searchInput.addEventListener('input', handleSearchInput);
+
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
