@@ -78,7 +78,8 @@
         font-weight: 600;
       }
 
-      .action-button {
+      .action-button,
+      .template-select {
         border: 1px solid #cdd9e5;
         background: #ffffff;
         color: #1f2328;
@@ -86,11 +87,18 @@
         padding: 8px 12px;
         font-size: 13px;
         font-weight: 600;
+      }
+
+      .action-button {
         cursor: pointer;
       }
 
       .action-button:hover {
         background: #f6f8fa;
+      }
+
+      .template-select {
+        cursor: pointer;
       }
 
       .vault-path {
@@ -317,6 +325,14 @@
         <div class="topbar-left">
           <div class="topbar-title">Markdown Vault App</div>
           <button id="chooseVaultButton" class="action-button">Choose Vault</button>
+
+          <select id="templateSelect" class="template-select">
+            <option value="blank">Blank Note</option>
+            <option value="daily">Daily Note</option>
+            <option value="meeting">Meeting Note</option>
+            <option value="idea">Idea Note</option>
+          </select>
+
           <button id="newNoteButton" class="action-button">New Note</button>
           <button id="saveNoteButton" class="action-button">Save Note</button>
           <button id="deleteNoteButton" class="action-button">Delete Note</button>
@@ -365,7 +381,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  The app now auto-refreshes when the selected vault changes externally.
+                  New notes now start from the selected template.
                 </div>
               </div>
             </div>
@@ -396,6 +412,55 @@
           .replace(/>/g, '&gt;');
       }
 
+      const templates = {
+        blank: {
+          title: 'Untitled note',
+          body: ''
+        },
+        daily: {
+          title: 'Daily Note',
+          body: `# Daily Note
+
+## Top priorities
+- 
+
+## Notes
+- 
+
+## Reflection
+- `
+        },
+        meeting: {
+          title: 'Meeting Note',
+          body: `# Meeting Note
+
+## Attendees
+- 
+
+## Agenda
+- 
+
+## Decisions
+- 
+
+## Action Items
+- `
+        },
+        idea: {
+          title: 'Idea Note',
+          body: `# Idea Note
+
+## Idea
+Write the core idea here.
+
+## Why it matters
+- 
+
+## Next steps
+- `
+        }
+      };
+
       const titleInput = document.getElementById('titleInput');
       const bodyInput = document.getElementById('bodyInput');
       const previewTitle = document.getElementById('previewTitle');
@@ -403,6 +468,7 @@
       const statusText = document.getElementById('statusText');
       const vaultPathText = document.getElementById('vaultPathText');
       const chooseVaultButton = document.getElementById('chooseVaultButton');
+      const templateSelect = document.getElementById('templateSelect');
       const newNoteButton = document.getElementById('newNoteButton');
       const saveNoteButton = document.getElementById('saveNoteButton');
       const deleteNoteButton = document.getElementById('deleteNoteButton');
@@ -415,15 +481,14 @@
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 15
+          body: `# Day 16
 
-Today the app auto-refreshes when the selected vault changes externally.
+Today the app adds simple built-in note templates.
 
-## Try this
-- choose a vault
-- load notes
-- edit a vault file outside the app
-- watch the note list refresh automatically`,
+## Goal
+- choose a template
+- click New Note
+- start from helpful structure`,
           meta: 'Unsaved draft',
           fileName: '',
           source: 'draft'
@@ -564,11 +629,18 @@ Today the app auto-refreshes when the selected vault changes externally.
         setStatus('draft', 'Draft');
       }
 
+      function getSelectedTemplate() {
+        const selectedKey = templateSelect.value;
+        return templates[selectedKey] || templates.blank;
+      }
+
       function createNewNote() {
+        const template = getSelectedTemplate();
+
         const newNote = {
           id: `draft:${nextDraftId}`,
-          title: 'Untitled note',
-          body: '',
+          title: template.title,
+          body: template.body,
           meta: 'Unsaved draft',
           source: 'draft',
           fileName: ''
@@ -578,7 +650,7 @@ Today the app auto-refreshes when the selected vault changes externally.
         notes.unshift(newNote);
         selectedNoteId = newNote.id;
         renderApp();
-        setStatus('draft', 'Draft');
+        setStatus('draft', `Draft created from template: ${templateSelect.value}`);
         titleInput.focus();
         titleInput.select();
       }
