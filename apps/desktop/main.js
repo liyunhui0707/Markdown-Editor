@@ -9,8 +9,8 @@ let watchDebounceTimer = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1280,
+    height: 840,
     title: 'Markdown Vault App',
     webPreferences: {
       contextIsolation: true,
@@ -33,6 +33,12 @@ function sanitizeFileName(name) {
 function ensureVaultExists(vaultPath) {
   if (!fs.existsSync(vaultPath)) {
     fs.mkdirSync(vaultPath, { recursive: true });
+  }
+}
+
+function ensureDirExists(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
@@ -263,6 +269,113 @@ function startWatchingVault(vaultPath) {
   });
 }
 
+function buildDemoVaultFiles() {
+  return [
+    {
+      relativePath: 'Welcome.md',
+      title: 'Welcome to the Demo Vault',
+      body: `# Welcome to the Demo Vault
+
+This vault exists so you can demo the app end-to-end.
+
+## What to try
+- open different notes
+- search for keywords like vault, meeting, claude, codex
+- click the AI Imports filter
+- edit a note and save it
+- create a new note from a template
+- delete a draft or file-backed note`,
+      frontmatter: {
+        tags: ['demo', 'welcome'],
+        source: 'manual'
+      }
+    },
+    {
+      relativePath: 'Projects/Project Roadmap.md',
+      title: 'Project Roadmap',
+      body: `# Project Roadmap
+
+## Phase 1
+- basic editor
+- save and load
+
+## Phase 2
+- metadata
+- AI imports
+- search quality`,
+      frontmatter: {
+        tags: ['project', 'roadmap'],
+        source: 'manual'
+      }
+    },
+    {
+      relativePath: 'Meetings/Weekly Sync.md',
+      title: 'Weekly Sync',
+      body: `# Weekly Sync
+
+## Attendees
+- Alex
+- Sam
+
+## Decisions
+- keep the MVP local-first
+- simplify before scaling
+
+## Action Items
+- improve demo flow
+- test watcher refresh`,
+      frontmatter: {
+        tags: ['meeting', 'team'],
+        source: 'manual'
+      }
+    },
+    {
+      relativePath: 'Inbox/AI Chats/Claude Session.md',
+      title: 'Claude Session',
+      body: `# Claude Session
+
+We discussed how to structure the note ingestion workflow.
+
+## Key points
+- keep Markdown files simple
+- store imported chats in Inbox/AI Chats
+- use frontmatter for lightweight metadata`,
+      frontmatter: {
+        tags: ['chat', 'claude', 'imported'],
+        source: 'claude'
+      }
+    },
+    {
+      relativePath: 'Inbox/AI Chats/Codex Output.md',
+      title: 'Codex Output',
+      body: `# Codex Output
+
+Codex suggested a cleaner save-and-refresh flow.
+
+## Suggested improvements
+- preserve file identity
+- refresh after save
+- keep UI status messages clear`,
+      frontmatter: {
+        tags: ['chat', 'codex', 'imported'],
+        source: 'codex'
+      }
+    }
+  ];
+}
+
+function writeMarkdownNote(vaultPath, relativePath, title, body, frontmatter = {}) {
+  const fullPath = path.join(vaultPath, relativePath);
+  const parentDir = path.dirname(fullPath);
+
+  ensureDirExists(parentDir);
+
+  const frontmatterText = serializeFrontmatter(frontmatter);
+  const markdownContent = `${frontmatterText}# ${title}\n\n${body || ''}`;
+
+  fs.writeFileSync(fullPath, markdownContent, 'utf8');
+}
+
 ipcMain.handle('choose-vault-folder', async () => {
   try {
     const result = await dialog.showOpenDialog({
@@ -317,6 +430,43 @@ ipcMain.handle('unwatch-vault-folder', async () => {
   try {
     stopWatchingVault();
     return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('seed-demo-vault', async (_event, payload) => {
+  try {
+    const { vaultPath } = payload;
+
+    if (!vaultPath) {
+      return {
+        ok: false,
+        error: 'No vault folder selected.'
+      };
+    }
+
+    ensureVaultExists(vaultPath);
+
+    const demoFiles = buildDemoVaultFiles();
+
+    for (const file of demoFiles) {
+      writeMarkdownNote(
+        vaultPath,
+        file.relativePath,
+        file.title,
+        file.body,
+        file.frontmatter
+      );
+    }
+
+    return {
+      ok: true,
+      createdCount: demoFiles.length
+    };
   } catch (error) {
     return {
       ok: false,
