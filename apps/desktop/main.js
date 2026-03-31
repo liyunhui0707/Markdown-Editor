@@ -2,8 +2,13 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+let mainWindow = null;
+let currentVaultWatcher = null;
+let currentWatchedVaultPath = '';
+let watchDebounceTimer = null;
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: 'Markdown Vault App',
@@ -56,6 +61,51 @@ function parseMarkdownFile(fileName, content) {
   };
 }
 
+function stopWatchingVault() {
+  if (currentVaultWatcher) {
+    currentVaultWatcher.close();
+    currentVaultWatcher = null;
+  }
+
+  currentWatchedVaultPath = '';
+
+  if (watchDebounceTimer) {
+    clearTimeout(watchDebounceTimer);
+    watchDebounceTimer = null;
+  }
+}
+
+function startWatchingVault(vaultPath) {
+  stopWatchingVault();
+
+  ensureVaultExists(vaultPath);
+
+  currentWatchedVaultPath = vaultPath;
+
+  currentVaultWatcher = fs.watch(vaultPath, (eventType, fileName) => {
+    const isMarkdownFile =
+      !fileName || String(fileName).toLowerCase().endsWith('.md');
+
+    if (!isMarkdownFile) {
+      return;
+    }
+
+    if (watchDebounceTimer) {
+      clearTimeout(watchDebounceTimer);
+    }
+
+    watchDebounceTimer = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('vault-changed', {
+          vaultPath: currentWatchedVaultPath,
+          eventType,
+          fileName: fileName || ''
+        });
+      }
+    }, 250);
+  });
+}
+
 ipcMain.handle('choose-vault-folder', async () => {
   try {
     const result = await dialog.showOpenDialog({
@@ -72,6 +122,46 @@ ipcMain.handle('choose-vault-folder', async () => {
     return {
       ok: true,
       vaultPath: result.filePaths[0]
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('watch-vault-folder', async (_event, payload) => {
+  try {
+    const { vaultPath } = payload;
+
+    if (!vaultPath) {
+      return {
+        ok: false,
+        error: 'No vault folder selected.'
+      };
+    }
+
+    startWatchingVault(vaultPath);
+
+    return {
+      ok: true,
+      vaultPath
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('unwatch-vault-folder', async () => {
+  try {
+    stopWatchingVault();
+
+    return {
+      ok: true
     };
   } catch (error) {
     return {
@@ -213,6 +303,10 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  stopWatchingVault();
 });
 
 app.on('window-all-closed', () => {

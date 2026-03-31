@@ -365,7 +365,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Delete removes drafts from memory only. File-backed notes delete the real file from the selected vault.
+                  The app now auto-refreshes when the selected vault changes externally.
                 </div>
               </div>
             </div>
@@ -409,18 +409,21 @@
       const loadVaultButton = document.getElementById('loadVaultButton');
       const noteList = document.getElementById('noteList');
 
+      let stopVaultWatcher = null;
       let currentVaultPath = '';
       let notes = [
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 14
+          body: `# Day 15
 
-Today the app adds safe deletion.
+Today the app auto-refreshes when the selected vault changes externally.
 
-## Rule
-- drafts delete from memory
-- file-backed notes delete the real file`,
+## Try this
+- choose a vault
+- load notes
+- edit a vault file outside the app
+- watch the note list refresh automatically`,
           meta: 'Unsaved draft',
           fileName: '',
           source: 'draft'
@@ -580,6 +583,53 @@ Today the app adds safe deletion.
         titleInput.select();
       }
 
+      async function startVaultWatcher() {
+        if (!currentVaultPath) {
+          return;
+        }
+
+        if (stopVaultWatcher) {
+          stopVaultWatcher();
+          stopVaultWatcher = null;
+        }
+
+        const result = await window.vaultApi.watchVaultFolder({
+          vaultPath: currentVaultPath
+        });
+
+        if (!result.ok) {
+          setStatus('error', `Watch failed: ${result.error}`);
+          return;
+        }
+
+        stopVaultWatcher = window.vaultApi.onVaultChanged(async () => {
+          if (!currentVaultPath) {
+            return;
+          }
+
+          const selectedNote = getSelectedNote();
+          const preferredFileName =
+            selectedNote && selectedNote.source === 'vault'
+              ? selectedNote.fileName
+              : '';
+
+          const refreshed = await refreshVaultNotes(preferredFileName, false);
+
+          if (refreshed) {
+            setStatus('ready', 'Vault auto-refreshed');
+          }
+        });
+      }
+
+      async function stopWatchingVault() {
+        if (stopVaultWatcher) {
+          stopVaultWatcher();
+          stopVaultWatcher = null;
+        }
+
+        await window.vaultApi.unwatchVaultFolder();
+      }
+
       async function chooseVaultFolder() {
         setStatus('saving', 'Choosing vault...');
 
@@ -594,12 +644,15 @@ Today the app adds safe deletion.
           return;
         }
 
+        await stopWatchingVault();
+
         currentVaultPath = result.vaultPath;
         updateVaultPathDisplay();
+        await startVaultWatcher();
         setStatus('ready', 'Vault selected');
       }
 
-      async function refreshVaultNotes(preferredFileName = '') {
+      async function refreshVaultNotes(preferredFileName = '', updateStatus = true) {
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
         });
@@ -623,6 +676,11 @@ Today the app adds safe deletion.
           selectedNoteId = 'draft:1';
           nextDraftId = 2;
           renderApp();
+
+          if (updateStatus) {
+            setStatus('ready', 'Vault loaded: 0 notes');
+          }
+
           return true;
         }
 
@@ -641,6 +699,11 @@ Today the app adds safe deletion.
         }
 
         renderApp();
+
+        if (updateStatus) {
+          setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
+        }
+
         return true;
       }
 
@@ -673,7 +736,7 @@ Today the app adds safe deletion.
           return;
         }
 
-        const refreshed = await refreshVaultNotes(result.fileName);
+        const refreshed = await refreshVaultNotes(result.fileName, false);
 
         if (refreshed) {
           setStatus('ready', `Saved: ${result.fileName}`);
@@ -687,20 +750,7 @@ Today the app adds safe deletion.
         }
 
         setStatus('saving', 'Loading vault...');
-
-        const refreshed = await refreshVaultNotes();
-
-        if (refreshed) {
-          if (
-            notes.length === 1 &&
-            notes[0].source === 'draft' &&
-            notes[0].meta === 'Vault is empty'
-          ) {
-            setStatus('ready', 'Vault loaded: 0 notes');
-          } else {
-            setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
-          }
-        }
+        await refreshVaultNotes();
       }
 
       function deleteDraftNote() {
@@ -774,18 +824,10 @@ Today the app adds safe deletion.
           return;
         }
 
-        const refreshed = await refreshVaultNotes();
+        const refreshed = await refreshVaultNotes('', false);
 
         if (refreshed) {
-          if (
-            notes.length === 1 &&
-            notes[0].source === 'draft' &&
-            notes[0].meta === 'Vault is empty'
-          ) {
-            setStatus('ready', `Deleted: ${result.fileName}`);
-          } else {
-            setStatus('ready', `Deleted: ${result.fileName}`);
-          }
+          setStatus('ready', `Deleted: ${result.fileName}`);
         }
       }
 
@@ -803,6 +845,10 @@ Today the app adds safe deletion.
           deleteDraftNote();
         }
       }
+
+      window.addEventListener('beforeunload', () => {
+        stopWatchingVault();
+      });
 
       titleInput.addEventListener('input', handleEdit);
       bodyInput.addEventListener('input', handleEdit);
