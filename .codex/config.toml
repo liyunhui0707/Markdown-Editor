@@ -1,0 +1,7 @@
+[mcp_servers.mcp-note-ingest]
+command = "node"
+args = ["tools/mcp-note-ingest/server.js"]
+cwd = "/Users/liyunhui/code/markdown-vault-app"
+enabled = true
+startup_timeout_sec = 15
+tool_timeout_sec = 60

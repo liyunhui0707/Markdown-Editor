@@ -6,10 +6,16 @@ const SERVER_INFO = {
   version: '0.2.0'
 };
 
-let inputBuffer = '';
+let inputBuffer = Buffer.alloc(0);
 
 function writeMessage(message) {
-  process.stdout.write(JSON.stringify(message) + '\n');
+  const json = JSON.stringify(message);
+  const payload = Buffer.from(json, 'utf8');
+  const header = Buffer.from(
+    `Content-Length: ${payload.length}\r\nContent-Type: application/json\r\n\r\n`,
+    'utf8'
+  );
+  process.stdout.write(Buffer.concat([header, payload]));
 }
 
 function writeResponse(id, result) {
@@ -33,20 +39,32 @@ function writeError(id, code, message, data = null) {
 }
 
 function tryReadMessage() {
-  const newlineIndex = inputBuffer.indexOf('\n');
+  const separator = '\r\n\r\n';
+  const separatorIndex = inputBuffer.indexOf(separator);
 
-  if (newlineIndex === -1) {
+  if (separatorIndex === -1) {
     return null;
   }
 
-  const line = inputBuffer.slice(0, newlineIndex).trimEnd();
-  inputBuffer = inputBuffer.slice(newlineIndex + 1);
+  const headerText = inputBuffer.slice(0, separatorIndex).toString('utf8');
+  const match = headerText.match(/Content-Length:\s*(\d+)/i);
 
-  if (!line) {
+  if (!match) {
+    throw new Error('Missing Content-Length header');
+  }
+
+  const contentLength = Number(match[1]);
+  const messageStart = separatorIndex + separator.length;
+  const messageEnd = messageStart + contentLength;
+
+  if (inputBuffer.length < messageEnd) {
     return null;
   }
 
-  return JSON.parse(line);
+  const messageBuffer = inputBuffer.slice(messageStart, messageEnd);
+  inputBuffer = inputBuffer.slice(messageEnd);
+
+  return JSON.parse(messageBuffer.toString('utf8'));
 }
 
 function sanitizeFileName(name) {
@@ -357,7 +375,7 @@ function handleRequest(message) {
 }
 
 function processInputChunk(chunk) {
-  inputBuffer += chunk.toString('utf8');
+  inputBuffer = Buffer.concat([inputBuffer, chunk]);
 
   while (true) {
     let message;
