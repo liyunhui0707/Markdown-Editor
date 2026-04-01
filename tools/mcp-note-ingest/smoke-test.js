@@ -1,5 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
 const serverPath = path.join(__dirname, 'server.js');
 const child = spawn(process.execPath, [serverPath], {
@@ -84,14 +86,17 @@ function request(method, params = {}) {
 }
 
 async function run() {
+  const tempVault = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-note-ingest-'));
+
   console.log('Starting MCP smoke test...\n');
+  console.log(`Temporary vault: ${tempVault}\n`);
 
   const initializeResponse = await request('initialize', {
     protocolVersion: '2024-11-05',
     capabilities: {},
     clientInfo: {
       name: 'smoke-test',
-      version: '0.1.0'
+      version: '0.2.0'
     }
   });
 
@@ -116,6 +121,39 @@ async function run() {
 
   console.log('Ping tool response:');
   console.log(JSON.stringify(pingResponse, null, 2), '\n');
+
+  const ingestResponse = await request('tools/call', {
+    name: 'ingest_chat_markdown',
+    arguments: {
+      vault_path: tempVault,
+      title: 'Smoke Test Chat',
+      body: 'This file was written by the MCP smoke test.',
+      source: 'claude',
+      model: 'sonnet',
+      tags: ['chat', 'smoke-test']
+    }
+  });
+
+  console.log('ingest_chat_markdown response:');
+  console.log(JSON.stringify(ingestResponse, null, 2), '\n');
+
+  const relativePath =
+    ingestResponse?.result?.structuredContent?.relative_path || '';
+
+  if (!relativePath) {
+    throw new Error('Smoke test failed: no relative_path returned.');
+  }
+
+  const writtenFilePath = path.join(tempVault, relativePath);
+
+  if (!fs.existsSync(writtenFilePath)) {
+    throw new Error(`Smoke test failed: file not found at ${writtenFilePath}`);
+  }
+
+  const fileContents = fs.readFileSync(writtenFilePath, 'utf8');
+
+  console.log('Written file contents:');
+  console.log(fileContents);
 
   child.kill();
 }

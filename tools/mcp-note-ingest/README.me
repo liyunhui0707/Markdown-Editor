@@ -1,28 +1,22 @@
 # mcp-note-ingest
 
-Day 21 MCP server skeleton for the Local-First Markdown Vault App project.
+Day 22 MCP server for Markdown vault ingestion.
 
-## What this does today
+## What this now supports
 
-This is only the server skeleton.
-
-It currently supports:
+This server now supports:
 
 - stdio transport
 - `initialize`
 - `tools/list`
-- one smoke-test tool: `ping`
-
-## What comes next
-
-On Day 22, this server will gain the real tool:
-
+- `ping`
 - `ingest_chat_markdown`
 
-That tool will write Markdown files into the vault.
+## Main tool
 
-## Run the server
+### `ingest_chat_markdown`
 
-```bash
-cd tools/mcp-note-ingest
-npm start
+This tool writes a new Markdown file into:
+
+```text
+Inbox/AI Chats/YYYY/MM/
