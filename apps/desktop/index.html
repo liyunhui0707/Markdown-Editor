@@ -168,6 +168,28 @@
         color: #57606a;
       }
 
+      .demo-note {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #57606a;
+        line-height: 1.5;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+
+      .ingest-banner {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #0f172a;
+        line-height: 1.5;
+        background: #eef5ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+
       .nav-item {
         padding: 10px 12px;
         margin-bottom: 8px;
@@ -220,17 +242,6 @@
         font-size: 12px;
         color: #334155;
         line-height: 1.5;
-      }
-
-      .demo-note {
-        margin-top: 12px;
-        font-size: 12px;
-        color: #57606a;
-        line-height: 1.5;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 10px 12px;
       }
 
       mark {
@@ -472,9 +483,10 @@
             />
             <div id="searchMeta" class="search-meta">Search all visible notes.</div>
             <div class="demo-note">
-              Demo tip: choose a vault, click <strong>Create Demo Vault</strong>, then try
-              filters, search, templates, edit, save, delete, and AI Imports.
+              Demo tip: keep the app open, then use Claude Code or Codex to call
+              <strong>ingest_chat_markdown</strong>. Day 25 will auto-refresh and focus the new AI note.
             </div>
+            <div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
           </div>
           <div id="noteList" class="panel-body"></div>
         </section>
@@ -520,7 +532,7 @@
                 ></textarea>
 
                 <div class="helper-line">
-                  Day 20 polish pass: the app should now be easier to demo end-to-end.
+                  Day 25: real external MCP ingests should auto-refresh, switch to AI Imports, and focus the new note.
                 </div>
               </div>
             </div>
@@ -780,6 +792,7 @@ Write the core idea here.
       const bodyInput = document.getElementById('bodyInput');
       const searchInput = document.getElementById('searchInput');
       const searchMeta = document.getElementById('searchMeta');
+      const ingestBanner = document.getElementById('ingestBanner');
       const previewFrontmatter = document.getElementById('previewFrontmatter');
       const previewTitle = document.getElementById('previewTitle');
       const previewBody = document.getElementById('previewBody');
@@ -807,26 +820,28 @@ Write the core idea here.
       let currentVaultPath = '';
       let currentFilter = 'all';
       let currentSearchQuery = '';
+      let lastIngestedRelativePath = '';
+      let lastIngestedAt = '';
 
       let notes = [
         {
           id: 'draft:1',
           title: 'Welcome to Markdown Vault App',
-          body: `# Day 20
+          body: `# Day 25
 
-Today the app adds a demo vault seed and a polish pass.
+Today the app reacts better to real external MCP ingests.
 
 ## Goal
-- make the app easier to demo
-- create realistic sample notes
-- show the workflow end-to-end`,
+- auto-refresh
+- switch to AI Imports
+- focus the new imported note`,
           meta: 'Unsaved draft',
           fileName: '',
           relativePath: '',
           source: 'draft',
           aiImported: false,
           frontmatter: {
-            tags: ['demo'],
+            tags: ['mcp', 'ingest'],
             source: 'manual'
           }
         }
@@ -860,6 +875,24 @@ Today the app adds a demo vault seed and a polish pass.
         } else {
           vaultPathText.textContent = `Vault: ${currentVaultPath}`;
         }
+      }
+
+      function setIngestBanner(relativePath) {
+        lastIngestedRelativePath = relativePath || '';
+        lastIngestedAt = new Date().toLocaleString();
+
+        if (!lastIngestedRelativePath) {
+          ingestBanner.style.display = 'none';
+          ingestBanner.innerHTML = '';
+          return;
+        }
+
+        ingestBanner.style.display = 'block';
+        ingestBanner.innerHTML = `
+          <strong>Latest MCP import detected.</strong><br />
+          Path: ${escapeHtml(lastIngestedRelativePath)}<br />
+          Detected at: ${escapeHtml(lastIngestedAt)}
+        `;
       }
 
       function renderFrontmatterPreview(note) {
@@ -1168,22 +1201,45 @@ Today the app adds a demo vault seed and a polish pass.
           return;
         }
 
-        stopVaultWatcher = window.vaultApi.onVaultChanged(async () => {
+        stopVaultWatcher = window.vaultApi.onVaultChanged(async (payload) => {
           if (!currentVaultPath) {
             return;
           }
 
+          const changedPath = String(payload?.fileName || '').replace(/\\/g, '/');
+          const looksLikeAiImport = changedPath.toLowerCase().startsWith('inbox/ai chats/');
+
           const selectedNote = getSelectedNote();
           const preferredRelativePath =
-            selectedNote && selectedNote.source === 'vault'
+            looksLikeAiImport
+              ? changedPath
+              : selectedNote && selectedNote.source === 'vault'
               ? selectedNote.relativePath
               : '';
 
           const refreshed = await refreshVaultNotes(preferredRelativePath, false);
 
-          if (refreshed) {
-            setStatus('ready', 'Vault auto-refreshed');
+          if (!refreshed) {
+            return;
           }
+
+          if (looksLikeAiImport) {
+            const matchedNote = notes.find((note) => note.relativePath === changedPath);
+
+            if (matchedNote) {
+              currentFilter = 'ai';
+              currentSearchQuery = '';
+              searchInput.value = '';
+              selectedNoteId = matchedNote.id;
+              setIngestBanner(changedPath);
+              renderApp();
+              setStatus('ready', `New AI import detected: ${matchedNote.fileName}`);
+              return;
+            }
+          }
+
+          renderApp();
+          setStatus('ready', 'Vault auto-refreshed');
         });
       }
 
