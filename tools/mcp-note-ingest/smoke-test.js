@@ -96,7 +96,7 @@ async function run() {
     capabilities: {},
     clientInfo: {
       name: 'smoke-test',
-      version: '0.2.0'
+      version: '0.3.0'
     }
   });
 
@@ -151,6 +151,18 @@ async function run() {
   }
 
   const fileContents = fs.readFileSync(writtenFilePath, 'utf8');
+
+  if (!fileContents.includes('source: "claude"')) {
+    throw new Error('Smoke test failed: frontmatter source was not written.');
+  }
+
+  if (!fileContents.includes('# Smoke Test Chat')) {
+    throw new Error('Smoke test failed: title heading was not written.');
+  }
+
+  if (!fileContents.includes('This file was written by the MCP smoke test.')) {
+    throw new Error('Smoke test failed: body was not written.');
+  }
 
   console.log('Written file contents:');
   console.log(fileContents);

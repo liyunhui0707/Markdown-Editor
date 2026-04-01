@@ -3,10 +3,19 @@ const path = require('path');
 
 const SERVER_INFO = {
   name: 'mcp-note-ingest',
-  version: '0.2.0'
+  version: '0.3.0'
 };
 
+const MAX_TITLE_LENGTH = 160;
+const MAX_BODY_LENGTH = 200_000;
+const MAX_TAG_COUNT = 20;
+const MAX_TAG_LENGTH = 40;
+
 let inputBuffer = Buffer.alloc(0);
+
+function logToStderr(message) {
+  fs.writeSync(process.stderr.fd, `[mcp-note-ingest] ${message}\n`);
+}
 
 function writeMessage(message) {
   const json = JSON.stringify(message);
@@ -15,6 +24,7 @@ function writeMessage(message) {
     `Content-Length: ${payload.length}\r\nContent-Type: application/json\r\n\r\n`,
     'utf8'
   );
+
   process.stdout.write(Buffer.concat([header, payload]));
 }
 
@@ -38,6 +48,22 @@ function writeError(id, code, message, data = null) {
   });
 }
 
+function parseHeaders(headerText) {
+  const lines = headerText.split('\r\n');
+  const headers = {};
+
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(':');
+    if (separatorIndex === -1) continue;
+
+    const key = line.slice(0, separatorIndex).trim().toLowerCase();
+    const value = line.slice(separatorIndex + 1).trim();
+    headers[key] = value;
+  }
+
+  return headers;
+}
+
 function tryReadMessage() {
   const separator = '\r\n\r\n';
   const separatorIndex = inputBuffer.indexOf(separator);
@@ -46,14 +72,16 @@ function tryReadMessage() {
     return null;
   }
 
-  const headerText = inputBuffer.slice(0, separatorIndex).toString('utf8');
-  const match = headerText.match(/Content-Length:\s*(\d+)/i);
+  const headerBuffer = inputBuffer.slice(0, separatorIndex);
+  const headerText = headerBuffer.toString('utf8');
+  const headers = parseHeaders(headerText);
 
-  if (!match) {
-    throw new Error('Missing Content-Length header');
+  const contentLength = Number(headers['content-length']);
+
+  if (!Number.isFinite(contentLength) || contentLength < 0) {
+    throw new Error('Invalid or missing Content-Length header.');
   }
 
-  const contentLength = Number(match[1]);
   const messageStart = separatorIndex + separator.length;
   const messageEnd = messageStart + contentLength;
 
@@ -72,6 +100,7 @@ function sanitizeFileName(name) {
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
     .trim()
     .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
     .toLowerCase();
 }
 
@@ -80,28 +109,88 @@ function escapeYamlString(value) {
 }
 
 function normalizeTags(tags) {
+  let result = [];
+
   if (!tags) {
     return [];
   }
 
   if (Array.isArray(tags)) {
-    return tags.map((tag) => String(tag).trim()).filter(Boolean);
-  }
-
-  if (typeof tags === 'string') {
-    return tags
+    result = tags.map((tag) => String(tag).trim()).filter(Boolean);
+  } else if (typeof tags === 'string') {
+    result = tags
       .split(',')
       .map((tag) => tag.trim())
       .filter(Boolean);
   }
 
-  return [];
+  result = result
+    .map((tag) => tag.slice(0, MAX_TAG_LENGTH))
+    .slice(0, MAX_TAG_COUNT);
+
+  return Array.from(new Set(result));
 }
 
 function ensureDirExists(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
+}
+
+function validateVaultPath(vaultPath) {
+  if (!vaultPath) {
+    throw new Error('vault_path is required.');
+  }
+
+  if (!path.isAbsolute(vaultPath)) {
+    throw new Error('vault_path must be an absolute path.');
+  }
+
+  ensureDirExists(vaultPath);
+}
+
+function validateCreatedAt(createdAt) {
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('created_at must be a valid ISO date string.');
+  }
+
+  return date;
+}
+
+function normalizeTitle(rawTitle) {
+  const title = String(rawTitle || '').trim();
+
+  if (!title) {
+    throw new Error('title is required.');
+  }
+
+  return title.slice(0, MAX_TITLE_LENGTH);
+}
+
+function normalizeBody(rawBody) {
+  const body = String(rawBody || '').trim();
+
+  if (!body) {
+    return 'No body provided.';
+  }
+
+  return body.slice(0, MAX_BODY_LENGTH);
+}
+
+function normalizeSource(rawSource) {
+  const source = String(rawSource || '').trim().toLowerCase();
+
+  if (!source) {
+    throw new Error('source is required.');
+  }
+
+  return source;
+}
+
+function normalizeModel(rawModel) {
+  return rawModel ? String(rawModel).trim() : '';
 }
 
 function buildFrontmatter({ source, createdAt, model, tags }) {
@@ -121,7 +210,9 @@ function buildFrontmatter({ source, createdAt, model, tags }) {
 
   const normalizedTags = normalizeTags(tags);
   if (normalizedTags.length > 0) {
-    const serializedTags = normalizedTags.map((tag) => `"${escapeYamlString(tag)}"`).join(', ');
+    const serializedTags = normalizedTags
+      .map((tag) => `"${escapeYamlString(tag)}"`)
+      .join(', ');
     lines.push(`tags: [${serializedTags}]`);
   }
 
@@ -141,6 +232,33 @@ function buildMarkdownDocument({ title, body, source, createdAt, model, tags }) 
   });
 
   return `${frontmatter}# ${title}\n\n${body}\n`;
+}
+
+function buildTimestampPart(date) {
+  return [
+    String(date.getUTCFullYear()),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0')
+  ].join('') +
+    '-' +
+    [
+      String(date.getUTCHours()).padStart(2, '0'),
+      String(date.getUTCMinutes()).padStart(2, '0'),
+      String(date.getUTCSeconds()).padStart(2, '0')
+    ].join('');
+}
+
+function buildUniqueFilePath(targetDir, baseFileName) {
+  const extension = '.md';
+  let candidate = `${baseFileName}${extension}`;
+  let counter = 1;
+
+  while (fs.existsSync(path.join(targetDir, candidate))) {
+    candidate = `${baseFileName}-${counter}${extension}`;
+    counter += 1;
+  }
+
+  return candidate;
 }
 
 function listToolsResult() {
@@ -230,41 +348,19 @@ function handlePing(argumentsObject) {
 
 function handleIngestChatMarkdown(argumentsObject) {
   const vaultPath = String(argumentsObject?.vault_path || '').trim();
-  const rawTitle = String(argumentsObject?.title || '').trim();
-  const rawBody = String(argumentsObject?.body || '');
-  const source = String(argumentsObject?.source || '').trim();
-  const model = argumentsObject?.model ? String(argumentsObject.model).trim() : '';
+  const title = normalizeTitle(argumentsObject?.title);
+  const body = normalizeBody(argumentsObject?.body);
+  const source = normalizeSource(argumentsObject?.source);
+  const model = normalizeModel(argumentsObject?.model);
   const createdAt =
     argumentsObject?.created_at && String(argumentsObject.created_at).trim()
       ? String(argumentsObject.created_at).trim()
       : new Date().toISOString();
 
+  validateVaultPath(vaultPath);
+
+  const date = validateCreatedAt(createdAt);
   const tags = normalizeTags(argumentsObject?.tags);
-
-  if (!vaultPath) {
-    throw new Error('vault_path is required.');
-  }
-
-  if (!path.isAbsolute(vaultPath)) {
-    throw new Error('vault_path must be an absolute path.');
-  }
-
-  if (!rawTitle) {
-    throw new Error('title is required.');
-  }
-
-  if (!source) {
-    throw new Error('source is required.');
-  }
-
-  const title = rawTitle;
-  const body = rawBody.trim() ? rawBody : 'No body provided.';
-  const safeTitle = sanitizeFileName(title) || 'untitled-chat';
-  const date = new Date(createdAt);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('created_at must be a valid ISO date string.');
-  }
 
   const year = String(date.getUTCFullYear());
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -273,19 +369,9 @@ function handleIngestChatMarkdown(argumentsObject) {
   const targetDir = path.join(vaultPath, relativeDir);
   ensureDirExists(targetDir);
 
-  const timestampPart = [
-    year,
-    month,
-    String(date.getUTCDate()).padStart(2, '0')
-  ].join('') +
-    '-' +
-    [
-      String(date.getUTCHours()).padStart(2, '0'),
-      String(date.getUTCMinutes()).padStart(2, '0'),
-      String(date.getUTCSeconds()).padStart(2, '0')
-    ].join('');
-
-  const fileName = `${timestampPart}-${safeTitle}.md`;
+  const timestampPart = buildTimestampPart(date);
+  const safeTitle = sanitizeFileName(title) || 'untitled-chat';
+  const fileName = buildUniqueFilePath(targetDir, `${timestampPart}-${safeTitle}`);
   const fullPath = path.join(targetDir, fileName);
   const relativePath = path.join(relativeDir, fileName);
 
@@ -299,6 +385,8 @@ function handleIngestChatMarkdown(argumentsObject) {
   });
 
   fs.writeFileSync(fullPath, markdown, 'utf8');
+
+  logToStderr(`ingest ok | source=${source} | path=${relativePath}`);
 
   return {
     content: [
@@ -320,7 +408,9 @@ function handleIngestChatMarkdown(argumentsObject) {
       file_name: fileName,
       relative_path: relativePath,
       full_path: fullPath,
-      created_at: createdAt
+      created_at: createdAt,
+      tags,
+      model
     }
   };
 }
@@ -335,7 +425,7 @@ function handleRequest(message) {
 
   if (method === 'initialize') {
     writeResponse(id, {
-      protocolVersion: '2025-03-26',
+      protocolVersion: '2024-11-05',
       capabilities: {
         tools: {}
       },
@@ -399,6 +489,8 @@ function processInputChunk(chunk) {
         ? message.id
         : null;
 
+      logToStderr(`error | ${error.stack || error.message}`);
+
       writeError(requestId, -32603, 'Internal error', {
         detail: error.message
       });
@@ -409,17 +501,17 @@ function processInputChunk(chunk) {
 process.stdin.on('data', processInputChunk);
 
 process.stdin.on('error', (error) => {
-  fs.writeSync(process.stderr.fd, `STDIN error: ${error.message}\n`);
+  logToStderr(`STDIN error: ${error.message}`);
 });
 
 process.stdout.on('error', (error) => {
-  fs.writeSync(process.stderr.fd, `STDOUT error: ${error.message}\n`);
+  logToStderr(`STDOUT error: ${error.message}`);
 });
 
 process.on('uncaughtException', (error) => {
-  fs.writeSync(process.stderr.fd, `Uncaught exception: ${error.stack || error.message}\n`);
+  logToStderr(`Uncaught exception: ${error.stack || error.message}`);
 });
 
 process.on('unhandledRejection', (reason) => {
-  fs.writeSync(process.stderr.fd, `Unhandled rejection: ${String(reason)}\n`);
+  logToStderr(`Unhandled rejection: ${String(reason)}`);
 });
