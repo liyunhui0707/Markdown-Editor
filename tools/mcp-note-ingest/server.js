@@ -6,17 +6,10 @@ const SERVER_INFO = {
   version: '0.2.0'
 };
 
-let inputBuffer = Buffer.alloc(0);
+let inputBuffer = '';
 
 function writeMessage(message) {
-  const json = JSON.stringify(message);
-  const payload = Buffer.from(json, 'utf8');
-  const header = Buffer.from(
-    `Content-Length: ${payload.length}\r\nContent-Type: application/json\r\n\r\n`,
-    'utf8'
-  );
-
-  process.stdout.write(Buffer.concat([header, payload]));
+  process.stdout.write(JSON.stringify(message) + '\n');
 }
 
 function writeResponse(id, result) {
@@ -39,51 +32,21 @@ function writeError(id, code, message, data = null) {
   });
 }
 
-function parseHeaders(headerText) {
-  const lines = headerText.split('\r\n');
-  const headers = {};
-
-  for (const line of lines) {
-    const separatorIndex = line.indexOf(':');
-    if (separatorIndex === -1) continue;
-
-    const key = line.slice(0, separatorIndex).trim().toLowerCase();
-    const value = line.slice(separatorIndex + 1).trim();
-    headers[key] = value;
-  }
-
-  return headers;
-}
-
 function tryReadMessage() {
-  const separator = '\r\n\r\n';
-  const separatorIndex = inputBuffer.indexOf(separator);
+  const newlineIndex = inputBuffer.indexOf('\n');
 
-  if (separatorIndex === -1) {
+  if (newlineIndex === -1) {
     return null;
   }
 
-  const headerBuffer = inputBuffer.slice(0, separatorIndex);
-  const headerText = headerBuffer.toString('utf8');
-  const headers = parseHeaders(headerText);
+  const line = inputBuffer.slice(0, newlineIndex).trimEnd();
+  inputBuffer = inputBuffer.slice(newlineIndex + 1);
 
-  const contentLength = Number(headers['content-length']);
-
-  if (!Number.isFinite(contentLength) || contentLength < 0) {
-    throw new Error('Invalid or missing Content-Length header.');
-  }
-
-  const messageStart = separatorIndex + separator.length;
-  const messageEnd = messageStart + contentLength;
-
-  if (inputBuffer.length < messageEnd) {
+  if (!line) {
     return null;
   }
 
-  const messageBuffer = inputBuffer.slice(messageStart, messageEnd);
-  inputBuffer = inputBuffer.slice(messageEnd);
-
-  return JSON.parse(messageBuffer.toString('utf8'));
+  return JSON.parse(line);
 }
 
 function sanitizeFileName(name) {
@@ -354,7 +317,7 @@ function handleRequest(message) {
 
   if (method === 'initialize') {
     writeResponse(id, {
-      protocolVersion: '2024-11-05',
+      protocolVersion: '2025-03-26',
       capabilities: {
         tools: {}
       },
@@ -394,7 +357,7 @@ function handleRequest(message) {
 }
 
 function processInputChunk(chunk) {
-  inputBuffer = Buffer.concat([inputBuffer, chunk]);
+  inputBuffer += chunk.toString('utf8');
 
   while (true) {
     let message;
