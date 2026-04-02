@@ -1,0 +1,70 @@
+# Manual Test Checklist  
+  
+Use this checklist before sharing the app with another person.  
+  
+## App startup  
+  
+- [ ] App starts from development mode  
+- [ ] Packaged app starts  
+- [ ] No immediate crash on launch  
+  
+## Vault workflow  
+  
+- [ ] Vault can be selected  
+- [ ] Demo vault can be created  
+- [ ] Existing notes appear  
+- [ ] Note selection works  
+  
+## Note editing  
+  
+- [ ] New note can be created  
+- [ ] Existing note can be edited  
+- [ ] Save works  
+- [ ] Saved note remains visible  
+  
+## Search  
+  
+- [ ] Search finds matches in title  
+- [ ] Search finds matches in body  
+- [ ] Search finds matches in tags  
+- [ ] Search finds matches in source  
+- [ ] Search snippets are visible  
+  
+## Filters  
+  
+- [ ] All Notes filter works  
+- [ ] AI Imports filter works  
+- [ ] Drafts filter works  
+- [ ] Vault Files filter works  
+  
+## Metadata  
+  
+- [ ] Frontmatter tags display correctly  
+- [ ] Frontmatter source displays correctly  
+  
+## MCP ingest  
+  
+- [ ] `npm run smoke` passes  
+- [ ] Claude Code can call `ingest_chat_markdown`  
+- [ ] Codex can call `ingest_chat_markdown`  
+- [ ] Ingested file is written into `Inbox/AI Chats/YYYY/MM/`  
+- [ ] App auto-refreshes after ingest  
+- [ ] New imported note appears in AI Imports  
+  
+## Delete behavior  
+  
+- [ ] Draft delete works  
+- [ ] File-backed delete works safely  
+  
+## Packaging  
+  
+- [ ] Local packaged app artifact exists  
+- [ ] Unsigned app opens after running: `codesign --force --deep --sign - dist/mac-arm64/markdown-vault-desktop.app`  
+  
+## Final share check  
+  
+- [ ] Another person could follow the docs  
+- [ ] README is understandable  
+- [ ] Install guide is understandable  
+- [ ] MCP setup guide is understandable  
+- [ ] Demo script is usable
