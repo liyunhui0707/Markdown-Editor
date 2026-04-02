@@ -4,12 +4,23 @@
   "description": "Desktop shell for the Markdown Vault App",
   "main": "main.js",
   "scripts": {
-    "dev": "electron ."
+    "dev": "electron .",
+    "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
+    "dist": "electron-builder -m zip",
+    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir zip"
   },
   "author": "",
   "license": "MIT",
+  "build": {
+    "appId": "com.markdownvault.desktop",
+    "mac": {
+      "identity": null,
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    }
+  },
   "devDependencies": {
-    "electron": "^37.0.0"
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0"
   },
   "dependencies": {
     "marked": "^17.0.5"

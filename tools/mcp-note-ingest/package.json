@@ -1,13 +1,52 @@
 {
-  "name": "mcp-note-ingest",
-  "version": "0.4.0",
+  "name": "markdown-vault-desktop",
+  "productName": "Markdown Vault App",
+  "version": "0.1.0",
   "private": true,
-  "description": "Day 27 MCP server with minimal automated tests for core logic",
-  "main": "server.js",
-  "type": "commonjs",
+  "description": "Local-first Markdown vault desktop app with MCP ingestion",
+  "main": "main.js",
+  "author": "liyunhui",
+  "license": "UNLICENSED",
   "scripts": {
-    "start": "node server.js",
-    "smoke": "node smoke-test.js",
-    "test": "node --test"
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder -m zip",
+    "dist:mac": "electron-builder --mac dir zip"
+  },
+  "dependencies": {
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.liyunhui.markdownvaultapp",
+    "productName": "Markdown Vault App",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "node_modules/**/*",
+      "!dist/**/*",
+      "!build/**/*.{psd,ai}"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    }
   }
 }
