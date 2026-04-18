@@ -6,12 +6,12 @@
       "args": [
         "run",
         "--directory",
-        "/Users/liyunhui/code/mcp-codex-bridge-lab",
+        "/Users/liyunhui/Liyunhui/Codes/mcp-codex-bridge-lab",
         "python",
         "mcp_server.py"
       ],
       "env": {
-        "LAB_REPO_ROOT": "/Users/liyunhui/code",
+        "LAB_REPO_ROOT": "/Users/liyunhui/Liyunhui/Codes",
         "CODEX_BRIDGE_MOCK": "0"
       }
     },
@@ -19,7 +19,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "tools/mcp-note-ingest/server.js"
+        "/Users/liyunhui/Liyunhui/Codes/markdown-vault-app/tools/mcp-note-ingest/server.js"
       ],
       "env": {}
     }
