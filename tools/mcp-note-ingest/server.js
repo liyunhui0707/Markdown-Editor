@@ -20,7 +20,9 @@ const SERVER_INFO = {
   version: '0.4.0'
 };
 
-let inputBuffer = Buffer.alloc(0);
+let inputBuffer = '';
+// null = not yet detected, 'ndjson' = newline-delimited, 'lsp' = Content-Length framing
+let protocol = null;
 
 function logToStderr(message) {
   fs.writeSync(process.stderr.fd, `[mcp-note-ingest] ${message}\n`);
@@ -28,13 +30,15 @@ function logToStderr(message) {
 
 function writeMessage(message) {
   const json = JSON.stringify(message);
-  const payload = Buffer.from(json, 'utf8');
-  const header = Buffer.from(
-    `Content-Length: ${payload.length}\r\nContent-Type: application/json\r\n\r\n`,
-    'utf8'
-  );
-
-  process.stdout.write(Buffer.concat([header, payload]));
+  if (protocol === 'lsp') {
+    const payload = Buffer.from(json, 'utf8');
+    process.stdout.write(
+      `Content-Length: ${payload.length}\r\nContent-Type: application/json\r\n\r\n`
+    );
+    process.stdout.write(payload);
+  } else {
+    process.stdout.write(json + '\n');
+  }
 }
 
 function writeResponse(id, result) {
@@ -57,51 +61,47 @@ function writeError(id, code, message, data = null) {
   });
 }
 
-function parseHeaders(headerText) {
-  const lines = headerText.split('\r\n');
-  const headers = {};
-
-  for (const line of lines) {
-    const separatorIndex = line.indexOf(':');
-    if (separatorIndex === -1) continue;
-
-    const key = line.slice(0, separatorIndex).trim().toLowerCase();
-    const value = line.slice(separatorIndex + 1).trim();
-    headers[key] = value;
-  }
-
-  return headers;
-}
-
 function tryReadMessage() {
-  const separator = '\r\n\r\n';
-  const separatorIndex = inputBuffer.indexOf(separator);
-
-  if (separatorIndex === -1) {
-    return null;
+  // Auto-detect protocol on first data
+  if (protocol === null) {
+    if (inputBuffer.startsWith('Content-Length:')) {
+      protocol = 'lsp';
+      logToStderr('protocol: lsp (Content-Length)');
+    } else if (inputBuffer.trimStart().startsWith('{')) {
+      protocol = 'ndjson';
+      logToStderr('protocol: ndjson');
+    } else {
+      return null; // wait for more data
+    }
   }
 
-  const headerBuffer = inputBuffer.slice(0, separatorIndex);
-  const headerText = headerBuffer.toString('utf8');
-  const headers = parseHeaders(headerText);
+  if (protocol === 'lsp') {
+    const separator = '\r\n\r\n';
+    const separatorIndex = inputBuffer.indexOf(separator);
+    if (separatorIndex === -1) return null;
 
-  const contentLength = Number(headers['content-length']);
+    const headerText = inputBuffer.slice(0, separatorIndex);
+    const contentLengthMatch = headerText.match(/Content-Length:\s*(\d+)/i);
+    if (!contentLengthMatch) throw new Error('Invalid or missing Content-Length header.');
 
-  if (!Number.isFinite(contentLength) || contentLength < 0) {
-    throw new Error('Invalid or missing Content-Length header.');
+    const contentLength = Number(contentLengthMatch[1]);
+    const messageStart = separatorIndex + separator.length;
+    if (inputBuffer.length < messageStart + contentLength) return null;
+
+    const messageText = inputBuffer.slice(messageStart, messageStart + contentLength);
+    inputBuffer = inputBuffer.slice(messageStart + contentLength);
+    return JSON.parse(messageText);
   }
 
-  const messageStart = separatorIndex + separator.length;
-  const messageEnd = messageStart + contentLength;
+  // ndjson
+  const newlineIndex = inputBuffer.indexOf('\n');
+  if (newlineIndex === -1) return null;
 
-  if (inputBuffer.length < messageEnd) {
-    return null;
-  }
+  const line = inputBuffer.slice(0, newlineIndex).trim();
+  inputBuffer = inputBuffer.slice(newlineIndex + 1);
+  if (!line) return null;
 
-  const messageBuffer = inputBuffer.slice(messageStart, messageEnd);
-  inputBuffer = inputBuffer.slice(messageEnd);
-
-  return JSON.parse(messageBuffer.toString('utf8'));
+  return JSON.parse(line);
 }
 
 function listToolsResult() {
@@ -308,7 +308,7 @@ function handleRequest(message) {
 }
 
 function processInputChunk(chunk) {
-  inputBuffer = Buffer.concat([inputBuffer, chunk]);
+  inputBuffer += chunk.toString('utf8');
 
   while (true) {
     let message;
@@ -317,7 +317,8 @@ function processInputChunk(chunk) {
       message = tryReadMessage();
     } catch (error) {
       writeError(null, -32700, 'Parse error', { detail: error.message });
-      inputBuffer = Buffer.alloc(0);
+      inputBuffer = '';
+      protocol = null;
       return;
     }
 
