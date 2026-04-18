@@ -148,6 +148,44 @@
         color: #57606a;
         border-bottom: 1px solid #eaeef2;
         background: #fafbfc;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .panel-header-title {
+        min-width: 0;
+      }
+
+      .panel-toggle {
+        border: none;
+        background: transparent;
+        color: #57606a;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .panel-toggle:hover {
+        background: #eaeef2;
+      }
+
+      .panel.collapsed .panel-body,
+      .panel.collapsed .panel-tools {
+        display: none;
+      }
+
+      .panel.collapsed .panel-header {
+        justify-content: center;
+        padding: 14px 8px;
+      }
+
+      .panel.collapsed .panel-header-title {
+        display: none;
       }
 
       .panel-body {
@@ -448,9 +486,19 @@
         </div>
       </header>
 
-      <main class="main-layout">
-        <aside class="panel">
-          <div class="panel-header">Navigation</div>
+      <main id="mainLayout" class="main-layout">
+        <aside id="navigationPanel" class="panel">
+          <div class="panel-header">
+            <span class="panel-header-title">Navigation</span>
+            <button
+              id="toggleNavigationButton"
+              class="panel-toggle"
+              type="button"
+              aria-label="Hide Navigation"
+            >
+              <
+            </button>
+          </div>
           <div class="panel-body">
             <div class="nav-item active" data-filter="all" id="filterAll">
               <div class="nav-label">All Notes</div>
@@ -474,8 +522,18 @@
           </div>
         </aside>
 
-        <section class="panel">
-          <div class="panel-header">Notes</div>
+        <section id="notesPanel" class="panel">
+          <div class="panel-header">
+            <span class="panel-header-title">Notes</span>
+            <button
+              id="toggleNotesButton"
+              class="panel-toggle"
+              type="button"
+              aria-label="Hide Notes"
+            >
+              <
+            </button>
+          </div>
           <div class="panel-tools">
             <input
               id="searchInput"
@@ -807,7 +865,12 @@ Write the core idea here.
       const saveNoteButton = document.getElementById('saveNoteButton');
       const deleteNoteButton = document.getElementById('deleteNoteButton');
       const loadVaultButton = document.getElementById('loadVaultButton');
+      const toggleNavigationButton = document.getElementById('toggleNavigationButton');
+      const toggleNotesButton = document.getElementById('toggleNotesButton');
       const noteList = document.getElementById('noteList');
+      const mainLayout = document.getElementById('mainLayout');
+      const navigationPanel = document.getElementById('navigationPanel');
+      const notesPanel = document.getElementById('notesPanel');
 
       const filterAll = document.getElementById('filterAll');
       const filterAi = document.getElementById('filterAi');
@@ -824,6 +887,8 @@ Write the core idea here.
       let currentSearchQuery = '';
       let lastIngestedRelativePath = '';
       let lastIngestedAt = '';
+      let isNavigationHidden = false;
+      let isNotesHidden = false;
 
       let notes = [
         {
@@ -877,6 +942,26 @@ Today the app reacts better to real external MCP ingests.
         } else {
           vaultPathText.textContent = `Vault: ${currentVaultPath}`;
         }
+      }
+
+      function updateLayoutVisibility() {
+        navigationPanel.classList.toggle('collapsed', isNavigationHidden);
+        notesPanel.classList.toggle('collapsed', isNotesHidden);
+
+        const navigationWidth = isNavigationHidden ? '32px' : '220px';
+        const notesWidth = isNotesHidden ? '32px' : '320px';
+        mainLayout.style.gridTemplateColumns = `${navigationWidth} ${notesWidth} 1fr`;
+
+        toggleNavigationButton.textContent = isNavigationHidden ? '>' : '<';
+        toggleNavigationButton.setAttribute(
+          'aria-label',
+          isNavigationHidden ? 'Show Navigation' : 'Hide Navigation'
+        );
+        toggleNotesButton.textContent = isNotesHidden ? '>' : '<';
+        toggleNotesButton.setAttribute(
+          'aria-label',
+          isNotesHidden ? 'Show Notes' : 'Hide Notes'
+        );
       }
 
       function setIngestBanner(relativePath) {
@@ -1550,6 +1635,14 @@ Today the app reacts better to real external MCP ingests.
       saveNoteButton.addEventListener('click', saveCurrentNote);
       deleteNoteButton.addEventListener('click', deleteCurrentNote);
       loadVaultButton.addEventListener('click', loadVaultNotes);
+      toggleNavigationButton.addEventListener('click', () => {
+        isNavigationHidden = !isNavigationHidden;
+        updateLayoutVisibility();
+      });
+      toggleNotesButton.addEventListener('click', () => {
+        isNotesHidden = !isNotesHidden;
+        updateLayoutVisibility();
+      });
 
       filterAll.addEventListener('click', () => setFilter('all'));
       filterAi.addEventListener('click', () => setFilter('ai'));
@@ -1557,6 +1650,7 @@ Today the app reacts better to real external MCP ingests.
       filterVault.addEventListener('click', () => setFilter('vault'));
 
       renderApp();
+      updateLayoutVisibility();
       updateVaultPathDisplay();
       setStatus('ready', 'Ready');
     </script>
