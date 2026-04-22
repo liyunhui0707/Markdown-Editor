@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown Vault App</title>
     <style>
+      /* ── Design tokens ───────────────────────────────────────────────── */
+      :root {
+        --bg:              #f5f4f1;   /* warm off-white, like Obsidian's default */
+        --surface:         #ffffff;   /* panel / card surface */
+        --surface-muted:   #f0efe9;   /* sidebar background */
+        --border:          #e5e3dc;   /* standard border */
+        --border-subtle:   #edecea;   /* very quiet dividers */
+        --text:            #2d2d2d;   /* body text */
+        --text-muted:      #999690;   /* secondary / meta text */
+        --accent:          #7c3aed;   /* purple — used sparingly */
+        --accent-bg:       rgba(124, 58, 237, 0.07);
+      }
+
       * {
         box-sizing: border-box;
       }
@@ -12,8 +25,8 @@
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f4f5f7;
-        color: #1f2328;
+        background: var(--bg);
+        color: var(--text);
         height: 100vh;
         overflow: hidden;
       }
@@ -24,114 +37,115 @@
         height: 100vh;
       }
 
+      /* ── Topbar — quiet, compact ─────────────────────────────────────── */
+
       .topbar {
-        min-height: 64px;
-        background: #ffffff;
-        border-bottom: 1px solid #d8dee4;
+        min-height: 48px;
+        background: var(--surface-muted);
+        border-bottom: 1px solid var(--border);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 16px;
-        gap: 12px;
+        padding: 6px 16px;
+        gap: 10px;
       }
 
       .topbar-left {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
         flex-wrap: wrap;
       }
 
       .topbar-right {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
       }
 
       .topbar-title {
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.02em;
       }
 
       .topbar-status {
-        font-size: 13px;
-        color: #57606a;
+        font-size: 12px;
+        color: var(--text-muted);
       }
 
-      .status-draft {
-        color: #b54708;
-        font-weight: 600;
-      }
+      .status-draft   { color: #92400e; font-weight: 600; }
+      .status-ready   { color: #166534; font-weight: 600; }
+      .status-saving  { color: var(--accent); font-weight: 600; }
+      .status-error   { color: #991b1b; font-weight: 600; }
 
-      .status-ready {
-        color: #1a7f37;
-        font-weight: 600;
-      }
-
-      .status-saving {
-        color: #0969da;
-        font-weight: 600;
-      }
-
-      .status-error {
-        color: #cf222e;
-        font-weight: 600;
-      }
-
+      /* Buttons and controls */
       .action-button,
       .template-select,
       .search-input {
-        border: 1px solid #cdd9e5;
-        background: #ffffff;
-        color: #1f2328;
-        border-radius: 10px;
-        padding: 8px 12px;
-        font-size: 13px;
-        font-weight: 600;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        border-radius: 7px;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 500;
       }
 
       .action-button {
         cursor: pointer;
+        color: var(--text-muted);
       }
 
       .action-button:hover {
-        background: #f6f8fa;
+        background: var(--surface-muted);
+        color: var(--text);
+        border-color: var(--border);
       }
 
       .template-select {
         cursor: pointer;
+        color: var(--text-muted);
       }
 
       .search-input {
         width: 100%;
         font-weight: 400;
         outline: none;
+        background: var(--surface);
+        font-size: 13px;
+        padding: 7px 11px;
       }
 
       .search-input:focus {
-        border-color: #4c8bf5;
-        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-bg);
       }
 
       .vault-path {
-        font-size: 12px;
-        color: #57606a;
-        max-width: 520px;
+        font-size: 11px;
+        color: var(--text-muted);
+        max-width: 400px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
+      /* ── Main layout ─────────────────────────────────────────────────── */
+
       .main-layout {
         flex: 1;
         display: grid;
-        grid-template-columns: 220px 320px 1fr;
+        grid-template-columns: 200px 280px 1fr;
         min-height: 0;
       }
 
+      /* ── Side panels (Navigation + Notes) ───────────────────────────── */
+
       .panel {
-        border-right: 1px solid #d8dee4;
-        background: #ffffff;
+        border-right: 1px solid var(--border);
+        background: var(--surface-muted);
         min-height: 0;
         display: flex;
         flex-direction: column;
@@ -142,12 +156,14 @@
       }
 
       .panel-header {
-        padding: 14px 16px;
-        font-size: 13px;
+        padding: 12px 14px;
+        font-size: 11px;
         font-weight: 600;
-        color: #57606a;
-        border-bottom: 1px solid #eaeef2;
-        background: #fafbfc;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-subtle);
+        background: transparent;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -161,17 +177,18 @@
       .panel-toggle {
         border: none;
         background: transparent;
-        color: #57606a;
+        color: var(--text-muted);
         cursor: pointer;
-        padding: 2px 6px;
-        border-radius: 6px;
-        font-size: 12px;
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-size: 11px;
         font-weight: 600;
         line-height: 1;
       }
 
       .panel-toggle:hover {
-        background: #eaeef2;
+        background: var(--border-subtle);
+        color: var(--text);
       }
 
       .panel.collapsed .panel-body,
@@ -181,7 +198,7 @@
 
       .panel.collapsed .panel-header {
         justify-content: center;
-        padding: 14px 8px;
+        padding: 12px 8px;
       }
 
       .panel.collapsed .panel-header-title {
@@ -189,103 +206,131 @@
       }
 
       .panel-body {
-        padding: 12px;
+        padding: 10px;
         overflow: auto;
         flex: 1;
       }
 
       .panel-tools {
-        padding: 12px;
-        border-bottom: 1px solid #eaeef2;
-        background: #ffffff;
+        padding: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: transparent;
       }
 
       .search-meta {
-        margin-top: 8px;
-        font-size: 12px;
-        color: #57606a;
+        margin-top: 7px;
+        font-size: 11px;
+        color: var(--text-muted);
       }
 
       .demo-note {
-        margin-top: 12px;
-        font-size: 12px;
-        color: #57606a;
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--text-muted);
         line-height: 1.5;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 10px 12px;
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        padding: 8px 10px;
       }
 
       .ingest-banner {
-        margin-top: 12px;
-        font-size: 12px;
-        color: #0f172a;
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--text);
         line-height: 1.5;
-        background: #eef5ff;
-        border: 1px solid #bfdbfe;
-        border-radius: 10px;
-        padding: 10px 12px;
+        background: var(--accent-bg);
+        border: 1px solid rgba(124, 58, 237, 0.2);
+        border-radius: 6px;
+        padding: 8px 10px;
       }
 
+      /* ── Navigation items ────────────────────────────────────────────── */
+
       .nav-item {
-        padding: 10px 12px;
-        margin-bottom: 8px;
-        border-radius: 10px;
-        background: #f6f8fa;
+        padding: 7px 10px;
+        margin-bottom: 2px;
+        border-radius: 6px;
+        background: transparent;
         cursor: pointer;
+        border-left: 2px solid transparent;
+      }
+
+      .nav-item:hover {
+        background: var(--border-subtle);
       }
 
       .nav-item.active {
-        background: #ddefff;
+        background: var(--accent-bg);
+        border-left-color: var(--accent);
       }
 
       .nav-label {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
+        color: var(--text);
+      }
+
+      .nav-item.active .nav-label {
+        color: var(--accent);
+        font-weight: 600;
       }
 
       .nav-meta {
-        margin-top: 4px;
-        font-size: 12px;
-        color: #57606a;
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--text-muted);
       }
 
+      /* ── Note list items ─────────────────────────────────────────────── */
+
       .note-item {
-        padding: 10px 12px;
-        margin-bottom: 8px;
-        border-radius: 10px;
-        background: #f6f8fa;
+        padding: 8px 10px;
+        margin-bottom: 2px;
+        border-radius: 6px;
+        background: transparent;
         cursor: pointer;
+        border-left: 2px solid transparent;
+      }
+
+      .note-item:hover {
+        background: var(--border-subtle);
       }
 
       .note-item.active {
-        background: #ddefff;
+        background: var(--accent-bg);
+        border-left-color: var(--accent);
       }
 
       .note-title {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
+        color: var(--text);
+      }
+
+      .note-item.active .note-title {
+        color: var(--accent);
       }
 
       .note-meta {
-        font-size: 12px;
-        color: #57606a;
-        line-height: 1.5;
+        font-size: 11px;
+        color: var(--text-muted);
+        line-height: 1.4;
       }
 
       .note-snippet {
-        margin-top: 8px;
-        font-size: 12px;
-        color: #334155;
-        line-height: 1.5;
+        margin-top: 5px;
+        font-size: 11px;
+        color: var(--text-muted);
+        line-height: 1.4;
       }
 
       mark {
-        background: #fff3b0;
+        background: rgba(124, 58, 237, 0.12);
+        color: var(--accent);
         padding: 0 2px;
-        border-radius: 3px;
+        border-radius: 2px;
       }
 
       /* ── Workspace: single unified panel ─────────────────────────────── */
@@ -298,7 +343,7 @@
       }
 
       .workspace-panel {
-        background: #ffffff;
+        background: var(--surface);
         display: flex;
         flex-direction: column;
         flex: 1;
