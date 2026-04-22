@@ -306,152 +306,233 @@
       }
 
       .workspace-body {
-        padding: 16px;
+        padding: 40px 48px;
         flex: 1;
         min-height: 0;
         overflow: auto;
+        background: #ffffff;
       }
 
+      /* Centered document column — max 720px like Obsidian */
       .editor-stack {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 0;
+        max-width: 720px;
+        margin: 0 auto;
+        width: 100%;
         height: 100%;
       }
 
-      .title-input,
-      .meta-input {
-        width: 100%;
-        border: 1px solid #cdd9e5;
-        border-radius: 12px;
-        padding: 12px 14px;
-        font-size: 14px;
-        outline: none;
-        background: #fbfcfe;
-      }
-
+      /* Title — document heading, no box */
       .title-input {
-        font-size: 20px;
-        font-weight: 600;
-        padding: 14px 16px;
+        width: 100%;
+        border: none;
+        border-bottom: 1px solid #e8e8e8;
+        border-radius: 0;
+        padding: 0 0 14px 0;
+        margin-bottom: 20px;
+        font-size: 28px;
+        font-weight: 700;
+        color: #1a1a1a;
+        background: transparent;
+        outline: none;
+        letter-spacing: -0.01em;
       }
 
-      .title-input:focus,
-      .meta-input:focus {
-        border-color: #4c8bf5;
-        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+      .title-input:focus {
+        border-bottom-color: #7c3aed;
       }
 
+      /* Meta row — quiet, below the title */
       .meta-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #f0f0f0;
       }
 
       .meta-label {
         display: block;
-        font-size: 12px;
-        color: #57606a;
-        margin-bottom: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #aaaaaa;
+        margin-bottom: 5px;
       }
 
-      /* ── Live editor: the unified editor+preview area ────────────────── */
+      .meta-input {
+        width: 100%;
+        border: 1px solid #ebebeb;
+        border-radius: 6px;
+        padding: 7px 10px;
+        font-size: 13px;
+        color: #444;
+        background: #fafafa;
+        outline: none;
+      }
+
+      .meta-input:focus {
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+      }
+
+      /* ── Live editor: document surface, no box ───────────────────────── */
 
       .live-editor-container {
         flex: 1;
-        border: 1px solid #cdd9e5;
-        border-radius: 14px;
-        background: #fbfcfe;
-        padding: 8px 12px;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        padding: 0;
         overflow-y: auto;
         min-height: 0;
         cursor: text;
       }
 
-      /* Hint shown in an empty note (view mode) */
+      /* Hint shown in an empty note */
       .live-editor-empty-hint {
-        padding: 8px;
-        color: #57606a;
+        padding: 4px 0;
+        color: #aaaaaa;
         font-style: italic;
-        font-size: 14px;
+        font-size: 16px;
       }
 
-      /* Each rendered Markdown block */
+      /* Each rendered Markdown block — document rhythm, no hover box */
       .live-editor-block {
-        padding: 4px 8px;
-        border-radius: 8px;
+        padding: 2px 0;
+        border-radius: 0;
         cursor: text;
       }
 
       .live-editor-block:hover {
-        background: #f0f4f8;
+        background: transparent;
       }
 
-      /* The raw-Markdown textarea that appears when a block is being edited */
+      /* Active textarea — no box, just a purple left accent line */
       .live-editor-active-textarea {
         width: 100%;
-        border: 1px solid #4c8bf5;
-        border-radius: 8px;
-        padding: 8px 10px;
+        border: none;
+        border-left: 3px solid #7c3aed;
+        border-radius: 0;
+        padding: 2px 0 2px 14px;
         font-size: 15px;
-        line-height: 1.6;
+        line-height: 1.8;
         font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-        background: #ffffff;
-        color: #1f2328;
-        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+        background: #fdfcff;
+        color: #2d2d2d;
+        box-shadow: none;
         resize: none;
         outline: none;
         display: block;
       }
 
-      /* ── Markdown rendering styles (used inside .live-editor-block) ─── */
+      /* ── Markdown typography — readable, document-grade ─────────────── */
 
       .preview-markdown {
-        line-height: 1.7;
+        font-size: 16px;
+        line-height: 1.8;
+        color: #2d2d2d;
       }
 
-      .preview-markdown h1,
-      .preview-markdown h2,
+      .preview-markdown h1 {
+        font-size: 1.75em;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 0.4em 0;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid #ebebeb;
+        letter-spacing: -0.02em;
+      }
+
+      .preview-markdown h2 {
+        font-size: 1.35em;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 0 0 0.3em 0;
+      }
+
       .preview-markdown h3 {
-        margin-top: 1.2em;
-        margin-bottom: 0.5em;
-      }
-
-      .preview-markdown h1:first-child,
-      .preview-markdown h2:first-child,
-      .preview-markdown h3:first-child {
-        margin-top: 0;
+        font-size: 1.1em;
+        font-weight: 600;
+        color: #333;
+        margin: 0 0 0.3em 0;
       }
 
       .preview-markdown p {
-        margin: 0 0 1em 0;
+        margin: 0 0 1.1em 0;
       }
 
       .preview-markdown ul,
       .preview-markdown ol {
-        padding-left: 1.5em;
-        margin: 0 0 1em 0;
+        padding-left: 1.6em;
+        margin: 0 0 1.1em 0;
       }
 
+      .preview-markdown li {
+        margin-bottom: 0.35em;
+      }
+
+      .preview-markdown strong {
+        font-weight: 600;
+        color: #1a1a1a;
+      }
+
+      .preview-markdown a {
+        color: #7c3aed;
+        text-decoration: none;
+      }
+
+      .preview-markdown a:hover {
+        text-decoration: underline;
+      }
+
+      /* Inline code */
       .preview-markdown code {
-        background: #eef2f6;
-        padding: 2px 6px;
-        border-radius: 6px;
-        font-size: 0.95em;
+        background: #f5f2ff;
+        border: 1px solid #e4dcff;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.88em;
+        font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        color: #6d28d9;
       }
 
+      /* Code block */
       .preview-markdown pre {
-        background: #eef2f6;
-        padding: 12px;
-        border-radius: 10px;
-        overflow: auto;
+        background: #f8f8f6;
+        border: 1px solid #e8e8e4;
+        padding: 16px 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 0 0 1.1em 0;
       }
 
+      .preview-markdown pre code {
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: #2d2d2d;
+        font-size: 0.9em;
+      }
+
+      /* Blockquote */
       .preview-markdown blockquote {
-        border-left: 4px solid #cdd9e5;
-        padding-left: 12px;
-        margin-left: 0;
-        color: #57606a;
+        border-left: 3px solid #7c3aed;
+        background: #fdfcff;
+        padding: 6px 16px;
+        margin: 0 0 1.1em 0;
+        color: #666;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .preview-markdown hr {
+        border: none;
+        border-top: 1px solid #ebebeb;
+        margin: 2em 0;
       }
     </style>
   </head>
