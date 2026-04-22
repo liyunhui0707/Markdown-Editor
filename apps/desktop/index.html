@@ -288,22 +288,21 @@
         border-radius: 3px;
       }
 
+      /* ── Workspace: single unified panel ─────────────────────────────── */
+
       .workspace {
-        display: grid;
-        grid-template-rows: 1fr 1fr;
+        display: flex;
+        flex-direction: column;
         min-height: 0;
+        flex: 1;
       }
 
       .workspace-panel {
         background: #ffffff;
         display: flex;
         flex-direction: column;
-        border-bottom: 1px solid #d8dee4;
+        flex: 1;
         min-height: 0;
-      }
-
-      .workspace-panel:last-child {
-        border-bottom: none;
       }
 
       .workspace-body {
@@ -338,8 +337,7 @@
       }
 
       .title-input:focus,
-      .meta-input:focus,
-      .editor-textarea:focus {
+      .meta-input:focus {
         border-color: #4c8bf5;
         box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
       }
@@ -357,53 +355,48 @@
         margin-bottom: 6px;
       }
 
-      .editor-textarea {
-        width: 100%;
+      /* ── Live editor: the unified editor+preview area ────────────────── */
+
+      .live-editor-container {
         flex: 1;
-        resize: none;
         border: 1px solid #cdd9e5;
         border-radius: 14px;
-        padding: 16px;
+        background: #fbfcfe;
+        padding: 8px 12px;
+        overflow-y: auto;
+        min-height: 0;
+        cursor: text;
+      }
+
+      /* Each rendered Markdown block */
+      .live-editor-block {
+        padding: 4px 8px;
+        border-radius: 8px;
+        cursor: text;
+      }
+
+      .live-editor-block:hover {
+        background: #f0f4f8;
+      }
+
+      /* The raw-Markdown textarea that appears when a block is being edited */
+      .live-editor-active-textarea {
+        width: 100%;
+        border: 1px solid #4c8bf5;
+        border-radius: 8px;
+        padding: 8px 10px;
         font-size: 15px;
         line-height: 1.6;
         font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-        background: #fbfcfe;
+        background: #ffffff;
         color: #1f2328;
+        box-shadow: 0 0 0 3px rgba(76, 139, 245, 0.15);
+        resize: none;
         outline: none;
+        display: block;
       }
 
-      .helper-line {
-        font-size: 12px;
-        color: #57606a;
-      }
-
-      .preview-box {
-        height: 100%;
-        border: 1px solid #cdd9e5;
-        border-radius: 14px;
-        background: #fbfcfe;
-        padding: 18px;
-        overflow: auto;
-      }
-
-      .preview-frontmatter {
-        margin-bottom: 16px;
-        padding: 12px;
-        background: #eef5ff;
-        border-radius: 10px;
-        font-size: 13px;
-        color: #334155;
-      }
-
-      .preview-frontmatter strong {
-        color: #0f172a;
-      }
-
-      .preview-title {
-        margin: 0 0 16px 0;
-        font-size: 24px;
-        font-weight: 700;
-      }
+      /* ── Markdown rendering styles (used inside .live-editor-block) ─── */
 
       .preview-markdown {
         line-height: 1.7;
@@ -452,11 +445,6 @@
         margin-left: 0;
         color: #57606a;
       }
-
-      .preview-empty {
-        color: #57606a;
-        font-style: italic;
-      }
     </style>
   </head>
   <body>
@@ -496,7 +484,7 @@
               type="button"
               aria-label="Hide Navigation"
             >
-              <
+              &lt;
             </button>
           </div>
           <div class="panel-body">
@@ -531,7 +519,7 @@
               type="button"
               aria-label="Hide Notes"
             >
-              <
+              &lt;
             </button>
           </div>
           <div class="panel-tools">
@@ -551,9 +539,10 @@
           <div id="noteList" class="panel-body"></div>
         </section>
 
+        <!-- Single unified editor panel — no more split Editor / Preview -->
         <section class="workspace">
           <div class="workspace-panel">
-            <div class="panel-header">Editor</div>
+            <div class="panel-header">Note</div>
             <div class="workspace-body">
               <div class="editor-stack">
                 <input
@@ -585,26 +574,9 @@
                   </div>
                 </div>
 
-                <textarea
-                  id="bodyInput"
-                  class="editor-textarea"
-                  placeholder="Start writing your note..."
-                ></textarea>
-
-                <div class="helper-line">
-                  Day 25: real external MCP ingests should auto-refresh, switch to AI Imports, and focus the new note.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="workspace-panel">
-            <div class="panel-header">Preview</div>
-            <div class="workspace-body">
-              <div class="preview-box">
-                <div id="previewFrontmatter" class="preview-frontmatter"></div>
-                <h1 id="previewTitle" class="preview-title"></h1>
-                <div id="previewBody" class="preview-markdown"></div>
+                <!-- The live editor renders Markdown inline here.
+                     Click any block to edit it; blur to return to the rendered view. -->
+                <div id="liveEditorContainer" class="live-editor-container"></div>
               </div>
             </div>
           </div>
@@ -613,6 +585,8 @@
     </div>
 
     <script src="./node_modules/marked/lib/marked.umd.js"></script>
+    <script src="./lib/live-editor.js"></script>
+    <script src="./lib/LiveEditor.js"></script>
 
     <script>
       marked.use({ breaks: false });
@@ -795,10 +769,10 @@
           body: `# Daily Note
 
 ## Top priorities
-- 
+-
 
 ## Notes
-- 
+-
 
 ## Reflection
 - `,
@@ -812,13 +786,13 @@
           body: `# Meeting Note
 
 ## Attendees
-- 
+-
 
 ## Agenda
-- 
+-
 
 ## Decisions
-- 
+-
 
 ## Action Items
 - `,
@@ -835,7 +809,7 @@
 Write the core idea here.
 
 ## Why it matters
-- 
+-
 
 ## Next steps
 - `,
@@ -846,49 +820,48 @@ Write the core idea here.
         }
       };
 
-      const titleInput = document.getElementById('titleInput');
-      const tagsInput = document.getElementById('tagsInput');
-      const sourceInput = document.getElementById('sourceInput');
-      const bodyInput = document.getElementById('bodyInput');
-      const searchInput = document.getElementById('searchInput');
-      const searchMeta = document.getElementById('searchMeta');
-      const ingestBanner = document.getElementById('ingestBanner');
-      const previewFrontmatter = document.getElementById('previewFrontmatter');
-      const previewTitle = document.getElementById('previewTitle');
-      const previewBody = document.getElementById('previewBody');
-      const statusText = document.getElementById('statusText');
-      const vaultPathText = document.getElementById('vaultPathText');
-      const chooseVaultButton = document.getElementById('chooseVaultButton');
-      const seedDemoVaultButton = document.getElementById('seedDemoVaultButton');
-      const templateSelect = document.getElementById('templateSelect');
-      const newNoteButton = document.getElementById('newNoteButton');
-      const saveNoteButton = document.getElementById('saveNoteButton');
-      const deleteNoteButton = document.getElementById('deleteNoteButton');
-      const loadVaultButton = document.getElementById('loadVaultButton');
+      const titleInput             = document.getElementById('titleInput');
+      const tagsInput              = document.getElementById('tagsInput');
+      const sourceInput            = document.getElementById('sourceInput');
+      const liveEditorContainer    = document.getElementById('liveEditorContainer');
+      const searchInput            = document.getElementById('searchInput');
+      const searchMeta             = document.getElementById('searchMeta');
+      const ingestBanner           = document.getElementById('ingestBanner');
+      const statusText             = document.getElementById('statusText');
+      const vaultPathText          = document.getElementById('vaultPathText');
+      const chooseVaultButton      = document.getElementById('chooseVaultButton');
+      const seedDemoVaultButton    = document.getElementById('seedDemoVaultButton');
+      const templateSelect         = document.getElementById('templateSelect');
+      const newNoteButton          = document.getElementById('newNoteButton');
+      const saveNoteButton         = document.getElementById('saveNoteButton');
+      const deleteNoteButton       = document.getElementById('deleteNoteButton');
+      const loadVaultButton        = document.getElementById('loadVaultButton');
       const toggleNavigationButton = document.getElementById('toggleNavigationButton');
-      const toggleNotesButton = document.getElementById('toggleNotesButton');
-      const noteList = document.getElementById('noteList');
-      const mainLayout = document.getElementById('mainLayout');
-      const navigationPanel = document.getElementById('navigationPanel');
-      const notesPanel = document.getElementById('notesPanel');
+      const toggleNotesButton      = document.getElementById('toggleNotesButton');
+      const noteList               = document.getElementById('noteList');
+      const mainLayout             = document.getElementById('mainLayout');
+      const navigationPanel        = document.getElementById('navigationPanel');
+      const notesPanel             = document.getElementById('notesPanel');
 
-      const filterAll = document.getElementById('filterAll');
-      const filterAi = document.getElementById('filterAi');
-      const filterDrafts = document.getElementById('filterDrafts');
-      const filterVault = document.getElementById('filterVault');
-      const filterAllMeta = document.getElementById('filterAllMeta');
-      const filterAiMeta = document.getElementById('filterAiMeta');
+      const filterAll       = document.getElementById('filterAll');
+      const filterAi        = document.getElementById('filterAi');
+      const filterDrafts    = document.getElementById('filterDrafts');
+      const filterVault     = document.getElementById('filterVault');
+      const filterAllMeta   = document.getElementById('filterAllMeta');
+      const filterAiMeta    = document.getElementById('filterAiMeta');
       const filterDraftsMeta = document.getElementById('filterDraftsMeta');
       const filterVaultMeta = document.getElementById('filterVaultMeta');
 
-      let stopVaultWatcher = null;
-      let currentVaultPath = '';
-      let currentFilter = 'all';
-      let currentSearchQuery = '';
+      let stopVaultWatcher        = null;
+      let currentVaultPath        = '';
+      let currentFilter           = 'all';
+      let currentSearchQuery      = '';
       let lastIngestedRelativePath = '';
-      let lastIngestedAt = '';
-      let isNavigationHidden = false;
-      let isNotesHidden = false;
+      let lastIngestedAt          = '';
+      let isNavigationHidden      = false;
+      let isNotesHidden           = false;
+      let liveEditorInstance      = null;
+      let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
 
       let notes = [
         {
@@ -982,60 +955,17 @@ Today the app reacts better to real external MCP ingests.
         `;
       }
 
-      function renderFrontmatterPreview(note) {
-        const tags = normalizeTags(note.frontmatter?.tags);
-        const sourceValue = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
-        const aiImported = note.aiImported === true;
-        const pathLine = note.relativePath
-          ? `<strong>Path:</strong> ${escapeHtml(note.relativePath)}`
-          : '';
-
-        if (tags.length === 0 && !sourceValue && !aiImported && !pathLine) {
-          previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
-          return;
-        }
-
-        const parts = [];
-
-        if (tags.length > 0) {
-          parts.push(`<strong>Tags:</strong> ${escapeHtml(tags.join(', '))}`);
-        }
-
-        if (sourceValue) {
-          parts.push(`<strong>Source:</strong> ${escapeHtml(sourceValue)}`);
-        }
-
-        if (aiImported) {
-          parts.push('<strong>AI Import:</strong> yes');
-        }
-
-        if (pathLine) {
-          parts.push(pathLine);
-        }
-
-        previewFrontmatter.innerHTML = parts.join('<br />');
-      }
-
-      function renderPreview(note) {
-        const titleValue = note.title.trim();
-        const bodyValue = note.body.trim();
-
-        renderFrontmatterPreview(note);
-        previewTitle.textContent = titleValue.length === 0 ? 'Untitled note' : note.title;
-
-        if (bodyValue.length === 0) {
-          previewBody.innerHTML =
-            '<div class="preview-empty">This note body is empty. Start typing in the editor.</div>';
-        } else {
-          previewBody.innerHTML = marked.parse(escapeHtml(note.body));
-        }
-      }
-
       function renderEditor(note) {
-        titleInput.value = note.title;
-        tagsInput.value = normalizeTags(note.frontmatter?.tags).join(', ');
+        titleInput.value  = note.title;
+        tagsInput.value   = normalizeTags(note.frontmatter?.tags).join(', ');
         sourceInput.value = note.frontmatter?.source || '';
-        bodyInput.value = note.body;
+
+        // Only reset the live editor when switching to a different note —
+        // not on every renderApp() call (which would destroy the user's cursor position).
+        if (note.id !== liveEditorLastNoteId) {
+          liveEditorLastNoteId = note.id;
+          liveEditorInstance.setText(note.body);
+        }
       }
 
       function getBaseFilteredNotes() {
@@ -1082,18 +1012,18 @@ Today the app reacts better to real external MCP ingests.
       }
 
       function updateFilterCounts() {
-        filterAllMeta.textContent = `${notes.length} note(s)`;
-        filterAiMeta.textContent = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
+        filterAllMeta.textContent    = `${notes.length} note(s)`;
+        filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
         filterDraftsMeta.textContent = `${notes.filter((note) => note.source === 'draft').length} note(s)`;
-        filterVaultMeta.textContent = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
+        filterVaultMeta.textContent  = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
       }
 
       function renderFilterNav() {
         const items = [
-          [filterAll, 'all'],
-          [filterAi, 'ai'],
+          [filterAll,    'all'],
+          [filterAi,     'ai'],
           [filterDrafts, 'drafts'],
-          [filterVault, 'vault']
+          [filterVault,  'vault']
         ];
 
         items.forEach(([element, filterKey]) => {
@@ -1194,19 +1124,15 @@ Today the app reacts better to real external MCP ingests.
         renderNoteList();
 
         if (!selectedNote) {
-          previewFrontmatter.innerHTML = '<strong>Frontmatter:</strong> none';
-          previewTitle.textContent = 'No note selected';
-          previewBody.innerHTML =
-            '<div class="preview-empty">Create a new note, switch filters, load a vault, or create the demo vault.</div>';
-          titleInput.value = '';
-          tagsInput.value = '';
+          titleInput.value  = '';
+          tagsInput.value   = '';
           sourceInput.value = '';
-          bodyInput.value = '';
+          liveEditorInstance.setText('');
+          liveEditorLastNoteId = '';
           return;
         }
 
         renderEditor(selectedNote);
-        renderPreview(selectedNote);
       }
 
       function updateSelectedNoteFromInputs() {
@@ -1214,9 +1140,9 @@ Today the app reacts better to real external MCP ingests.
         if (!selectedNote) return;
 
         selectedNote.title = titleInput.value;
-        selectedNote.body = bodyInput.value;
+        selectedNote.body  = liveEditorInstance.getText();
         selectedNote.frontmatter = {
-          tags: normalizeTags(tagsInput.value),
+          tags:   normalizeTags(tagsInput.value),
           source: sourceInput.value.trim()
         };
 
@@ -1252,7 +1178,7 @@ Today the app reacts better to real external MCP ingests.
           source: 'draft',
           aiImported: false,
           frontmatter: {
-            tags: normalizeTags(template.frontmatter?.tags),
+            tags:   normalizeTags(template.frontmatter?.tags),
             source: template.frontmatter?.source || ''
           }
         };
@@ -1469,12 +1395,12 @@ Today the app reacts better to real external MCP ingests.
           vaultPath: currentVaultPath,
           note: {
             title: selectedNote.title,
-            body: selectedNote.body,
+            body:  liveEditorInstance.getText(),
             source: selectedNote.source,
             fileName: selectedNote.fileName,
             relativePath: selectedNote.relativePath,
             frontmatter: {
-              tags: normalizeTags(selectedNote.frontmatter?.tags),
+              tags:   normalizeTags(selectedNote.frontmatter?.tags),
               source: selectedNote.frontmatter?.source || ''
             }
           }
@@ -1623,10 +1549,21 @@ Today the app reacts better to real external MCP ingests.
         stopWatchingVault();
       });
 
+      // ── Boot the live editor ───────────────────────────────────────────────
+      liveEditorInstance = new LiveEditorComponent.LiveEditor(liveEditorContainer, {
+        initialText: '',
+        onChange: (text) => {
+          const selectedNote = getSelectedNote();
+          if (!selectedNote) return;
+          selectedNote.body = text;
+          renderNoteList();        // keep the note list preview in sync
+          setStatus('draft', 'Draft');
+        }
+      });
+
       titleInput.addEventListener('input', handleEdit);
       tagsInput.addEventListener('input', handleEdit);
       sourceInput.addEventListener('input', handleEdit);
-      bodyInput.addEventListener('input', handleEdit);
       searchInput.addEventListener('input', handleSearchInput);
 
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
@@ -1644,10 +1581,10 @@ Today the app reacts better to real external MCP ingests.
         updateLayoutVisibility();
       });
 
-      filterAll.addEventListener('click', () => setFilter('all'));
-      filterAi.addEventListener('click', () => setFilter('ai'));
+      filterAll.addEventListener('click',    () => setFilter('all'));
+      filterAi.addEventListener('click',     () => setFilter('ai'));
       filterDrafts.addEventListener('click', () => setFilter('drafts'));
-      filterVault.addEventListener('click', () => setFilter('vault'));
+      filterVault.addEventListener('click',  () => setFilter('vault'));
 
       renderApp();
       updateLayoutVisibility();
