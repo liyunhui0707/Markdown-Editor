@@ -380,40 +380,6 @@
       }
 
       /* Meta row — quiet, below the title */
-      .meta-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 28px;
-        padding-bottom: 20px;
-        border-bottom: 1px solid #f0f0f0;
-      }
-
-      .meta-label {
-        display: block;
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #aaaaaa;
-        margin-bottom: 5px;
-      }
-
-      .meta-input {
-        width: 100%;
-        border: 1px solid #ebebeb;
-        border-radius: 6px;
-        padding: 7px 10px;
-        font-size: 13px;
-        color: #444;
-        background: #fafafa;
-        outline: none;
-      }
-
-      .meta-input:focus {
-        border-color: #7c3aed;
-        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
-      }
 
       /* ── Live editor: document surface, no box ───────────────────────── */
 
@@ -799,27 +765,6 @@
                   placeholder="Untitled note"
                 />
 
-                <div class="meta-row">
-                  <div>
-                    <label class="meta-label" for="tagsInput">Tags (comma-separated)</label>
-                    <input
-                      id="tagsInput"
-                      class="meta-input"
-                      type="text"
-                      placeholder="ai, notes, project"
-                    />
-                  </div>
-
-                  <div>
-                    <label class="meta-label" for="sourceInput">Source</label>
-                    <input
-                      id="sourceInput"
-                      class="meta-input"
-                      type="text"
-                      placeholder="claude, codex, manual"
-                    />
-                  </div>
-                </div>
 
                 <!-- The live editor renders Markdown inline here.
                      Click any block to edit it; blur to return to the rendered view. -->
@@ -869,6 +814,33 @@
 
       function normalizeSearchText(value) {
         return String(value || '').toLowerCase();
+      }
+
+      /* Build a metadata text block from structured frontmatter values. */
+      function serializeMetaPrefix(frontmatter) {
+        const tags   = normalizeTags(frontmatter?.tags).join(', ');
+        const source = (frontmatter?.source || '').trim();
+        const lines  = [];
+        if (tags)   lines.push(`Tags: ${tags}`);
+        if (source) lines.push(`Source: ${source}`);
+        return lines.join('\n');
+      }
+
+      /* Parse the metadata block from the very top of the body text.
+         Stops at the first line that is not Tags:/Source:.
+         Returns { tags, source, cleanBody } — cleanBody has the meta lines removed. */
+      function stripMetaPrefix(fullText) {
+        const lines = (fullText || '').split('\n');
+        let tags = [], source = '', i = 0;
+        while (i < lines.length) {
+          const tm = lines[i].match(/^Tags:\s*(.*)/i);
+          const sm = lines[i].match(/^Source:\s*(.*)/i);
+          if (tm)      { tags   = normalizeTags(tm[1]); i++; }
+          else if (sm) { source = sm[1].trim();          i++; }
+          else break;
+        }
+        while (i < lines.length && lines[i].trim() === '') i++;
+        return { tags, source, cleanBody: lines.slice(i).join('\n') };
       }
 
       function highlightText(text, query) {
@@ -1073,8 +1045,6 @@ Write the core idea here.
       };
 
       const titleInput             = document.getElementById('titleInput');
-      const tagsInput              = document.getElementById('tagsInput');
-      const sourceInput            = document.getElementById('sourceInput');
       const liveEditorContainer    = document.getElementById('liveEditorContainer');
       const searchInput            = document.getElementById('searchInput');
       const searchMeta             = document.getElementById('searchMeta');
@@ -1210,9 +1180,7 @@ Today the app reacts better to real external MCP ingests.
       }
 
       function renderEditor(note) {
-        titleInput.value  = note.title;
-        tagsInput.value   = normalizeTags(note.frontmatter?.tags).join(', ');
-        sourceInput.value = note.frontmatter?.source || '';
+        titleInput.value = note.title;
 
         // Only reset the live editor when switching to a different note —
         // not on every renderApp() call (which would destroy the user's cursor position).
@@ -1220,6 +1188,19 @@ Today the app reacts better to real external MCP ingests.
           liveEditorLastNoteId = note.id;
           isEditMode = false;
           editToggleButton.textContent = 'Edit';
+
+          // Migration: if the body doesn't already start with inline metadata,
+          // prepend it from frontmatter and store it back so future saves are canonical.
+          const { tags: existingTags } = stripMetaPrefix(note.body);
+          const hasMeta = existingTags.length > 0
+            || /^Source:/im.test((note.body || '').split('\n').slice(0, 3).join('\n'));
+          if (!hasMeta) {
+            const prefix = serializeMetaPrefix(note.frontmatter);
+            if (prefix) {
+              note.body = prefix + '\n\n' + (note.body || '');
+            }
+          }
+
           liveEditorInstance.setText(note.body);
         }
       }
@@ -1381,8 +1362,6 @@ Today the app reacts better to real external MCP ingests.
 
         if (!selectedNote) {
           titleInput.value  = '';
-          tagsInput.value   = '';
-          sourceInput.value = '';
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
           return;
@@ -1395,11 +1374,14 @@ Today the app reacts better to real external MCP ingests.
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
 
+        const fullText = liveEditorInstance.getText();
+        const { tags, source } = stripMetaPrefix(fullText);
+
         selectedNote.title = titleInput.value;
-        selectedNote.body  = liveEditorInstance.getText();
+        selectedNote.body  = fullText;          // body is now the canonical source
         selectedNote.frontmatter = {
-          tags:   normalizeTags(tagsInput.value),
-          source: sourceInput.value.trim()
+          tags,                                 // mirrored for search + note list
+          source                                // mirrored for search + note list
         };
 
         if (selectedNote.source === 'vault') {
@@ -1818,8 +1800,7 @@ Today the app reacts better to real external MCP ingests.
       });
 
       titleInput.addEventListener('input', handleEdit);
-      tagsInput.addEventListener('input', handleEdit);
-      sourceInput.addEventListener('input', handleEdit);
+
       searchInput.addEventListener('input', handleSearchInput);
 
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
