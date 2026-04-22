@@ -579,6 +579,61 @@
         border-top: 1px solid #ebebeb;
         margin: 2em 0;
       }
+
+      /* ── Overflow menu (···) ─────────────────────────────────────────── */
+
+      .topbar-more-wrapper {
+        position: relative;
+      }
+
+      .more-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+        padding: 6px;
+        z-index: 100;
+        min-width: 190px;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .more-menu.open {
+        display: flex;
+      }
+
+      .more-menu .action-button {
+        width: 100%;
+        text-align: left;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 12px;
+        background: transparent;
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .more-menu .action-button:hover {
+        background: var(--surface-muted);
+      }
+
+      .more-menu-separator {
+        height: 1px;
+        background: var(--border-subtle);
+        margin: 4px 2px;
+      }
+
+      .action-button--destructive {
+        color: #991b1b !important;
+      }
+
+      .action-button--destructive:hover {
+        background: #fff1f2 !important;
+      }
     </style>
   </head>
   <body>
@@ -586,8 +641,6 @@
       <header class="topbar">
         <div class="topbar-left">
           <div class="topbar-title">Markdown Vault App</div>
-          <button id="chooseVaultButton" class="action-button">Choose Vault</button>
-          <button id="seedDemoVaultButton" class="action-button">Create Demo Vault</button>
 
           <select id="templateSelect" class="template-select">
             <option value="blank">Blank Note</option>
@@ -598,8 +651,24 @@
 
           <button id="newNoteButton" class="action-button">New Note</button>
           <button id="saveNoteButton" class="action-button">Save Note</button>
-          <button id="deleteNoteButton" class="action-button">Delete Note</button>
-          <button id="loadVaultButton" class="action-button">Load Vault</button>
+
+          <!-- Overflow menu for rarely-used actions -->
+          <div class="topbar-more-wrapper">
+            <button
+              id="moreButton"
+              class="action-button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="moreMenu"
+            >···</button>
+            <div id="moreMenu" class="more-menu" role="menu">
+              <button id="chooseVaultButton" class="action-button" role="menuitem">Choose Vault</button>
+              <button id="seedDemoVaultButton" class="action-button" role="menuitem">Create Demo Vault</button>
+              <button id="loadVaultButton" class="action-button" role="menuitem">Load Vault</button>
+              <div class="more-menu-separator"></div>
+              <button id="deleteNoteButton" class="action-button action-button--destructive" role="menuitem">Delete Note</button>
+            </div>
+          </div>
         </div>
 
         <div class="topbar-right">
@@ -1741,6 +1810,30 @@ Today the app reacts better to real external MCP ingests.
           setStatus('draft', 'Draft');
         }
       });
+
+      // ── Overflow menu (···) ───────────────────────────────────────────
+      const moreButton = document.getElementById('moreButton');
+      const moreMenu   = document.getElementById('moreMenu');
+
+      function closeMenu() {
+        moreMenu.classList.remove('open');
+        moreButton.setAttribute('aria-expanded', 'false');
+      }
+
+      moreButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const opening = !moreMenu.classList.contains('open');
+        moreMenu.classList.toggle('open');
+        moreButton.setAttribute('aria-expanded', String(opening));
+      });
+
+      document.addEventListener('click', closeMenu);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+      });
+
+      moreMenu.addEventListener('click', closeMenu);
 
       renderApp();
       updateLayoutVisibility();
