@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown Vault App</title>
+    <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
     <style>
       /* ── Design tokens ───────────────────────────────────────────────── */
       :root {
@@ -657,6 +658,40 @@
         white-space: nowrap;
         max-width: 60%;
       }
+
+      /* ── Toast UI Editor integration ─────────────────────────────────── */
+
+      /* Force the editor wrapper to fill the live-editor-container */
+      .toastui-editor-defaultUI {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border: none;
+      }
+
+      /* Scrollable content area fills remaining space */
+      .toastui-editor-main {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      /* ProseMirror content area stretches to fill */
+      .ProseMirror {
+        min-height: 100%;
+        padding: 4px 2px;
+      }
+
+      /* Blend toolbar with app palette */
+      .toastui-editor-toolbar {
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface);
+      }
+
+      /* Remove default outer border */
+      .toastui-editor-defaultUI .toastui-editor-main {
+        border: none;
+      }
     </style>
   </head>
   <body>
@@ -753,9 +788,6 @@
                   </div>
                 </div>
               </div>
-              <div class="note-actions-right">
-                <button id="editToggleButton" class="action-button" style="font-size:12px;padding:4px 10px;">Edit</button>
-              </div>
             </div>
             <div class="workspace-body">
               <div class="editor-stack">
@@ -782,13 +814,9 @@
       </footer>
     </div>
 
-    <script src="./node_modules/marked/lib/marked.umd.js"></script>
-    <script src="./lib/live-editor.js"></script>
-    <script src="./lib/LiveEditor.js"></script>
+    <script src="./lib/toastui-bundle.js"></script>
 
     <script>
-      marked.use({ breaks: false });
-
       function escapeHtml(text) {
         return String(text)
           .replace(/&/g, '&amp;')
@@ -1061,7 +1089,6 @@ Write the core idea here.
       const loadVaultButton        = document.getElementById('loadVaultButton');
       const toggleNavigationButton = document.getElementById('toggleNavigationButton');
       const toggleNotesButton      = document.getElementById('toggleNotesButton');
-      const editToggleButton       = document.getElementById('editToggleButton');
       const noteList               = document.getElementById('noteList');
       const mainLayout             = document.getElementById('mainLayout');
       const navigationPanel        = document.getElementById('navigationPanel');
@@ -1086,7 +1113,6 @@ Write the core idea here.
       let isNotesHidden           = false;
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
-      let isEditMode              = false;
 
       let notes = [
         {
@@ -1187,8 +1213,6 @@ Today the app reacts better to real external MCP ingests.
         // not on every renderApp() call (which would destroy the user's cursor position).
         if (note.id !== liveEditorLastNoteId) {
           liveEditorLastNoteId = note.id;
-          isEditMode = false;
-          editToggleButton.textContent = 'Edit';
 
           // Migration: if the body doesn't already start with inline metadata,
           // prepend it from frontmatter and store it back so future saves are canonical.
@@ -1788,16 +1812,33 @@ Today the app reacts better to real external MCP ingests.
         stopWatchingVault();
       });
 
-      // ── Boot the live editor ───────────────────────────────────────────────
-      liveEditorInstance = new LiveEditorComponent.LiveEditor(liveEditorContainer, {
-        initialText: '',
-        onChange: (text) => {
-          const selectedNote = getSelectedNote();
-          if (!selectedNote) return;
-          selectedNote.body = text;
-          renderNoteList();        // keep the note list preview in sync
-          setStatus('draft', 'Draft');
-        }
+      // ── Boot the WYSIWYG editor (Toast UI via self-contained bundle) ──────
+      const _toastuiInstance = new window.ToastuiEditor({
+        el: liveEditorContainer,
+        height: '100%',
+        initialEditType: 'wysiwyg',
+        hideModeSwitch: true,
+        usageStatistics: false,
+        toolbarItems: [
+          ['heading', 'bold', 'italic'],
+          ['ul', 'ol'],
+          ['link'],
+        ],
+        initialValue: '',
+      });
+
+      // Thin adapter — keeps all getText()/setText() call sites unchanged
+      liveEditorInstance = {
+        getText() { return _toastuiInstance.getMarkdown(); },
+        setText(text) { _toastuiInstance.setMarkdown(text || ''); },
+      };
+
+      _toastuiInstance.on('change', () => {
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
+        selectedNote.body = liveEditorInstance.getText();
+        renderNoteList();
+        setStatus('draft', 'Draft');
       });
 
       titleInput.addEventListener('input', handleEdit);
@@ -1823,21 +1864,6 @@ Today the app reacts better to real external MCP ingests.
       filterAi.addEventListener('click',     () => setFilter('ai'));
       filterDrafts.addEventListener('click', () => setFilter('drafts'));
       filterVault.addEventListener('click',  () => setFilter('vault'));
-
-      editToggleButton.addEventListener('click', () => {
-        if (!isEditMode) {
-          isEditMode = true;
-          editToggleButton.textContent = 'Done';
-          liveEditorInstance.enterEditMode();
-        } else {
-          isEditMode = false;
-          editToggleButton.textContent = 'Edit';
-          liveEditorInstance.exitEditMode();
-          const selectedNote = getSelectedNote();
-          if (selectedNote) selectedNote.body = liveEditorInstance.getText();
-          setStatus('draft', 'Draft');
-        }
-      });
 
       // ── Overflow menu (···) ───────────────────────────────────────────
       const moreButton = document.getElementById('moreButton');

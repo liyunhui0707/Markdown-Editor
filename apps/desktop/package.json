@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
+    "build:editor": "esbuild lib/editor-entry.js --bundle --format=iife --platform=browser --outfile=lib/toastui-bundle.js",
     "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "dist": "electron-builder -m zip",
     "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir zip"
@@ -20,9 +21,11 @@
   },
   "devDependencies": {
     "electron": "^37.0.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.25.12"
   },
   "dependencies": {
+    "@toast-ui/editor": "^3.2.2",
     "marked": "^17.0.5"
   }
 }
