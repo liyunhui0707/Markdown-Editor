@@ -10,6 +10,7 @@
         --bg:              #f5f4f1;   /* warm off-white, like Obsidian's default */
         --surface:         #ffffff;   /* panel / card surface */
         --surface-muted:   #f0efe9;   /* sidebar background */
+        --surface-sidebar: #f2f1ec;   /* nav + notes panel background */
         --border:          #e5e3dc;   /* standard border */
         --border-subtle:   #edecea;   /* very quiet dividers */
         --text:            #2d2d2d;   /* body text */
@@ -137,7 +138,7 @@
       .main-layout {
         flex: 1;
         display: grid;
-        grid-template-columns: 200px 280px 1fr;
+        grid-template-columns: 168px 220px 1fr;
         min-height: 0;
       }
 
@@ -145,7 +146,7 @@
 
       .panel {
         border-right: 1px solid var(--border);
-        background: var(--surface-muted);
+        background: var(--surface-sidebar);
         min-height: 0;
         display: flex;
         flex-direction: column;
@@ -223,17 +224,6 @@
         color: var(--text-muted);
       }
 
-      .demo-note {
-        margin-top: 10px;
-        font-size: 11px;
-        color: var(--text-muted);
-        line-height: 1.5;
-        background: transparent;
-        border: 1px solid var(--border-subtle);
-        border-radius: 6px;
-        padding: 8px 10px;
-      }
-
       .ingest-banner {
         margin-top: 10px;
         font-size: 11px;
@@ -285,7 +275,7 @@
       /* ── Note list items ─────────────────────────────────────────────── */
 
       .note-item {
-        padding: 8px 10px;
+        padding: 7px 10px;
         margin-bottom: 2px;
         border-radius: 6px;
         background: transparent;
@@ -733,11 +723,7 @@
               placeholder="Search notes by title, body, tags, source, or path..."
             />
             <div id="searchMeta" class="search-meta">Search all visible notes.</div>
-            <div class="demo-note">
-              Demo tip: keep the app open, then use Claude Code or Codex to call
-              <strong>ingest_chat_markdown</strong>. Day 25 will auto-refresh and focus the new AI note.
-            </div>
-            <div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
+<div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
           </div>
           <div id="noteList" class="panel-body"></div>
         </section>
@@ -1129,8 +1115,8 @@ Today the app reacts better to real external MCP ingests.
         navigationPanel.classList.toggle('collapsed', isNavigationHidden);
         notesPanel.classList.toggle('collapsed', isNotesHidden);
 
-        const navigationWidth = isNavigationHidden ? '32px' : '220px';
-        const notesWidth = isNotesHidden ? '32px' : '320px';
+        const navigationWidth = isNavigationHidden ? '32px' : '168px';
+        const notesWidth = isNotesHidden ? '32px' : '220px';
         mainLayout.style.gridTemplateColumns = `${navigationWidth} ${notesWidth} 1fr`;
 
         toggleNavigationButton.textContent = isNavigationHidden ? '>' : '<';
