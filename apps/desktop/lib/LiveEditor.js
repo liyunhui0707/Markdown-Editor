@@ -115,7 +115,6 @@
       ta.className        = 'live-editor-active-textarea';
       ta.dataset.liveEdit = 'true';
       ta.value            = this._text;
-      ta.rows             = Math.max(8, this._text.split('\n').length + 2);
       ta.placeholder      = 'Start writing your note…';
 
       /* Fire onChange on every keystroke so the note list stays in sync. */
