@@ -624,48 +624,76 @@
       .action-button--destructive:hover {
         background: #fff1f2 !important;
       }
+
+      /* ── Top chrome removal ──────────────────────────────────────────── */
+
+      /* Panel headers become invisible rails — only the toggle icon shows */
+      .panel-header {
+        padding: 4px 6px;
+        border-bottom: none;
+        background: transparent;
+        min-height: 0;
+      }
+
+      .panel-header-title {
+        display: none;
+      }
+
+      /* Workspace panel-header hidden — Edit/Done moved to note-actions */
+      .workspace-panel > .panel-header {
+        display: none;
+      }
+
+      /* ── Note actions bar ────────────────────────────────────────────── */
+
+      .note-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 10px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface);
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .note-actions-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .note-actions-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* ── Status bar footer ───────────────────────────────────────────── */
+
+      .status-bar {
+        height: 24px;
+        background: var(--surface-muted);
+        border-top: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        font-size: 11px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+      }
+
+      .status-bar-path {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 60%;
+      }
     </style>
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div class="topbar-left">
-          <div class="topbar-title">Markdown Vault App</div>
-
-          <select id="templateSelect" class="template-select">
-            <option value="blank">Blank Note</option>
-            <option value="daily">Daily Note</option>
-            <option value="meeting">Meeting Note</option>
-            <option value="idea">Idea Note</option>
-          </select>
-
-          <button id="newNoteButton" class="action-button">New Note</button>
-          <button id="saveNoteButton" class="action-button">Save Note</button>
-
-          <!-- Overflow menu for rarely-used actions -->
-          <div class="topbar-more-wrapper">
-            <button
-              id="moreButton"
-              class="action-button"
-              aria-haspopup="true"
-              aria-expanded="false"
-              aria-controls="moreMenu"
-            >···</button>
-            <div id="moreMenu" class="more-menu" role="menu">
-              <button id="chooseVaultButton" class="action-button" role="menuitem">Choose Vault</button>
-              <button id="seedDemoVaultButton" class="action-button" role="menuitem">Create Demo Vault</button>
-              <button id="loadVaultButton" class="action-button" role="menuitem">Load Vault</button>
-              <div class="more-menu-separator"></div>
-              <button id="deleteNoteButton" class="action-button action-button--destructive" role="menuitem">Delete Note</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="topbar-right">
-          <div id="vaultPathText" class="vault-path">Vault: not selected</div>
-          <div id="statusText" class="topbar-status status-ready">Ready</div>
-        </div>
-      </header>
 
       <main id="mainLayout" class="main-layout">
         <aside id="navigationPanel" class="panel">
@@ -731,9 +759,36 @@
         <!-- Single unified editor panel — no more split Editor / Preview -->
         <section class="workspace">
           <div class="workspace-panel">
-            <div class="panel-header">
-              Note
-              <button id="editToggleButton" class="action-button" style="font-size:12px;padding:4px 10px;">Edit</button>
+            <div class="note-actions">
+              <div class="note-actions-left">
+                <select id="templateSelect" class="template-select">
+                  <option value="blank">Blank Note</option>
+                  <option value="daily">Daily Note</option>
+                  <option value="meeting">Meeting Note</option>
+                  <option value="idea">Idea Note</option>
+                </select>
+                <button id="newNoteButton" class="action-button">New Note</button>
+                <button id="saveNoteButton" class="action-button">Save Note</button>
+                <div class="topbar-more-wrapper">
+                  <button
+                    id="moreButton"
+                    class="action-button"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                    aria-controls="moreMenu"
+                  >···</button>
+                  <div id="moreMenu" class="more-menu" role="menu">
+                    <button id="chooseVaultButton" class="action-button" role="menuitem">Choose Vault</button>
+                    <button id="seedDemoVaultButton" class="action-button" role="menuitem">Create Demo Vault</button>
+                    <button id="loadVaultButton" class="action-button" role="menuitem">Load Vault</button>
+                    <div class="more-menu-separator"></div>
+                    <button id="deleteNoteButton" class="action-button action-button--destructive" role="menuitem">Delete Note</button>
+                  </div>
+                </div>
+              </div>
+              <div class="note-actions-right">
+                <button id="editToggleButton" class="action-button" style="font-size:12px;padding:4px 10px;">Edit</button>
+              </div>
             </div>
             <div class="workspace-body">
               <div class="editor-stack">
@@ -774,6 +829,11 @@
           </div>
         </section>
       </main>
+
+      <footer class="status-bar">
+        <div id="vaultPathText" class="status-bar-path">Vault: not selected</div>
+        <div id="statusText" class="status-bar-status status-ready">Ready</div>
+      </footer>
     </div>
 
     <script src="./node_modules/marked/lib/marked.umd.js"></script>
