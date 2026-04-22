@@ -368,6 +368,14 @@
         cursor: text;
       }
 
+      /* Hint shown in an empty note (view mode) */
+      .live-editor-empty-hint {
+        padding: 8px;
+        color: #57606a;
+        font-style: italic;
+        font-size: 14px;
+      }
+
       /* Each rendered Markdown block */
       .live-editor-block {
         padding: 4px 8px;
@@ -542,7 +550,10 @@
         <!-- Single unified editor panel — no more split Editor / Preview -->
         <section class="workspace">
           <div class="workspace-panel">
-            <div class="panel-header">Note</div>
+            <div class="panel-header">
+              Note
+              <button id="editToggleButton" class="action-button" style="font-size:12px;padding:4px 10px;">Edit</button>
+            </div>
             <div class="workspace-body">
               <div class="editor-stack">
                 <input
@@ -838,6 +849,7 @@ Write the core idea here.
       const loadVaultButton        = document.getElementById('loadVaultButton');
       const toggleNavigationButton = document.getElementById('toggleNavigationButton');
       const toggleNotesButton      = document.getElementById('toggleNotesButton');
+      const editToggleButton       = document.getElementById('editToggleButton');
       const noteList               = document.getElementById('noteList');
       const mainLayout             = document.getElementById('mainLayout');
       const navigationPanel        = document.getElementById('navigationPanel');
@@ -862,6 +874,7 @@ Write the core idea here.
       let isNotesHidden           = false;
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
+      let isEditMode              = false;
 
       let notes = [
         {
@@ -964,6 +977,8 @@ Today the app reacts better to real external MCP ingests.
         // not on every renderApp() call (which would destroy the user's cursor position).
         if (note.id !== liveEditorLastNoteId) {
           liveEditorLastNoteId = note.id;
+          isEditMode = false;
+          editToggleButton.textContent = 'Edit';
           liveEditorInstance.setText(note.body);
         }
       }
@@ -1585,6 +1600,21 @@ Today the app reacts better to real external MCP ingests.
       filterAi.addEventListener('click',     () => setFilter('ai'));
       filterDrafts.addEventListener('click', () => setFilter('drafts'));
       filterVault.addEventListener('click',  () => setFilter('vault'));
+
+      editToggleButton.addEventListener('click', () => {
+        if (!isEditMode) {
+          isEditMode = true;
+          editToggleButton.textContent = 'Done';
+          liveEditorInstance.enterEditMode();
+        } else {
+          isEditMode = false;
+          editToggleButton.textContent = 'Edit';
+          liveEditorInstance.exitEditMode();
+          const selectedNote = getSelectedNote();
+          if (selectedNote) selectedNote.body = liveEditorInstance.getText();
+          setStatus('draft', 'Draft');
+        }
+      });
 
       renderApp();
       updateLayoutVisibility();

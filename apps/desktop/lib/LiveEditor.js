@@ -1,5 +1,7 @@
-/* Unified live editor — renders Markdown blocks inline.
-   Click a block to edit it; blur to return to the rendered view.
+/* Unified live editor — two explicit modes:
+     VIEW mode  : renders Markdown as HTML, fully selectable, no text boxes
+     EDIT mode  : one single textarea for the whole note body
+
    Works in both Node.js (for tests) and the browser (plain <script> tag). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -9,9 +11,8 @@
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (liveEditorCore) {
 
-  const { parseBlocks, replaceBlock } = liveEditorCore;
+  const { parseBlocks } = liveEditorCore;
 
-  /* Render raw Markdown to HTML. Falls back to basic rendering in test environments. */
   function renderMarkdown(raw) {
     if (typeof marked !== 'undefined' && marked.parse) {
       return marked.parse(raw);
@@ -28,143 +29,98 @@
 
   class LiveEditor {
     /**
-     * @param {Element} container  — the div that holds the editor
+     * @param {Element} container
      * @param {{ initialText?: string, onChange?: (text: string) => void }} options
      */
     constructor(container, options = {}) {
       this._container = container;
-      this._onChange = options.onChange || null;
-      this._text = options.initialText || '';
-      this._blocks = [];
-      this._activeIndex = -1;    // which block is currently being edited (-1 = none)
-      this._pointerDown = null;  // tracks where the mouse was pressed
-      this._hadSelectionOnMouseUp = false; // was text selected when the mouse was released?
+      this._onChange  = options.onChange || null;
+      this._text      = options.initialText || '';
+      this._editMode  = false;
       this._render();
     }
 
-    /* Return the current full Markdown text, flushing any active textarea first. */
+    /* Return the current text, flushing the textarea if it is open. */
     getText() {
-      const ta = this._container.querySelector('textarea[data-active-block]');
-      if (ta && this._activeIndex >= 0) {
-        return replaceBlock(this._text, this._blocks[this._activeIndex], ta.value);
-      }
-      return this._text;
+      const ta = this._container.querySelector('textarea[data-live-edit]');
+      return ta ? ta.value : this._text;
     }
 
-    /* Load new text and re-render from scratch (used when switching notes). */
+    /* Load new text and switch back to view mode (used when switching notes). */
     setText(text) {
-      this._text = text;
-      this._activeIndex = -1;
+      this._text     = text;
+      this._editMode = false;
       this._render();
     }
 
-    // ─── private methods ─────────────────────────────────────────────────────
+    /* Switch to edit mode — called by the Edit button in the toolbar. */
+    enterEditMode() {
+      this._text     = this.getText(); // flush any in-flight changes
+      this._editMode = true;
+      this._render();
+      const ta = this._container.querySelector('textarea[data-live-edit]');
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length); // cursor at end
+      }
+    }
 
-    /* Rebuild the entire editor DOM from the current text. */
+    /* Switch back to view mode — called by the Done button. */
+    exitEditMode() {
+      const ta = this._container.querySelector('textarea[data-live-edit]');
+      if (ta) {
+        this._text = ta.value;
+        if (this._onChange) this._onChange(this._text);
+      }
+      this._editMode = false;
+      this._render();
+    }
+
+    // ─── private ─────────────────────────────────────────────────────────────
+
     _render() {
-      this._blocks = parseBlocks(this._text);
       this._container.innerHTML = '';
 
-      if (this._blocks.length === 0) {
-        // Empty note — show a single blank textarea so the user can start typing
-        this._container.appendChild(this._makeEmptyTextarea());
+      if (this._editMode) {
+        this._container.appendChild(this._makeTextarea());
+      } else {
+        this._renderViewMode();
+      }
+    }
+
+    /* VIEW MODE: render each block as formatted HTML — nothing is clickable. */
+    _renderViewMode() {
+      const blocks = parseBlocks(this._text);
+
+      if (blocks.length === 0) {
+        const hint = this._container.ownerDocument.createElement('div');
+        hint.className   = 'live-editor-empty-hint';
+        hint.textContent = 'Empty note — click Edit to start writing.';
+        this._container.appendChild(hint);
         return;
       }
 
-      this._blocks.forEach((block, index) => {
-        if (index === this._activeIndex) {
-          this._container.appendChild(this._makeTextarea(block, index));
-        } else {
-          this._container.appendChild(this._makeBlockDiv(block, index));
-        }
+      blocks.forEach((block) => {
+        const div = this._container.ownerDocument.createElement('div');
+        div.className = 'live-editor-block preview-markdown';
+        div.innerHTML = renderMarkdown(block.raw);
+        this._container.appendChild(div);
       });
     }
 
-    /* The textarea shown when the note is completely empty. */
-    _makeEmptyTextarea() {
+    /* EDIT MODE: one textarea for the whole note body. */
+    _makeTextarea() {
       const doc = this._container.ownerDocument;
-      const ta = doc.createElement('textarea');
-      ta.className = 'live-editor-active-textarea';
-      ta.dataset.activeBlock = 'empty';
-      ta.value = '';
-      ta.rows = 3;
-      ta.placeholder = 'Start writing your note…';
+      const ta  = doc.createElement('textarea');
+      ta.className        = 'live-editor-active-textarea';
+      ta.dataset.liveEdit = 'true';
+      ta.value            = this._text;
+      ta.rows             = Math.max(8, this._text.split('\n').length + 2);
+      ta.placeholder      = 'Start writing your note…';
 
-      ta.addEventListener('blur', () => {
-        const newRaw = ta.value.trim();
-        if (newRaw) {
-          this._text = newRaw;
-          if (this._onChange) this._onChange(this._text);
-        }
-        this._activeIndex = -1;
-        this._render();
-      });
-
-      return ta;
-    }
-
-    /* A rendered HTML block. Clicking it (without selecting text) activates editing. */
-    _makeBlockDiv(block, index) {
-      const div = this._container.ownerDocument.createElement('div');
-      div.className = 'live-editor-block preview-markdown';
-      div.dataset.blockIndex = String(index);
-      div.innerHTML = renderMarkdown(block.raw);
-
-      /* Record where the mouse was pressed so we can tell drags from clicks. */
-      div.addEventListener('mousedown', (event) => {
-        this._pointerDown = { x: event.clientX, y: event.clientY, button: event.button };
-        this._hadSelectionOnMouseUp = false;
-      });
-
-      /* At mouseup the browser has finalized the selection — capture it now.
-         This is more reliable than checking inside the click event. */
-      div.addEventListener('mouseup', () => {
-        const view = div.ownerDocument.defaultView;
-        const sel = view && typeof view.getSelection === 'function' ? view.getSelection() : null;
-        this._hadSelectionOnMouseUp = !!(sel && !sel.isCollapsed);
-      });
-
-      /* Activate edit mode only for a plain, deliberate click — not a drag, not a selection. */
-      div.addEventListener('click', (event) => {
-        const dragged =
-          this._pointerDown &&
-          this._pointerDown.button === event.button &&
-          (Math.abs(event.clientX - this._pointerDown.x) > 4 ||
-            Math.abs(event.clientY - this._pointerDown.y) > 4);
-        this._pointerDown = null;
-
-        if (dragged) return;
-        if (this._hadSelectionOnMouseUp) return;
-
-        this._activeIndex = index;
-        this._render();
-        const ta = this._container.querySelector('textarea[data-active-block]');
-        if (ta) ta.focus();
-      });
-
-      return div;
-    }
-
-    /* The textarea shown when a block is being edited. */
-    _makeTextarea(block, index) {
-      const doc = this._container.ownerDocument;
-      const ta = doc.createElement('textarea');
-      ta.className = 'live-editor-active-textarea';
-      ta.dataset.activeBlock = String(index);
-      ta.value = block.raw;
-      ta.rows = Math.max(3, block.raw.split('\n').length + 1);
-
-      ta.addEventListener('blur', () => {
-        const newRaw = ta.value;
-        const changed = newRaw !== block.raw;
-
-        if (changed) {
-          this._text = replaceBlock(this._text, block, newRaw);
-          if (this._onChange) this._onChange(this._text);
-        }
-
-        this._activeIndex = -1;
-        this._render();
+      /* Fire onChange on every keystroke so the note list stays in sync. */
+      ta.addEventListener('input', () => {
+        if (this._onChange) this._onChange(ta.value);
       });
 
       return ta;
