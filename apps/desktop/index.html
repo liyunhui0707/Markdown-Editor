@@ -815,6 +815,7 @@
     </div>
 
     <script src="./lib/toastui-bundle.js"></script>
+    <script src="./lib/vault-actions.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1529,25 +1530,15 @@ Today the app reacts better to real external MCP ingests.
       }
 
       async function chooseVaultFolder() {
-        setStatus('saving', 'Choosing vault...');
-
-        const result = await window.vaultApi.chooseVaultFolder();
-
-        if (!result.ok) {
-          if (result.canceled) {
-            setStatus('ready', 'Vault selection canceled');
-          } else {
-            setStatus('error', `Choose vault failed: ${result.error}`);
-          }
-          return;
-        }
-
-        await stopWatchingVault();
-
-        currentVaultPath = result.vaultPath;
-        updateVaultPathDisplay();
-        await startVaultWatcher();
-        setStatus('ready', 'Vault selected');
+        await VaultActions.chooseVaultFolder({
+          vaultApi:            window.vaultApi,
+          setCurrentVaultPath: (p) => { currentVaultPath = p; },
+          stopWatching:        stopWatchingVault,
+          startWatching:       startVaultWatcher,
+          refreshVaultNotes:   refreshVaultNotes,
+          updateDisplay:       updateVaultPathDisplay,
+          setStatus:           setStatus,
+        });
       }
 
       async function seedDemoVault() {
