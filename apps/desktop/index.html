@@ -139,7 +139,7 @@
       .main-layout {
         flex: 1;
         display: grid;
-        grid-template-columns: 168px 220px 1fr;
+        grid-template-columns: 300px 1fr;
         min-height: 0;
       }
 
@@ -157,8 +157,15 @@
         border-right: none;
       }
 
+      /* Sidebar hidden: grid column collapses to 0px; overflow:hidden clips content.
+         Must NOT use display:none — that removes the element from grid flow and
+         causes the workspace to land in the 0px column, blanking the page. */
+      #sidebarPanel {
+        overflow: hidden;
+      }
+
       .panel-header {
-        padding: 12px 14px;
+        padding: 8px 10px;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
@@ -166,45 +173,10 @@
         color: var(--text-muted);
         border-bottom: 1px solid var(--border-subtle);
         background: transparent;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
       }
 
       .panel-header-title {
         min-width: 0;
-      }
-
-      .panel-toggle {
-        border: none;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        padding: 2px 5px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 600;
-        line-height: 1;
-      }
-
-      .panel-toggle:hover {
-        background: var(--border-subtle);
-        color: var(--text);
-      }
-
-      .panel.collapsed .panel-body,
-      .panel.collapsed .panel-tools {
-        display: none;
-      }
-
-      .panel.collapsed .panel-header {
-        justify-content: center;
-        padding: 12px 8px;
-      }
-
-      .panel.collapsed .panel-header-title {
-        display: none;
       }
 
       .panel-body {
@@ -637,6 +609,38 @@
         gap: 6px;
       }
 
+      /* ── Sidebar toggle ──────────────────────────────────────────────── */
+
+      .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        flex-shrink: 0;
+        transition: color 0.15s, background 0.15s;
+      }
+
+      .sidebar-toggle:hover {
+        background: var(--surface-muted);
+        color: var(--text);
+        border-color: var(--border);
+      }
+
+      /* Filter section separator inside sidebar */
+      .sidebar-divider {
+        height: 1px;
+        background: var(--border-subtle);
+        margin: 4px 0;
+      }
+
       /* ── Status bar footer ───────────────────────────────────────────── */
 
       .status-bar {
@@ -698,53 +702,30 @@
     <div class="app-shell">
 
       <main id="mainLayout" class="main-layout">
-        <aside id="navigationPanel" class="panel">
+        <!-- Unified sidebar: filters + search + note list -->
+        <aside id="sidebarPanel" class="panel">
           <div class="panel-header">
-            <span class="panel-header-title">Navigation</span>
-            <button
-              id="toggleNavigationButton"
-              class="panel-toggle"
-              type="button"
-              aria-label="Hide Navigation"
-            >
-              &lt;
-            </button>
+            <span class="panel-header-title">Notes</span>
           </div>
-          <div class="panel-body">
+          <div class="panel-body" style="padding:8px 8px 4px;">
             <div class="nav-item active" data-filter="all" id="filterAll">
               <div class="nav-label">All Notes</div>
               <div class="nav-meta" id="filterAllMeta">0 notes</div>
             </div>
-
             <div class="nav-item" data-filter="ai" id="filterAi">
               <div class="nav-label">AI Imports</div>
               <div class="nav-meta" id="filterAiMeta">0 notes</div>
             </div>
-
             <div class="nav-item" data-filter="drafts" id="filterDrafts">
               <div class="nav-label">Drafts</div>
               <div class="nav-meta" id="filterDraftsMeta">0 notes</div>
             </div>
-
             <div class="nav-item" data-filter="vault" id="filterVault">
               <div class="nav-label">Vault Files</div>
               <div class="nav-meta" id="filterVaultMeta">0 notes</div>
             </div>
           </div>
-        </aside>
-
-        <section id="notesPanel" class="panel">
-          <div class="panel-header">
-            <span class="panel-header-title">Notes</span>
-            <button
-              id="toggleNotesButton"
-              class="panel-toggle"
-              type="button"
-              aria-label="Hide Notes"
-            >
-              &lt;
-            </button>
-          </div>
+          <div class="sidebar-divider"></div>
           <div class="panel-tools">
             <input
               id="searchInput"
@@ -753,16 +734,23 @@
               placeholder="Search notes by title, body, tags, source, or path..."
             />
             <div id="searchMeta" class="search-meta">Search all visible notes.</div>
-<div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
+            <div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
           </div>
           <div id="noteList" class="panel-body"></div>
-        </section>
+        </aside>
 
         <!-- Single unified editor panel — no more split Editor / Preview -->
         <section class="workspace">
           <div class="workspace-panel">
             <div class="note-actions">
               <div class="note-actions-left">
+                <button
+                  id="sidebarToggle"
+                  class="sidebar-toggle"
+                  title="Show sidebar"
+                  aria-label="Show sidebar"
+                  aria-expanded="false"
+                >›</button>
                 <select id="templateSelect" class="template-select">
                   <option value="blank">Blank Note</option>
                   <option value="daily">Daily Note</option>
@@ -1088,12 +1076,10 @@ Write the core idea here.
       const saveNoteButton         = document.getElementById('saveNoteButton');
       const deleteNoteButton       = document.getElementById('deleteNoteButton');
       const loadVaultButton        = document.getElementById('loadVaultButton');
-      const toggleNavigationButton = document.getElementById('toggleNavigationButton');
-      const toggleNotesButton      = document.getElementById('toggleNotesButton');
+      const sidebarToggle          = document.getElementById('sidebarToggle');
+      const sidebarPanel           = document.getElementById('sidebarPanel');
       const noteList               = document.getElementById('noteList');
       const mainLayout             = document.getElementById('mainLayout');
-      const navigationPanel        = document.getElementById('navigationPanel');
-      const notesPanel             = document.getElementById('notesPanel');
 
       const filterAll       = document.getElementById('filterAll');
       const filterAi        = document.getElementById('filterAi');
@@ -1110,8 +1096,7 @@ Write the core idea here.
       let currentSearchQuery      = '';
       let lastIngestedRelativePath = '';
       let lastIngestedAt          = '';
-      let isNavigationHidden      = false;
-      let isNotesHidden           = false;
+      let isSidebarHidden         = true;   // hidden by default — max note space on launch
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
 
@@ -1170,23 +1155,13 @@ Today the app reacts better to real external MCP ingests.
       }
 
       function updateLayoutVisibility() {
-        navigationPanel.classList.toggle('collapsed', isNavigationHidden);
-        notesPanel.classList.toggle('collapsed', isNotesHidden);
+        mainLayout.style.gridTemplateColumns = isSidebarHidden ? '0px 1fr' : '300px 1fr';
 
-        const navigationWidth = isNavigationHidden ? '32px' : '168px';
-        const notesWidth = isNotesHidden ? '32px' : '220px';
-        mainLayout.style.gridTemplateColumns = `${navigationWidth} ${notesWidth} 1fr`;
-
-        toggleNavigationButton.textContent = isNavigationHidden ? '>' : '<';
-        toggleNavigationButton.setAttribute(
-          'aria-label',
-          isNavigationHidden ? 'Show Navigation' : 'Hide Navigation'
-        );
-        toggleNotesButton.textContent = isNotesHidden ? '>' : '<';
-        toggleNotesButton.setAttribute(
-          'aria-label',
-          isNotesHidden ? 'Show Notes' : 'Hide Notes'
-        );
+        const label = isSidebarHidden ? 'Show sidebar' : 'Hide sidebar';
+        sidebarToggle.textContent = isSidebarHidden ? '›' : '‹';
+        sidebarToggle.title = label;
+        sidebarToggle.setAttribute('aria-label', label);
+        sidebarToggle.setAttribute('aria-expanded', String(!isSidebarHidden));
       }
 
       function setIngestBanner(relativePath) {
@@ -1842,12 +1817,8 @@ Today the app reacts better to real external MCP ingests.
       saveNoteButton.addEventListener('click', saveCurrentNote);
       deleteNoteButton.addEventListener('click', deleteCurrentNote);
       loadVaultButton.addEventListener('click', loadVaultNotes);
-      toggleNavigationButton.addEventListener('click', () => {
-        isNavigationHidden = !isNavigationHidden;
-        updateLayoutVisibility();
-      });
-      toggleNotesButton.addEventListener('click', () => {
-        isNotesHidden = !isNotesHidden;
+      sidebarToggle.addEventListener('click', () => {
+        isSidebarHidden = !isSidebarHidden;
         updateLayoutVisibility();
       });
 
