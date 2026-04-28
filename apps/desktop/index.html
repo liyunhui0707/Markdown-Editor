@@ -803,6 +803,7 @@
     </div>
 
     <script src="./lib/toastui-bundle.js"></script>
+    <script src="./lib/editor-config.js"></script>
     <script src="./lib/vault-actions.js"></script>
 
     <script>
@@ -1778,20 +1779,10 @@ Today the app reacts better to real external MCP ingests.
         stopWatchingVault();
       });
 
-      // ── Boot the WYSIWYG editor (Toast UI via self-contained bundle) ──────
-      const _toastuiInstance = new window.ToastuiEditor({
-        el: liveEditorContainer,
-        height: '100%',
-        initialEditType: 'wysiwyg',
-        hideModeSwitch: true,
-        usageStatistics: false,
-        toolbarItems: [
-          ['heading', 'bold', 'italic'],
-          ['ul', 'ol'],
-          ['link'],
-        ],
-        initialValue: '',
-      });
+      // ── Boot the Markdown editor (Toast UI via self-contained bundle) ──────
+      const _toastuiInstance = new window.ToastuiEditor(
+        window.makeEditorConfig(liveEditorContainer)
+      );
 
       // Thin adapter — keeps all getText()/setText() call sites unchanged
       liveEditorInstance = {

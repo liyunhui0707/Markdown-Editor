@@ -21,8 +21,8 @@ Your notes stay as normal Markdown files in a folder you control.
 ## Core features in v1  
   
 - Vault selection  
-- Create/edit/save Markdown notes  
-- Markdown preview  
+- Create and edit notes in a **Markdown Write tab** (raw Markdown syntax)  
+- Preview rendered output in the **Preview tab** (headings, bold, italic, lists, code, links, blockquotes)  
 - Search with result snippets  
 - Frontmatter support for:  
   - tags  
