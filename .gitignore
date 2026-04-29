@@ -5,6 +5,8 @@
 node_modules/
 dist/
 build/
+!apps/desktop/build/
+!apps/desktop/build/entitlements.mac.plist
 
 # Logs
 *.log
@@ -16,8 +18,18 @@ build/
 # Editor files
 .vscode/
 .idea/
+.obsidian/
+docs/.obsidian/
 
 # Temporary files
 tmp/
 temp/
 vault-demo/
+
+# Local assistant and machine-specific config
+.claude/
+.codex/config.toml
+.mcp.json
+
+# Local vault/user content
+Inbox/

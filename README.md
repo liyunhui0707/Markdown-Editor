@@ -1,195 +1,138 @@
-# Markdown Vault App  
-  
-A local-first Markdown vault desktop app for macOS, with MCP-based AI chat ingestion.  
-  
-## What this app is  
-  
-Markdown Vault App is a simplified, Obsidian-like desktop app that lets you:  
-  
-- choose a local folder as your vault  
-- create, edit, preview, search, and organize Markdown notes  
-- keep notes as plain `.md` files on disk  
-- ingest AI chat outputs from Claude Code and Codex CLI through MCP  
-- view imported AI chats inside the app under **AI Imports**  
-  
-This project is intentionally local-first and file-based.  
-  
-Your notes stay as normal Markdown files in a folder you control.  
-  
----  
-  
-## Core features in v1  
-  
-- Vault selection  
-- Create and edit notes in a **Markdown Write tab** (raw Markdown syntax)  
-- Preview rendered output in the **Preview tab** (headings, bold, italic, lists, code, links, blockquotes)  
-- Search with result snippets  
-- Frontmatter support for:  
-  - tags  
-  - source  
-- AI Imports filter  
-- MCP ingest tool:  
-  - `ingest_chat_markdown`  
-- App auto-refresh when new MCP-ingested notes appear  
-- Demo vault seeding  
-- Local packaged app build  
-  
----  
-  
-## Project structure  
-  
+# Markdown Vault App
 
+A local-first desktop Markdown vault editor for macOS, built with Electron and plain files on disk. It includes an optional MCP server that lets AI tools write chat notes directly into a local Markdown vault.
+
+## Screenshots
+
+Screenshots are not included yet. Add app screenshots here before a wider public release.
+
+## Features
+
+- Choose any local folder as a Markdown vault.
+- Load `.md` files recursively from the selected vault.
+- Create, edit, save, and delete notes.
+- Keep notes as normal Markdown files on disk.
+- Use a focused editor workspace with a sidebar hidden by default.
+- Filter notes by All Notes, AI Imports, Drafts, and Vault Files.
+- Search by title, body, tags, source, file name, and relative path.
+- Parse lightweight frontmatter for `tags` and `source`.
+- Seed a demo vault for local testing and demos.
+- Watch the selected vault and refresh when Markdown files change.
+- Detect MCP-ingested notes under `Inbox/AI Chats/YYYY/MM/`.
+- Package a local macOS Electron build for testing.
+
+## Tech Stack
+
+- Electron
+- Node.js
+- Toast UI Editor bundle
+- `marked`
+- Node.js built-in test runner
+- Local MCP stdio server
+
+## Getting Started
+
+### Requirements
+
+- macOS
+- Node.js
+- npm
+
+### Install dependencies
+
+```bash
+cd apps/desktop
+npm install
 ```
-apps/desktop/               Electron desktop app  
-tools/mcp-note-ingest/      MCP server for note ingestion  
-docs/                       install guide, MCP guide, demo script, manual test checklist
-```
 
----
+### Run the desktop app
 
-## Who this is for
-
-This build is currently aimed at:
-
-- personal use
-- learning
-- friend-level testing
-- early product demos
-
-This is not yet a polished public production release.
-
----
-
-## Quick start
-
-### Option A: run the desktop app in development mode
-
-```
-cd apps/desktop  
-npm install  
+```bash
+cd apps/desktop
 npm run dev
 ```
-### Option B: use the packaged build
 
-If you already built the packaged app on macOS, open the build from:
+### Run tests
 
-```
-apps/desktop/dist/
-```
-
-If macOS blocks the app, see the Troubleshooting section below.
-
----
-
-## How to use the app
-
-1. Launch the app
-2. Click **Choose Vault**
-3. Pick a folder to use as your vault
-4. Optionally click **Create Demo Vault**
-5. Browse notes, edit notes, save notes, and search notes
-6. Use the **AI Imports** filter to view notes imported through MCP
-
----
-
-## MCP ingestion
-
-This project includes a local MCP server:
-
-```
-tools/mcp-note-ingest/
+```bash
+cd apps/desktop
+npm test
 ```
 
-It provides the tool:
-
-```
-ingest_chat_markdown
-```
-
-That tool writes a Markdown note into:
-
-```
-Inbox/AI Chats/YYYY/MM/
-```
-
-inside your selected vault.
-
-For full setup instructions, see:
-
-- `docs/mcp-ingest-setup.md`
-
----
-
-## Documentation
-
-- `docs/install.md` — install and run guide
-- `docs/mcp-ingest-setup.md` — Claude Code and Codex MCP setup
-- `docs/demo-script.md` — short demo script for showing the app
-- `docs/test-manual.md` — manual testing checklist
-
----
-
-## Current scope
-
-This project intentionally does **not** include:
-
-- sync across devices
-- plugins
-- graph view
-- backlinks UI
-- WYSIWYG editing
-- advanced database indexing
-
-The goal is a small, useful, understandable v1.
-
----
-
-## Troubleshooting
-
-### The app will not open on macOS
-
-If this is an unsigned local build:
-
-- right-click the app
-- choose **Open**
-- confirm the warning
-
-### MCP ingest does not work
-
-Check:
-
-- the MCP server is configured correctly
-- the vault path you pass is an absolute path
-- the server smoke test passes:
-
-```
-cd tools/mcp-note-ingest  
+```bash
+cd tools/mcp-note-ingest
 npm run smoke
 ```
 
-### I do not see imported notes in the app
+### Build a local macOS app
 
-Check:
+```bash
+cd apps/desktop
+npm run pack
+```
 
-- the note was written under `Inbox/AI Chats/YYYY/MM/`
-- the app is pointing at the same vault
-- the app watcher is active
-- the **AI Imports** filter is selected
+Build artifacts are written to `apps/desktop/dist/` and should not be committed.
 
----
+## MCP Note Ingestion
 
-## Status
+The repository includes a local MCP server in `tools/mcp-note-ingest/`.
 
-This is a learning-driven v1 build.
+The main tool is:
 
-It is already good enough for:
+```text
+ingest_chat_markdown
+```
 
-- local use
-- demos
-- early feedback
-- testing the MCP ingestion workflow
+It writes Markdown files into the selected vault under:
 
-  
----  
-  
+```text
+Inbox/AI Chats/YYYY/MM/
+```
 
+See `docs/mcp-ingest-setup.md` for setup details.
+
+## Project Structure
+
+```text
+apps/desktop/             Electron desktop app
+apps/desktop/lib/         Editor, vault, and renderer helper modules
+apps/desktop/test/        Desktop app tests
+tools/mcp-note-ingest/    Local MCP server for note ingestion
+docs/                     Install, MCP, demo, roadmap, and test docs
+```
+
+## Documentation
+
+- `docs/install.md` - install and run guide
+- `docs/mcp-ingest-setup.md` - MCP setup guide
+- `docs/demo-script.md` - demo walkthrough
+- `docs/test-manual.md` - manual release checklist
+- `docs/roadmap.md` - roadmap notes
+
+## Privacy And Security
+
+Markdown Vault App is local-first. Notes are stored as plain Markdown files in a folder selected by the user. The app does not include cloud sync, accounts, hosted storage, or a remote backend.
+
+Before publishing or sharing the repository, do not commit personal vault content, `.env` files, local MCP config, generated builds, dependency folders, logs, or private assistant/editor settings.
+
+## Current Limitations
+
+- The packaged build workflow is currently macOS-focused.
+- There is no built-in sync across devices.
+- There is no account system or hosted backend.
+- There is no plugin system, graph view, or backlinks UI.
+- The editor bundle is generated and should be refreshed intentionally when editor dependencies change.
+- The app is intended for local testing and early feedback, not production distribution.
+
+## Roadmap
+
+- Add screenshots and a polished release checklist.
+- Clarify the generated editor bundle workflow.
+- Add broader automated coverage for vault file operations.
+- Improve metadata editing and frontmatter handling.
+- Expand packaging and signing guidance.
+- Add a license file before public release.
+
+## License
+
+The desktop package currently declares `MIT`, but this repository does not yet include a root `LICENSE` file. Add a license file before publishing publicly.
