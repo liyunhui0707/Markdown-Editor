@@ -385,6 +385,118 @@
         background: transparent;
       }
 
+      /* Write / Preview toggle — small tab bar above the editor. */
+      .editor-mode-toggle {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+
+      .mode-button {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-muted);
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+
+      .mode-button:hover {
+        background: var(--surface-muted);
+        color: var(--text);
+      }
+
+      .mode-button-active,
+      .mode-button-active:hover {
+        background: var(--accent-bg);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      /* HybridWriteView pane — the Write surface the user actually edits. */
+      .live-editor-container {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .hybrid-write-pane {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .hybrid-write-pane.is-hidden {
+        display: none;
+      }
+
+      /* Active block textarea — strip native textarea chrome so selecting
+         text shows only the normal browser selection highlight (no border
+         box, focus ring, drop shadow, or resize grip). Inherit the editor
+         font / color / line-height so the active block visually matches the
+         surrounding rendered blocks. */
+      .hybrid-active-textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border: 0;
+        outline: none;
+        box-shadow: none;
+        background: transparent;
+        resize: none;
+        font: inherit;
+        color: inherit;
+        line-height: inherit;
+        padding: 0;
+        margin: 0;
+        overflow-y: hidden;
+      }
+
+      /* Internal wrapper inside HybridWriteView. Stretching it to full
+         height + flex column lets the tail affordance absorb whatever
+         vertical space is left below the rendered blocks, so clicking
+         anywhere in the empty Write area below a short document still
+         lands on the click target. */
+      .hybrid-write-inner {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Click target below the last block: lets the user start a new
+         paragraph without having to edit existing text first. flex: 1
+         absorbs the remaining vertical space inside .hybrid-write-inner;
+         min-height keeps a usable click area on tall documents. */
+      .hybrid-tail-affordance {
+        flex: 1;
+        min-height: 2em;
+        cursor: text;
+      }
+
+      /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
+         when Preview mode is active via .is-visible. The Toast UI toolbar and
+         mode-switch are inert here (HybridWriteView is the active write
+         surface), so we hide them via CSS. The internal Markdown/Preview
+         tab bar is also hidden — our own toggle controls mode. */
+      .toast-preview-mount {
+        display: none;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .toast-preview-mount.is-visible {
+        display: block;
+      }
+
+      /* Hide only inert Toast UI controls. Do NOT hide
+         .toastui-editor-md-tab-style — that wrapper contains the preview
+         pane itself; hiding it would make Preview unreachable. */
+      .toast-preview-mount .toastui-editor-toolbar,
+      .toast-preview-mount .toastui-editor-mode-switch,
+      .toast-preview-mount .toastui-editor-md-tab-container {
+        display: none !important;
+      }
+
       /* Active textarea — fills the full editor area */
       .live-editor-active-textarea {
         width: 100%;
@@ -787,9 +899,32 @@
                 />
 
 
-                <!-- The live editor renders Markdown inline here.
-                     Click any block to edit it; blur to return to the rendered view. -->
-                <div id="liveEditorContainer" class="live-editor-container"></div>
+                <!-- Write / Preview mode toggle. Write is the HybridWriteView surface;
+                     Preview is rendered by Toast UI on demand. -->
+                <div id="editorModeToggle" class="editor-mode-toggle" role="tablist">
+                  <button
+                    id="writeModeButton"
+                    class="mode-button mode-button-active"
+                    type="button"
+                    role="tab"
+                    aria-selected="true"
+                  >Write</button>
+                  <button
+                    id="previewModeButton"
+                    class="mode-button"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                  >Preview</button>
+                </div>
+
+                <!-- hybridWritePane is the user-visible Write surface (HybridWriteView).
+                     toastPreviewMount hosts Toast UI as the Preview renderer; it is
+                     hidden by default and shown when Preview mode is active. -->
+                <div id="liveEditorContainer" class="live-editor-container">
+                  <div id="hybridWritePane" class="hybrid-write-pane"></div>
+                  <div id="toastPreviewMount" class="toast-preview-mount"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -804,6 +939,14 @@
 
     <script src="./lib/toastui-bundle.js"></script>
     <script src="./lib/editor-config.js"></script>
+    <script src="./node_modules/marked/lib/marked.umd.js"></script>
+    <script>
+      // marked's UMD bundle exposes the package as window.marked; HybridWriteView's
+      // browser branch reads window.Marked, so bridge the constructor here.
+      window.Marked = window.marked && window.marked.Marked;
+    </script>
+    <script src="./lib/live-editor.js"></script>
+    <script src="./lib/hybrid-write-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
 
     <script>
@@ -1341,6 +1484,15 @@ Today the app reacts better to real external MCP ingests.
           `;
 
           item.addEventListener('click', () => {
+            // Flush any in-progress active-block edit on the OUTGOING note and
+            // write the flushed source back so uncommitted textarea / IME
+            // composition state is preserved before selectedNoteId changes
+            // and renderApp() loads the new note.
+            const outgoingNote = getSelectedNote();
+            if (liveEditorInstance && outgoingNote) {
+              liveEditorInstance.exitWriteMode();
+              outgoingNote.body = liveEditorInstance.getText();
+            }
             selectedNoteId = note.id;
             renderApp();
             setStatus('ready', 'Ready');
@@ -1621,6 +1773,10 @@ Today the app reacts better to real external MCP ingests.
 
         setStatus('saving', 'Saving...');
 
+        // Flush any in-progress active-block edit so getText() returns the
+        // committed source before we send it to disk.
+        liveEditorInstance.exitWriteMode();
+
         const result = await window.vaultApi.saveNote({
           vaultPath: currentVaultPath,
           note: {
@@ -1779,24 +1935,75 @@ Today the app reacts better to real external MCP ingests.
         stopWatchingVault();
       });
 
-      // ── Boot the Markdown editor (Toast UI via self-contained bundle) ──────
+      // ── Boot the Markdown editor ──────────────────────────────────────────
+      // HybridWriteView is the user-visible Write surface (raw + per-block live preview).
+      // Toast UI is mounted as the Preview renderer (and stays in sync via onChange).
+      // Explicit element lookups — do not rely on browsers' implicit id globals.
+      const hybridWritePane    = document.getElementById('hybridWritePane');
+      const toastPreviewMount  = document.getElementById('toastPreviewMount');
+      const writeModeButton    = document.getElementById('writeModeButton');
+      const previewModeButton  = document.getElementById('previewModeButton');
+
       const _toastuiInstance = new window.ToastuiEditor(
-        window.makeEditorConfig(liveEditorContainer)
+        window.makeEditorConfig(toastPreviewMount)
       );
 
-      // Thin adapter — keeps all getText()/setText() call sites unchanged
+      const hybridWrite = new window.HybridWriteView(hybridWritePane, {
+        onChange(text) {
+          _toastuiInstance.setMarkdown(text || '');
+          const selectedNote = getSelectedNote();
+          if (!selectedNote) return;
+          selectedNote.body = text;
+          renderNoteList();
+          setStatus('draft', 'Draft');
+        },
+      });
+
+      // Thin adapter — keeps all getText()/setText() call sites unchanged.
       liveEditorInstance = {
-        getText() { return _toastuiInstance.getMarkdown(); },
-        setText(text) { _toastuiInstance.setMarkdown(text || ''); },
+        getText() { return hybridWrite.getText(); },
+        setText(text) {
+          hybridWrite.exitWriteMode();
+          const raw = text || '';
+          hybridWrite.setText(raw);
+          _toastuiInstance.setMarkdown(raw);
+        },
+        exitWriteMode() { hybridWrite.exitWriteMode(); },
       };
 
-      _toastuiInstance.on('change', () => {
-        const selectedNote = getSelectedNote();
-        if (!selectedNote) return;
-        selectedNote.body = liveEditorInstance.getText();
-        renderNoteList();
-        setStatus('draft', 'Draft');
-      });
+      // ── Write / Preview mode toggle ──────────────────────────────────────
+      function showWriteMode() {
+        hybridWritePane.classList.remove('is-hidden');
+        toastPreviewMount.classList.remove('is-visible');
+        writeModeButton.classList.add('mode-button-active');
+        previewModeButton.classList.remove('mode-button-active');
+        writeModeButton.setAttribute('aria-selected', 'true');
+        previewModeButton.setAttribute('aria-selected', 'false');
+      }
+
+      function showPreviewMode() {
+        // Flush in-progress active-block edits so getText() returns the
+        // committed source, then mirror it to Toast UI before activating
+        // its preview pane.
+        liveEditorInstance.exitWriteMode();
+        _toastuiInstance.setMarkdown(hybridWrite.getText());
+        // Activate Toast UI's preview pane in tab-style mode. This is the
+        // canonical internal event Toast UI dispatches when the user clicks
+        // its own Preview tab; emitting it ensures the preview pane (not the
+        // markdown editor pane) is the active sub-view inside toastPreviewMount.
+        if (_toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
+          _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
+        }
+        hybridWritePane.classList.add('is-hidden');
+        toastPreviewMount.classList.add('is-visible');
+        writeModeButton.classList.remove('mode-button-active');
+        previewModeButton.classList.add('mode-button-active');
+        writeModeButton.setAttribute('aria-selected', 'false');
+        previewModeButton.setAttribute('aria-selected', 'true');
+      }
+
+      writeModeButton.addEventListener('click', showWriteMode);
+      previewModeButton.addEventListener('click', showPreviewMode);
 
       titleInput.addEventListener('input', handleEdit);
 
