@@ -101,5 +101,69 @@
     return text.slice(0, block.start) + newRaw + text.slice(block.end);
   }
 
-  return { parseBlocks, replaceBlock };
+  /* Alias of parseBlocks exposed under the TDD-plan name. */
+  var splitMarkdownIntoBlocks = parseBlocks;
+
+  /* Return the block containing cursorPosition, or null.
+     markdownText is required to decide the EOF-without-trailing-newline edge case:
+     when the cursor is at text.length and the last character is not a newline,
+     the cursor is logically inside the final block. */
+  function findActiveBlock(blocks, cursorPosition, markdownText) {
+    if (typeof cursorPosition !== 'number') return null;
+    if (!markdownText && markdownText !== '') return null;
+    if (cursorPosition < 0 || cursorPosition > markdownText.length) return null;
+    if (!blocks || blocks.length === 0) return null;
+
+    // EOF without trailing newline and no gap after the last block.
+    // Only return the last block when the cursor is exactly at lastBlock.end,
+    // so a trailing whitespace gap ("# T\n\n  ") correctly returns null.
+    const lastBlock = blocks[blocks.length - 1];
+    const lastChar  = markdownText[markdownText.length - 1];
+    if (cursorPosition === markdownText.length &&
+        lastChar !== '\n' && lastChar !== '\r' &&
+        cursorPosition === lastBlock.end) {
+      return lastBlock;
+    }
+
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.start <= cursorPosition && cursorPosition < b.end) return b;
+    }
+    return null;
+  }
+
+  /* Build the hybrid render model: a single ordered segments[] that covers
+     [0, markdownText.length) exhaustively.
+     Block segments: { kind:'block', start, end, raw, type, isActive }
+     Gap   segments: { kind:'gap',   start, end, raw }
+     No HTML is generated here. All raw values are exact slices of markdownText. */
+  function buildHybridRenderModel(markdownText, cursorPosition) {
+    if (!markdownText) return { segments: [] };
+
+    var blocks  = parseBlocks(markdownText);
+    var active  = findActiveBlock(blocks, cursorPosition, markdownText);
+    var segments = [];
+    var pos = 0;
+
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (pos < b.start) {
+        segments.push({ kind: 'gap', start: pos, end: b.start,
+                        raw: markdownText.slice(pos, b.start) });
+      }
+      segments.push({ kind: 'block', start: b.start, end: b.end,
+                      raw: b.raw, type: b.type, isActive: b === active });
+      pos = b.end;
+    }
+
+    if (pos < markdownText.length) {
+      segments.push({ kind: 'gap', start: pos, end: markdownText.length,
+                      raw: markdownText.slice(pos) });
+    }
+
+    return { segments: segments };
+  }
+
+  return { parseBlocks, replaceBlock, splitMarkdownIntoBlocks,
+           findActiveBlock, buildHybridRenderModel };
 });
