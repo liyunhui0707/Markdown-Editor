@@ -948,6 +948,7 @@
     <script src="./lib/live-editor.js"></script>
     <script src="./lib/hybrid-write-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
+    <script src="./lib/write-engine.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1943,6 +1944,14 @@ Today the app reacts better to real external MCP ingests.
       const toastPreviewMount  = document.getElementById('toastPreviewMount');
       const writeModeButton    = document.getElementById('writeModeButton');
       const previewModeButton  = document.getElementById('previewModeButton');
+      const selectedWriteEngine = window.WriteEngine.resolveWriteEngine({
+        search: window.location.search,
+        storage: window.localStorage,
+      });
+
+      if (window.console && typeof window.console.debug === 'function') {
+        window.console.debug('[write-engine]', selectedWriteEngine);
+      }
 
       const _toastuiInstance = new window.ToastuiEditor(
         window.makeEditorConfig(toastPreviewMount)
