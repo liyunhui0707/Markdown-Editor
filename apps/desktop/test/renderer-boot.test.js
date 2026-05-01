@@ -56,11 +56,11 @@ function makeClassList(element) {
 }
 
 function makeElement(tag = 'div', id = '') {
-  return {
+  const el = {
     tagName: tag.toUpperCase(),
     id,
     className: '',
-    innerHTML: '',
+    _innerHTML: '',
     textContent: '',
     value: '',
     style: {},
@@ -95,12 +95,35 @@ function makeElement(tag = 'div', id = '') {
       };
       (this.handlers[type] || []).forEach((handler) => handler(payload));
     },
+    async fireAsync(type, event = {}) {
+      const payload = {
+        type,
+        target: this,
+        stopPropagation() {},
+        ...event,
+      };
+      await Promise.all((this.handlers[type] || []).map((handler) => handler(payload)));
+    },
     focus() {},
     select() {},
   };
+
+  Object.defineProperty(el, 'innerHTML', {
+    get() {
+      return this._innerHTML;
+    },
+    set(value) {
+      this._innerHTML = String(value);
+      if (this._innerHTML === '') {
+        this.children = [];
+      }
+    },
+  });
+
+  return el;
 }
 
-function makeRendererHarness({ search = '', storageValue = null } = {}) {
+function makeRendererHarness({ search = '', storageValue = null, vaultNotes = [] } = {}) {
   const ids = [
     'titleInput',
     'liveEditorContainer',
@@ -178,6 +201,9 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
     cm6GetText: 0,
     cm6ExitWriteMode: 0,
     cm6OnChange: null,
+    cm6Adapter: null,
+    loadVaultNotesPayloads: [],
+    saveNotePayloads: [],
   };
 
   const storage = {
@@ -242,7 +268,55 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
           calls.cm6ExitWriteMode += 1;
         },
       };
+      calls.cm6Adapter = adapter;
       return adapter;
+    },
+  };
+
+  const vaultApi = {
+    async loadVaultNotes(payload) {
+      calls.loadVaultNotesPayloads.push(payload);
+      return {
+        ok: true,
+        notes: vaultNotes.map((note) => ({
+          frontmatter: { tags: [], source: '', ...(note.frontmatter || {}) },
+          aiImported: false,
+          fileName: '',
+          relativePath: '',
+          source: 'vault',
+          meta: 'File note',
+          ...note,
+        })),
+      };
+    },
+    async saveNote(payload) {
+      calls.saveNotePayloads.push(payload);
+      return {
+        ok: true,
+        fileName: payload.note.fileName || 'saved.md',
+        relativePath: payload.note.relativePath || 'saved.md',
+      };
+    },
+    async unwatchVaultFolder() {
+      return { ok: true };
+    },
+  };
+
+  const VaultActions = {
+    async chooseVaultFolder({
+      vaultApi: _vaultApi,
+      setCurrentVaultPath,
+      refreshVaultNotes,
+      updateDisplay,
+      setStatus,
+    }) {
+      assert.equal(_vaultApi, vaultApi);
+      setCurrentVaultPath('/fake-vault');
+      updateDisplay();
+      const refreshed = await refreshVaultNotes('', false);
+      if (refreshed) {
+        setStatus('ready', 'Vault loaded');
+      }
     },
   };
 
@@ -273,11 +347,13 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
     confirm() {
       return false;
     },
-    vaultApi: {},
+    vaultApi,
+    VaultActions,
   };
 
   const context = {
     window,
+    VaultActions,
     document,
     console: window.console,
     setTimeout() {},
@@ -394,6 +470,88 @@ test('CM6 onChange uses the same preview sync, note body, note list, and draft s
   elements.get('searchInput').fire('input');
 
   assert.equal(elements.get('searchMeta').textContent, 'Found 1 result(s) for "UniqueCm6SearchToken" in the current filter.');
+});
+
+test('CM6 save click sends raw Markdown from liveEditorInstance.getText()', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a',
+      title: 'Vault A',
+      body: '# Vault A',
+      fileName: 'a.md',
+      relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# Raw Markdown\n\n**bold**\n\n<div>literal html source</div>';
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.cm6ExitWriteMode, 1, 'save should flush through the liveEditorInstance adapter');
+  assert.equal(calls.cm6GetText, 1, 'save should read through liveEditorInstance.getText()');
+  assert.equal(
+    calls.saveNotePayloads[0].note.body,
+    '# Raw Markdown\n\n**bold**\n\n<div>literal html source</div>'
+  );
+  assert.ok(!calls.saveNotePayloads[0].note.body.includes('<h1>'), 'save must not send rendered HTML');
+  assert.ok(!calls.saveNotePayloads[0].note.body.includes('<strong>'), 'save must not send rendered HTML');
+});
+
+test('CM6 note switch preserves outgoing edits and loads the next note through setText', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      {
+        id: 'vault:a',
+        title: 'Vault A',
+        body: '# Note A',
+        fileName: 'a.md',
+        relativePath: 'a.md',
+      },
+      {
+        id: 'vault:b',
+        title: 'Vault B',
+        body: '# Note B',
+        fileName: 'b.md',
+        relativePath: 'b.md',
+      },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  assert.equal(calls.cm6SetText.at(-1), '# Note A');
+
+  calls.cm6Adapter.text = '# Edited Note A\n\nEditedSwitchToken';
+  elements.get('noteList').children[1].fire('click');
+
+  assert.equal(calls.cm6ExitWriteMode, 1, 'note switch should flush the outgoing adapter');
+  assert.equal(calls.cm6GetText, 1, 'note switch should read outgoing text through liveEditorInstance');
+  assert.equal(calls.cm6SetText.at(-1), '# Note B', 'note switch should load the next note through setText');
+
+  elements.get('searchInput').value = 'EditedSwitchToken';
+  elements.get('searchInput').fire('input');
+  assert.equal(elements.get('searchMeta').textContent, 'Found 1 result(s) for "EditedSwitchToken" in the current filter.');
+});
+
+test('CM6 blank note loads empty text and records typed raw text through onChange', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  elements.get('newNoteButton').fire('click');
+
+  assert.equal(calls.cm6SetText.at(-1), '', 'blank note should load empty source through setText');
+
+  calls.cm6OnChange('hello');
+
+  assert.equal(calls.toastSetMarkdown.at(-1), 'hello');
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
+
+  elements.get('searchInput').value = 'hello';
+  elements.get('searchInput').fire('input');
+  assert.equal(elements.get('searchMeta').textContent, 'Found 1 result(s) for "hello" in the current filter.');
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
