@@ -918,7 +918,7 @@
                   >Preview</button>
                 </div>
 
-                <!-- hybridWritePane is the user-visible Write surface (HybridWriteView).
+                <!-- hybridWritePane hosts the selected Write surface.
                      toastPreviewMount hosts Toast UI as the Preview renderer; it is
                      hidden by default and shown when Preview mode is active. -->
                 <div id="liveEditorContainer" class="live-editor-container">
@@ -947,6 +947,8 @@
     </script>
     <script src="./lib/live-editor.js"></script>
     <script src="./lib/hybrid-write-view.js"></script>
+    <script src="./lib/cm6-bundle.js"></script>
+    <script src="./lib/cm6-write-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
 
@@ -1937,7 +1939,7 @@ Today the app reacts better to real external MCP ingests.
       });
 
       // ── Boot the Markdown editor ──────────────────────────────────────────
-      // HybridWriteView is the user-visible Write surface (raw + per-block live preview).
+      // The selected Write engine is mounted in hybridWritePane.
       // Toast UI is mounted as the Preview renderer (and stays in sync via onChange).
       // Explicit element lookups — do not rely on browsers' implicit id globals.
       const hybridWritePane    = document.getElementById('hybridWritePane');
@@ -1957,28 +1959,54 @@ Today the app reacts better to real external MCP ingests.
         window.makeEditorConfig(toastPreviewMount)
       );
 
-      const hybridWrite = new window.HybridWriteView(hybridWritePane, {
-        onChange(text) {
-          _toastuiInstance.setMarkdown(text || '');
-          const selectedNote = getSelectedNote();
-          if (!selectedNote) return;
-          selectedNote.body = text;
-          renderNoteList();
-          setStatus('draft', 'Draft');
-        },
-      });
+      function handleWriteChange(text) {
+        _toastuiInstance.setMarkdown(text || '');
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
+        selectedNote.body = text;
+        renderNoteList();
+        setStatus('draft', 'Draft');
+      }
 
-      // Thin adapter — keeps all getText()/setText() call sites unchanged.
-      liveEditorInstance = {
-        getText() { return hybridWrite.getText(); },
-        setText(text) {
-          hybridWrite.exitWriteMode();
-          const raw = text || '';
-          hybridWrite.setText(raw);
-          _toastuiInstance.setMarkdown(raw);
-        },
-        exitWriteMode() { hybridWrite.exitWriteMode(); },
-      };
+      if (selectedWriteEngine === 'cm6') {
+        const cm6Write = window.Cm6WriteView.createCm6WriteView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+        });
+
+        liveEditorInstance = {
+          getText() { return cm6Write.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6Write.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          exitWriteMode() { cm6Write.exitWriteMode(); },
+        };
+      } else {
+        const hybridWrite = new window.HybridWriteView(hybridWritePane, {
+          onChange: handleWriteChange,
+        });
+
+        // Thin adapter — keeps all getText()/setText() call sites unchanged.
+        liveEditorInstance = {
+          getText() { return hybridWrite.getText(); },
+          setText(text) {
+            hybridWrite.exitWriteMode();
+            const raw = text || '';
+            hybridWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          exitWriteMode() { hybridWrite.exitWriteMode(); },
+        };
+      }
+
+      function getCurrentEditorText() {
+        if (!liveEditorInstance) {
+          return '';
+        }
+        return liveEditorInstance.getText();
+      }
 
       // ── Write / Preview mode toggle ──────────────────────────────────────
       function showWriteMode() {
@@ -1995,7 +2023,7 @@ Today the app reacts better to real external MCP ingests.
         // committed source, then mirror it to Toast UI before activating
         // its preview pane.
         liveEditorInstance.exitWriteMode();
-        _toastuiInstance.setMarkdown(hybridWrite.getText());
+        _toastuiInstance.setMarkdown(getCurrentEditorText());
         // Activate Toast UI's preview pane in tab-style mode. This is the
         // canonical internal event Toast UI dispatches when the user clicks
         // its own Preview tab; emitting it ensures the preview pane (not the

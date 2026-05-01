@@ -2,9 +2,9 @@
    Run: node --test test/renderer-boot.test.js
 
    These tests execute the real inline boot script against a small fake
-   renderer environment. They pin Step 3A behavior: resolve the write engine
-   at boot, but keep constructing and using HybridWriteView regardless of the
-   resolved value until the later CM6 activation step. */
+   renderer environment. They pin Step 3B behavior: HybridWriteView remains the
+   default, while the production CM6 adapter is activated only when the write
+   engine resolver explicitly selects 'cm6'. */
 'use strict';
 
 const { test } = require('node:test');
@@ -172,6 +172,12 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
     hybridGetText: 0,
     hybridExitWriteMode: 0,
     cm6Constructed: 0,
+    cm6Parent: null,
+    cm6Options: null,
+    cm6SetText: [],
+    cm6GetText: 0,
+    cm6ExitWriteMode: 0,
+    cm6OnChange: null,
   };
 
   const storage = {
@@ -213,10 +219,32 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
     };
   }
 
-  function Cm6WriteView() {
-    calls.cm6Constructed += 1;
-    throw new Error('CM6 must not be constructed in Step 3A');
-  }
+  const CM6Production = { _kind: 'CM6Production' };
+
+  const Cm6WriteView = {
+    createCm6WriteView(parent, opts) {
+      calls.cm6Constructed += 1;
+      calls.cm6Parent = parent;
+      calls.cm6Options = opts || {};
+      calls.cm6OnChange = calls.cm6Options.onChange;
+      const adapter = {
+        text: calls.cm6Options.initialDoc || '',
+        getText() {
+          calls.cm6GetText += 1;
+          return this.text;
+        },
+        setText(text) {
+          const value = text == null ? '' : String(text);
+          calls.cm6SetText.push(value);
+          this.text = value;
+        },
+        exitWriteMode() {
+          calls.cm6ExitWriteMode += 1;
+        },
+      };
+      return adapter;
+    },
+  };
 
   const window = {
     location: { search },
@@ -230,6 +258,7 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
     ToastuiEditor,
     HybridWriteView,
     Cm6WriteView,
+    CM6Production,
     WriteEngine: {
       ...WriteEngine,
       resolveWriteEngine(opts) {
@@ -264,21 +293,31 @@ function makeRendererHarness({ search = '', storageValue = null } = {}) {
   return { calls, elements, window, documentHandlers };
 }
 
-test('index.html loads write-engine before the inline boot script and no CM6 scripts in Step 3A', () => {
+test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
   const html = readIndexHtml();
+  const cm6BundleTag = '<script src="./lib/cm6-bundle.js"></script>';
+  const cm6WriteViewTag = '<script src="./lib/cm6-write-view.js"></script>';
   const writeEngineTag = '<script src="./lib/write-engine.js"></script>';
   const bootMarker = 'Boot the Markdown editor';
 
+  assert.ok(html.includes(cm6BundleTag), 'CM6 bundle script tag should be present');
+  assert.ok(html.includes(cm6WriteViewTag), 'CM6 write-view script tag should be present');
   assert.ok(html.includes(writeEngineTag), 'write-engine script tag should be present');
+  assert.ok(
+    html.indexOf(cm6BundleTag) < html.indexOf(cm6WriteViewTag),
+    'CM6 bundle should load before the CM6 write-view adapter'
+  );
+  assert.ok(
+    html.indexOf(cm6WriteViewTag) < html.indexOf(writeEngineTag),
+    'CM6 write-view adapter should load before write-engine'
+  );
   assert.ok(
     html.indexOf(writeEngineTag) < html.indexOf(bootMarker),
     'write-engine should load before the inline boot script'
   );
-  assert.equal(html.includes('<script src="./lib/cm6-bundle.js"></script>'), false);
-  assert.equal(html.includes('<script src="./lib/cm6-write-view.js"></script>'), false);
 });
 
-test('default renderer boot resolves hybrid and constructs HybridWriteView', () => {
+test('default renderer boot resolves hybrid, constructs HybridWriteView, and does not construct CM6', () => {
   const { calls } = makeRendererHarness();
 
   assert.deepEqual(calls.resolvedEngines, ['hybrid']);
@@ -288,13 +327,25 @@ test('default renderer boot resolves hybrid and constructs HybridWriteView', () 
   assert.equal(calls.cm6Constructed, 0);
 });
 
-test('renderer boot detects ?writeEngine=cm6 but still uses HybridWriteView in Step 3A', () => {
-  const { calls } = makeRendererHarness({ search: '?writeEngine=cm6' });
+test('renderer boot with ?writeEngine=cm6 constructs CM6 and not HybridWriteView', () => {
+  const { calls, elements, window } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
   assert.deepEqual(calls.resolvedEngines, ['cm6']);
   assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'cm6']]);
-  assert.equal(calls.hybridConstructed, 1);
-  assert.equal(calls.cm6Constructed, 0);
+  assert.equal(calls.hybridConstructed, 0);
+  assert.equal(calls.cm6Constructed, 1);
+  assert.equal(calls.cm6Parent, elements.get('hybridWritePane'));
+  assert.equal(calls.cm6Options.cm6, window.CM6Production);
+  assert.equal(typeof calls.cm6Options.onChange, 'function');
+  assert.equal(Object.prototype.hasOwnProperty.call(calls.cm6Options, 'initialDoc'), false);
+});
+
+test('renderer boot with localStorage writeEngine=cm6 constructs CM6 when no query is present', () => {
+  const { calls } = makeRendererHarness({ storageValue: 'cm6' });
+
+  assert.deepEqual(calls.resolvedEngines, ['cm6']);
+  assert.equal(calls.hybridConstructed, 0);
+  assert.equal(calls.cm6Constructed, 1);
 });
 
 test('hybrid-backed adapter still uses setText, getText, and exitWriteMode for boot and Preview', () => {
@@ -313,3 +364,54 @@ test('hybrid-backed adapter still uses setText, getText, and exitWriteMode for b
   assert.ok(calls.toastEmits.includes('changePreviewTabPreview'));
 });
 
+test('CM6-backed adapter uses setText, getText, and exitWriteMode for boot and Preview', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  assert.equal(calls.cm6SetText.length, 1, 'initial render should load the selected note through setText');
+  assert.match(calls.cm6SetText[0], /^Tags: mcp, ingest\nSource: manual\n\n# Day 25/);
+  assert.equal(calls.cm6ExitWriteMode, 0, 'CM6 construction starts empty and loads through setText');
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText[0]);
+
+  elements.get('previewModeButton').fire('click');
+
+  assert.equal(calls.cm6GetText, 1, 'Preview reads from the liveEditorInstance CM6 adapter');
+  assert.equal(calls.cm6ExitWriteMode, 1, 'Preview flushes through the liveEditorInstance adapter');
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText[0]);
+  assert.ok(calls.toastEmits.includes('changePreviewTabPreview'));
+});
+
+test('CM6 onChange uses the same preview sync, note body, note list, and draft status behavior', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  const edited = '# Edited from CM6\n\nUniqueCm6SearchToken';
+
+  calls.cm6OnChange(edited);
+
+  assert.equal(calls.toastSetMarkdown.at(-1), edited);
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
+
+  elements.get('searchInput').value = 'UniqueCm6SearchToken';
+  elements.get('searchInput').fire('input');
+
+  assert.equal(elements.get('searchMeta').textContent, 'Found 1 result(s) for "UniqueCm6SearchToken" in the current filter.');
+});
+
+test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
+  const html = readIndexHtml();
+
+  assert.match(
+    html,
+    /body:\s*liveEditorInstance\.getText\(\)/,
+    'save should read raw Markdown through liveEditorInstance.getText()'
+  );
+  assert.match(
+    html,
+    /outgoingNote\.body\s*=\s*liveEditorInstance\.getText\(\)/,
+    'note switching should flush outgoing raw Markdown through liveEditorInstance.getText()'
+  );
+  assert.match(
+    html,
+    /_toastuiInstance\.setMarkdown\(\s*getCurrentEditorText\(\)\s*\)/,
+    'Preview should mirror through the current liveEditorInstance adapter'
+  );
+});
