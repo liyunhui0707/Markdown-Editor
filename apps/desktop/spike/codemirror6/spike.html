@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CM6 Spike — Stage 3</title>
+    <style>
+      :root {
+        --bg: #f5f4f1;
+        --surface: #ffffff;
+        --border: #e5e3dc;
+        --text: #2d2d2d;
+        --muted: #888581;
+        --accent: #7c3aed;
+        --pass: #166534;
+        --fail: #991b1b;
+        --warn: #92400e;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 8px 14px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+      }
+
+      header .header-meta {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        min-height: 0;
+      }
+
+      .editor-pane {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+      }
+
+      #editorMount {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .cm-editor { height: 100%; }
+      .cm-scroller { font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace; }
+
+      .panel {
+        padding: 12px;
+        overflow: auto;
+        background: var(--surface);
+        font-size: 12px;
+      }
+
+      .panel section {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        margin-bottom: 12px;
+      }
+
+      .panel section h2 {
+        margin: 0;
+        padding: 8px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        background: #fafaf7;
+      }
+
+      .panel section .body {
+        padding: 10px;
+      }
+
+      .panel button {
+        display: block;
+        width: 100%;
+        margin-bottom: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        text-align: left;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        cursor: pointer;
+        color: var(--text);
+      }
+
+      .panel button:hover {
+        background: #f3f1ec;
+      }
+
+      .panel button:last-child { margin-bottom: 0; }
+
+      .result {
+        margin-top: 8px;
+        padding: 8px;
+        font-family: "SFMono-Regular", Menlo, monospace;
+        font-size: 11px;
+        background: #fafaf7;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        max-height: 220px;
+        overflow: auto;
+      }
+
+      .result .pass { color: var(--pass); font-weight: 600; }
+      .result .fail { color: var(--fail); font-weight: 600; }
+      .result .warn { color: var(--warn); font-weight: 600; }
+
+      textarea.paste-area {
+        width: 100%;
+        height: 90px;
+        font-family: "SFMono-Regular", Menlo, monospace;
+        font-size: 11px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 6px;
+        resize: vertical;
+      }
+
+      footer {
+        padding: 6px 14px;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      kbd {
+        background: #f3f1ec;
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 10px;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CM6 Spike — Stage 3 measurements</h1>
+      <span class="header-meta" id="docStats">doc: 0 chars · 0 lines</span>
+    </header>
+
+    <main>
+      <div class="editor-pane">
+        <div id="editorMount"></div>
+      </div>
+
+      <aside class="panel">
+        <section>
+          <h2>Round-trip (B10.3)</h2>
+          <div class="body">
+            <button id="runRoundTrip">Run corpus round-trip</button>
+            <button id="loadCorpusItem">Load next corpus item into editor</button>
+            <div class="result" id="roundTripResult">Not run yet.</div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Stress (B14)</h2>
+          <div class="body">
+            <button id="loadStress5k">Load 5,000-line stress note</button>
+            <button id="loadStress20k">Load 20,000-line stress note</button>
+            <button id="measureKeystroke">Measure keystroke latency (1,000 inserts)</button>
+            <div class="result" id="stressResult">Not run yet.</div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Custom doc</h2>
+          <div class="body">
+            <textarea id="pasteArea" class="paste-area" placeholder="Paste Markdown here, then click Load."></textarea>
+            <button id="loadPasted" style="margin-top:6px;">Load pasted text</button>
+            <button id="copyDoc">Copy current doc to clipboard</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Manual checks</h2>
+          <div class="body">
+            <p style="margin:0 0 6px 0; color: var(--muted);">
+              Drive these from the keyboard inside the editor:
+            </p>
+            <ul style="padding-left:18px; margin:0; line-height:1.7;">
+              <li>Drag-select across two blocks → <kbd>Backspace</kbd></li>
+              <li><kbd>⌘A</kbd> → <kbd>Backspace</kbd> → <kbd>⌘Z</kbd></li>
+              <li>Edit block A, click block B, edit, <kbd>⌘Z</kbd> repeatedly</li>
+              <li>Pinyin / 中文 IME composition mid-document</li>
+              <li><kbd>⌘F</kbd> opens search panel</li>
+            </ul>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <footer>
+      <span>Throwaway spike — does not affect the production app.</span>
+      <span id="footerStatus">Ready</span>
+    </footer>
+
+    <script src="../../lib/spike-cm6-bundle.js"></script>
+    <script>
+      'use strict';
+
+      const mount = document.getElementById('editorMount');
+      const docStats = document.getElementById('docStats');
+      const footerStatus = document.getElementById('footerStatus');
+      const roundTripResult = document.getElementById('roundTripResult');
+      const stressResult = document.getElementById('stressResult');
+
+      const editor = window.SpikeCM6.createSpikeEditor(mount, {
+        initialDoc: [
+          '# CM6 Spike',
+          '',
+          'This is a styled-source Markdown editor running on **CodeMirror 6**.',
+          '',
+          '## What to try',
+          '',
+          '- Drag-select across these list items.',
+          '- Press `Cmd+A` then `Backspace`, then `Cmd+Z`.',
+          '- Type Chinese here: ',
+          '',
+          '> A blockquote stays in place; the source is never rewritten on save.',
+          '',
+          '```js',
+          'function hello() { return "world"; }',
+          '```',
+          '',
+          'Inline `code`, **bold**, *italic*, [a link](https://example.com).',
+          '',
+        ].join('\n'),
+        onChange(text) {
+          updateStats(text);
+        },
+      });
+
+      function updateStats(text) {
+        const lines = text === '' ? 0 : text.split('\n').length;
+        docStats.textContent = `doc: ${text.length} chars · ${lines} lines`;
+      }
+
+      updateStats(editor.getText());
+      editor.focus();
+
+      // ── Round-trip corpus ─────────────────────────────────────────────────
+      const ROUND_TRIP_CORPUS = [
+        '',
+        'plain paragraph',
+        '# h1\n\n## h2\n\n### h3',
+        '- a\n- b\n  - nested\n- c',
+        '1. one\n2. two\n3. three',
+        '> quote line one\n> quote line two',
+        '```js\nconst x = 1;\nconsole.log(x);\n```',
+        '**bold** and *italic* and `code` and [link](https://x.test)',
+        'paragraph one\n\nparagraph two\n\nparagraph three',
+        'trailing newline at end\n',
+        'no trailing newline',
+        'mixed\n\n# heading mid-doc\n\n- list\n- after heading\n\n```\nfenced\n```\n\nend.',
+        'CRLF? we should never get CRLF here, only LF. line\nline\nline',
+        '中文段落 with **bold** 和 *italic* mixed.',
+        '   leading whitespace and trailing   ',
+        '\n\n\nleading blank lines',
+        'tab\tinside\tline',
+      ];
+
+      let corpusCursor = 0;
+
+      document.getElementById('loadCorpusItem').addEventListener('click', () => {
+        const item = ROUND_TRIP_CORPUS[corpusCursor % ROUND_TRIP_CORPUS.length];
+        editor.setText(item);
+        corpusCursor++;
+        footerStatus.textContent = `Loaded corpus item #${corpusCursor}`;
+        updateStats(editor.getText());
+      });
+
+      document.getElementById('runRoundTrip').addEventListener('click', () => {
+        const lines = [];
+        let pass = 0;
+        let fail = 0;
+
+        for (let i = 0; i < ROUND_TRIP_CORPUS.length; i++) {
+          const original = ROUND_TRIP_CORPUS[i];
+          editor.setText(original);
+          const after = editor.getText();
+          const ok = after === original;
+          if (ok) pass++; else fail++;
+          lines.push(
+            `[${ok ? 'PASS' : 'FAIL'}] item ${i} (len=${original.length})` +
+            (ok ? '' : `\n  expected: ${JSON.stringify(original)}\n  got:      ${JSON.stringify(after)}`)
+          );
+        }
+
+        const summary = `${pass}/${ROUND_TRIP_CORPUS.length} pass, ${fail} fail`;
+        roundTripResult.innerHTML =
+          `<span class="${fail === 0 ? 'pass' : 'fail'}">${summary}</span>\n\n` +
+          lines.map(escapeHtml).join('\n');
+        footerStatus.textContent = `Round-trip: ${summary}`;
+      });
+
+      // ── Stress generators ─────────────────────────────────────────────────
+      function buildStressDoc(lineCount) {
+        const out = [];
+        for (let i = 0; i < lineCount; i++) {
+          if (i % 25 === 0) out.push(`## Section ${i / 25 + 1}`);
+          else if (i % 7 === 0) out.push(`- list item ${i} with **bold** and *italic*`);
+          else if (i % 11 === 0) out.push('> quoted line ' + i);
+          else if (i % 13 === 0) out.push('```\ncode line ' + i + '\n```');
+          else out.push(`Line ${i}: the quick brown fox jumps over the lazy dog. \`code\` and [link](https://x.test).`);
+        }
+        return out.join('\n');
+      }
+
+      document.getElementById('loadStress5k').addEventListener('click', () => {
+        const doc = buildStressDoc(5000);
+        const t0 = performance.now();
+        editor.setText(doc);
+        const t1 = performance.now();
+        stressResult.innerHTML = `<span class="pass">5,000-line load: ${(t1 - t0).toFixed(1)} ms</span>\n` +
+          `doc length: ${doc.length} chars`;
+        footerStatus.textContent = `Stress 5k loaded in ${(t1 - t0).toFixed(0)} ms`;
+        updateStats(editor.getText());
+      });
+
+      document.getElementById('loadStress20k').addEventListener('click', () => {
+        const doc = buildStressDoc(20000);
+        const t0 = performance.now();
+        editor.setText(doc);
+        const t1 = performance.now();
+        stressResult.innerHTML = `<span class="warn">20,000-line load: ${(t1 - t0).toFixed(1)} ms</span>\n` +
+          `doc length: ${doc.length} chars`;
+        footerStatus.textContent = `Stress 20k loaded in ${(t1 - t0).toFixed(0)} ms`;
+        updateStats(editor.getText());
+      });
+
+      document.getElementById('measureKeystroke').addEventListener('click', () => {
+        // Programmatic insert at the document end, repeated. This measures
+        // the engine's per-edit dispatch cost; real keystroke latency adds
+        // browser input handling on top, but this isolates the engine.
+        const view = editor.view;
+        const samples = [];
+        for (let i = 0; i < 1000; i++) {
+          const t0 = performance.now();
+          const len = view.state.doc.length;
+          view.dispatch({ changes: { from: len, insert: 'x' } });
+          const t1 = performance.now();
+          samples.push(t1 - t0);
+        }
+        samples.sort((a, b) => a - b);
+        const p50 = samples[Math.floor(samples.length * 0.5)];
+        const p95 = samples[Math.floor(samples.length * 0.95)];
+        const p99 = samples[Math.floor(samples.length * 0.99)];
+        const max = samples[samples.length - 1];
+        stressResult.innerHTML =
+          `<span class="pass">1,000 inserts at end-of-doc</span>\n` +
+          `p50=${p50.toFixed(3)}ms · p95=${p95.toFixed(3)}ms · p99=${p99.toFixed(3)}ms · max=${max.toFixed(3)}ms\n` +
+          `doc length now: ${view.state.doc.length} chars`;
+        footerStatus.textContent = `Keystroke p50=${p50.toFixed(2)}ms p95=${p95.toFixed(2)}ms`;
+        updateStats(editor.getText());
+      });
+
+      // ── Custom doc ────────────────────────────────────────────────────────
+      document.getElementById('loadPasted').addEventListener('click', () => {
+        const text = document.getElementById('pasteArea').value;
+        editor.setText(text);
+        footerStatus.textContent = `Loaded pasted doc (${text.length} chars)`;
+        updateStats(editor.getText());
+      });
+
+      document.getElementById('copyDoc').addEventListener('click', async () => {
+        const text = editor.getText();
+        try {
+          await navigator.clipboard.writeText(text);
+          footerStatus.textContent = `Copied doc to clipboard (${text.length} chars)`;
+        } catch (e) {
+          footerStatus.textContent = `Copy failed: ${e.message}`;
+        }
+      });
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+    </script>
+  </body>
+</html>

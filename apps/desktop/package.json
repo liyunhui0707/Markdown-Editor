@@ -5,8 +5,11 @@
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/*.test.js test/spike-cm6/*.test.js",
     "build:editor": "esbuild lib/editor-entry.js --bundle --format=iife --platform=browser --outfile=lib/toastui-bundle.js",
+    "build:spike-cm6": "esbuild lib/spike-cm6-entry.js --bundle --format=iife --platform=browser --outfile=lib/spike-cm6-bundle.js",
+    "spike:cm6": "electron spike/codemirror6/spike-main.js",
+    "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
     "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "dist": "electron-builder -m zip",
     "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir zip"
@@ -26,6 +29,12 @@
     "esbuild": "^0.25.12"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.6.0",
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/search": "^6.5.6",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.28.0",
     "@toast-ui/editor": "^3.2.2",
     "marked": "^17.0.5"
   }
