@@ -659,7 +659,13 @@ async function assertSavingOneUnsavedDraftPreservesAnother({ search = '', engine
 
   assert.equal(elements.get('noteList').children.length, 1, 'only the remaining unsaved draft should stay visible in Drafts');
   assert.ok(elements.get('noteList').children[0].className.includes('active'), 'remaining draft should be selected');
-  assert.equal(setTextCalls.at(-1), `Body B unique ${engineName}`);
+  if (engineName === 'hybrid') {
+    // Hybrid has no EditorState cache; B is loaded via setText with its
+    // preserved body. CM6 restores via setState (cache hit) — covered by the
+    // CM6 cache-preservation tests near the bottom of this file. Both engines
+    // satisfy the user-visible contract checked on the next line.
+    assert.equal(setTextCalls.at(-1), `Body B unique ${engineName}`);
+  }
   assert.equal(adapter.text, `Body B unique ${engineName}`, 'editor should show the remaining draft body');
 
   elements.get('searchInput').value = `Body B unique ${engineName}`;
@@ -767,7 +773,11 @@ test('CM6: first visit to an uncached note uses setText (no setState)', async ()
   assert.equal(calls.cm6SetState.length, setStateBefore, 'first visit to B must not call setState');
 });
 
-test('CM6: vault refresh clears cached editor states; returning afterwards uses setText', async () => {
+test('CM6: watcher refresh preserves cached editor states for unrelated notes (body preserved)', async () => {
+  // The watcher only knows that one file changed. Unrelated notes' bodies
+  // are preserved by the overlay; their cached EditorStates must also be
+  // preserved so note-local undo/redo survives. The previous bulk-clear was
+  // too broad: it kept the body but wiped undo history.
   const { calls, elements } = makeRendererHarness({
     search: '?writeEngine=cm6',
     vaultNotes: [
@@ -785,29 +795,34 @@ test('CM6: vault refresh clears cached editor states; returning afterwards uses 
   elements.get('noteList').children[1].fire('click');
   assert.equal(calls.cm6SetText.at(-1), '# Note B');
 
-  // Trigger a vault watcher refresh — this must clear the cache.
+  // Trigger a vault watcher refresh that reports b.md as changed. A is
+  // unrelated → its body is preserved by the overlay AND its cached
+  // EditorState must also be preserved (no bulk clear on watcher refresh).
   assert.equal(typeof calls.vaultChangedCallback, 'function');
   await calls.vaultChangedCallback({ fileName: 'b.md' });
 
   const setStateBeforeReturn = calls.cm6SetState.length;
   const setTextBeforeReturn = calls.cm6SetText.length;
 
-  // Switch back to A. Cache was cleared → must fall back to setText.
-  // The watcher reported b.md as the changed file, so A's in-memory body is
-  // preserved (only the changed file picks up disk truth).
+  // Switch back to A. Cache hit (cache.doc === note.body) → must restore via
+  // setState, NOT setText. This is what preserves note-local undo/redo.
   elements.get('noteList').children[0].fire('click');
 
   assert.equal(
     calls.cm6SetState.length,
-    setStateBeforeReturn,
-    'after vault refresh, returning to A must NOT use setState'
+    setStateBeforeReturn + 1,
+    'after watcher refresh, returning to A must restore via setState (cache preserved)'
   );
-  assert.ok(
-    calls.cm6SetText.length > setTextBeforeReturn,
-    'after vault refresh, returning to A must call setText'
+  assert.equal(
+    calls.cm6SetText.length,
+    setTextBeforeReturn,
+    'after watcher refresh, returning to A must NOT call setText'
   );
-  assert.equal(calls.cm6SetText.at(-1), '# Note A edited',
-    "A's preserved in-memory body must be the one passed to setText");
+  assert.equal(
+    calls.cm6Adapter._state._kind,
+    'A-cached',
+    'restored state must be the exact instance cached on switch-out from A'
+  );
 });
 
 test('Hybrid: note switching continues to use setText (note-local undo intentionally deferred)', async () => {
@@ -1202,6 +1217,249 @@ test('save + watcher preserve both a dirty vault note AND an unsaved draft', asy
     "D should remain in the Drafts filter after save + watcher");
   assert.equal(calls.hybridAdapter.text, '# D edited',
     "D's edited body must survive the save + watcher sequence");
+});
+
+// ── Save/watcher refresh preserves CM6 cached EditorStates ──────────────────
+// Bug: saving Note A wiped the entire CM6 EditorState cache via
+// noteEditorStates.clear() inside refreshVaultNotes(). Bodies for other notes
+// were preserved by the overlay but undo/redo history was lost. The fix gates
+// the bulk clear: save and watcher refreshes opt in to preserveCachedEditorStates.
+// The existing per-entry doc-mismatch guard inside renderEditor() still drops
+// any entry whose body did change, so stale states cannot be restored.
+
+test('CM6: saving one vault note preserves cached editor states for other dirty vault notes', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6Adapter._state = { doc: '# A edited', _kind: 'A-edited' };
+  calls.cm6OnChange('# A edited');
+
+  // Switch to B → A's state cached (doc='# A edited').
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6Adapter.text = '# B edited';
+  calls.cm6Adapter._state = { doc: '# B edited', _kind: 'B-edited' };
+  calls.cm6OnChange('# B edited');
+
+  // Switch back to A → cache hit (sanity).
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(calls.cm6Adapter._state._kind, 'A-edited',
+    "sanity: returning to A before save must restore the cached state");
+
+  // Save A. With the bug, the save-driven refresh wiped the entire cache and
+  // B's cached state was lost. With the fix, the cache is preserved.
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Switch to B → must restore via setState (cache hit), NOT setText.
+  const setStateBefore = calls.cm6SetState.length;
+  const setTextBefore  = calls.cm6SetText.length;
+  elements.get('noteList').children[1].fire('click');
+
+  assert.equal(calls.cm6SetState.length, setStateBefore + 1,
+    "B's cached state must be restored after saving A — undo history must survive");
+  assert.equal(calls.cm6SetText.length, setTextBefore,
+    "B must NOT be reloaded via setText after saving A");
+  assert.equal(calls.cm6Adapter._state._kind, 'B-edited',
+    "the restored state must be the exact instance cached on switch-out from B");
+});
+
+test('CM6: saving one draft preserves cached editor states for other unsaved drafts', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Create draft D1, edit it.
+  elements.get('newNoteButton').fire('click');
+  calls.cm6Adapter.text = '# D1 edited';
+  calls.cm6Adapter._state = { doc: '# D1 edited', _kind: 'D1-edited' };
+  calls.cm6OnChange('# D1 edited');
+
+  // Create draft D2, edit it. Switch-out D1 → cache[D1] populated.
+  elements.get('newNoteButton').fire('click');
+  calls.cm6Adapter.text = '# D2 edited';
+  calls.cm6Adapter._state = { doc: '# D2 edited', _kind: 'D2-edited' };
+  calls.cm6OnChange('# D2 edited');
+
+  // Switch to D1 (children[1]; D2 is at children[0] as the newest draft).
+  // Switch-out D2 → cache[D2] populated.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6Adapter._state._kind, 'D1-edited',
+    'sanity: returning to D1 must restore the cached state');
+
+  // Switch to filter 'all' BEFORE save so the freshly-saved vault note
+  // remains visible and the post-save renderApp doesn't retarget selection
+  // (which would consume the cache-hit assertion below).
+  elements.get('filterAll').fire('click');
+
+  // Save D1 — D1 transitions to vault. With the bug, this wiped the entire
+  // cache and D2 lost its undo history. With the fix, cache[D2] survives.
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // After save, layout under 'all' is [vault:D1-saved, draft:D2].
+  // children[0] = saved D1, children[1] = D2.
+  const setStateBefore = calls.cm6SetState.length;
+  const setTextBefore  = calls.cm6SetText.length;
+  elements.get('noteList').children[1].fire('click');
+
+  assert.equal(calls.cm6SetState.length, setStateBefore + 1,
+    "D2's cached state must be restored after saving D1 — undo history must survive");
+  assert.equal(calls.cm6SetText.length, setTextBefore,
+    "D2 must NOT be reloaded via setText after saving D1");
+  assert.equal(calls.cm6Adapter._state._kind, 'D2-edited',
+    "the restored state must be the exact instance cached on switch-out from D2");
+});
+
+test('CM6: post-save watcher refresh preserves cached editor states for unrelated notes', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6Adapter._state = { doc: '# A edited', _kind: 'A-edited' };
+  calls.cm6OnChange('# A edited');
+
+  // Switch to B → A's state cached.
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6Adapter.text = '# B edited';
+  calls.cm6Adapter._state = { doc: '# B edited', _kind: 'B-edited' };
+  calls.cm6OnChange('# B edited');
+
+  // Switch back to A and save it.
+  elements.get('noteList').children[0].fire('click');
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // The post-save vault watcher fires for the saved file. Without the fix,
+  // this second refresh wiped the cache that the save refresh had spared.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'a.md' });
+
+  // Switch to B → cache hit → setState (NOT setText).
+  const setStateBefore = calls.cm6SetState.length;
+  const setTextBefore  = calls.cm6SetText.length;
+  elements.get('noteList').children[1].fire('click');
+
+  assert.equal(calls.cm6SetState.length, setStateBefore + 1,
+    "B's cached state must be restored after save + post-save watcher");
+  assert.equal(calls.cm6SetText.length, setTextBefore,
+    "B must NOT be reloaded via setText after save + post-save watcher");
+  assert.equal(calls.cm6Adapter._state._kind, 'B-edited',
+    "the restored state must be the exact instance cached on switch-out from B");
+});
+
+test('CM6: save + watcher preserve cached states for both a dirty vault note and an unsaved draft', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6Adapter._state = { doc: '# A edited', _kind: 'A-edited' };
+  calls.cm6OnChange('# A edited');
+
+  // Edit B.
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6Adapter.text = '# B edited';
+  calls.cm6Adapter._state = { doc: '# B edited', _kind: 'B-edited' };
+  calls.cm6OnChange('# B edited');
+
+  // Create a draft D and edit it. Switch-out B → cache[B] populated.
+  elements.get('newNoteButton').fire('click');
+  calls.cm6Adapter.text = '# D edited';
+  calls.cm6Adapter._state = { doc: '# D edited', _kind: 'D-edited' };
+  calls.cm6OnChange('# D edited');
+
+  // Show all notes and return to A. notes order is [D, A, B] → A at index 1.
+  // Switch-out D → cache[D] populated.
+  elements.get('filterAll').fire('click');
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6Adapter._state._kind, 'A-edited',
+    'sanity: returning to A must restore the cached state');
+
+  // Save A.
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Post-save watcher fires for a.md.
+  await calls.vaultChangedCallback({ fileName: 'a.md' });
+
+  // After save+watcher: notes = [A (vault, just saved), B (overlay-preserved),
+  // D (preserved draft)]. B at children[1], D at children[2].
+  const stateBeforeB = calls.cm6SetState.length;
+  const textBeforeB  = calls.cm6SetText.length;
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6SetState.length, stateBeforeB + 1,
+    "B's cached state must survive save + post-save watcher");
+  assert.equal(calls.cm6SetText.length, textBeforeB,
+    "B must not be reloaded via setText after save + watcher");
+  assert.equal(calls.cm6Adapter._state._kind, 'B-edited');
+
+  const stateBeforeD = calls.cm6SetState.length;
+  const textBeforeD  = calls.cm6SetText.length;
+  elements.get('noteList').children[2].fire('click');
+  assert.equal(calls.cm6SetState.length, stateBeforeD + 1,
+    "D's cached state must survive save + post-save watcher");
+  assert.equal(calls.cm6SetText.length, textBeforeD,
+    "D must not be reloaded via setText after save + watcher");
+  assert.equal(calls.cm6Adapter._state._kind, 'D-edited');
+});
+
+test('CM6: manual Load Vault still clears cached editor states (external/manual reload may invalidate)', async () => {
+  // Complementary test: the bulk clear is only gated for save and watcher
+  // refreshes. Manual / external / vault-switch refreshes still wipe the
+  // cache by design — the product rule allows external reload to invalidate
+  // editor state. This test pins that residual behavior so a future change
+  // does not silently turn manual reload into a state-preserving path.
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A body', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B body', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Switch to B so A's state is cached (cache.doc = '# A body', the unchanged
+  // body — which equals what's on disk so the per-entry mismatch guard alone
+  // would NOT drop this entry; only a bulk clear can).
+  elements.get('noteList').children[1].fire('click');
+
+  const setStateBefore = calls.cm6SetState.length;
+  const setTextBefore  = calls.cm6SetText.length;
+
+  // Manual reload resets selection to notes[0] (A) and triggers a B → A
+  // switch. With bulk clear, cache miss for A → setText. Without bulk clear,
+  // cache.doc would still equal note.body and A would restore via setState —
+  // that is the regression this test guards against.
+  await elements.get('loadVaultButton').fireAsync('click');
+
+  assert.equal(calls.cm6SetState.length, setStateBefore,
+    'manual Load Vault must wipe cached states — no setState restore on reload');
+  assert.ok(calls.cm6SetText.length > setTextBefore,
+    'manual Load Vault must force a fresh setText for the re-selected note');
+  assert.equal(calls.cm6SetText.at(-1), '# A body');
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {

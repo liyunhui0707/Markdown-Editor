@@ -1680,6 +1680,7 @@ Today the app reacts better to real external MCP ingests.
             false,
             null,
             preservedVaultEdits,
+            true,
           );
 
           if (!refreshed) {
@@ -1787,7 +1788,8 @@ Today the app reacts better to real external MCP ingests.
         preferredRelativePath = '',
         updateStatus = true,
         preservedDrafts = null,
-        preservedVaultEdits = null
+        preservedVaultEdits = null,
+        preserveCachedEditorStates = false
       ) {
         const draftsToPreserve = Array.isArray(preservedDrafts)
           ? preservedDrafts
@@ -1809,11 +1811,18 @@ Today the app reacts better to real external MCP ingests.
           });
         }
 
-        // A vault refresh can rewrite note bodies behind the editor's back, so
-        // any cached editor states are now potentially stale. Clear them; the
-        // doc/body mismatch guard would catch divergent entries anyway, but
-        // dropping in bulk keeps the cache tight and the policy simple.
-        noteEditorStates.clear();
+        // Cached EditorStates carry note-local undo/redo. Bulk-clearing them on
+        // every refresh discarded undo history for unrelated notes whose bodies
+        // we just preserved — the body/state pair would survive together with
+        // saving but the state was thrown away. Save and watcher refreshes
+        // opt in to preservation; the per-entry doc/body mismatch guard in
+        // renderEditor() still drops any entry whose body did change. Other
+        // refresh paths (manual reload, choose-vault, demo-seed, delete) keep
+        // the bulk clear so external/manual reload can invalidate state per
+        // the product rule.
+        if (!preserveCachedEditorStates) {
+          noteEditorStates.clear();
+        }
 
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
@@ -1947,6 +1956,7 @@ Today the app reacts better to real external MCP ingests.
           false,
           preservedDrafts,
           preservedVaultEdits,
+          true,
         );
 
         if (refreshed) {
