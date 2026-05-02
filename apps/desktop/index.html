@@ -1247,6 +1247,13 @@ Write the core idea here.
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
       let hasLoadedVaultNotes     = false;
+      // Per-note editor state cache for note-local undo/redo. Keyed by note id;
+      // each value is { state, doc } where state is the opaque engine state and
+      // doc is the text it represented at cache time (the mismatch guard).
+      // Populated only when the active engine exposes getState/setState — so
+      // CM6 participates and Hybrid does not (Hybrid undo is per-textarea-only
+      // and intentionally deferred; see comment near the engine wiring below).
+      const noteEditorStates      = new Map();
 
       let notes = [
         {
@@ -1336,6 +1343,22 @@ Today the app reacts better to real external MCP ingests.
         // Only reset the live editor when switching to a different note —
         // not on every renderApp() call (which would destroy the user's cursor position).
         if (note.id !== liveEditorLastNoteId) {
+          // Save outgoing state for note-local undo/redo. Only when the engine
+          // supports it (CM6) and the outgoing note is still in `notes` (so we
+          // know its current body to pair with the state).
+          if (liveEditorLastNoteId && typeof liveEditorInstance.getState === 'function') {
+            const outgoing = notes.find((n) => n.id === liveEditorLastNoteId);
+            if (outgoing) {
+              const outgoingState = liveEditorInstance.getState();
+              if (outgoingState) {
+                noteEditorStates.set(liveEditorLastNoteId, {
+                  state: outgoingState,
+                  doc: outgoing.body,
+                });
+              }
+            }
+          }
+
           liveEditorLastNoteId = note.id;
 
           // Migration: if the body doesn't already start with inline metadata,
@@ -1343,14 +1366,33 @@ Today the app reacts better to real external MCP ingests.
           const { tags: existingTags } = stripMetaPrefix(note.body);
           const hasMeta = existingTags.length > 0
             || /^Source:/im.test((note.body || '').split('\n').slice(0, 3).join('\n'));
+          let migrated = false;
           if (!hasMeta) {
             const prefix = serializeMetaPrefix(note.frontmatter);
             if (prefix) {
               note.body = prefix + '\n\n' + (note.body || '');
+              migrated = true;
             }
           }
 
-          liveEditorInstance.setText(note.body);
+          // Restore from cache when possible: same note id AND cached doc still
+          // matches the current body. If the body diverged (vault refresh, save
+          // round-trip, anything that rewrote it), drop the stale entry and
+          // fall back to the fresh-load path. Migration always forces a fresh
+          // load because we just rewrote note.body.
+          let restored = false;
+          if (!migrated && typeof liveEditorInstance.setState === 'function') {
+            const cached = noteEditorStates.get(note.id);
+            if (cached && cached.doc === note.body) {
+              liveEditorInstance.setState(cached.state);
+              restored = true;
+            } else if (cached) {
+              noteEditorStates.delete(note.id);
+            }
+          }
+          if (!restored) {
+            liveEditorInstance.setText(note.body);
+          }
         }
       }
 
@@ -1713,6 +1755,12 @@ Today the app reacts better to real external MCP ingests.
           ? notes.filter(shouldPreserveDraft)
           : [];
 
+        // A vault refresh can rewrite note bodies behind the editor's back, so
+        // any cached editor states are now potentially stale. Clear them; the
+        // doc/body mismatch guard would catch divergent entries anyway, but
+        // dropping in bulk keeps the cache tight and the policy simple.
+        noteEditorStates.clear();
+
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
         });
@@ -1860,6 +1908,7 @@ Today the app reacts better to real external MCP ingests.
         }
 
         notes = notes.filter((note) => note.id !== selectedNote.id);
+        noteEditorStates.delete(selectedNote.id);
 
         if (notes.length === 0) {
           const fallbackNote = {
@@ -2000,12 +2049,21 @@ Today the app reacts better to real external MCP ingests.
           cm6: window.CM6Production,
         });
 
+        // CM6 exposes opaque getState/setState so the host can cache and
+        // restore EditorState per note id. This is what makes Cmd+Z / Cmd+Shift+Z
+        // note-local across A → B → A switches: returning to a cached note
+        // restores its history-bearing state instead of rebuilding via setText.
         liveEditorInstance = {
           getText() { return cm6Write.getText(); },
           setText(text) {
             const raw = text || '';
             cm6Write.setText(raw);
             _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6Write.getState(); },
+          setState(state) {
+            cm6Write.setState(state);
+            _toastuiInstance.setMarkdown(cm6Write.getText());
           },
           exitWriteMode() { cm6Write.exitWriteMode(); },
         };
@@ -2015,6 +2073,12 @@ Today the app reacts better to real external MCP ingests.
         });
 
         // Thin adapter — keeps all getText()/setText() call sites unchanged.
+        // Hybrid intentionally does NOT expose getState/setState: its undo is
+        // per-textarea browser-native only, with no model-level history stack
+        // to cache. The host treats their absence as "this engine does not
+        // support note-local undo restore" and falls back to setText(). A
+        // proper Hybrid undo would require redesigning the rendering model,
+        // which is out of scope here and overlaps with engine retirement.
         liveEditorInstance = {
           getText() { return hybridWrite.getText(); },
           setText(text) {

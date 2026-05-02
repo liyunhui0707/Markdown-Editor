@@ -29,7 +29,16 @@
    `setText` calls `view.setState(...)` rather than dispatching a transaction,
    so the `updateListener` is not invoked and `onChange` is not called. Only
    user-driven transactions (or any future code path that calls
-   `view.dispatch`) reach `onChange`. */
+   `view.dispatch`) reach `onChange`.
+
+   Note-local undo: getState / setState
+   ────────────────────────────────────
+   `setText` deliberately rebuilds state and so wipes history. To keep undo
+   note-local across A → B → A switches, the host caches the outgoing
+   EditorState and restores it on return. `getState()` and `setState(state)`
+   are thin pass-throughs to the underlying view. The state object is opaque
+   to the host. Like `setText`, `setState` uses `view.setState` (not a
+   dispatched transaction), so it does not fire `onChange`. */
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -79,6 +88,8 @@
         const value = text == null ? '' : String(text);
         view.setState(buildState(value));
       },
+      getState: function () { return view.state; },
+      setState: function (state) { view.setState(state); },
       exitWriteMode: function () { /* no-op: CM6 has no inactive-block mode to exit */ },
       focus: function () { view.focus(); },
       destroy: function () { view.destroy(); },

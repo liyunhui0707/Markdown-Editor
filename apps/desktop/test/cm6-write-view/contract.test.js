@@ -457,3 +457,84 @@ test('setText with chrome still does NOT trigger onChange', () => {
   assert.equal(a.getText(), 'after');
   assert.deepEqual(calls, []);
 });
+
+// ── Note-local undo: opaque state save/restore ────────────────────────────────
+// These tests pin the contract used by the renderer host to keep undo history
+// note-local across A → B → A switches in CM6. The host caches `getState()`
+// for the outgoing note and calls `setState()` to restore it when re-entering
+// the same note, instead of `setText()` (which always rebuilds history).
+
+test('getState() returns the current CM6 state', () => {
+  const cm6 = makeFakeCm6();
+  const a = createCm6WriteView(makeParent(), { cm6, initialDoc: 'hello' });
+  assert.equal(typeof a.getState, 'function');
+  const state = a.getState();
+  assert.ok(state, 'getState should return a non-null state');
+  assert.equal(state.doc.toString(), 'hello');
+  assert.equal(state, a.view.state, 'getState should return the live view state');
+});
+
+test('setState(state) replaces the current state with the provided state', () => {
+  const cm6 = makeFakeCm6();
+  const a = createCm6WriteView(makeParent(), { cm6, initialDoc: 'A' });
+  const savedA = a.getState();
+  a.setText('B');
+  assert.equal(a.getText(), 'B');
+  a.setState(savedA);
+  assert.equal(a.getText(), 'A');
+  assert.equal(a.view.state, savedA, 'view.state should be the restored state instance');
+});
+
+test('setState(state) does not trigger onChange', () => {
+  const cm6 = makeFakeCm6();
+  const calls = [];
+  const a = createCm6WriteView(makeParent(), {
+    cm6,
+    initialDoc: 'first',
+    onChange: (text) => calls.push(text),
+  });
+  const saved = a.getState();
+  // A real user edit DOES fire onChange — this is just to populate the call log
+  // so we can assert setState afterwards adds nothing.
+  simulateUserInsert(a, '!');
+  assert.deepEqual(calls, ['first!']);
+  a.setState(saved);
+  assert.equal(a.getText(), 'first');
+  assert.deepEqual(calls, ['first!'], 'setState must not fire onChange');
+});
+
+test('getState → setText("other") → setState(saved) restores original doc and undo history', () => {
+  const cm6 = makeFakeCm6();
+  const a = createCm6WriteView(makeParent(), { cm6 });
+  a.setText('Note A body');
+  simulateUserInsert(a, ' edit-1');
+  simulateUserInsert(a, ' edit-2');
+  const saved = a.getState();
+  assert.equal(saved._undoStack.length, 2, 'saved state retains its history');
+
+  a.setText('Note B body');
+  assert.equal(a.getText(), 'Note B body');
+  assert.equal(a.view.state._undoStack.length, 0, 'fresh state after setText has empty history');
+
+  a.setState(saved);
+  assert.equal(a.getText(), 'Note A body edit-1 edit-2');
+  assert.equal(a.view.state._undoStack.length, 2,
+    'restoring the saved state must preserve its undo history');
+});
+
+test('setText after setState resets history again (no leak)', () => {
+  // setText is the "fresh load" path — it must always rebuild state, even
+  // when the prior state came from a setState restore.
+  const cm6 = makeFakeCm6();
+  const a = createCm6WriteView(makeParent(), { cm6 });
+  a.setText('A');
+  simulateUserInsert(a, ' edit');
+  const saved = a.getState();
+  a.setState(saved);
+  assert.equal(a.view.state._undoStack.length, 1);
+
+  a.setText('fresh');
+  assert.equal(a.getText(), 'fresh');
+  assert.equal(a.view.state._undoStack.length, 0,
+    'setText after setState must still reset history');
+});

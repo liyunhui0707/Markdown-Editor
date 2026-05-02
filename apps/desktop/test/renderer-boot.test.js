@@ -204,6 +204,8 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     cm6ExitWriteMode: 0,
     cm6OnChange: null,
     cm6Adapter: null,
+    cm6GetState: 0,
+    cm6SetState: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
     watchVaultFolderPayloads: [],
@@ -260,8 +262,14 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
       calls.cm6Parent = parent;
       calls.cm6Options = opts || {};
       calls.cm6OnChange = calls.cm6Options.onChange;
+      const initialDoc = calls.cm6Options.initialDoc || '';
       const adapter = {
-        text: calls.cm6Options.initialDoc || '',
+        text: initialDoc,
+        // _state mimics the opaque CM6 EditorState: an object whose `doc`
+        // matches the current text. setText creates a fresh state object
+        // (mirroring `view.setState(buildState(...))` in the real adapter);
+        // setState replaces it with whatever the caller hands back.
+        _state: { doc: initialDoc, _kind: 'fresh' },
         getText() {
           calls.cm6GetText += 1;
           return this.text;
@@ -270,6 +278,22 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
           const value = text == null ? '' : String(text);
           calls.cm6SetText.push(value);
           this.text = value;
+          this._state = { doc: value, _kind: 'fresh' };
+        },
+        getState() {
+          calls.cm6GetState += 1;
+          // Snapshot current text into the state's doc on read. Real CM6
+          // state.doc always reflects the current document; tests that
+          // simulate user typing by setting `adapter.text` directly would
+          // otherwise leave _state.doc stale and break the host's
+          // doc-vs-body cache mismatch guard.
+          this._state = { ...this._state, doc: this.text };
+          return this._state;
+        },
+        setState(state) {
+          calls.cm6SetState.push(state);
+          this._state = state;
+          this.text = state && typeof state.doc === 'string' ? state.doc : '';
         },
         exitWriteMode() {
           calls.cm6ExitWriteMode += 1;
@@ -621,7 +645,10 @@ async function assertSavingOneUnsavedDraftPreservesAnother({ search = '', engine
   onChange(`Body B unique ${engineName}`);
 
   elements.get('noteList').children[1].fire('click');
-  assert.equal(setTextCalls.at(-1), `Body A unique ${engineName}`);
+  // Assert visible result rather than the path: post-fix, CM6 returns to a
+  // cached note via setState (not setText). Hybrid still uses setText. Both
+  // end with the adapter showing A's body — that is the user-visible contract.
+  assert.equal(adapter.text, `Body A unique ${engineName}`);
 
   await elements.get('saveNoteButton').fireAsync('click');
   assert.equal(calls.loadVaultNotesPayloads.length, 2, 'save should refresh from disk once');
@@ -659,6 +686,155 @@ test('saving one unsaved draft preserves other unsaved drafts for later saving (
 
 test('saving one unsaved draft preserves other unsaved drafts for later saving (CM6)', async () => {
   await assertSavingOneUnsavedDraftPreservesAnother({ search: '?writeEngine=cm6', engineName: 'cm6' });
+});
+
+// ── Note-local undo: host caches CM6 EditorState across A → B → A switches ──
+// These tests pin the host wiring that makes Cmd+Z note-local for CM6 after
+// switching away and back. The fake CM6 adapter exposes getState/setState
+// so we can detect when the host restores via setState instead of setText.
+
+test('CM6: switching back to a previously-edited note restores via setState (not setText)', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Initial load brings A in via setText (uncached).
+  assert.equal(calls.cm6SetText.at(-1), '# Note A');
+
+  // Simulate the user typing in A (so A's state diverges from default).
+  calls.cm6Adapter.text = '# Note A edited';
+  calls.cm6Adapter._state = { doc: '# Note A edited', _kind: 'A-after-edit' };
+  calls.cm6OnChange('# Note A edited');
+
+  const setStateBeforeSwitchToB = calls.cm6SetState.length;
+  const setTextBeforeSwitchToB = calls.cm6SetText.length;
+
+  // Switch to B (uncached) → goes through setText, no setState.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6SetText.length, setTextBeforeSwitchToB + 1, 'B uncached → setText');
+  assert.equal(calls.cm6SetText.at(-1), '# Note B');
+  assert.equal(calls.cm6SetState.length, setStateBeforeSwitchToB, 'B uncached → no setState');
+
+  const setStateBeforeReturn = calls.cm6SetState.length;
+  const setTextBeforeReturn = calls.cm6SetText.length;
+
+  // Switch back to A. Cached state's doc ('# Note A edited') matches
+  // note.body → host must restore via setState, not setText.
+  elements.get('noteList').children[0].fire('click');
+
+  assert.equal(
+    calls.cm6SetState.length,
+    setStateBeforeReturn + 1,
+    'returning to a cached note must restore via setState'
+  );
+  assert.equal(
+    calls.cm6SetText.length,
+    setTextBeforeReturn,
+    'returning to a cached note must NOT call setText'
+  );
+  assert.equal(
+    calls.cm6Adapter.text,
+    '# Note A edited',
+    'editor must show A’s edited body after restore'
+  );
+  assert.equal(
+    calls.cm6Adapter._state._kind,
+    'A-after-edit',
+    'restored state must be the exact instance that was cached on switch-out'
+  );
+});
+
+test('CM6: first visit to an uncached note uses setText (no setState)', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Switch from A (current) to B (never visited): must use setText.
+  const setStateBefore = calls.cm6SetState.length;
+  elements.get('noteList').children[1].fire('click');
+
+  assert.equal(calls.cm6SetText.at(-1), '# Note B', 'first visit to B uses setText');
+  assert.equal(calls.cm6SetState.length, setStateBefore, 'first visit to B must not call setState');
+});
+
+test('CM6: vault refresh clears cached editor states; returning afterwards uses setText', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A then switch to B so A's state is cached.
+  calls.cm6Adapter.text = '# Note A edited';
+  calls.cm6Adapter._state = { doc: '# Note A edited', _kind: 'A-cached' };
+  calls.cm6OnChange('# Note A edited');
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6SetText.at(-1), '# Note B');
+
+  // Trigger a vault watcher refresh — this must clear the cache.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'b.md' });
+
+  const setStateBeforeReturn = calls.cm6SetState.length;
+  const setTextBeforeReturn = calls.cm6SetText.length;
+
+  // Switch back to A. Cache was cleared → must fall back to setText.
+  elements.get('noteList').children[0].fire('click');
+
+  assert.equal(
+    calls.cm6SetState.length,
+    setStateBeforeReturn,
+    'after vault refresh, returning to A must NOT use setState'
+  );
+  assert.ok(
+    calls.cm6SetText.length > setTextBeforeReturn,
+    'after vault refresh, returning to A must call setText'
+  );
+  assert.equal(calls.cm6SetText.at(-1), '# Note A');
+});
+
+test('Hybrid: note switching continues to use setText (note-local undo intentionally deferred)', async () => {
+  // Hybrid has no model-level undo (per-textarea browser-native only) so we
+  // do not expose getState/setState on the HybridWriteView. The host must
+  // detect their absence and fall back to setText. This pins Hybrid as
+  // intentionally deferred, not accidentally broken.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Confirm the Hybrid adapter does not expose getState/setState.
+  assert.equal(typeof calls.hybridAdapter.getState, 'undefined');
+  assert.equal(typeof calls.hybridAdapter.setState, 'undefined');
+
+  // Edit A, switch to B, switch back. All three transitions must go through setText.
+  calls.hybridAdapter.text = '# Note A edited';
+  calls.hybridOnChange('# Note A edited');
+
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridSetText.at(-1), '# Note B');
+
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(calls.hybridSetText.at(-1), '# Note A edited',
+    'returning to A in Hybrid must reload via setText (no cached state)');
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
