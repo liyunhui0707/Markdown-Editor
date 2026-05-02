@@ -952,6 +952,7 @@
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
+    <script src="./lib/scroll-sync.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -2243,16 +2244,42 @@ Today the app reacts better to real external MCP ingests.
       }
 
       // ── Write / Preview mode toggle ──────────────────────────────────────
+      // Scroll-position sync is ratio-based (not cursor-based): we capture the
+      // source surface's scroll ratio BEFORE the toggle and apply that ratio
+      // to the target surface in the next animation frame, after the browser
+      // has committed the show/hide change so scrollHeight/clientHeight on the
+      // newly-visible target are meaningful. captureScrollRatio /
+      // applyScrollRatio live in lib/scroll-sync.js and no-op safely on
+      // missing or short containers.
+      const _captureScrollRatio = window.ScrollSync ? window.ScrollSync.captureScrollRatio : null;
+      const _applyScrollRatio   = window.ScrollSync ? window.ScrollSync.applyScrollRatio   : null;
+
       function showWriteMode() {
+        // Capture from the Preview scroll target BEFORE switching surfaces.
+        const ratio = _captureScrollRatio
+          ? _captureScrollRatio(toastPreviewMount.querySelector('.toastui-editor-md-preview'))
+          : 0;
+
         hybridWritePane.classList.remove('is-hidden');
         toastPreviewMount.classList.remove('is-visible');
         writeModeButton.classList.add('mode-button-active');
         previewModeButton.classList.remove('mode-button-active');
         writeModeButton.setAttribute('aria-selected', 'true');
         previewModeButton.setAttribute('aria-selected', 'false');
+
+        if (_applyScrollRatio) {
+          requestAnimationFrame(function () {
+            _applyScrollRatio(hybridWritePane, ratio);
+          });
+        }
       }
 
       function showPreviewMode() {
+        // Capture FIRST so the Write pane's measurements are still live —
+        // before exitWriteMode swaps the active textarea or setMarkdown
+        // re-renders Toast UI. Both happen on the same toggle.
+        const ratio = _captureScrollRatio ? _captureScrollRatio(hybridWritePane) : 0;
+
         // Flush in-progress active-block edits so getText() returns the
         // committed source, then mirror it to Toast UI before activating
         // its preview pane.
@@ -2271,6 +2298,15 @@ Today the app reacts better to real external MCP ingests.
         previewModeButton.classList.add('mode-button-active');
         writeModeButton.setAttribute('aria-selected', 'false');
         previewModeButton.setAttribute('aria-selected', 'true');
+
+        // Defer the apply to the next animation frame: by then the browser
+        // has committed the .is-visible class, Toast UI has rendered, and
+        // its preview pane's scrollHeight/clientHeight are usable.
+        if (_applyScrollRatio) {
+          requestAnimationFrame(function () {
+            _applyScrollRatio(toastPreviewMount.querySelector('.toastui-editor-md-preview'), ratio);
+          });
+        }
       }
 
       writeModeButton.addEventListener('click', showWriteMode);

@@ -428,3 +428,61 @@ test('note-list click writes flushed text back to the outgoing note before chang
     /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?selectedNoteId\s*=\s*note\.id/
   );
 });
+
+// ── Bug #2: scroll-position sync between Write and Preview ─────────────────
+// The mode toggle now captures a scroll ratio from the source surface and
+// re-applies it to the target surface inside requestAnimationFrame. The
+// pure helpers (captureScrollRatio / applyScrollRatio) live in
+// lib/scroll-sync.js and are unit-tested separately. These regex tests
+// pin the wiring inside index.html.
+
+function readIndexHtml() {
+  return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+}
+
+test('index.html loads scroll-sync lib before the inline boot script', () => {
+  const html = readIndexHtml();
+  const tag = '<script src="./lib/scroll-sync.js"></script>';
+  const bootMarker = 'Boot the Markdown editor';
+  assert.ok(html.includes(tag), 'scroll-sync.js script tag must be present');
+  assert.ok(
+    html.indexOf(tag) < html.indexOf(bootMarker),
+    'scroll-sync.js must load before the inline boot script'
+  );
+});
+
+test('showPreviewMode captures from hybridWritePane BEFORE setMarkdown', () => {
+  const html = readIndexHtml();
+  // Inside showPreviewMode, the scroll capture must reference hybridWritePane
+  // and must come earlier in the function body than the setMarkdown call.
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*hybridWritePane\s*\)[\s\S]*?_toastuiInstance\.setMarkdown\s*\(/
+  );
+});
+
+test('showPreviewMode applies the ratio to .toastui-editor-md-preview inside requestAnimationFrame', () => {
+  const html = readIndexHtml();
+  // After the body switches visibility, defer the apply to a frame so the
+  // newly-shown Preview pane has its scrollHeight/clientHeight committed.
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?requestAnimationFrame\s*\([\s\S]*?applyScrollRatio\s*\([\s\S]*?toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\)/
+  );
+});
+
+test('showWriteMode captures from .toastui-editor-md-preview', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\)\s*\)/
+  );
+});
+
+test('showWriteMode applies the ratio to hybridWritePane inside requestAnimationFrame', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showWriteMode\s*\([\s\S]*?requestAnimationFrame\s*\([\s\S]*?applyScrollRatio\s*\(\s*hybridWritePane\s*,/
+  );
+});

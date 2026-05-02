@@ -15,6 +15,7 @@ const vm       = require('node:vm');
 
 const WriteEngine = require('../lib/write-engine');
 const FileName    = require('../lib/file-name');
+const ScrollSync  = require('../lib/scroll-sync');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -169,6 +170,31 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
 
   elements.get('templateSelect').value = 'blank';
 
+  // Bug #2 scroll-sync: production code finds the Preview scroller via
+  // toastPreviewMount.querySelector('.toastui-editor-md-preview'). The harness
+  // simulates that lookup by attaching a stand-in scroll element and a
+  // minimal querySelector that returns it for the known selector.
+  const _previewScrollEl = makeElement('div');
+  _previewScrollEl.classList = makeClassList(_previewScrollEl);
+  _previewScrollEl.scrollTop = 0;
+  _previewScrollEl.scrollHeight = 0;
+  _previewScrollEl.clientHeight = 0;
+  const _toastPreviewMount = elements.get('toastPreviewMount');
+  _toastPreviewMount.scrollTop = 0;
+  _toastPreviewMount.scrollHeight = 0;
+  _toastPreviewMount.clientHeight = 0;
+  _toastPreviewMount._previewScrollEl = _previewScrollEl;
+  _toastPreviewMount.querySelector = function (selector) {
+    return selector === '.toastui-editor-md-preview' ? _previewScrollEl : null;
+  };
+  // hybridWritePane is the Write-side scroll container for both Hybrid and
+  // CM6 (the CM6 view mounts inside it via Cm6WriteView's `parent: parent`,
+  // and its outer pane's `overflow: auto` handles scrolling).
+  const _hybridWritePane = elements.get('hybridWritePane');
+  _hybridWritePane.scrollTop = 0;
+  _hybridWritePane.scrollHeight = 0;
+  _hybridWritePane.clientHeight = 0;
+
   const documentHandlers = {};
   const document = {
     getElementById(id) {
@@ -212,6 +238,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     watchVaultFolderPayloads: [],
     unwatchVaultFolder: 0,
     vaultChangedCallback: null,
+    rafQueue: [],
   };
 
   const storage = {
@@ -466,6 +493,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
       },
     },
     FileName,
+    ScrollSync,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -483,6 +511,13 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     console: window.console,
     setTimeout() {},
     clearTimeout() {},
+    // Bug #2 scroll-sync defers the apply step to the next animation frame.
+    // The harness queues callbacks; tests flush them via flushRaf() to drive
+    // the deferred apply synchronously.
+    requestAnimationFrame(cb) {
+      calls.rafQueue.push(cb);
+      return calls.rafQueue.length;
+    },
   };
   context.globalThis = context;
   vm.createContext(context);
@@ -491,7 +526,12 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
   const bootScript = getBootScript(html);
   new vm.Script(bootScript, { filename: 'index.html:inline-boot.js' }).runInContext(context);
 
-  return { calls, elements, window, documentHandlers };
+  function flushRaf() {
+    const queued = calls.rafQueue.splice(0);
+    queued.forEach((cb) => cb());
+  }
+
+  return { calls, elements, window, documentHandlers, flushRaf };
 }
 
 test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
@@ -2023,6 +2063,190 @@ test('rename engine parity: vault rename works (hybrid)', async () => {
 
 test('rename engine parity: vault rename works (cm6)', async () => {
   await assertVaultRenameWorks({ search: '?writeEngine=cm6', engineName: 'cm6' });
+});
+
+// ── Bug #2 behavior: scroll-position sync between Write and Preview ─────────
+// The wiring tests in editor-config.test.js are source-regex assertions; the
+// tests below drive the actual mode-toggle lifecycle, flush the deferred
+// apply via the harness's rAF queue, and assert on observed scrollTop. They
+// exercise the same code path the production click handlers run.
+
+test('scroll sync: Write → Preview applies the captured ratio to .toastui-editor-md-preview', async () => {
+  const { elements, flushRaf } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Set up Write pane at 40% scrolled. Max scrollTop = 1000 - 400 = 600.
+  // 240 / 600 = 0.4. The capture happens BEFORE setMarkdown runs, so even
+  // though setMarkdown is invoked during showPreviewMode, the captured
+  // ratio reflects the user's pre-toggle position.
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  // Preview target with intentionally different dimensions to prove the sync
+  // is ratio-based, not pixel-based. Max scrollTop = 2100 - 400 = 1700.
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 2100;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  elements.get('previewModeButton').fire('click');
+
+  // The apply runs only after the rAF tick — before that, scrollTop is untouched.
+  assert.equal(previewEl.scrollTop, 0,
+    'apply must be deferred — scrollTop should still be 0 before flushRaf');
+
+  flushRaf();
+
+  // 0.4 * (2100 - 400) = 0.4 * 1700 = 680.
+  assert.equal(previewEl.scrollTop, 680,
+    'preview scrollTop must reflect the captured ratio mapped onto the preview surface');
+});
+
+test('scroll sync: Preview → Write applies the captured ratio to hybridWritePane', async () => {
+  const { elements, flushRaf } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Preview at 70% scrolled. Max scrollTop = 800 - 400 = 400. 280 / 400 = 0.7.
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 800;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 280;
+
+  // Write target with different dimensions. Max scrollTop = 2400 - 400 = 2000.
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 2400;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 0;
+
+  elements.get('writeModeButton').fire('click');
+
+  assert.equal(writePane.scrollTop, 0,
+    'apply must be deferred — scrollTop should still be 0 before flushRaf');
+
+  flushRaf();
+
+  // 0.7 * (2400 - 400) = 0.7 * 2000 = 1400.
+  assert.equal(writePane.scrollTop, 1400,
+    'write scrollTop must reflect the captured ratio mapped onto the Write surface');
+});
+
+test('scroll sync: round-trip Write → Preview → Write returns to the same write scrollTop when surface heights are stable', async () => {
+  const { elements, flushRaf } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  assert.equal(previewEl.scrollTop, 240,
+    'preview should land at the same pixel position when both surfaces have identical dimensions');
+
+  // Going back: writePane.scrollTop currently still reads 240 (browsers
+  // preserve scrollTop across display:none/block; the harness mirrors that
+  // by leaving it untouched). Reset it to 0 so the test proves the
+  // round-trip apply, not the latent value.
+  writePane.scrollTop = 0;
+
+  elements.get('writeModeButton').fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    'returning to Write must land at the captured ratio applied to the Write surface');
+});
+
+test('scroll sync: short document is a no-op (no scrollable range, no jump)', async () => {
+  const { elements, flushRaf } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 200;
+  writePane.clientHeight = 400; // doc shorter than viewport
+  writePane.scrollTop    = 0;
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 250;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 7; // arbitrary pre-existing value
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+
+  assert.equal(previewEl.scrollTop, 7,
+    'short Preview surface must not be touched — no scrollable range exists');
+});
+
+test('scroll sync: apply gracefully no-ops when the Preview scroll element is missing', async () => {
+  const { elements, flushRaf } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Drop the harness's stand-in by overriding querySelector to return null
+  // (simulates Toast UI not yet having mounted its preview pane).
+  const mount = elements.get('toastPreviewMount');
+  mount.querySelector = () => null;
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  // Should not throw.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+});
+
+// ── CM6 verification: hybridWritePane is the effective Write scroll container ──
+test('CM6: createCm6WriteView mounts inside hybridWritePane (the same scroll container Hybrid uses)', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Production passes hybridWritePane as the parent (index.html showed
+  // `createCm6WriteView(hybridWritePane, ...)`). Pin it here so any future
+  // change to "scroll a nested element instead" is caught.
+  assert.equal(calls.cm6Parent, elements.get('hybridWritePane'),
+    'CM6 must mount inside hybridWritePane so the outer pane handles scrolling');
+});
+
+test('scroll sync: CM6 engine uses hybridWritePane as the Write scroll target', async () => {
+  const { elements, flushRaf } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 2100;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+
+  // Same expectation as the Hybrid case: the Write→Preview ratio applies
+  // identically because hybridWritePane is the Write scroller for both engines.
+  assert.equal(previewEl.scrollTop, 680);
+
+  // Now Preview → Write under CM6.
+  previewEl.scrollHeight = 800;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 280; // 70%
+  writePane.scrollTop    = 0;
+
+  elements.get('writeModeButton').fire('click');
+  flushRaf();
+
+  // 0.7 * (1000 - 400) = 0.7 * 600 = 420.
+  assert.equal(writePane.scrollTop, 420);
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
