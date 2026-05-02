@@ -793,6 +793,8 @@ test('CM6: vault refresh clears cached editor states; returning afterwards uses 
   const setTextBeforeReturn = calls.cm6SetText.length;
 
   // Switch back to A. Cache was cleared → must fall back to setText.
+  // The watcher reported b.md as the changed file, so A's in-memory body is
+  // preserved (only the changed file picks up disk truth).
   elements.get('noteList').children[0].fire('click');
 
   assert.equal(
@@ -804,7 +806,8 @@ test('CM6: vault refresh clears cached editor states; returning afterwards uses 
     calls.cm6SetText.length > setTextBeforeReturn,
     'after vault refresh, returning to A must call setText'
   );
-  assert.equal(calls.cm6SetText.at(-1), '# Note A');
+  assert.equal(calls.cm6SetText.at(-1), '# Note A edited',
+    "A's preserved in-memory body must be the one passed to setText");
 });
 
 test('Hybrid: note switching continues to use setText (note-local undo intentionally deferred)', async () => {
@@ -835,6 +838,370 @@ test('Hybrid: note switching continues to use setText (note-local undo intention
   elements.get('noteList').children[0].fire('click');
   assert.equal(calls.hybridSetText.at(-1), '# Note A edited',
     'returning to A in Hybrid must reload via setText (no cached state)');
+});
+
+// ── Save-flow preserves dirty in-memory edits in unrelated vault notes ──────
+// Bug: saving Note A used to revert any unsaved in-memory edits in other
+// vault-backed notes, because refreshVaultNotes replaced the entire `notes`
+// array with disk truth and the prior preservation logic only covered drafts.
+// The fix snapshots in-memory state for unrelated vault notes and overlays
+// it onto the disk-loaded notes (by relativePath) before render.
+
+async function assertSavePreservesUnrelatedDirtyVaultNotes({ search = '', engineName }) {
+  const { calls, elements } = makeRendererHarness({
+    search,
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'C', body: '# C disk', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  const adapter  = engineName === 'cm6' ? calls.cm6Adapter   : calls.hybridAdapter;
+  const onChange = engineName === 'cm6' ? calls.cm6OnChange  : calls.hybridOnChange;
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // After choosing the vault, A is selected. children: [A, B, C].
+
+  // Edit A in memory.
+  adapter.text = '# A edited';
+  onChange('# A edited');
+
+  // Switch to B and edit.
+  elements.get('noteList').children[1].fire('click');
+  adapter.text = '# B edited';
+  onChange('# B edited');
+
+  // Switch to C and edit.
+  elements.get('noteList').children[2].fire('click');
+  adapter.text = '# C edited';
+  onChange('# C edited');
+
+  // Return to A. (Sanity: A's edited body must already survive the round trip.)
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(adapter.text, '# A edited',
+    `${engineName}: A's edited body must survive switch-out and switch-back`);
+
+  // Save A.
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // A was saved with its edited body, not the disk body.
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.body, '# A edited');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md');
+
+  // The just-saved note remains selected after refresh.
+  assert.ok(
+    elements.get('noteList').children[0].className.includes('active'),
+    `${engineName}: A remains selected (active) after save+refresh`,
+  );
+
+  // Switch to B — its edited body must have survived A's save+refresh.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(adapter.text, '# B edited',
+    `${engineName}: B's edited body must survive saving A`);
+
+  // Save B and confirm the payload is B's edited body, not the stale disk body
+  // and not A's body. This pins that B is still a vault note at b.md.
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.equal(calls.saveNotePayloads[1].note.body, '# B edited');
+  assert.equal(calls.saveNotePayloads[1].note.relativePath, 'b.md');
+  assert.notEqual(calls.saveNotePayloads[1].note.body, '# B disk');
+  assert.notEqual(calls.saveNotePayloads[1].note.body, '# A edited');
+
+  // C's edited body must also survive both saves.
+  elements.get('noteList').children[2].fire('click');
+  assert.equal(adapter.text, '# C edited',
+    `${engineName}: C's edited body must survive saving both A and B`);
+}
+
+test('save preserves unrelated dirty vault-backed notes (hybrid)', async () => {
+  await assertSavePreservesUnrelatedDirtyVaultNotes({ engineName: 'hybrid' });
+});
+
+test('save preserves unrelated dirty vault-backed notes (cm6)', async () => {
+  await assertSavePreservesUnrelatedDirtyVaultNotes({
+    search: '?writeEngine=cm6',
+    engineName: 'cm6',
+  });
+});
+
+test('save preserves both dirty vault notes AND unsaved drafts in the same flow', async () => {
+  // Mixed scenario: a vault note and a draft both have unsaved edits when
+  // another vault note is saved. Both must survive the refresh.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  calls.hybridAdapter.text = '# A edited';
+  calls.hybridOnChange('# A edited');
+
+  // Switch to B and edit.
+  elements.get('noteList').children[1].fire('click');
+  calls.hybridAdapter.text = '# B edited';
+  calls.hybridOnChange('# B edited');
+
+  // Create a new draft D and edit it. This sets currentFilter='drafts' and
+  // unshifts D into `notes`.
+  elements.get('newNoteButton').fire('click');
+  calls.hybridAdapter.text = '# D edited';
+  calls.hybridOnChange('# D edited');
+
+  // Show all notes and return to A. With currentFilter='all' and
+  // notes=[D, A, B], children = [D, A, B]; A is at index 1.
+  elements.get('filterAll').fire('click');
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# A edited');
+
+  // Save A.
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.body, '# A edited');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md');
+
+  // After refresh, vault notes come first then preserved drafts: [A, B, D].
+  // Switch to B — its edited body must have survived.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# B edited',
+    "B's edited body must survive saving A");
+
+  // Save B and confirm B is still a vault note at b.md.
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.equal(calls.saveNotePayloads[1].note.body, '# B edited');
+  assert.equal(calls.saveNotePayloads[1].note.relativePath, 'b.md');
+
+  // D (draft) still exists with its edited body.
+  elements.get('filterDrafts').fire('click');
+  assert.equal(elements.get('noteList').children.length, 1,
+    'only the surviving draft D should remain in the Drafts filter');
+  // ensureSelectionMatchesVisibleResults retargets selection to D when the
+  // current selection (B) is not in the Drafts view; the editor reloads via
+  // setText with D's preserved body.
+  assert.equal(calls.hybridAdapter.text, '# D edited',
+    "D's edited body must survive saving A");
+});
+
+test('after save, the saved note remains selected and shows the saved body', async () => {
+  // Selection-and-canonicality regression: after a save+refresh the just-saved
+  // note must remain the selected one and `notes[i].body` for that note must
+  // equal what was sent to saveNote (the disk truth). This pins the behavior
+  // in the presence of the new overlay logic — the saved note must NOT be
+  // routed through the in-memory overlay.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.hybridAdapter.text = '# A new content';
+  calls.hybridOnChange('# A new content');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Saved note's body equals the body the renderer sent to saveNote.
+  assert.equal(calls.saveNotePayloads[0].note.body, '# A new content');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md');
+
+  // Selection canonicalism: the active item is still A.
+  assert.ok(
+    elements.get('noteList').children[0].className.includes('active'),
+    'saved note (A) remains the active selection after refresh',
+  );
+
+  // Re-loading A via setText must show the saved body (proving notes[A].body
+  // was set from the disk-saved value, not from any leftover overlay).
+  elements.get('noteList').children[1].fire('click'); // switch to B
+  elements.get('noteList').children[0].fire('click'); // back to A
+  assert.equal(calls.hybridAdapter.text, '# A new content',
+    "the saved note's in-memory body matches the saved/disk version");
+});
+
+test('watcher refresh uses disk truth for the changed file but preserves edits in unrelated notes', async () => {
+  // The watcher only knows that ONE specific file changed. Disk truth is the
+  // right answer for that file (whether the change came from our save or an
+  // external editor), but every other vault-backed note is unchanged on disk
+  // and its in-memory edits must NOT be silently reverted. Drafts continue to
+  // be auto-preserved by refreshVaultNotes.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'C', body: '# C disk', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A in memory but do not save.
+  calls.hybridAdapter.text = '# A edited';
+  calls.hybridOnChange('# A edited');
+
+  // Switch to B and edit it too (unsaved).
+  elements.get('noteList').children[1].fire('click');
+  calls.hybridAdapter.text = '# B edited';
+  calls.hybridOnChange('# B edited');
+
+  // Trigger a watcher refresh that reports A as the changed file.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'a.md' });
+
+  // The changed file (A) picks up disk truth — its in-memory edit is replaced.
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# A disk',
+    'the changed file must come from disk truth on watcher refresh');
+
+  // The unrelated dirty file (B) keeps its in-memory edit.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# B edited',
+    "an unrelated dirty vault note's in-memory edit must survive a watcher refresh");
+
+  // C was not touched in memory — it must reflect disk truth (no spurious overlay).
+  elements.get('noteList').children[2].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# C disk',
+    'an untouched vault note must still match disk truth after watcher refresh');
+});
+
+// ── Save-flow + watcher: dirty unrelated notes survive BOTH refreshes ────────
+// Regression: saving Note A causes (1) an immediate save-driven refresh and
+// (2) a vault-watcher refresh shortly after (because the OS reports that a.md
+// changed on disk). Both must preserve unrelated dirty vault notes; the prior
+// fix only covered (1), so dirty Note B/C could still be reverted by (2).
+
+async function assertSaveAndWatcherPreserveOtherDirtyVaultNotes({ search = '', engineName }) {
+  const { calls, elements } = makeRendererHarness({
+    search,
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'C', body: '# C disk', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  const adapter  = engineName === 'cm6' ? calls.cm6Adapter   : calls.hybridAdapter;
+  const onChange = engineName === 'cm6' ? calls.cm6OnChange  : calls.hybridOnChange;
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  adapter.text = '# A edited';
+  onChange('# A edited');
+
+  // Edit B.
+  elements.get('noteList').children[1].fire('click');
+  adapter.text = '# B edited';
+  onChange('# B edited');
+
+  // Edit C.
+  elements.get('noteList').children[2].fire('click');
+  adapter.text = '# C edited';
+  onChange('# C edited');
+
+  // Return to A and save it.
+  elements.get('noteList').children[0].fire('click');
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.body, '# A edited');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md');
+
+  // The save-driven refresh already preserves B and C (covered by the
+  // previous test). Now simulate the post-save watcher firing for a.md —
+  // this used to revert B and C to disk truth.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'a.md' });
+
+  // After the watcher fires, B's edit must still be intact and savable.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(adapter.text, '# B edited',
+    `${engineName}: B's edited body must survive the save+watcher sequence`);
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.equal(calls.saveNotePayloads[1].note.body, '# B edited',
+    `${engineName}: saving B after the watcher fires must persist its edited body`);
+  assert.equal(calls.saveNotePayloads[1].note.relativePath, 'b.md');
+
+  // C's edit must also still be intact after both saves and both watcher events.
+  await calls.vaultChangedCallback({ fileName: 'b.md' });
+  elements.get('noteList').children[2].fire('click');
+  assert.equal(adapter.text, '# C edited',
+    `${engineName}: C's edited body must survive multiple save+watcher rounds`);
+}
+
+test('save + post-save watcher both preserve unrelated dirty vault notes (hybrid)', async () => {
+  await assertSaveAndWatcherPreserveOtherDirtyVaultNotes({ engineName: 'hybrid' });
+});
+
+test('save + post-save watcher both preserve unrelated dirty vault notes (cm6)', async () => {
+  await assertSaveAndWatcherPreserveOtherDirtyVaultNotes({
+    search: '?writeEngine=cm6',
+    engineName: 'cm6',
+  });
+});
+
+test('save + watcher preserve both a dirty vault note AND an unsaved draft', async () => {
+  // Mixed regression: when another note is saved, both the unrelated dirty
+  // saved note and an unsaved draft must survive (1) the save refresh and
+  // (2) the watcher refresh that fires for the saved file.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A.
+  calls.hybridAdapter.text = '# A edited';
+  calls.hybridOnChange('# A edited');
+
+  // Edit B.
+  elements.get('noteList').children[1].fire('click');
+  calls.hybridAdapter.text = '# B edited';
+  calls.hybridOnChange('# B edited');
+
+  // Create an unsaved draft D and edit it.
+  elements.get('newNoteButton').fire('click');
+  calls.hybridAdapter.text = '# D edited';
+  calls.hybridOnChange('# D edited');
+
+  // Show all notes and return to A. notes order: [D, A, B] → A is at index 1.
+  elements.get('filterAll').fire('click');
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# A edited');
+
+  // Save A.
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.body, '# A edited');
+
+  // Fire the post-save watcher event for the file A was written to.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'a.md' });
+
+  // After save+refresh+watcher: notes order is [A, B, D].
+  // B (dirty vault) must survive both refreshes and be savable.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# B edited',
+    "B's edited body must survive saving A and the post-save watcher");
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.equal(calls.saveNotePayloads[1].note.body, '# B edited');
+  assert.equal(calls.saveNotePayloads[1].note.relativePath, 'b.md');
+
+  // D (unsaved draft) must also survive — the Drafts filter still has it.
+  elements.get('filterDrafts').fire('click');
+  assert.equal(elements.get('noteList').children.length, 1,
+    "D should remain in the Drafts filter after save + watcher");
+  assert.equal(calls.hybridAdapter.text, '# D edited',
+    "D's edited body must survive the save + watcher sequence");
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {

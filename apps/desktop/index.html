@@ -1668,7 +1668,19 @@ Today the app reacts better to real external MCP ingests.
               ? selectedNote.relativePath
               : '';
 
-          const refreshed = await refreshVaultNotes(preferredRelativePath, false);
+          // The watcher only knows that one file changed on disk; every other
+          // vault-backed note is unchanged on disk and must keep its in-memory
+          // edits. Without this overlay, a save-triggered watcher event (or any
+          // external change to a single file) would silently revert unrelated
+          // dirty notes — the same data-loss class as the prior draft-loss bug.
+          const preservedVaultEdits = snapshotDirtyVaultEdits(changedPath);
+
+          const refreshed = await refreshVaultNotes(
+            preferredRelativePath,
+            false,
+            null,
+            preservedVaultEdits,
+          );
 
           if (!refreshed) {
             return;
@@ -1748,12 +1760,54 @@ Today the app reacts better to real external MCP ingests.
           && !(note.title === 'Untitled note' && !String(note.body || '').trim() && !note.relativePath);
       }
 
-      async function refreshVaultNotes(preferredRelativePath = '', updateStatus = true, preservedDrafts = null) {
+      // Snapshot in-memory state for vault-backed notes other than the one whose
+      // disk version is about to become canonical (the just-saved file, or the
+      // file the watcher reports as changed). Both saveCurrentNote and the
+      // vault-watcher callback use this so a refresh never silently reverts a
+      // note the user is still typing into.
+      function snapshotDirtyVaultEdits(excludeRelativePath = '') {
+        return notes
+          .filter((note) =>
+            note.source === 'vault'
+            && note.relativePath
+            && note.relativePath !== excludeRelativePath
+          )
+          .map((note) => ({
+            relativePath: note.relativePath,
+            title: note.title,
+            body: note.body,
+            frontmatter: {
+              tags:   normalizeTags(note.frontmatter?.tags),
+              source: note.frontmatter?.source || '',
+            },
+          }));
+      }
+
+      async function refreshVaultNotes(
+        preferredRelativePath = '',
+        updateStatus = true,
+        preservedDrafts = null,
+        preservedVaultEdits = null
+      ) {
         const draftsToPreserve = Array.isArray(preservedDrafts)
           ? preservedDrafts
           : hasLoadedVaultNotes
           ? notes.filter(shouldPreserveDraft)
           : [];
+
+        // Overlay: in-memory state for vault-backed notes that the caller wants
+        // preserved across this refresh, keyed by relativePath. Opt-in — only
+        // save and watcher refreshes pass it (they know exactly one file
+        // changed on disk and everything else is unchanged). Choose-vault,
+        // demo-seed, and manual reload skip the overlay so disk truth wins.
+        const vaultOverlay = new Map();
+        if (Array.isArray(preservedVaultEdits)) {
+          preservedVaultEdits.forEach((entry) => {
+            if (entry && entry.relativePath) {
+              vaultOverlay.set(entry.relativePath, entry);
+            }
+          });
+        }
 
         // A vault refresh can rewrite note bodies behind the editor's back, so
         // any cached editor states are now potentially stale. Clear them; the
@@ -1770,7 +1824,16 @@ Today the app reacts better to real external MCP ingests.
           return false;
         }
 
-        const refreshedNotes = result.notes.slice();
+        const refreshedNotes = result.notes.map((diskNote) => {
+          const overlay = vaultOverlay.get(diskNote.relativePath);
+          if (!overlay) return diskNote;
+          return {
+            ...diskNote,
+            title: overlay.title,
+            body: overlay.body,
+            frontmatter: { ...overlay.frontmatter },
+          };
+        });
         draftsToPreserve.forEach((draft) => {
           if (!refreshedNotes.some((note) => note.id === draft.id)) {
             refreshedNotes.push(draft);
@@ -1853,6 +1916,11 @@ Today the app reacts better to real external MCP ingests.
         const preservedDrafts = notes.filter((note) =>
           note.id !== selectedNote.id && shouldPreserveDraft(note)
         );
+        // Snapshot in-memory state for every other vault-backed note so the
+        // post-save refresh does not silently revert their unsaved edits to
+        // disk truth. The selected note is excluded — the freshly-saved disk
+        // version is canonical for it.
+        const preservedVaultEdits = snapshotDirtyVaultEdits(selectedNote.relativePath || '');
 
         const result = await window.vaultApi.saveNote({
           vaultPath: currentVaultPath,
@@ -1874,7 +1942,12 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
-        const refreshed = await refreshVaultNotes(result.relativePath, false, preservedDrafts);
+        const refreshed = await refreshVaultNotes(
+          result.relativePath,
+          false,
+          preservedDrafts,
+          preservedVaultEdits,
+        );
 
         if (refreshed) {
           setStatus('ready', `Saved: ${result.fileName}`);
