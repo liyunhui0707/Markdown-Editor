@@ -198,11 +198,12 @@ test('saveCurrentNote calls exitWriteMode before reading the body', () => {
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // Within saveCurrentNote, exitWriteMode (on hybridWrite or liveEditorInstance)
-  // must be called before liveEditorInstance.getText() is used as body.
+  // Within saveCurrentNote, exitWriteMode must happen before reading
+  // liveEditorInstance.getText(); the saved body can then be reused so the
+  // note state and save payload share the same raw Markdown source.
   assert.match(
     html,
-    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?body:\s*liveEditorInstance\.getText/
+    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?const\s+savedBody\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?body:\s*savedBody/
   );
 });
 

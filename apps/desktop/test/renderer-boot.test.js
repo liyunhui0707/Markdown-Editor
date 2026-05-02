@@ -194,6 +194,8 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     hybridSetText: [],
     hybridGetText: 0,
     hybridExitWriteMode: 0,
+    hybridOnChange: null,
+    hybridAdapter: null,
     cm6Constructed: 0,
     cm6Parent: null,
     cm6Options: null,
@@ -204,6 +206,9 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     cm6Adapter: null,
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
+    watchVaultFolderPayloads: [],
+    unwatchVaultFolder: 0,
+    vaultChangedCallback: null,
   };
 
   const storage = {
@@ -230,6 +235,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     calls.hybridConstructed += 1;
     this.parent = parent;
     this.opts = opts || {};
+    calls.hybridOnChange = this.opts.onChange;
     this.text = '';
     this.getText = () => {
       calls.hybridGetText += 1;
@@ -243,6 +249,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     this.exitWriteMode = () => {
       calls.hybridExitWriteMode += 1;
     };
+    calls.hybridAdapter = this;
   }
 
   const CM6Production = { _kind: 'CM6Production' };
@@ -273,31 +280,70 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     },
   };
 
+  let nextSavedFileId = 1;
+  const persistedVaultNotes = vaultNotes.map((note) => ({
+    frontmatter: { tags: [], source: '', ...(note.frontmatter || {}) },
+    aiImported: false,
+    fileName: '',
+    relativePath: '',
+    source: 'vault',
+    meta: 'File note',
+    ...note,
+  }));
+
   const vaultApi = {
     async loadVaultNotes(payload) {
       calls.loadVaultNotesPayloads.push(payload);
       return {
         ok: true,
-        notes: vaultNotes.map((note) => ({
-          frontmatter: { tags: [], source: '', ...(note.frontmatter || {}) },
-          aiImported: false,
-          fileName: '',
-          relativePath: '',
-          source: 'vault',
-          meta: 'File note',
+        notes: persistedVaultNotes.map((note) => ({
           ...note,
+          frontmatter: { ...(note.frontmatter || {}) },
         })),
       };
     },
     async saveNote(payload) {
       calls.saveNotePayloads.push(payload);
+      const relativePath = payload.note.relativePath || `saved-${nextSavedFileId}.md`;
+      const fileName = payload.note.fileName || relativePath.split('/').pop();
+      nextSavedFileId += payload.note.relativePath ? 0 : 1;
+      const savedNote = {
+        id: `vault:${relativePath}`,
+        title: payload.note.title,
+        body: payload.note.body,
+        fileName,
+        relativePath,
+        source: 'vault',
+        aiImported: false,
+        meta: 'File note',
+        frontmatter: { ...(payload.note.frontmatter || {}) },
+      };
+      const existingIndex = persistedVaultNotes.findIndex((note) => note.relativePath === relativePath);
+      if (existingIndex >= 0) {
+        persistedVaultNotes[existingIndex] = savedNote;
+      } else {
+        persistedVaultNotes.push(savedNote);
+      }
       return {
         ok: true,
-        fileName: payload.note.fileName || 'saved.md',
-        relativePath: payload.note.relativePath || 'saved.md',
+        fileName,
+        relativePath,
+      };
+    },
+    async watchVaultFolder(payload) {
+      calls.watchVaultFolderPayloads.push(payload);
+      return { ok: true };
+    },
+    onVaultChanged(callback) {
+      calls.vaultChangedCallback = callback;
+      return () => {
+        if (calls.vaultChangedCallback === callback) {
+          calls.vaultChangedCallback = null;
+        }
       };
     },
     async unwatchVaultFolder() {
+      calls.unwatchVaultFolder += 1;
       return { ok: true };
     },
   };
@@ -306,13 +352,17 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     async chooseVaultFolder({
       vaultApi: _vaultApi,
       setCurrentVaultPath,
+      stopWatching,
+      startWatching,
       refreshVaultNotes,
       updateDisplay,
       setStatus,
     }) {
       assert.equal(_vaultApi, vaultApi);
+      await stopWatching();
       setCurrentVaultPath('/fake-vault');
       updateDisplay();
+      await startWatching();
       const refreshed = await refreshVaultNotes('', false);
       if (refreshed) {
         setStatus('ready', 'Vault loaded');
@@ -554,12 +604,69 @@ test('CM6 blank note loads empty text and records typed raw text through onChang
   assert.equal(elements.get('searchMeta').textContent, 'Found 1 result(s) for "hello" in the current filter.');
 });
 
+async function assertSavingOneUnsavedDraftPreservesAnother({ search = '', engineName }) {
+  const { calls, elements } = makeRendererHarness({ search });
+  const adapter = engineName === 'cm6' ? calls.cm6Adapter : calls.hybridAdapter;
+  const onChange = engineName === 'cm6' ? calls.cm6OnChange : calls.hybridOnChange;
+  const setTextCalls = engineName === 'cm6' ? calls.cm6SetText : calls.hybridSetText;
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  elements.get('newNoteButton').fire('click');
+  adapter.text = `Body A unique ${engineName}`;
+  onChange(`Body A unique ${engineName}`);
+
+  elements.get('newNoteButton').fire('click');
+  adapter.text = `Body B unique ${engineName}`;
+  onChange(`Body B unique ${engineName}`);
+
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(setTextCalls.at(-1), `Body A unique ${engineName}`);
+
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.loadVaultNotesPayloads.length, 2, 'save should refresh from disk once');
+
+  assert.equal(typeof calls.vaultChangedCallback, 'function', 'vault watcher should be active after choosing a vault');
+  await calls.vaultChangedCallback({ fileName: 'saved-1.md' });
+  assert.equal(calls.loadVaultNotesPayloads.length, 3, 'watcher should cause the real second refresh after save');
+
+  assert.equal(elements.get('noteList').children.length, 1, 'only the remaining unsaved draft should stay visible in Drafts');
+  assert.ok(elements.get('noteList').children[0].className.includes('active'), 'remaining draft should be selected');
+  assert.equal(setTextCalls.at(-1), `Body B unique ${engineName}`);
+  assert.equal(adapter.text, `Body B unique ${engineName}`, 'editor should show the remaining draft body');
+
+  elements.get('searchInput').value = `Body B unique ${engineName}`;
+  elements.get('searchInput').fire('input');
+  assert.equal(
+    elements.get('searchMeta').textContent,
+    `Found 1 result(s) for "Body B unique ${engineName}" in the current filter.`
+  );
+
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(adapter.text, `Body B unique ${engineName}`);
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.equal(calls.saveNotePayloads[0].note.body, `Body A unique ${engineName}`);
+  assert.equal(calls.saveNotePayloads[1].note.body, `Body B unique ${engineName}`);
+  assert.notEqual(calls.saveNotePayloads[1].note.body, `Body A unique ${engineName}`);
+}
+
+test('saving one unsaved draft preserves other unsaved drafts for later saving (hybrid)', async () => {
+  await assertSavingOneUnsavedDraftPreservesAnother({ engineName: 'hybrid' });
+});
+
+test('saving one unsaved draft preserves other unsaved drafts for later saving (CM6)', async () => {
+  await assertSavingOneUnsavedDraftPreservesAnother({ search: '?writeEngine=cm6', engineName: 'cm6' });
+});
+
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
   const html = readIndexHtml();
 
   assert.match(
     html,
-    /body:\s*liveEditorInstance\.getText\(\)/,
+    /const\s+savedBody\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?body:\s*savedBody/,
     'save should read raw Markdown through liveEditorInstance.getText()'
   );
   assert.match(

@@ -1246,6 +1246,7 @@ Write the core idea here.
       let isSidebarHidden         = true;   // hidden by default — max note space on launch
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
+      let hasLoadedVaultNotes     = false;
 
       let notes = [
         {
@@ -1700,7 +1701,18 @@ Today the app reacts better to real external MCP ingests.
         }
       }
 
-      async function refreshVaultNotes(preferredRelativePath = '', updateStatus = true) {
+      function shouldPreserveDraft(note) {
+        return note.source === 'draft'
+          && !(note.title === 'Untitled note' && !String(note.body || '').trim() && !note.relativePath);
+      }
+
+      async function refreshVaultNotes(preferredRelativePath = '', updateStatus = true, preservedDrafts = null) {
+        const draftsToPreserve = Array.isArray(preservedDrafts)
+          ? preservedDrafts
+          : hasLoadedVaultNotes
+          ? notes.filter(shouldPreserveDraft)
+          : [];
+
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
         });
@@ -1710,7 +1722,14 @@ Today the app reacts better to real external MCP ingests.
           return false;
         }
 
-        if (result.notes.length === 0) {
+        const refreshedNotes = result.notes.slice();
+        draftsToPreserve.forEach((draft) => {
+          if (!refreshedNotes.some((note) => note.id === draft.id)) {
+            refreshedNotes.push(draft);
+          }
+        });
+
+        if (refreshedNotes.length === 0) {
           notes = [
             {
               id: 'draft:1',
@@ -1730,6 +1749,7 @@ Today the app reacts better to real external MCP ingests.
           currentFilter = 'all';
           selectedNoteId = 'draft:1';
           nextDraftId = 2;
+          hasLoadedVaultNotes = true;
           renderApp();
 
           if (updateStatus) {
@@ -1739,7 +1759,8 @@ Today the app reacts better to real external MCP ingests.
           return true;
         }
 
-        notes = result.notes;
+        notes = refreshedNotes;
+        hasLoadedVaultNotes = true;
 
         if (preferredRelativePath) {
           const matchingNote = notes.find((note) => note.relativePath === preferredRelativePath);
@@ -1779,12 +1800,17 @@ Today the app reacts better to real external MCP ingests.
         // Flush any in-progress active-block edit so getText() returns the
         // committed source before we send it to disk.
         liveEditorInstance.exitWriteMode();
+        const savedBody = liveEditorInstance.getText();
+        selectedNote.body = savedBody;
+        const preservedDrafts = notes.filter((note) =>
+          note.id !== selectedNote.id && shouldPreserveDraft(note)
+        );
 
         const result = await window.vaultApi.saveNote({
           vaultPath: currentVaultPath,
           note: {
             title: selectedNote.title,
-            body:  liveEditorInstance.getText(),
+            body:  savedBody,
             source: selectedNote.source,
             fileName: selectedNote.fileName,
             relativePath: selectedNote.relativePath,
@@ -1800,7 +1826,7 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
-        const refreshed = await refreshVaultNotes(result.relativePath, false);
+        const refreshed = await refreshVaultNotes(result.relativePath, false, preservedDrafts);
 
         if (refreshed) {
           setStatus('ready', `Saved: ${result.fileName}`);
