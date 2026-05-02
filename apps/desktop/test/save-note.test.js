@@ -19,7 +19,12 @@ const fs       = require('node:fs');
 const path     = require('node:path');
 const os       = require('node:os');
 
-const { checkSaveCollision, deriveDraftRelativePath } = require('../lib/file-name');
+const {
+  checkSaveCollision,
+  deriveDraftRelativePath,
+  deriveRenameRelativePath,
+  performSaveNote,
+} = require('../lib/file-name');
 
 function makeTempVault() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mdvault-save-note-'));
@@ -162,4 +167,257 @@ test('checkSaveCollision: shape sanity — deriveDraftRelativePath agrees with h
   assert.equal(deriveDraftRelativePath('My Note'),   'my-note.md');
   assert.equal(deriveDraftRelativePath(''),          'untitled-note.md');
   assert.equal(deriveDraftRelativePath('?<>'),       'untitled-note.md');
+});
+
+// ── performSaveNote: real-disk rename and overwrite-protection guarantees ──
+// Disk semantics must use no-overwrite create (`flag: 'wx'` → O_CREAT | O_EXCL)
+// for any path the operation would create. There is no fs.renameSync; the
+// existence pre-check is fast feedback, not the safety mechanism. If a file
+// appears at the new target between the check and the write, the kernel-level
+// EXCL flag still prevents the overwrite.
+
+test('performSaveNote: vault note with no title change saves in place (legacy mismatch preserved)', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  // Disk file note-x.md with title-not-matching-filename. User opened it and
+  // is saving with NO title change (title === loadedTitle).
+  writeNote(vaultPath, 'note-x.md', '# Beautiful Title\n\nold body');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'note-x.md',
+      title: 'Beautiful Title',
+      loadedTitle: 'Beautiful Title',
+      body: 'new body',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# Beautiful Title\n\nnew body',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'note-x.md');
+  assert.equal(result.renamed, undefined);
+
+  // The legacy path holds the new content; no derived-name file appeared.
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'note-x.md'), 'utf8'),
+    '# Beautiful Title\n\nnew body',
+  );
+  assert.equal(fs.existsSync(path.join(vaultPath, 'beautiful-title.md')), false);
+});
+
+test('performSaveNote: vault note with title change is renamed (wx create + unlink old)', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  writeNote(vaultPath, 'a.md', '# A\n\nold body');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'B',
+      loadedTitle: 'A',
+      body: 'new body',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# B\n\nnew body',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.renamed, true);
+  assert.equal(result.relativePath, 'b.md');
+  assert.equal(result.oldRelativePath, 'a.md');
+
+  // Old gone; new has new content.
+  assert.equal(fs.existsSync(path.join(vaultPath, 'a.md')), false);
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'b.md'), 'utf8'),
+    '# B\n\nnew body',
+  );
+});
+
+test('performSaveNote: rename target already exists → wx EEXIST, both files untouched', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  writeNote(vaultPath, 'a.md', '# A\n\nA-disk');
+  writeNote(vaultPath, 'b.md', '# B\n\nB-disk');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'B',
+      loadedTitle: 'A',
+      body: 'A-disk',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# B\n\nshould-not-be-written',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.conflict, true);
+  assert.equal(result.relativePath, 'b.md');
+  assert.match(result.error, /already exists/i);
+
+  // CRITICAL: both files byte-for-byte unchanged. The wx create must NOT have
+  // overwritten b.md, and a.md must NOT have been unlinked.
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'a.md'), 'utf8'),
+    '# A\n\nA-disk',
+  );
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'b.md'), 'utf8'),
+    '# B\n\nB-disk',
+  );
+});
+
+test('performSaveNote: subdirectory rename — file moves within the same dir', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  writeNote(vaultPath, 'Notes/A.md', '# A\n\nbody');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'Notes/A.md',
+      title: 'New Note',
+      loadedTitle: 'A',
+      body: 'body',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# New Note\n\nbody',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.renamed, true);
+  assert.equal(result.relativePath, path.join('Notes', 'new-note.md'));
+  assert.equal(result.oldRelativePath, 'Notes/A.md');
+
+  assert.equal(fs.existsSync(path.join(vaultPath, 'Notes/A.md')), false);
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'Notes', 'new-note.md'), 'utf8'),
+    '# New Note\n\nbody',
+  );
+});
+
+test('performSaveNote: draft new file uses wx — refuses to overwrite a colliding existing file', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  // Pre-existing file the renderer's pre-check might have missed.
+  writeNote(vaultPath, 'plan.md', '# Plan disk\n\nimportant');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'draft',
+      relativePath: '',
+      title: 'Plan',
+      body: 'should-not-be-written',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# Plan\n\nshould-not-be-written',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.conflict, true);
+  assert.equal(result.relativePath, 'plan.md');
+
+  // Existing file untouched.
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'plan.md'), 'utf8'),
+    '# Plan disk\n\nimportant',
+  );
+});
+
+test('performSaveNote: vault save-in-place overwrites the same path (legitimate update flow)', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  writeNote(vaultPath, 'a.md', '# A\n\nold');
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'A',
+      loadedTitle: 'A',
+      body: 'new body',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# A\n\nnew body',
+    fs,
+    path,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'a.md');
+  assert.equal(result.renamed, undefined);
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'a.md'), 'utf8'),
+    '# A\n\nnew body',
+  );
+});
+
+test('performSaveNote: unlink failure after wx success → ok:false, both files preserved (no target overwrite)', (t) => {
+  const vaultPath = makeTempVault();
+  t.after(() => cleanupVault(vaultPath));
+  writeNote(vaultPath, 'a.md', '# A\n\nold body');
+
+  // Wrap fs to make unlinkSync fail, while preserving everything else. The
+  // wx-write to b.md must already have completed; the unlink-of-a.md must
+  // throw. Assertion: helper returns ok:false with a clear error mentioning
+  // both filenames; b.md exists with the new content (not lost) and a.md
+  // remains intact at the OLD content (not partially modified).
+  const wrappedFs = Object.assign(Object.create(fs), {
+    unlinkSync(p) {
+      throw Object.assign(new Error('simulated unlink failure'), { code: 'EBUSY' });
+    },
+  });
+
+  const result = performSaveNote({
+    vaultPath,
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'B',
+      loadedTitle: 'A',
+      body: 'new body',
+      frontmatter: { tags: [], source: '' },
+    },
+    content: '# B\n\nnew body',
+    fs: wrappedFs,
+    path,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /a\.md/);
+  assert.match(result.error, /b\.md/);
+  // Both files exist:
+  //   - new content at b.md (the wx create did succeed before unlink failed)
+  //   - the original at a.md is unchanged (we never touched a.md before unlink)
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'a.md'), 'utf8'),
+    '# A\n\nold body',
+    "a.md must remain intact when unlink fails — no data loss",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(vaultPath, 'b.md'), 'utf8'),
+    '# B\n\nnew body',
+    "b.md must contain the new content (the wx create succeeded before unlink failed)",
+  );
 });

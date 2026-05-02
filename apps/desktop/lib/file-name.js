@@ -49,6 +49,19 @@
     return `${base}.md`;
   }
 
+  // Derive the new relativePath when an existing vault note is renamed:
+  // keeps the same parent directory and replaces just the basename with the
+  // sanitized title. Cross-platform separator handling so the helper works
+  // for both POSIX and Windows-style stored relativePaths.
+  function deriveRenameRelativePath(oldRelativePath, title) {
+    const newBase = deriveDraftRelativePath(title);
+    if (!oldRelativePath) return newBase;
+    const s = String(oldRelativePath);
+    const lastSlash = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+    if (lastSlash < 0) return newBase;
+    return s.slice(0, lastSlash + 1) + newBase;
+  }
+
   // Return the relativePath a note currently occupies (vault) or would
   // occupy (draft). Used by the renderer to compare every note in `notes`
   // against a candidate path during the pre-save check.
@@ -80,23 +93,65 @@
   }
 
   // Main-process authoritative guard. Determines the relativePath to write
-  // and refuses to overwrite an existing file when the path was newly
-  // derived (i.e. the note is a draft). Vault notes with an existing
-  // relativePath pass through unchanged — re-saving over your own loaded
-  // file is the legitimate update flow.
+  // and decides whether the operation is:
+  //   - vault save-in-place: the user did NOT change the title from its
+  //     loaded value, OR the new title's derived path equals the current one
+  //     (case-insensitive, e.g. case-only retitling on case-insensitive FS);
+  //   - vault rename: the user changed the title and the derived path
+  //     differs case-insensitively from the current relativePath;
+  //   - draft new file: a brand-new note that has no relativePath yet.
+  //
+  // For the draft path and the rename target, the disk-side write uses the
+  // 'wx' flag so the kernel itself refuses to overwrite an existing file.
+  // The fileExistsSync pre-check below is only fast feedback — it produces
+  // a clearer error message than EEXIST. Safety is enforced at write time.
   function checkSaveCollision({ vaultPath, note, fileExistsSync, path }) {
     if (!note) {
       return { ok: false, error: 'No note provided.' };
-    }
-
-    if (note.source === 'vault' && note.relativePath) {
-      return { ok: true, relativePath: note.relativePath };
     }
 
     const safeTitle =
       note.title && String(note.title).trim().length > 0
         ? String(note.title).trim()
         : 'Untitled note';
+
+    // Vault-backed note: decide save-in-place vs rename.
+    if (note.source === 'vault' && note.relativePath) {
+      // Defensive default: if the renderer omitted loadedTitle, treat the
+      // title as unchanged. Never silently rename based on missing input.
+      const loadedTitle = note.loadedTitle != null ? note.loadedTitle : note.title;
+      const titleChanged = note.title !== loadedTitle;
+
+      if (!titleChanged) {
+        return { ok: true, relativePath: note.relativePath };
+      }
+
+      const newRelativePath = deriveRenameRelativePath(note.relativePath, safeTitle);
+      if (newRelativePath.toLowerCase() === String(note.relativePath).toLowerCase()) {
+        // Case-only retitle on case-insensitive FS: same file. The on-file
+        // `# Title` line will reflect the new casing on the next write.
+        return { ok: true, relativePath: note.relativePath };
+      }
+
+      const newFullPath = path.join(vaultPath, newRelativePath);
+      if (typeof fileExistsSync === 'function' && fileExistsSync(newFullPath)) {
+        return {
+          ok: false,
+          conflict: true,
+          relativePath: newRelativePath,
+          error: `A note named "${newRelativePath}" already exists in this vault. Rename your note to save without overwriting.`,
+        };
+      }
+
+      return {
+        ok: true,
+        relativePath: newRelativePath,
+        renamed: true,
+        oldRelativePath: note.relativePath,
+      };
+    }
+
+    // Draft / new-file branch.
     const relativePath = deriveDraftRelativePath(safeTitle);
     const fullPath = path.join(vaultPath, relativePath);
 
@@ -112,12 +167,116 @@
     return { ok: true, relativePath };
   }
 
+  // Single entry-point for the main-process save IPC handler. Runs the
+  // collision/rename decision, then performs the disk-side write with
+  // no-overwrite semantics (`flag: 'wx'`, which the kernel implements as
+  // O_CREAT | O_EXCL — atomic). For renames, the new path is created with
+  // 'wx' BEFORE the old path is unlinked, so a target that appears between
+  // the renderer's pre-check and the write is still preserved untouched.
+  // Vault save-in-place uses a plain write (overwriting our own file is the
+  // legitimate update flow).
+  function performSaveNote({ vaultPath, note, content, fs, path }) {
+    const collision = checkSaveCollision({
+      vaultPath,
+      note,
+      fileExistsSync: fs.existsSync,
+      path,
+    });
+
+    if (!collision.ok) {
+      return collision;
+    }
+
+    const relativePath = collision.relativePath;
+    const fullPath = path.join(vaultPath, relativePath);
+    const parentDir = path.dirname(fullPath);
+
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    // Rename branch: atomically create the new file with 'wx', then unlink
+    // the old. If 'wx' fails with EEXIST, neither path is touched.
+    if (collision.renamed && collision.oldRelativePath) {
+      const oldFullPath = path.join(vaultPath, collision.oldRelativePath);
+      try {
+        fs.writeFileSync(fullPath, content, { flag: 'wx' });
+      } catch (err) {
+        if (err && err.code === 'EEXIST') {
+          return {
+            ok: false,
+            conflict: true,
+            relativePath,
+            error: `A note named "${relativePath}" already exists in this vault. Rename your note to save without overwriting.`,
+          };
+        }
+        throw err;
+      }
+
+      // Only after the new file exists with the new content do we remove the
+      // old file. If unlink fails the new content is safe at the new path
+      // and the old file remains intact — no data loss, no overwrite.
+      try {
+        fs.unlinkSync(oldFullPath);
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Saved to "${relativePath}" but could not remove the old file "${collision.oldRelativePath}": ${err && err.message ? err.message : err}. Both files exist; remove one manually.`,
+        };
+      }
+
+      return {
+        ok: true,
+        path: fullPath,
+        fileName: path.basename(relativePath),
+        relativePath,
+        renamed: true,
+        oldRelativePath: collision.oldRelativePath,
+      };
+    }
+
+    // Vault save-in-place: overwriting our own loaded file.
+    if (note && note.source === 'vault' && note.relativePath) {
+      fs.writeFileSync(fullPath, content, 'utf8');
+      return {
+        ok: true,
+        path: fullPath,
+        fileName: path.basename(relativePath),
+        relativePath,
+      };
+    }
+
+    // Draft / new file: refuse to overwrite if the path is taken.
+    try {
+      fs.writeFileSync(fullPath, content, { flag: 'wx' });
+    } catch (err) {
+      if (err && err.code === 'EEXIST') {
+        return {
+          ok: false,
+          conflict: true,
+          relativePath,
+          error: `A note named "${relativePath}" already exists in this vault. Rename your note to save without overwriting.`,
+        };
+      }
+      throw err;
+    }
+
+    return {
+      ok: true,
+      path: fullPath,
+      fileName: path.basename(relativePath),
+      relativePath,
+    };
+  }
+
   return {
     sanitizeFileName,
     deriveDraftRelativePath,
+    deriveRenameRelativePath,
     deriveNoteRelativePath,
     findRelativePathConflict,
     checkSaveCollision,
+    performSaveNote,
     UNTITLED,
   };
 });

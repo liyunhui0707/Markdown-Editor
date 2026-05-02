@@ -1917,27 +1917,43 @@ Today the app reacts better to real external MCP ingests.
         }
 
         // Duplicate-name pre-check: refuse to save if the note's derived
-        // relativePath collides with another in-memory note. Vault notes
-        // saving over their own existing file are explicitly exempt — that
-        // is the legitimate update flow, and main.js preserves their path.
-        // The main process still runs an authoritative existence check
-        // against the real filesystem; this renderer-side check catches the
-        // common cases (vault file already loaded, another unsaved draft)
-        // before we even reach IPC, and gives the user immediate feedback.
-        const isCreatingNewFile = !(selectedNote.source === 'vault' && selectedNote.relativePath);
-        if (isCreatingNewFile && window.FileName) {
-          const candidate = window.FileName.deriveDraftRelativePath(selectedNote.title);
-          const conflict  = window.FileName.findRelativePathConflict({
-            notes,
-            candidateRelativePath: candidate,
-            excludeId: selectedNote.id,
-          });
-          if (conflict) {
-            setStatus(
-              'error',
-              `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
-            );
-            return;
+        // relativePath collides with another in-memory note. Three branches:
+        //   - draft / new file: candidate from title via deriveDraftRelativePath.
+        //   - vault save-in-place (title unchanged from loadedTitle, OR derived
+        //     equals current case-insensitively): no candidate, no check.
+        //   - vault rename (titleChanged AND derived differs case-insensitively
+        //     from current): candidate from deriveRenameRelativePath.
+        // The main process still runs the authoritative `wx` write — this
+        // renderer-side check is fast feedback, not the safety mechanism.
+        if (window.FileName) {
+          const sn = selectedNote;
+          const isVaultBacked = sn.source === 'vault' && sn.relativePath;
+          const loadedTitle = sn.loadedTitle != null ? sn.loadedTitle : sn.title;
+          const titleChanged = isVaultBacked && sn.title !== loadedTitle;
+
+          let candidate = '';
+          if (!isVaultBacked) {
+            candidate = window.FileName.deriveDraftRelativePath(sn.title);
+          } else if (titleChanged) {
+            const derived = window.FileName.deriveRenameRelativePath(sn.relativePath, sn.title);
+            if (derived.toLowerCase() !== String(sn.relativePath).toLowerCase()) {
+              candidate = derived;
+            }
+          }
+
+          if (candidate) {
+            const conflict = window.FileName.findRelativePathConflict({
+              notes,
+              candidateRelativePath: candidate,
+              excludeId: sn.id,
+            });
+            if (conflict) {
+              setStatus(
+                'error',
+                `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
+              );
+              return;
+            }
           }
         }
 
@@ -1961,6 +1977,11 @@ Today the app reacts better to real external MCP ingests.
           vaultPath: currentVaultPath,
           note: {
             title: selectedNote.title,
+            // Baseline that lets main.js detect intentional title changes.
+            // Defaults to title so the rename gate is no-op when missing.
+            loadedTitle: selectedNote.loadedTitle != null
+              ? selectedNote.loadedTitle
+              : selectedNote.title,
             body:  savedBody,
             source: selectedNote.source,
             fileName: selectedNote.fileName,
@@ -1975,6 +1996,20 @@ Today the app reacts better to real external MCP ingests.
         if (!result.ok) {
           setStatus('error', `Save failed: ${result.error}`);
           return;
+        }
+
+        // Successful rename: realign liveEditorLastNoteId BEFORE the post-save
+        // refresh so the upcoming renderEditor sees the same id and noops.
+        // That preserves the live CM6 EditorState (with its undo/redo history)
+        // across the id change. Drop the now-defunct cache entry so it
+        // doesn't leak under the dead id.
+        if (result.renamed && result.relativePath) {
+          const oldId = selectedNote.id;
+          const newId = `vault:${result.relativePath}`;
+          if (oldId !== newId) {
+            noteEditorStates.delete(oldId);
+            liveEditorLastNoteId = newId;
+          }
         }
 
         const refreshed = await refreshVaultNotes(

@@ -19,6 +19,7 @@ const assert   = require('node:assert/strict');
 const {
   sanitizeFileName,
   deriveDraftRelativePath,
+  deriveRenameRelativePath,
   deriveNoteRelativePath,
   findRelativePathConflict,
   checkSaveCollision,
@@ -235,4 +236,159 @@ test('checkSaveCollision: draft with whitespace title collides with existing keb
   });
   assert.equal(result.ok, false);
   assert.equal(result.relativePath, 'my-note.md');
+});
+
+// ── deriveRenameRelativePath ───────────────────────────────────────────────
+// For an existing vault note, rename keeps the same parent directory and
+// replaces just the basename via the standard sanitize rule.
+test('deriveRenameRelativePath: root-level note', () => {
+  assert.equal(deriveRenameRelativePath('a.md', 'B'), 'b.md');
+});
+
+test('deriveRenameRelativePath: keeps parent directory', () => {
+  assert.equal(deriveRenameRelativePath('Notes/A.md', 'B'),         'Notes/b.md');
+  assert.equal(deriveRenameRelativePath('Notes/Sub/A.md', 'New T'), 'Notes/Sub/new-t.md');
+});
+
+test('deriveRenameRelativePath: empty / illegal-only title falls back to untitled-note in same dir', () => {
+  assert.equal(deriveRenameRelativePath('Notes/A.md', ''),    'Notes/untitled-note.md');
+  assert.equal(deriveRenameRelativePath('Notes/A.md', '?<>'), 'Notes/untitled-note.md');
+  assert.equal(deriveRenameRelativePath('a.md', ''),          'untitled-note.md');
+});
+
+test('deriveRenameRelativePath: lowercased target equals source (case-only target)', () => {
+  // The derivation always lowercases. An on-disk file at a.md retitled to
+  // 'A' produces 'a.md' — same as the source. Callers compare lowercased to
+  // detect this case-only-no-op.
+  assert.equal(deriveRenameRelativePath('a.md', 'A'), 'a.md');
+});
+
+test('deriveRenameRelativePath: handles missing/empty old path defensively', () => {
+  assert.equal(deriveRenameRelativePath('',        'X'), 'x.md');
+  assert.equal(deriveRenameRelativePath(null,      'X'), 'x.md');
+  assert.equal(deriveRenameRelativePath(undefined, 'X'), 'x.md');
+});
+
+test('deriveRenameRelativePath: handles backslash separators (Windows-style relativePaths)', () => {
+  assert.equal(deriveRenameRelativePath('Notes\\A.md', 'B'), 'Notes\\b.md');
+});
+
+// ── checkSaveCollision: vault rename gate ──────────────────────────────────
+// Rename fires only when the user has actually changed the title since the
+// note was loaded (note.title !== note.loadedTitle) AND the derived target
+// differs from the current relativePath case-insensitively. Pre-existing
+// title/filename mismatches stay put on save when the user hasn't touched
+// the title.
+test('checkSaveCollision: vault note with no title change saves in place even when filename mismatches title', () => {
+  // Disk file note-x.md has the parsed title 'Beautiful Title'. The user
+  // didn't change the title. Saving must NOT rename despite the mismatch.
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'note-x.md',
+      title: 'Beautiful Title',
+      loadedTitle: 'Beautiful Title',
+    },
+    fileExistsSync: makeFsMock(['/vault/note-x.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'note-x.md');
+  assert.equal(result.renamed, undefined);
+  assert.equal(result.oldRelativePath, undefined);
+});
+
+test('checkSaveCollision: vault note title changed to a free target → renamed:true with oldRelativePath', () => {
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'Hello world',
+      loadedTitle: 'A',
+    },
+    fileExistsSync: makeFsMock(['/vault/a.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'hello-world.md');
+  assert.equal(result.renamed, true);
+  assert.equal(result.oldRelativePath, 'a.md');
+});
+
+test('checkSaveCollision: vault note rename to a target that already exists → conflict', () => {
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'B',
+      loadedTitle: 'A',
+    },
+    fileExistsSync: makeFsMock(['/vault/a.md', '/vault/b.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.conflict, true);
+  assert.equal(result.relativePath, 'b.md');
+  assert.match(result.error, /already exists/i);
+  assert.match(result.error, /b\.md/i);
+});
+
+test('checkSaveCollision: vault note title changed but derived path equals current (case-only) → no rename', () => {
+  // user retypes 'a' (lowercase) where loaded was 'A' (uppercase). Derived
+  // 'a.md' equals current 'a.md' — same file on disk. No rename, save in
+  // place. The on-file `# Title` line will reflect the new casing.
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'a',
+      loadedTitle: 'A',
+    },
+    fileExistsSync: makeFsMock(['/vault/a.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'a.md');
+  assert.equal(result.renamed, undefined);
+});
+
+test('checkSaveCollision: subdirectory rename keeps the same parent directory', () => {
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'Notes/A.md',
+      title: 'B',
+      loadedTitle: 'A',
+    },
+    fileExistsSync: makeFsMock(['/vault/Notes/A.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.renamed, true);
+  assert.equal(result.relativePath, 'Notes/b.md');
+  assert.equal(result.oldRelativePath, 'Notes/A.md');
+});
+
+test('checkSaveCollision: missing loadedTitle defaults to current title → no rename (defense in depth)', () => {
+  // If the renderer omits loadedTitle, main treats title as unchanged. This
+  // is the safe default — no silent rename.
+  const result = checkSaveCollision({
+    vaultPath: '/vault',
+    note: {
+      source: 'vault',
+      relativePath: 'a.md',
+      title: 'B',
+      // loadedTitle is intentionally omitted
+    },
+    fileExistsSync: makeFsMock(['/vault/a.md']),
+    path: fakePath,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.relativePath, 'a.md');
+  assert.equal(result.renamed, undefined);
 });

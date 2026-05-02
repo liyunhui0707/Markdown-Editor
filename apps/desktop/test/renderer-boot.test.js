@@ -306,6 +306,9 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
   };
 
   let nextSavedFileId = 1;
+  // Auto-default loadedTitle = title so vaultNotes config doesn't have to set
+  // it explicitly. parseMarkdownFile in main.js does the same on real disk
+  // loads — the harness mirrors that contract here.
   const persistedVaultNotes = vaultNotes.map((note) => ({
     frontmatter: { tags: [], source: '', ...(note.frontmatter || {}) },
     aiImported: false,
@@ -314,6 +317,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     source: 'vault',
     meta: 'File note',
     ...note,
+    loadedTitle: note.loadedTitle != null ? note.loadedTitle : note.title,
   }));
 
   const vaultApi = {
@@ -321,20 +325,57 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
       calls.loadVaultNotesPayloads.push(payload);
       return {
         ok: true,
+        // Reload semantics: loadedTitle on the returned notes is the disk
+        // title at refresh time, matching real parseMarkdownFile behavior.
         notes: persistedVaultNotes.map((note) => ({
           ...note,
+          loadedTitle: note.title,
           frontmatter: { ...(note.frontmatter || {}) },
         })),
       };
     },
     async saveNote(payload) {
       calls.saveNotePayloads.push(payload);
-      const relativePath = payload.note.relativePath || `saved-${nextSavedFileId}.md`;
+
+      // Decide whether this is a rename. Mirrors the real performSaveNote:
+      //   rename only when source==='vault' && relativePath && titleChanged
+      //   && derived target differs case-insensitively from current path.
+      let relativePath = payload.note.relativePath || `saved-${nextSavedFileId}.md`;
+      let renamed = false;
+      let oldRelativePath;
+
+      const isVaultBacked = payload.note.source === 'vault' && payload.note.relativePath;
+      if (isVaultBacked) {
+        const loaded = payload.note.loadedTitle != null ? payload.note.loadedTitle : payload.note.title;
+        if (payload.note.title !== loaded) {
+          const derived = FileName.deriveRenameRelativePath(payload.note.relativePath, payload.note.title);
+          if (derived.toLowerCase() !== String(payload.note.relativePath).toLowerCase()) {
+            const collidesOnDisk = persistedVaultNotes.some((n) =>
+              String(n.relativePath).toLowerCase() === derived.toLowerCase()
+              && n.relativePath !== payload.note.relativePath
+            );
+            if (collidesOnDisk) {
+              return {
+                ok: false,
+                conflict: true,
+                relativePath: derived,
+                error: `A note named "${derived}" already exists in this vault. Rename your note to save without overwriting.`,
+              };
+            }
+            oldRelativePath = payload.note.relativePath;
+            relativePath = derived;
+            renamed = true;
+          }
+        }
+      } else if (!payload.note.relativePath) {
+        nextSavedFileId += 1;
+      }
+
       const fileName = payload.note.fileName || relativePath.split('/').pop();
-      nextSavedFileId += payload.note.relativePath ? 0 : 1;
       const savedNote = {
         id: `vault:${relativePath}`,
         title: payload.note.title,
+        loadedTitle: payload.note.title,
         body: payload.note.body,
         fileName,
         relativePath,
@@ -343,6 +384,13 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
         meta: 'File note',
         frontmatter: { ...(payload.note.frontmatter || {}) },
       };
+
+      if (renamed) {
+        // Remove the old persisted entry to mirror disk-side unlink.
+        const oldIndex = persistedVaultNotes.findIndex((n) => n.relativePath === oldRelativePath);
+        if (oldIndex >= 0) persistedVaultNotes.splice(oldIndex, 1);
+      }
+
       const existingIndex = persistedVaultNotes.findIndex((note) => note.relativePath === relativePath);
       if (existingIndex >= 0) {
         persistedVaultNotes[existingIndex] = savedNote;
@@ -353,6 +401,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
         ok: true,
         fileName,
         relativePath,
+        ...(renamed ? { renamed: true, oldRelativePath } : {}),
       };
     },
     async watchVaultFolder(payload) {
@@ -1640,33 +1689,6 @@ test('save succeeds: re-saving an existing vault note targets its own file', asy
   assert.equal(calls.saveNotePayloads[0].note.body, '# Note edited');
 });
 
-test('save succeeds: renaming a vault-backed note title does NOT block when relativePath stays', async () => {
-  // The renderer sends source='vault' + the original relativePath. Main.js
-  // preserves that path on the disk write, so no new file is created and no
-  // collision can occur. The renderer pre-check must respect the same
-  // logic — a title rename on a vault note must not be falsely blocked even
-  // if the new title's derived path matches another vault note in `notes`.
-  const { calls, elements } = makeRendererHarness({
-    vaultNotes: [
-      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
-      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
-    ],
-  });
-
-  await elements.get('chooseVaultButton').fireAsync('click');
-  // A is selected. Rename its title to "B" (which would derive 'b.md',
-  // matching B's relativePath). The save must still target a.md (renamer
-  // semantics in main.js) and must not be blocked.
-  setDraftTitle(elements, 'B');
-
-  await elements.get('saveNoteButton').fireAsync('click');
-
-  assert.equal(calls.saveNotePayloads.length, 1, 'vault title-rename must reach the IPC');
-  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md',
-    'renamed vault note keeps its original relativePath; only the title changes');
-  assert.equal(calls.saveNotePayloads[0].note.title, 'B');
-});
-
 // Engine parity: vault conflict + draft-vs-draft conflict for both engines.
 async function assertVaultConflictBlocksSave({ search, engineName }) {
   const { calls, elements } = makeRendererHarness({
@@ -1705,6 +1727,302 @@ test('engine parity: draft-vs-draft conflict blocks save (hybrid)', async () => 
 
 test('engine parity: draft-vs-draft conflict blocks save (cm6)', async () => {
   await assertDraftConflictBlocksSave({ search: '?writeEngine=cm6', engineName: 'cm6' });
+});
+
+// ── Title-change rename: gated on intentional title change ─────────────────
+// Bug: changing the title of an existing vault note and saving updated the
+// title inside the file but did NOT rename the file on disk. The fix renames
+// the disk file when (and only when) the user has changed the title since
+// the note was loaded AND the derived target differs from the current
+// relativePath. Pre-existing title/filename mismatches stay put on a save
+// where the user did not touch the title.
+
+test('rename: existing vault note with mismatched title/filename and no title change saves in place', async () => {
+  // Note seeded with a deliberate disk-vs-title mismatch (title "Beautiful
+  // Title", relativePath "note-x.md"). User clicks Save without touching
+  // the titleInput → no rename, save in place at the original path.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:note-x.md', title: 'Beautiful Title', body: '# Beautiful Title body',
+        fileName: 'note-x.md', relativePath: 'note-x.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit body so we have a meaningful save.
+  calls.hybridAdapter.text = '# Beautiful Title body edited';
+  calls.hybridOnChange('# Beautiful Title body edited');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'note-x.md',
+    'relativePath in IPC payload must be the original (no rename)');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Beautiful Title');
+  // After save+refresh, the in-memory selected note still lives at note-x.md.
+  // (Children[0] should be the only note.)
+  const list = elements.get('noteList').children;
+  assert.ok(list[0].className.includes('active'));
+});
+
+test('rename: title change to a free target renames the file on disk', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Change title from A → "Hello world".
+  setDraftTitle(elements, 'Hello world');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'save must reach IPC');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Hello world');
+  assert.equal(calls.saveNotePayloads[0].note.loadedTitle, 'A',
+    'IPC payload must include loadedTitle so main can detect intentional change');
+
+  // After refresh, the note's relativePath is the new derived path.
+  // The harness' saveNote mock simulates rename: persistedVaultNotes now has
+  // hello-world.md instead of a.md, and the renderer reloads it.
+  const list = elements.get('noteList').children;
+  assert.equal(list.length, 1);
+  assert.ok(list[0].className.includes('active'));
+});
+
+test('rename: title change conflicting with another vault note is blocked before IPC', async () => {
+  // Vault has both a.md and b.md. Loading a.md and renaming its title to
+  // "B" must block before IPC because b.md already exists.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // A is selected after choose-vault.
+  setDraftTitle(elements, 'B');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'b.md' });
+});
+
+test('rename: title change conflicting with an unsaved draft is blocked before IPC (NEW)', async () => {
+  // Vault has a.md. An unsaved draft titled "B" exists (its derived path is
+  // b.md). User loads a.md, changes title to "B" → derived path collides
+  // with the draft. Save must block BEFORE the IPC. Both notes must remain
+  // intact in memory.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Create the unsaved draft B.
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'B');
+  // After newNote → notes=[draft (B), vault:a.md] under 'drafts' filter.
+  // Switch back to A so we can rename A's title.
+  elements.get('filterAll').fire('click');
+  // Under 'all' filter: notes=[draft, a.md]; A is at index 1.
+  elements.get('noteList').children[1].fire('click');
+
+  // Sanity: A is the active note.
+  const initialList = elements.get('noteList').children;
+  assert.ok(initialList[1].className.includes('active'));
+
+  // Rename A's title to "B" → derived path 'b.md' collides with the draft.
+  setDraftTitle(elements, 'B');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'b.md' });
+
+  // Both notes must remain intact:
+  //   - vault:a.md still at a.md
+  //   - draft still has empty relativePath and title "B"
+  // (The blocked save did not touch IPC, so the harness's persistedVaultNotes
+  // is unchanged and the in-memory notes array is also unchanged.)
+  const aNote = elements.get('noteList').children[1];
+  assert.ok(aNote, 'A must still be in the list');
+});
+
+test('rename: case-only title change does not trigger rename (no IPC conflict)', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:Welcome.md', title: 'Welcome', body: '# Welcome',
+        fileName: 'Welcome.md', relativePath: 'Welcome.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Change "Welcome" → "welcome" (case-only).
+  setDraftTitle(elements, 'welcome');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'save must reach IPC');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'Welcome.md',
+    'IPC payload preserves the original path; case-only retitle is not a rename');
+});
+
+// ── CM6 active-rename behavior: assert observable behavior, no private locals ──
+test('CM6: title-change rename keeps the renamed note selected and preserves CM6 EditorState', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md',     title: 'A',     body: '# A',     fileName: 'a.md',     relativePath: 'a.md' },
+      { id: 'vault:other.md', title: 'Other', body: '# Other', fileName: 'other.md', relativePath: 'other.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // A is selected. Edit so the live CM6 state carries an identifying tag.
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6Adapter._state = { doc: '# A edited', _kind: 'A-rename-marker' };
+  calls.cm6OnChange('# A edited');
+
+  // Rename A's title to a free target.
+  setDraftTitle(elements, 'Hello');
+
+  const setTextBefore = calls.cm6SetText.length;
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Behavior 1: the renamed note remains the active selection.
+  // After rename + refresh: vault has [hello.md, other.md] (alphabetical).
+  // The renamed note "hello" must be the active item.
+  const listAfter = elements.get('noteList').children;
+  const activeIndex = [...listAfter].findIndex((c) => c.className.includes('active'));
+  assert.notEqual(activeIndex, -1, 'some note must be active after rename');
+  // The active item is the renamed one — verified by clicking it being a noop
+  // (already selected) and by the CM6 marker still showing.
+
+  // Behavior 2: setText was NOT called during the active-note rename refresh.
+  // The save+refresh must not have torn down and rebuilt the live editor.
+  assert.equal(calls.cm6SetText.length, setTextBefore,
+    'active rename must not call setText — CM6 state is preserved in-place');
+
+  // Behavior 3: the live CM6 state marker survived.
+  assert.equal(calls.cm6Adapter._state._kind, 'A-rename-marker',
+    'live CM6 state with marker must survive rename');
+
+  // Behavior 4: switching away and back returns via setState (cache hit) with
+  // the same marker, proving the migrated cache key works.
+  // Find the OTHER note's index (the one without 'active').
+  const otherIndex = activeIndex === 0 ? 1 : 0;
+  elements.get('noteList').children[otherIndex].fire('click');
+
+  const setStateBefore = calls.cm6SetState.length;
+  const setTextBefore2 = calls.cm6SetText.length;
+  // Switch back to the renamed note.
+  elements.get('noteList').children[activeIndex].fire('click');
+
+  assert.ok(calls.cm6SetState.length > setStateBefore,
+    'returning to renamed note must restore via setState (cache hit under new id)');
+  assert.equal(calls.cm6SetText.length, setTextBefore2,
+    'returning to renamed note must NOT call setText');
+  assert.equal(calls.cm6Adapter._state._kind, 'A-rename-marker',
+    'restored state marker must equal the pre-rename marker');
+});
+
+test('rename: dirty unrelated vault note + draft survive a rename save and the post-save watcher', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A's body in memory.
+  calls.hybridAdapter.text = '# A edited';
+  calls.hybridOnChange('# A edited');
+
+  // Switch to B, edit B's body (unsaved).
+  elements.get('noteList').children[1].fire('click');
+  calls.hybridAdapter.text = '# B edited';
+  calls.hybridOnChange('# B edited');
+
+  // Create draft D, edit body.
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Draft D rename');
+  calls.hybridAdapter.text = '# D edited';
+  calls.hybridOnChange('# D edited');
+
+  // Show all and switch back to A.
+  elements.get('filterAll').fire('click');
+  // notes=[D, A, B] → A at index 1.
+  elements.get('noteList').children[1].fire('click');
+
+  // Rename A's title to "Hello".
+  setDraftTitle(elements, 'Hello');
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Fire post-save watcher for the new path.
+  await calls.vaultChangedCallback({ fileName: 'hello.md' });
+
+  // After rename, the disk-side splice removes a.md and pushes hello.md to
+  // the end of the persisted list, so notes order becomes
+  // [b.md, hello.md, D]. children[0]=B, children[1]=renamed (hello.md, the
+  // selected one), children[2]=D.
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# B edited',
+    "B's in-memory edited body must survive rename + watcher");
+
+  elements.get('noteList').children[2].fire('click');
+  assert.equal(calls.hybridAdapter.text, '# D edited',
+    "D's in-memory edited body must survive rename + watcher");
+});
+
+test('rename: empty title vault retitle attempts rename to untitled-note.md', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  setDraftTitle(elements, '');
+
+  // No untitled-note.md on disk → rename succeeds.
+  await elements.get('saveNoteButton').fireAsync('click');
+  assert.equal(calls.saveNotePayloads.length, 1, 'save must reach IPC');
+  assert.equal(calls.saveNotePayloads[0].note.title, '');
+  assert.equal(calls.saveNotePayloads[0].note.loadedTitle, 'A');
+});
+
+// Engine parity: same rename path for Hybrid and CM6.
+async function assertVaultRenameWorks({ search, engineName }) {
+  const { calls, elements } = makeRendererHarness({
+    search,
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  setDraftTitle(elements, 'Renamed');
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Renamed');
+  assert.equal(calls.saveNotePayloads[0].note.loadedTitle, 'A');
+  // After successful rename: list shows the renamed note as active.
+  const list = elements.get('noteList').children;
+  assert.equal(list.length, 1);
+  assert.ok(list[0].className.includes('active'));
+}
+
+test('rename engine parity: vault rename works (hybrid)', async () => {
+  await assertVaultRenameWorks({ search: '', engineName: 'hybrid' });
+});
+
+test('rename engine parity: vault rename works (cm6)', async () => {
+  await assertVaultRenameWorks({ search: '?writeEngine=cm6', engineName: 'cm6' });
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
