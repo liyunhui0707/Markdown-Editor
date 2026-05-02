@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+const FileName = require('./lib/file-name');
+
 let mainWindow = null;
 let currentVaultWatcher = null;
 let currentWatchedVaultPath = '';
@@ -22,13 +24,9 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 }
 
-function sanitizeFileName(name) {
-  return name
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-}
+// Filename derivation lives in the shared FileName helper so the renderer
+// pre-check and this main-process guard cannot drift out of sync.
+const checkSaveCollision = FileName.checkSaveCollision;
 
 function ensureVaultExists(vaultPath) {
   if (!fs.existsSync(vaultPath)) {
@@ -493,15 +491,28 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
-    let relativePath = '';
+    // Authoritative duplicate-name guard. For vault notes with an existing
+    // relativePath (the legitimate update flow), this passes through. For
+    // drafts and any note that would create a NEW file, it refuses to write
+    // when the derived path already exists on disk — closing the renderer's
+    // stale-state gap.
+    const collision = checkSaveCollision({
+      vaultPath,
+      note,
+      fileExistsSync: fs.existsSync,
+      path,
+    });
 
-    if (note.source === 'vault' && note.relativePath) {
-      relativePath = note.relativePath;
-    } else {
-      const fileNameBase = sanitizeFileName(safeTitle) || 'untitled-note';
-      relativePath = `${fileNameBase}.md`;
+    if (!collision.ok) {
+      return {
+        ok: false,
+        conflict: !!collision.conflict,
+        relativePath: collision.relativePath,
+        error: collision.error,
+      };
     }
 
+    const relativePath = collision.relativePath;
     const fullPath = path.join(vaultPath, relativePath);
     const parentDir = path.dirname(fullPath);
 

@@ -14,6 +14,7 @@ const path     = require('node:path');
 const vm       = require('node:vm');
 
 const WriteEngine = require('../lib/write-engine');
+const FileName    = require('../lib/file-name');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -415,6 +416,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
         return engine;
       },
     },
+    FileName,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -636,11 +638,17 @@ async function assertSavingOneUnsavedDraftPreservesAnother({ search = '', engine
 
   await elements.get('chooseVaultButton').fireAsync('click');
 
+  // Distinct titles so the new duplicate-name guard does not block the save
+  // (every draft created by newNote would otherwise default to 'Untitled note',
+  // which derives to the same untitled-note.md). The test's intent is the
+  // *body* preservation across save, not duplicate-name behavior.
   elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, `Draft A ${engineName}`);
   adapter.text = `Body A unique ${engineName}`;
   onChange(`Body A unique ${engineName}`);
 
   elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, `Draft B ${engineName}`);
   adapter.text = `Body B unique ${engineName}`;
   onChange(`Body B unique ${engineName}`);
 
@@ -1278,14 +1286,18 @@ test('CM6: saving one draft preserves cached editor states for other unsaved dra
 
   await elements.get('chooseVaultButton').fireAsync('click');
 
-  // Create draft D1, edit it.
+  // Create draft D1, give it a distinct title (so the duplicate-name guard
+  // does not block saving — defaults would all collapse to untitled-note.md),
+  // edit body.
   elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Draft D1');
   calls.cm6Adapter.text = '# D1 edited';
   calls.cm6Adapter._state = { doc: '# D1 edited', _kind: 'D1-edited' };
   calls.cm6OnChange('# D1 edited');
 
-  // Create draft D2, edit it. Switch-out D1 → cache[D1] populated.
+  // Create draft D2, distinct title, edit body. Switch-out D1 → cache[D1] populated.
   elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Draft D2');
   calls.cm6Adapter.text = '# D2 edited';
   calls.cm6Adapter._state = { doc: '# D2 edited', _kind: 'D2-edited' };
   calls.cm6OnChange('# D2 edited');
@@ -1460,6 +1472,239 @@ test('CM6: manual Load Vault still clears cached editor states (external/manual 
   assert.ok(calls.cm6SetText.length > setTextBefore,
     'manual Load Vault must force a fresh setText for the re-selected note');
   assert.equal(calls.cm6SetText.at(-1), '# A body');
+});
+
+// ── Duplicate filename / silent-overwrite guard ─────────────────────────────
+// Bug: saving a draft whose title sanitized to the same filename as an
+// existing vault note silently overwrote the existing file. The renderer now
+// runs an in-memory pre-check using the shared FileName helper before
+// invoking the save IPC; main.js still has the authoritative existence
+// check. These tests pin the renderer-side behavior.
+
+test('index.html loads file-name lib before the inline boot script', () => {
+  const html = readIndexHtml();
+  const fileNameTag = '<script src="./lib/file-name.js"></script>';
+  const bootMarker = 'Boot the Markdown editor';
+  assert.ok(html.includes(fileNameTag), 'file-name.js script tag should be present');
+  assert.ok(
+    html.indexOf(fileNameTag) < html.indexOf(bootMarker),
+    'file-name.js must load before the inline boot script'
+  );
+});
+
+function setDraftTitle(elements, title) {
+  // The renderer wires titleInput.addEventListener('input', handleEdit), and
+  // handleEdit flushes titleInput.value into selectedNote.title. Mirroring
+  // that in tests means setting .value then firing 'input'.
+  const titleInput = elements.get('titleInput');
+  titleInput.value = title;
+  titleInput.fire('input');
+}
+
+async function assertSaveBlockedWithConflict({ elements, calls, expectedFileName }) {
+  const payloadsBefore = calls.saveNotePayloads.length;
+  const refreshesBefore = calls.loadVaultNotesPayloads.length;
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(
+    calls.saveNotePayloads.length,
+    payloadsBefore,
+    'blocked save must NOT invoke the save IPC'
+  );
+  assert.equal(
+    calls.loadVaultNotesPayloads.length,
+    refreshesBefore,
+    'blocked save must NOT trigger a refresh — the editor stays as-is'
+  );
+  const status = elements.get('statusText');
+  assert.match(
+    status.className,
+    /status-error/,
+    'blocked save must surface an error status'
+  );
+  assert.match(
+    status.textContent,
+    new RegExp(expectedFileName.replace(/\./g, '\\.'), 'i'),
+    `error message must mention the conflicting filename "${expectedFileName}"`
+  );
+  assert.match(
+    status.textContent,
+    /already exists/i,
+    'error message must say the name already exists'
+  );
+}
+
+test('save is blocked: draft title exactly matches an existing vault note filename', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:note.md', title: 'Note', body: '# Note disk', fileName: 'note.md', relativePath: 'note.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Create a fresh draft. After newNote, the new draft is selected.
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Note');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'note.md' });
+});
+
+test('save is blocked: case difference between draft and existing vault note', async () => {
+  // macOS APFS / Windows NTFS treat "Welcome.md" and "welcome.md" as the
+  // SAME on-disk file, so writing the lowercase name would silently
+  // overwrite the title-cased file. The renderer must catch this before
+  // touching IPC.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:Welcome.md', title: 'Welcome', body: '# Welcome', fileName: 'Welcome.md', relativePath: 'Welcome.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'WELCOME');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'welcome.md' });
+});
+
+test('save is blocked: whitespace differences collapse to the same kebab filename', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:my-note.md', title: 'My Note', body: '# My Note', fileName: 'my-note.md', relativePath: 'my-note.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, '  My   Note  ');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'my-note.md' });
+});
+
+test('save is blocked: empty-title draft collides with existing untitled-note.md', async () => {
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:untitled-note.md', title: 'Untitled note', body: '#', fileName: 'untitled-note.md', relativePath: 'untitled-note.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, '');
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'untitled-note.md' });
+});
+
+test('save is blocked: draft title collides with another unsaved draft', async () => {
+  // Both drafts have empty relativePath but their derived candidates collide.
+  // The save of the SECOND draft must be blocked even though no file exists
+  // on disk yet — the user clearly meant two distinct notes.
+  const { calls, elements } = makeRendererHarness({});
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Plan');
+  // First draft "Plan" has not been saved yet. Its derived path is plan.md.
+
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Plan');
+  // Second draft also titled "Plan" — selection is on this new draft.
+
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'plan.md' });
+});
+
+test('save succeeds: re-saving an existing vault note targets its own file', async () => {
+  // Even though notes[A].relativePath = 'note.md' equals the candidate for a
+  // hypothetical draft titled "Note", saving the vault note A itself is the
+  // legitimate update flow and must NOT be blocked.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:note.md', title: 'Note', body: '# Note disk', fileName: 'note.md', relativePath: 'note.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // A is already selected after choose-vault.
+
+  // Edit body so we have something to save.
+  calls.hybridAdapter.text = '# Note edited';
+  calls.hybridOnChange('# Note edited');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'vault re-save must reach the IPC');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'note.md');
+  assert.equal(calls.saveNotePayloads[0].note.body, '# Note edited');
+});
+
+test('save succeeds: renaming a vault-backed note title does NOT block when relativePath stays', async () => {
+  // The renderer sends source='vault' + the original relativePath. Main.js
+  // preserves that path on the disk write, so no new file is created and no
+  // collision can occur. The renderer pre-check must respect the same
+  // logic — a title rename on a vault note must not be falsely blocked even
+  // if the new title's derived path matches another vault note in `notes`.
+  const { calls, elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // A is selected. Rename its title to "B" (which would derive 'b.md',
+  // matching B's relativePath). The save must still target a.md (renamer
+  // semantics in main.js) and must not be blocked.
+  setDraftTitle(elements, 'B');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'vault title-rename must reach the IPC');
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md',
+    'renamed vault note keeps its original relativePath; only the title changes');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'B');
+});
+
+// Engine parity: vault conflict + draft-vs-draft conflict for both engines.
+async function assertVaultConflictBlocksSave({ search, engineName }) {
+  const { calls, elements } = makeRendererHarness({
+    search,
+    vaultNotes: [
+      { id: 'vault:note.md', title: 'Note', body: '# Note disk', fileName: 'note.md', relativePath: 'note.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Note');
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'note.md' });
+}
+
+async function assertDraftConflictBlocksSave({ search, engineName }) {
+  const { calls, elements } = makeRendererHarness({ search });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Plan');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Plan');
+  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'plan.md' });
+}
+
+test('engine parity: vault conflict blocks save (hybrid)', async () => {
+  await assertVaultConflictBlocksSave({ search: '', engineName: 'hybrid' });
+});
+
+test('engine parity: vault conflict blocks save (cm6)', async () => {
+  await assertVaultConflictBlocksSave({ search: '?writeEngine=cm6', engineName: 'cm6' });
+});
+
+test('engine parity: draft-vs-draft conflict blocks save (hybrid)', async () => {
+  await assertDraftConflictBlocksSave({ search: '', engineName: 'hybrid' });
+});
+
+test('engine parity: draft-vs-draft conflict blocks save (cm6)', async () => {
+  await assertDraftConflictBlocksSave({ search: '?writeEngine=cm6', engineName: 'cm6' });
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {

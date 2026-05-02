@@ -951,6 +951,7 @@
     <script src="./lib/cm6-write-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
+    <script src="./lib/file-name.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1913,6 +1914,31 @@ Today the app reacts better to real external MCP ingests.
         if (!selectedNote) {
           setStatus('error', 'No note selected');
           return;
+        }
+
+        // Duplicate-name pre-check: refuse to save if the note's derived
+        // relativePath collides with another in-memory note. Vault notes
+        // saving over their own existing file are explicitly exempt — that
+        // is the legitimate update flow, and main.js preserves their path.
+        // The main process still runs an authoritative existence check
+        // against the real filesystem; this renderer-side check catches the
+        // common cases (vault file already loaded, another unsaved draft)
+        // before we even reach IPC, and gives the user immediate feedback.
+        const isCreatingNewFile = !(selectedNote.source === 'vault' && selectedNote.relativePath);
+        if (isCreatingNewFile && window.FileName) {
+          const candidate = window.FileName.deriveDraftRelativePath(selectedNote.title);
+          const conflict  = window.FileName.findRelativePathConflict({
+            notes,
+            candidateRelativePath: candidate,
+            excludeId: selectedNote.id,
+          });
+          if (conflict) {
+            setStatus(
+              'error',
+              `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
+            );
+            return;
+          }
         }
 
         setStatus('saving', 'Saving...');
