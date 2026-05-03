@@ -918,7 +918,7 @@
                   >Preview</button>
                 </div>
 
-                <!-- hybridWritePane is the user-visible Write surface (HybridWriteView).
+                <!-- hybridWritePane hosts the selected Write surface.
                      toastPreviewMount hosts Toast UI as the Preview renderer; it is
                      hidden by default and shown when Preview mode is active. -->
                 <div id="liveEditorContainer" class="live-editor-container">
@@ -947,7 +947,12 @@
     </script>
     <script src="./lib/live-editor.js"></script>
     <script src="./lib/hybrid-write-view.js"></script>
+    <script src="./lib/cm6-bundle.js"></script>
+    <script src="./lib/cm6-write-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
+    <script src="./lib/write-engine.js"></script>
+    <script src="./lib/file-name.js"></script>
+    <script src="./lib/scroll-sync.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1243,6 +1248,23 @@ Write the core idea here.
       let isSidebarHidden         = true;   // hidden by default — max note space on launch
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
+      let hasLoadedVaultNotes     = false;
+      // Per-note editor state cache for note-local undo/redo. Keyed by note id;
+      // each value is { state, doc } where state is the opaque engine state and
+      // doc is the text it represented at cache time (the mismatch guard).
+      // Populated only when the active engine exposes getState/setState — so
+      // CM6 participates and Hybrid does not (Hybrid undo is per-textarea-only
+      // and intentionally deferred; see comment near the engine wiring below).
+      const noteEditorStates      = new Map();
+
+      // Per-note view state for Bug #2 follow-up: each note remembers its own
+      // mode (Write or Preview) and its own scroll ratio. Captured when
+      // leaving a note (renderEditor's switch branch), restored when entering
+      // a note. Default for never-visited notes is { mode: 'write',
+      // scrollRatio: 0 }. Migrated alongside noteEditorStates on save id
+      // changes (rename / draft → vault), cleaned up on delete.
+      const noteViewStates        = new Map();
+      let   currentMode           = 'write';
 
       let notes = [
         {
@@ -1332,6 +1354,31 @@ Today the app reacts better to real external MCP ingests.
         // Only reset the live editor when switching to a different note —
         // not on every renderApp() call (which would destroy the user's cursor position).
         if (note.id !== liveEditorLastNoteId) {
+          // Save outgoing state for note-local undo/redo. Only when the engine
+          // supports it (CM6) and the outgoing note is still in `notes` (so we
+          // know its current body to pair with the state).
+          if (liveEditorLastNoteId && typeof liveEditorInstance.getState === 'function') {
+            const outgoing = notes.find((n) => n.id === liveEditorLastNoteId);
+            if (outgoing) {
+              const outgoingState = liveEditorInstance.getState();
+              if (outgoingState) {
+                noteEditorStates.set(liveEditorLastNoteId, {
+                  state: outgoingState,
+                  doc: outgoing.body,
+                });
+              }
+            }
+          }
+
+          // Capture per-note view state (mode + scroll ratio) for the OUTGOING
+          // note so a future return to this note can restore it. Reads the
+          // currently-visible pane's scroll metrics, which is correct because
+          // the click handler hasn't yet mutated the DOM (we're inside the
+          // very renderEditor call triggered by the note switch).
+          if (liveEditorLastNoteId) {
+            captureNoteViewState(liveEditorLastNoteId);
+          }
+
           liveEditorLastNoteId = note.id;
 
           // Migration: if the body doesn't already start with inline metadata,
@@ -1339,14 +1386,38 @@ Today the app reacts better to real external MCP ingests.
           const { tags: existingTags } = stripMetaPrefix(note.body);
           const hasMeta = existingTags.length > 0
             || /^Source:/im.test((note.body || '').split('\n').slice(0, 3).join('\n'));
+          let migrated = false;
           if (!hasMeta) {
             const prefix = serializeMetaPrefix(note.frontmatter);
             if (prefix) {
               note.body = prefix + '\n\n' + (note.body || '');
+              migrated = true;
             }
           }
 
-          liveEditorInstance.setText(note.body);
+          // Restore from cache when possible: same note id AND cached doc still
+          // matches the current body. If the body diverged (vault refresh, save
+          // round-trip, anything that rewrote it), drop the stale entry and
+          // fall back to the fresh-load path. Migration always forces a fresh
+          // load because we just rewrote note.body.
+          let restored = false;
+          if (!migrated && typeof liveEditorInstance.setState === 'function') {
+            const cached = noteEditorStates.get(note.id);
+            if (cached && cached.doc === note.body) {
+              liveEditorInstance.setState(cached.state);
+              restored = true;
+            } else if (cached) {
+              noteEditorStates.delete(note.id);
+            }
+          }
+          if (!restored) {
+            liveEditorInstance.setText(note.body);
+          }
+
+          // Restore the INCOMING note's saved mode + scroll ratio. Defaults
+          // to { mode: 'write', scrollRatio: 0 } for never-visited notes,
+          // matching the user's product rule.
+          restoreNoteViewState(note.id);
         }
       }
 
@@ -1622,7 +1693,20 @@ Today the app reacts better to real external MCP ingests.
               ? selectedNote.relativePath
               : '';
 
-          const refreshed = await refreshVaultNotes(preferredRelativePath, false);
+          // The watcher only knows that one file changed on disk; every other
+          // vault-backed note is unchanged on disk and must keep its in-memory
+          // edits. Without this overlay, a save-triggered watcher event (or any
+          // external change to a single file) would silently revert unrelated
+          // dirty notes — the same data-loss class as the prior draft-loss bug.
+          const preservedVaultEdits = snapshotDirtyVaultEdits(changedPath);
+
+          const refreshed = await refreshVaultNotes(
+            preferredRelativePath,
+            false,
+            null,
+            preservedVaultEdits,
+            true,
+          );
 
           if (!refreshed) {
             return;
@@ -1697,7 +1781,74 @@ Today the app reacts better to real external MCP ingests.
         }
       }
 
-      async function refreshVaultNotes(preferredRelativePath = '', updateStatus = true) {
+      function shouldPreserveDraft(note) {
+        return note.source === 'draft'
+          && !(note.title === 'Untitled note' && !String(note.body || '').trim() && !note.relativePath);
+      }
+
+      // Snapshot in-memory state for vault-backed notes other than the one whose
+      // disk version is about to become canonical (the just-saved file, or the
+      // file the watcher reports as changed). Both saveCurrentNote and the
+      // vault-watcher callback use this so a refresh never silently reverts a
+      // note the user is still typing into.
+      function snapshotDirtyVaultEdits(excludeRelativePath = '') {
+        return notes
+          .filter((note) =>
+            note.source === 'vault'
+            && note.relativePath
+            && note.relativePath !== excludeRelativePath
+          )
+          .map((note) => ({
+            relativePath: note.relativePath,
+            title: note.title,
+            body: note.body,
+            frontmatter: {
+              tags:   normalizeTags(note.frontmatter?.tags),
+              source: note.frontmatter?.source || '',
+            },
+          }));
+      }
+
+      async function refreshVaultNotes(
+        preferredRelativePath = '',
+        updateStatus = true,
+        preservedDrafts = null,
+        preservedVaultEdits = null,
+        preserveCachedEditorStates = false
+      ) {
+        const draftsToPreserve = Array.isArray(preservedDrafts)
+          ? preservedDrafts
+          : hasLoadedVaultNotes
+          ? notes.filter(shouldPreserveDraft)
+          : [];
+
+        // Overlay: in-memory state for vault-backed notes that the caller wants
+        // preserved across this refresh, keyed by relativePath. Opt-in — only
+        // save and watcher refreshes pass it (they know exactly one file
+        // changed on disk and everything else is unchanged). Choose-vault,
+        // demo-seed, and manual reload skip the overlay so disk truth wins.
+        const vaultOverlay = new Map();
+        if (Array.isArray(preservedVaultEdits)) {
+          preservedVaultEdits.forEach((entry) => {
+            if (entry && entry.relativePath) {
+              vaultOverlay.set(entry.relativePath, entry);
+            }
+          });
+        }
+
+        // Cached EditorStates carry note-local undo/redo. Bulk-clearing them on
+        // every refresh discarded undo history for unrelated notes whose bodies
+        // we just preserved — the body/state pair would survive together with
+        // saving but the state was thrown away. Save and watcher refreshes
+        // opt in to preservation; the per-entry doc/body mismatch guard in
+        // renderEditor() still drops any entry whose body did change. Other
+        // refresh paths (manual reload, choose-vault, demo-seed, delete) keep
+        // the bulk clear so external/manual reload can invalidate state per
+        // the product rule.
+        if (!preserveCachedEditorStates) {
+          noteEditorStates.clear();
+        }
+
         const result = await window.vaultApi.loadVaultNotes({
           vaultPath: currentVaultPath
         });
@@ -1707,7 +1858,23 @@ Today the app reacts better to real external MCP ingests.
           return false;
         }
 
-        if (result.notes.length === 0) {
+        const refreshedNotes = result.notes.map((diskNote) => {
+          const overlay = vaultOverlay.get(diskNote.relativePath);
+          if (!overlay) return diskNote;
+          return {
+            ...diskNote,
+            title: overlay.title,
+            body: overlay.body,
+            frontmatter: { ...overlay.frontmatter },
+          };
+        });
+        draftsToPreserve.forEach((draft) => {
+          if (!refreshedNotes.some((note) => note.id === draft.id)) {
+            refreshedNotes.push(draft);
+          }
+        });
+
+        if (refreshedNotes.length === 0) {
           notes = [
             {
               id: 'draft:1',
@@ -1727,6 +1894,7 @@ Today the app reacts better to real external MCP ingests.
           currentFilter = 'all';
           selectedNoteId = 'draft:1';
           nextDraftId = 2;
+          hasLoadedVaultNotes = true;
           renderApp();
 
           if (updateStatus) {
@@ -1736,7 +1904,8 @@ Today the app reacts better to real external MCP ingests.
           return true;
         }
 
-        notes = result.notes;
+        notes = refreshedNotes;
+        hasLoadedVaultNotes = true;
 
         if (preferredRelativePath) {
           const matchingNote = notes.find((note) => note.relativePath === preferredRelativePath);
@@ -1771,17 +1940,73 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
+        // Duplicate-name pre-check: refuse to save if the note's derived
+        // relativePath collides with another in-memory note. Three branches:
+        //   - draft / new file: candidate from title via deriveDraftRelativePath.
+        //   - vault save-in-place (title unchanged from loadedTitle, OR derived
+        //     equals current case-insensitively): no candidate, no check.
+        //   - vault rename (titleChanged AND derived differs case-insensitively
+        //     from current): candidate from deriveRenameRelativePath.
+        // The main process still runs the authoritative `wx` write — this
+        // renderer-side check is fast feedback, not the safety mechanism.
+        if (window.FileName) {
+          const sn = selectedNote;
+          const isVaultBacked = sn.source === 'vault' && sn.relativePath;
+          const loadedTitle = sn.loadedTitle != null ? sn.loadedTitle : sn.title;
+          const titleChanged = isVaultBacked && sn.title !== loadedTitle;
+
+          let candidate = '';
+          if (!isVaultBacked) {
+            candidate = window.FileName.deriveDraftRelativePath(sn.title);
+          } else if (titleChanged) {
+            const derived = window.FileName.deriveRenameRelativePath(sn.relativePath, sn.title);
+            if (derived.toLowerCase() !== String(sn.relativePath).toLowerCase()) {
+              candidate = derived;
+            }
+          }
+
+          if (candidate) {
+            const conflict = window.FileName.findRelativePathConflict({
+              notes,
+              candidateRelativePath: candidate,
+              excludeId: sn.id,
+            });
+            if (conflict) {
+              setStatus(
+                'error',
+                `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
+              );
+              return;
+            }
+          }
+        }
+
         setStatus('saving', 'Saving...');
 
         // Flush any in-progress active-block edit so getText() returns the
         // committed source before we send it to disk.
         liveEditorInstance.exitWriteMode();
+        const savedBody = liveEditorInstance.getText();
+        selectedNote.body = savedBody;
+        const preservedDrafts = notes.filter((note) =>
+          note.id !== selectedNote.id && shouldPreserveDraft(note)
+        );
+        // Snapshot in-memory state for every other vault-backed note so the
+        // post-save refresh does not silently revert their unsaved edits to
+        // disk truth. The selected note is excluded — the freshly-saved disk
+        // version is canonical for it.
+        const preservedVaultEdits = snapshotDirtyVaultEdits(selectedNote.relativePath || '');
 
         const result = await window.vaultApi.saveNote({
           vaultPath: currentVaultPath,
           note: {
             title: selectedNote.title,
-            body:  liveEditorInstance.getText(),
+            // Baseline that lets main.js detect intentional title changes.
+            // Defaults to title so the rename gate is no-op when missing.
+            loadedTitle: selectedNote.loadedTitle != null
+              ? selectedNote.loadedTitle
+              : selectedNote.title,
+            body:  savedBody,
             source: selectedNote.source,
             fileName: selectedNote.fileName,
             relativePath: selectedNote.relativePath,
@@ -1797,7 +2022,38 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
-        const refreshed = await refreshVaultNotes(result.relativePath, false);
+        // Realign liveEditorLastNoteId BEFORE the post-save refresh so the
+        // upcoming renderEditor sees the same id and noops. That preserves
+        // the live CM6 EditorState (with its undo/redo history) across the
+        // id change AND prevents the per-note view-state capture/restore
+        // from running with stale ids. Fires on ANY id change — both rename
+        // (vault:a.md → vault:b.md) and draft → vault (draft:N → vault:foo.md).
+        if (result.ok && result.relativePath) {
+          const oldId = selectedNote.id;
+          const newId = `vault:${result.relativePath}`;
+          if (oldId !== newId) {
+            // Drop the now-defunct CM6 cache entry. The live editor state is
+            // preserved via the liveEditorLastNoteId realignment below; no
+            // migration of noteEditorStates needed.
+            noteEditorStates.delete(oldId);
+            // Migrate per-note view state (mode + scrollRatio) so the next
+            // visit to this note (under its new id) restores the user's
+            // saved view rather than resetting to the default Write/0.
+            if (noteViewStates.has(oldId)) {
+              noteViewStates.set(newId, noteViewStates.get(oldId));
+              noteViewStates.delete(oldId);
+            }
+            liveEditorLastNoteId = newId;
+          }
+        }
+
+        const refreshed = await refreshVaultNotes(
+          result.relativePath,
+          false,
+          preservedDrafts,
+          preservedVaultEdits,
+          true,
+        );
 
         if (refreshed) {
           setStatus('ready', `Saved: ${result.fileName}`);
@@ -1831,6 +2087,8 @@ Today the app reacts better to real external MCP ingests.
         }
 
         notes = notes.filter((note) => note.id !== selectedNote.id);
+        noteEditorStates.delete(selectedNote.id);
+        noteViewStates.delete(selectedNote.id);
 
         if (notes.length === 0) {
           const fallbackNote = {
@@ -1892,6 +2150,11 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
+        // Symmetric cleanup: drop the deleted note's per-note caches before
+        // the post-delete refresh re-loads the notes list.
+        noteEditorStates.delete(selectedNote.id);
+        noteViewStates.delete(selectedNote.id);
+
         const refreshed = await refreshVaultNotes('', false);
 
         if (refreshed) {
@@ -1936,70 +2199,276 @@ Today the app reacts better to real external MCP ingests.
       });
 
       // ── Boot the Markdown editor ──────────────────────────────────────────
-      // HybridWriteView is the user-visible Write surface (raw + per-block live preview).
+      // The selected Write engine is mounted in hybridWritePane.
       // Toast UI is mounted as the Preview renderer (and stays in sync via onChange).
       // Explicit element lookups — do not rely on browsers' implicit id globals.
       const hybridWritePane    = document.getElementById('hybridWritePane');
       const toastPreviewMount  = document.getElementById('toastPreviewMount');
       const writeModeButton    = document.getElementById('writeModeButton');
       const previewModeButton  = document.getElementById('previewModeButton');
+      const selectedWriteEngine = window.WriteEngine.resolveWriteEngine({
+        search: window.location.search,
+        storage: window.localStorage,
+      });
+
+      if (window.console && typeof window.console.debug === 'function') {
+        window.console.debug('[write-engine]', selectedWriteEngine);
+      }
 
       const _toastuiInstance = new window.ToastuiEditor(
         window.makeEditorConfig(toastPreviewMount)
       );
 
-      const hybridWrite = new window.HybridWriteView(hybridWritePane, {
-        onChange(text) {
-          _toastuiInstance.setMarkdown(text || '');
-          const selectedNote = getSelectedNote();
-          if (!selectedNote) return;
-          selectedNote.body = text;
-          renderNoteList();
-          setStatus('draft', 'Draft');
-        },
-      });
+      // Disable Toast UI's internal Editor↔Preview scroll sync. Toast UI's
+      // ScrollSync2 (lib/toastui-bundle.js) runs an animated scrollTop write
+      // loop (`setTimeout(step, 1)` driven by ANIMATION_TIME = 100 ms),
+      // started 200 ms after every `afterPreviewRender`. It uses the hidden
+      // markdown editor's cursor as the scroll target, so on every
+      // setMarkdown the preview gets scrolled to end-of-document — fighting
+      // any restore we attempt and stomping it for the full 100 ms anim.
+      // Our app uses Toast UI only as a Preview *renderer*; we own all
+      // Write/Preview scroll state via noteViewStates +
+      // applyPreviewScrollRatioWithRetries, so Toast UI's editor↔preview
+      // scroll-sync is purely interference. Replacing the two inner methods
+      // with no-ops short-circuits both write paths (the afterPreviewRender
+      // timer and the scroll-event listener) without touching any
+      // EventEmitter listener registration — avoiding the collateral
+      // removeEventHandler('scroll') damage that scrollSync.destroy() would
+      // cause to CodeBlockView2's bindEvent. toggleScrollSync alone would
+      // not work: it gates only the scroll-event path.
+      if (_toastuiInstance && _toastuiInstance.scrollSync) {
+        _toastuiInstance.scrollSync.syncPreviewScrollTop = function () {};
+        _toastuiInstance.scrollSync.syncEditorScrollTop  = function () {};
+      }
 
-      // Thin adapter — keeps all getText()/setText() call sites unchanged.
-      liveEditorInstance = {
-        getText() { return hybridWrite.getText(); },
-        setText(text) {
-          hybridWrite.exitWriteMode();
-          const raw = text || '';
-          hybridWrite.setText(raw);
-          _toastuiInstance.setMarkdown(raw);
-        },
-        exitWriteMode() { hybridWrite.exitWriteMode(); },
-      };
+      function handleWriteChange(text) {
+        _toastuiInstance.setMarkdown(text || '');
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
+        selectedNote.body = text;
+        renderNoteList();
+        setStatus('draft', 'Draft');
+      }
+
+      if (selectedWriteEngine === 'cm6') {
+        const cm6Write = window.Cm6WriteView.createCm6WriteView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+        });
+
+        // CM6 exposes opaque getState/setState so the host can cache and
+        // restore EditorState per note id. This is what makes Cmd+Z / Cmd+Shift+Z
+        // note-local across A → B → A switches: returning to a cached note
+        // restores its history-bearing state instead of rebuilding via setText.
+        liveEditorInstance = {
+          getText() { return cm6Write.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6Write.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6Write.getState(); },
+          setState(state) {
+            cm6Write.setState(state);
+            _toastuiInstance.setMarkdown(cm6Write.getText());
+          },
+          exitWriteMode() { cm6Write.exitWriteMode(); },
+        };
+      } else {
+        const hybridWrite = new window.HybridWriteView(hybridWritePane, {
+          onChange: handleWriteChange,
+        });
+
+        // Thin adapter — keeps all getText()/setText() call sites unchanged.
+        // Hybrid intentionally does NOT expose getState/setState: its undo is
+        // per-textarea browser-native only, with no model-level history stack
+        // to cache. The host treats their absence as "this engine does not
+        // support note-local undo restore" and falls back to setText(). A
+        // proper Hybrid undo would require redesigning the rendering model,
+        // which is out of scope here and overlaps with engine retirement.
+        liveEditorInstance = {
+          getText() { return hybridWrite.getText(); },
+          setText(text) {
+            hybridWrite.exitWriteMode();
+            const raw = text || '';
+            hybridWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          exitWriteMode() { hybridWrite.exitWriteMode(); },
+        };
+      }
+
+      function getCurrentEditorText() {
+        if (!liveEditorInstance) {
+          return '';
+        }
+        return liveEditorInstance.getText();
+      }
 
       // ── Write / Preview mode toggle ──────────────────────────────────────
+      // Scroll-position sync is ratio-based. The apply step runs across TWO
+      // animation frames (scheduleApplyAfterLayout) so it lands AFTER Toast
+      // UI's own scroll-after-setMarkdown logic — otherwise our applyScrollRatio
+      // gets stomped on Write→Preview, which is the bug-1 symptom.
+      // captureScrollRatio / applyScrollRatio live in lib/scroll-sync.js and
+      // no-op safely on missing or short containers.
+      const _captureScrollRatio = window.ScrollSync ? window.ScrollSync.captureScrollRatio : null;
+      const _applyScrollRatio   = window.ScrollSync ? window.ScrollSync.applyScrollRatio   : null;
+
+      function previewScrollEl() {
+        return toastPreviewMount.querySelector('.toastui-editor-md-preview');
+      }
+
+      function activeScrollEl() {
+        return currentMode === 'preview' ? previewScrollEl() : hybridWritePane;
+      }
+
+      // Double rAF: lets layout commit AND lets Toast UI's own
+      // scroll-after-render settle before we apply. With single rAF, our
+      // apply ran in the same pass as Toast UI's first-frame stub and got
+      // overridden in the next frame. Two frames put us last.
+      function scheduleApplyAfterLayout(cb) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(cb);
+        });
+      }
+
+      // Bounded-retry Preview scroll restore. Toast UI's ScrollSync2
+      // schedules a 200 ms setTimeout off `afterPreviewRender` that scrolls
+      // the preview to the (hidden) MD editor's cursor — typically
+      // end-of-document — and stomps any earlier scroll write. Double-rAF
+      // applies at ~32 ms and loses; we apply at multiple tiers so the
+      // last one runs after the 200 ms timer and wins:
+      //   tier 1: requestAnimationFrame   (~16 ms)
+      //   tier 2: requestAnimationFrame   (~32 ms)  — same coverage
+      //                                   the previous double-rAF gave
+      //   tier 3: setTimeout(250 ms)      (50 ms past Toast UI's 200 ms)
+      // Each tier re-queries previewScrollEl() so we always target the
+      // live DOM node (defensive — Toast UI updates innerHTML rather than
+      // replacing .toastui-editor-md-preview, but re-querying is cheap).
+      // applyScrollRatio is idempotent (same ratio, same target); duplicate
+      // applies are harmless.
+      //
+      // Stale-timer protection: each call increments a generation counter;
+      // each scheduled apply captures its generation and bails if a newer
+      // call has happened. Each apply also bails if `currentMode` is no
+      // longer 'preview' — without this guard, a stale tier-3 (250 ms) for
+      // an old note could fire after the user has toggled to Write or
+      // switched to a Write-mode note, re-querying previewScrollEl() and
+      // writing the OLD ratio onto the (now-hidden) preview pane.
+      let _previewScrollApplyGeneration = 0;
+      function applyPreviewScrollRatioWithRetries(ratio) {
+        _previewScrollApplyGeneration += 1;
+        const generation = _previewScrollApplyGeneration;
+        const apply = function () {
+          if (generation !== _previewScrollApplyGeneration) return;
+          if (currentMode !== 'preview') return;
+          if (!_applyScrollRatio) return;
+          // Toast UI's DOM nests .toastui-editor-contents inside
+          // .toastui-editor-md-preview. Either can be the actual visible
+          // scroll container depending on host CSS / layout. Write to
+          // both — applyScrollRatio is short-target safe, so a write to
+          // a non-scrollable element is a harmless no-op.
+          const outer = previewScrollEl();
+          _applyScrollRatio(outer, ratio);
+          if (outer) {
+            const inner = outer.querySelector('.toastui-editor-contents');
+            if (inner) _applyScrollRatio(inner, ratio);
+          }
+        };
+        requestAnimationFrame(apply);
+        requestAnimationFrame(function () { requestAnimationFrame(apply); });
+        setTimeout(apply, 250);
+      }
+
+      // setActiveMode owns the DOM/button mutations and the Toast UI preview
+      // tab activation. currentMode is the single source of truth. The DOM
+      // class set is always re-applied (idempotent) so callers can rely on
+      // the page reflecting `mode` regardless of how the page was last left.
+      // Only the eventEmitter `changePreviewTabPreview` notification is gated
+      // on an actual mode change to avoid spamming Toast UI.
+      function setActiveMode(mode) {
+        const wasChange = currentMode !== mode;
+        currentMode = mode;
+        if (mode === 'preview') {
+          hybridWritePane.classList.add('is-hidden');
+          toastPreviewMount.classList.add('is-visible');
+          writeModeButton.classList.remove('mode-button-active');
+          previewModeButton.classList.add('mode-button-active');
+          writeModeButton.setAttribute('aria-selected', 'false');
+          previewModeButton.setAttribute('aria-selected', 'true');
+          if (wasChange && _toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
+            _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
+          }
+        } else {
+          hybridWritePane.classList.remove('is-hidden');
+          toastPreviewMount.classList.remove('is-visible');
+          writeModeButton.classList.add('mode-button-active');
+          previewModeButton.classList.remove('mode-button-active');
+          writeModeButton.setAttribute('aria-selected', 'true');
+          previewModeButton.setAttribute('aria-selected', 'false');
+        }
+      }
+
+      // Capture the current note's mode + scroll ratio under its id. Called
+      // when leaving a note (renderEditor's switch branch). Skip if the
+      // outgoing note is no longer in `notes` — e.g. it was just deleted, or
+      // an external watcher event dropped it. Without this guard, a
+      // post-delete renderEditor pass would re-create a stale entry under
+      // the deleted note's id, which would then leak its mode/scroll into
+      // any future note that takes the same id (e.g. a recreated file at the
+      // same relativePath). Mirrors the same `notes.find` guard used by the
+      // CM6 EditorState cache above.
+      function captureNoteViewState(noteId) {
+        if (!noteId) return;
+        if (!notes.some((n) => n.id === noteId)) return;
+        const ratio = _captureScrollRatio ? _captureScrollRatio(activeScrollEl()) : 0;
+        noteViewStates.set(noteId, { mode: currentMode, scrollRatio: ratio });
+      }
+
+      // Restore the saved mode + scroll ratio for a note. Defaults to
+      // { mode: 'write', scrollRatio: 0 } for never-visited notes. Preview
+      // restores route through applyPreviewScrollRatioWithRetries so they
+      // win against Toast UI's 200 ms afterPreviewRender setTimeout; Write
+      // restores keep the lighter scheduleApplyAfterLayout (no Toast UI
+      // interference on that surface).
+      function restoreNoteViewState(noteId) {
+        const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
+        setActiveMode(saved.mode);
+        if (saved.mode === 'preview') {
+          applyPreviewScrollRatioWithRetries(saved.scrollRatio);
+        } else {
+          scheduleApplyAfterLayout(function () {
+            if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, saved.scrollRatio);
+          });
+        }
+      }
+
       function showWriteMode() {
-        hybridWritePane.classList.remove('is-hidden');
-        toastPreviewMount.classList.remove('is-visible');
-        writeModeButton.classList.add('mode-button-active');
-        previewModeButton.classList.remove('mode-button-active');
-        writeModeButton.setAttribute('aria-selected', 'true');
-        previewModeButton.setAttribute('aria-selected', 'false');
+        if (currentMode === 'write') return;
+        // Capture from the Preview scroll target BEFORE switching surfaces.
+        const ratio = _captureScrollRatio ? _captureScrollRatio(previewScrollEl()) : 0;
+        setActiveMode('write');
+        scheduleApplyAfterLayout(function () {
+          if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, ratio);
+        });
       }
 
       function showPreviewMode() {
-        // Flush in-progress active-block edits so getText() returns the
-        // committed source, then mirror it to Toast UI before activating
-        // its preview pane.
+        if (currentMode === 'preview') return;
+        // Capture FIRST so the Write pane's measurements are still live —
+        // before exitWriteMode swaps the active textarea or setMarkdown
+        // re-renders Toast UI.
+        const ratio = _captureScrollRatio ? _captureScrollRatio(hybridWritePane) : 0;
+
         liveEditorInstance.exitWriteMode();
-        _toastuiInstance.setMarkdown(hybridWrite.getText());
-        // Activate Toast UI's preview pane in tab-style mode. This is the
-        // canonical internal event Toast UI dispatches when the user clicks
-        // its own Preview tab; emitting it ensures the preview pane (not the
-        // markdown editor pane) is the active sub-view inside toastPreviewMount.
-        if (_toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
-          _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
-        }
-        hybridWritePane.classList.add('is-hidden');
-        toastPreviewMount.classList.add('is-visible');
-        writeModeButton.classList.remove('mode-button-active');
-        previewModeButton.classList.add('mode-button-active');
-        writeModeButton.setAttribute('aria-selected', 'false');
-        previewModeButton.setAttribute('aria-selected', 'true');
+        _toastuiInstance.setMarkdown(getCurrentEditorText());
+        setActiveMode('preview');
+
+        // Bounded-retry apply to win against Toast UI's 200 ms
+        // afterPreviewRender setTimeout, with dual-target writes
+        // (.toastui-editor-md-preview + nested .toastui-editor-contents).
+        applyPreviewScrollRatioWithRetries(ratio);
       }
 
       writeModeButton.addEventListener('click', showWriteMode);

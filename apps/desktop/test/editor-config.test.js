@@ -198,11 +198,12 @@ test('saveCurrentNote calls exitWriteMode before reading the body', () => {
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // Within saveCurrentNote, exitWriteMode (on hybridWrite or liveEditorInstance)
-  // must be called before liveEditorInstance.getText() is used as body.
+  // Within saveCurrentNote, exitWriteMode must happen before reading
+  // liveEditorInstance.getText(); the saved body can then be reused so the
+  // note state and save payload share the same raw Markdown source.
   assert.match(
     html,
-    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?body:\s*liveEditorInstance\.getText/
+    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?const\s+savedBody\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?body:\s*savedBody/
   );
 });
 
@@ -234,12 +235,10 @@ test('Preview toggle activates Toast UI preview pane (not just mounts it)', () =
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // Toast UI's preview pane must be explicitly activated. We use the canonical
-  // internal event 'changePreviewTabPreview' for tab-style preview mode.
-  assert.match(
-    html,
-    /function\s+showPreviewMode\s*\([\s\S]*?changePreviewTabPreview/
-  );
+  // Toast UI's preview pane must be explicitly activated via the canonical
+  // 'changePreviewTabPreview' event. Now lives inside setActiveMode (owned
+  // by the per-note view-state model); regex covers either path.
+  assert.match(html, /changePreviewTabPreview/);
 });
 
 test('Preview toggle hides hybridWritePane and shows toastPreviewMount', () => {
@@ -247,9 +246,16 @@ test('Preview toggle hides hybridWritePane and shows toastPreviewMount', () => {
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
+  // The class mutations now live inside setActiveMode (idempotent class
+  // synchronization owned by the per-note view-state model). Verify the
+  // preview branch exists and toggles both panes correctly.
   assert.match(
     html,
-    /function\s+showPreviewMode\s*\([\s\S]*?hybridWritePane\.classList\.add\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.add\(\s*['"]is-visible['"]\s*\)/
+    /setActiveMode\s*\(\s*['"]preview['"]\s*\)/
+  );
+  assert.match(
+    html,
+    /function\s+setActiveMode[\s\S]*?if\s*\(\s*mode\s*===\s*['"]preview['"]\s*\)\s*\{[\s\S]*?hybridWritePane\.classList\.add\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.add\(\s*['"]is-visible['"]\s*\)/
   );
 });
 
@@ -260,7 +266,11 @@ test('Write toggle shows hybridWritePane and hides toastPreviewMount', () => {
   );
   assert.match(
     html,
-    /function\s+showWriteMode\s*\([\s\S]*?hybridWritePane\.classList\.remove\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.remove\(\s*['"]is-visible['"]\s*\)/
+    /setActiveMode\s*\(\s*['"]write['"]\s*\)/
+  );
+  assert.match(
+    html,
+    /function\s+setActiveMode[\s\S]*?\}\s*else\s*\{[\s\S]*?hybridWritePane\.classList\.remove\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.remove\(\s*['"]is-visible['"]\s*\)/
   );
 });
 
@@ -425,5 +435,199 @@ test('note-list click writes flushed text back to the outgoing note before chang
   assert.match(
     html,
     /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?selectedNoteId\s*=\s*note\.id/
+  );
+});
+
+// ── Bug #2: scroll-position sync between Write and Preview ─────────────────
+// The mode toggle now captures a scroll ratio from the source surface and
+// re-applies it to the target surface inside requestAnimationFrame. The
+// pure helpers (captureScrollRatio / applyScrollRatio) live in
+// lib/scroll-sync.js and are unit-tested separately. These regex tests
+// pin the wiring inside index.html.
+
+function readIndexHtml() {
+  return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+}
+
+test('index.html loads scroll-sync lib before the inline boot script', () => {
+  const html = readIndexHtml();
+  const tag = '<script src="./lib/scroll-sync.js"></script>';
+  const bootMarker = 'Boot the Markdown editor';
+  assert.ok(html.includes(tag), 'scroll-sync.js script tag must be present');
+  assert.ok(
+    html.indexOf(tag) < html.indexOf(bootMarker),
+    'scroll-sync.js must load before the inline boot script'
+  );
+});
+
+test('showPreviewMode captures from hybridWritePane BEFORE setMarkdown', () => {
+  const html = readIndexHtml();
+  // Inside showPreviewMode, the scroll capture must reference hybridWritePane
+  // and must come earlier in the function body than the setMarkdown call.
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*hybridWritePane\s*\)[\s\S]*?_toastuiInstance\.setMarkdown\s*\(/
+  );
+});
+
+test('showPreviewMode applies the ratio to .toastui-editor-md-preview after layout', () => {
+  const html = readIndexHtml();
+  // The deferred apply now routes through applyPreviewScrollRatioWithRetries
+  // (which schedules rAF + double-rAF + setTimeout(250ms)). Regex covers
+  // any of: bounded-retry helper, scheduleApplyAfterLayout, direct rAF.
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?(?:applyPreviewScrollRatioWithRetries|scheduleApplyAfterLayout|requestAnimationFrame)\s*\(/
+  );
+});
+
+test('showWriteMode captures from the preview scroll element', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*(?:previewScrollEl\s*\(\s*\)|toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\))\s*\)/
+  );
+});
+
+test('showWriteMode applies the ratio to hybridWritePane after layout', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showWriteMode\s*\([\s\S]*?(?:scheduleApplyAfterLayout|requestAnimationFrame)\s*\([\s\S]*?applyScrollRatio\s*\(\s*hybridWritePane\s*,/
+  );
+});
+
+// ── Bug #2 follow-up: per-note view state + double-rAF apply (supplemental) ──
+// The behavior of these features is exercised by the renderer-boot tests;
+// the assertions below pin the static structure so future refactors don't
+// silently break the per-note model.
+
+test('renderer declares a per-note view-state map', () => {
+  const html = readIndexHtml();
+  assert.match(html, /const\s+noteViewStates\s*=\s*new\s+Map\s*\(\s*\)/,
+    'noteViewStates Map must be declared at renderer scope');
+});
+
+test('apply step uses double requestAnimationFrame to win against post-render scrollers', () => {
+  const html = readIndexHtml();
+  // scheduleApplyAfterLayout (or equivalent) must nest two rAFs.
+  assert.match(
+    html,
+    /requestAnimationFrame\s*\([\s\S]{0,200}requestAnimationFrame/,
+    'double-rAF pattern must appear so apply lands AFTER post-render scrolls'
+  );
+});
+
+test('renderEditor switch branch captures outgoing AND restores incoming view state', () => {
+  const html = readIndexHtml();
+  // Inside renderEditor, the order of operations must be:
+  //   captureNoteViewState(liveEditorLastNoteId)  ← outgoing capture
+  //   liveEditorLastNoteId = note.id              ← id change
+  //   ... setText / setState ...
+  //   restoreNoteViewState(note.id)               ← incoming restore
+  assert.match(
+    html,
+    /function\s+renderEditor\s*\([\s\S]*?captureNoteViewState\s*\(\s*liveEditorLastNoteId\s*\)[\s\S]*?liveEditorLastNoteId\s*=\s*note\.id[\s\S]*?restoreNoteViewState\s*\(\s*note\.id\s*\)/
+  );
+});
+
+test('saveCurrentNote migrates noteViewStates on any id change (rename or draft → vault)', () => {
+  const html = readIndexHtml();
+  // The id-change block must migrate noteViewStates alongside the existing
+  // noteEditorStates cleanup. The condition must NOT be gated solely on
+  // `result.renamed` so draft → vault id changes also migrate.
+  assert.match(
+    html,
+    /noteEditorStates\.delete\s*\(\s*oldId\s*\)[\s\S]{0,400}noteViewStates\.set\s*\(\s*newId\s*,\s*noteViewStates\.get\s*\(\s*oldId\s*\)\s*\)[\s\S]{0,200}noteViewStates\.delete\s*\(\s*oldId\s*\)/
+  );
+});
+
+// ── Bug #2 timing follow-up: bounded-retry Preview restore (supplemental) ──
+// Manual QA is the primary gate for the real Toast UI 200 ms timer.
+// These regex assertions pin the static structure: the helper exists, both
+// Preview-restore call sites use it, and the helper schedules a setTimeout
+// past Toast UI's 200 ms afterPreviewRender timer.
+
+test('renderer defines applyPreviewScrollRatioWithRetries helper', () => {
+  const html = readIndexHtml();
+  assert.match(html, /function\s+applyPreviewScrollRatioWithRetries\s*\(/,
+    'bounded-retry Preview helper must be defined');
+});
+
+test('showPreviewMode uses applyPreviewScrollRatioWithRetries', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/,
+    'within-note Write→Preview must use the bounded-retry helper'
+  );
+});
+
+test('restoreNoteViewState uses applyPreviewScrollRatioWithRetries for the preview branch', () => {
+  const html = readIndexHtml();
+  // Inside restoreNoteViewState, the preview branch must route through the
+  // bounded-retry helper. The Write branch keeps scheduleApplyAfterLayout.
+  assert.match(
+    html,
+    /function\s+restoreNoteViewState\s*\([\s\S]*?saved\.mode\s*===\s*['"]preview['"][\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/
+  );
+});
+
+test('renderer disables Toast UI internal scroll-sync after _toastuiInstance is constructed', () => {
+  const html = readIndexHtml();
+  // Toast UI's ScrollSync2 runs an animated scrollTop write loop on a
+  // setTimeout-driven step every ~1 ms across ANIMATION_TIME = 100 ms,
+  // triggered 200 ms after every afterPreviewRender. We neutralize it by
+  // replacing the two inner methods with no-ops directly after the editor
+  // is constructed. Pin both overrides AND their order relative to the
+  // construction so a future refactor can't silently delete them.
+  assert.match(
+    html,
+    /const\s+_toastuiInstance\s*=\s*new\s+window\.ToastuiEditor[\s\S]*?_toastuiInstance\.scrollSync\.syncPreviewScrollTop\s*=\s*function\s*\(\s*\)\s*\{\s*\}/,
+    'syncPreviewScrollTop must be replaced with a no-op after _toastuiInstance construction'
+  );
+  assert.match(
+    html,
+    /const\s+_toastuiInstance\s*=\s*new\s+window\.ToastuiEditor[\s\S]*?_toastuiInstance\.scrollSync\.syncEditorScrollTop\s*=\s*function\s*\(\s*\)\s*\{\s*\}/,
+    'syncEditorScrollTop must be replaced with a no-op after _toastuiInstance construction'
+  );
+});
+
+test('applyPreviewScrollRatioWithRetries writes the ratio to .toastui-editor-contents in addition to .toastui-editor-md-preview', () => {
+  const html = readIndexHtml();
+  // Manual QA showed the visible scroll surface in our embedding is the
+  // nested `.toastui-editor-contents`, not always the outer `.md-preview`.
+  // The helper must apply the ratio to BOTH so whichever is actually
+  // scrollable absorbs the meaningful write. applyScrollRatio short-target
+  // safety makes the no-op case harmless.
+  assert.match(
+    html,
+    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]*?querySelector\s*\(\s*['"]\.toastui-editor-contents['"]\s*\)[\s\S]*?_applyScrollRatio\s*\(/,
+    'helper must locate .toastui-editor-contents and apply the ratio to it'
+  );
+});
+
+test('applyPreviewScrollRatioWithRetries schedules a setTimeout past Toast UI 200ms timer', () => {
+  const html = readIndexHtml();
+  // The tier-3 setTimeout must use a delay > 200 ms so it fires AFTER Toast
+  // UI's ScrollSync2 afterPreviewRender setTimeout(..., 200). Non-greedy
+  // search picks the FIRST qualifying setTimeout after the helper opens.
+  assert.match(
+    html,
+    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]*?setTimeout\s*\([^,]+,\s*(?:2(?:[1-9][0-9]|0[1-9])|[3-9][0-9]{2}|[1-9][0-9]{3,})/,
+    'tier-3 setTimeout delay must exceed 200ms (Toast UI afterPreviewRender timer)'
+  );
+});
+
+test('deleteCurrentNote paths clean up noteViewStates symmetrically', () => {
+  const html = readIndexHtml();
+  // Both delete paths (deleteDraftNote and deleteFileBackedNote) must drop
+  // the per-note view state alongside the noteEditorStates cleanup.
+  const draftMatches = html.match(
+    /noteEditorStates\.delete\s*\(\s*selectedNote\.id\s*\)\s*;\s*noteViewStates\.delete\s*\(\s*selectedNote\.id\s*\)/g
+  );
+  assert.ok(
+    draftMatches && draftMatches.length >= 2,
+    `expected at least 2 paired cleanups (draft + vault delete), found ${draftMatches ? draftMatches.length : 0}`
   );
 });

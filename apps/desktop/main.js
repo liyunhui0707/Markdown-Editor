@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+const FileName = require('./lib/file-name');
+
 let mainWindow = null;
 let currentVaultWatcher = null;
 let currentWatchedVaultPath = '';
@@ -22,13 +24,11 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 }
 
-function sanitizeFileName(name) {
-  return name
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-}
+// Filename derivation + save orchestration live in the shared FileName helper
+// so the renderer pre-check and this main-process guard cannot drift out of
+// sync. performSaveNote owns the disk-side write semantics (`wx` for any path
+// that would create a new file; plain write only for vault save-in-place).
+const performSaveNote = FileName.performSaveNote;
 
 function ensureVaultExists(vaultPath) {
   if (!fs.existsSync(vaultPath)) {
@@ -188,6 +188,10 @@ function parseMarkdownFile(relativePath, content) {
   return {
     id: `vault:${relativePath}`,
     title,
+    // Baseline against which the renderer detects an intentional title change.
+    // Equal to `title` at load time; the rename gate in checkSaveCollision
+    // fires only when note.title diverges from note.loadedTitle.
+    loadedTitle: title,
     body,
     meta: aiImported ? 'AI import note' : 'File note',
     fileName,
@@ -493,33 +497,20 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
-    let relativePath = '';
-
-    if (note.source === 'vault' && note.relativePath) {
-      relativePath = note.relativePath;
-    } else {
-      const fileNameBase = sanitizeFileName(safeTitle) || 'untitled-note';
-      relativePath = `${fileNameBase}.md`;
-    }
-
-    const fullPath = path.join(vaultPath, relativePath);
-    const parentDir = path.dirname(fullPath);
-
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-    }
-
     const frontmatterText = serializeFrontmatter(note.frontmatter);
     const markdownContent = `${frontmatterText}# ${safeTitle}\n\n${note.body || ''}`;
 
-    fs.writeFileSync(fullPath, markdownContent, 'utf8');
-
-    return {
-      ok: true,
-      path: fullPath,
-      fileName: path.basename(relativePath),
-      relativePath
-    };
+    // performSaveNote runs the rename gate, the duplicate-name check, and the
+    // no-overwrite disk write semantics in one call. It returns the same
+    // shape of response the IPC contract has always produced, with optional
+    // additive fields (`renamed`, `oldRelativePath`) on a successful rename.
+    return performSaveNote({
+      vaultPath,
+      note,
+      content: markdownContent,
+      fs,
+      path,
+    });
   } catch (error) {
     return {
       ok: false,
