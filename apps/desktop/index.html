@@ -6,18 +6,46 @@
     <title>Markdown Vault App</title>
     <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
     <style>
-      /* ── Design tokens ───────────────────────────────────────────────── */
+      /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ── */
       :root {
-        --bg:              #f5f4f1;   /* warm off-white, like Obsidian's default */
-        --surface:         #ffffff;   /* panel / card surface */
-        --surface-muted:   #f0efe9;   /* sidebar background */
-        --surface-sidebar: #f2f1ec;   /* nav + notes panel background */
-        --border:          #e5e3dc;   /* standard border */
-        --border-subtle:   #edecea;   /* very quiet dividers */
-        --text:            #2d2d2d;   /* body text */
-        --text-muted:      #999690;   /* secondary / meta text */
-        --accent:          #7c3aed;   /* purple — used sparingly */
-        --accent-bg:       rgba(124, 58, 237, 0.07);
+        /* Surfaces */
+        --bg:              #f5f3ee;   /* app background — warm paper */
+        --surface:         #fbfaf6;   /* editor paper (off pure white) */
+        --surface-sidebar: #efede6;   /* nav + notes panel background */
+        --surface-chrome:  #f0eee8;   /* topbar / status bar / toolbars */
+        --surface-muted:   #f0efe9;   /* hover / pressed states */
+
+        /* Borders */
+        --border:          #e2dfd6;   /* panel / input edges */
+        --border-subtle:   #e9e6dd;   /* inner dividers, hairlines */
+
+        /* Text */
+        --text:            #26241f;   /* primary ink */
+        --text-muted:      #8a8678;   /* secondary labels */
+        --text-faint:      #b3ad9d;   /* meta — dates, counts, kbd */
+
+        /* Accent (brand purple, slightly desaturated) */
+        --accent:          #6d4ae0;
+        --accent-bg:       rgba(109, 74, 224, 0.08);
+        --accent-border:   rgba(109, 74, 224, 0.28);
+
+        /* Status (semantic) */
+        --success:         #3f7a4f;
+        --warning:         #a86a2e;
+        --danger:          #a8423a;
+
+        /* Typography */
+        --font-ui:     "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        --font-prose:  "iA Writer Quattro V", "Iowan Old Style", Charter, Georgia, ui-serif, serif;
+        --font-mono:   "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+        --font-editor: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+
+        /* Radius */
+        --radius-sm: 6px;
+        --radius-md: 8px;
+
+        /* Elevation */
+        --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.08);
       }
 
       * {
@@ -26,7 +54,7 @@
 
       body {
         margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: var(--font-ui);
         background: var(--bg);
         color: var(--text);
         height: 100vh;
@@ -77,10 +105,10 @@
         color: var(--text-muted);
       }
 
-      .status-draft   { color: #92400e; font-weight: 600; }
-      .status-ready   { color: #166534; font-weight: 600; }
-      .status-saving  { color: var(--accent); font-weight: 600; }
-      .status-error   { color: #991b1b; font-weight: 600; }
+      .status-draft   { color: var(--warning); font-weight: 600; }
+      .status-ready   { color: var(--success); font-weight: 600; }
+      .status-saving  { color: var(--accent);  font-weight: 600; }
+      .status-error   { color: var(--danger);  font-weight: 600; }
 
       /* Buttons and controls */
       .action-button,
@@ -89,7 +117,7 @@
         border: 1px solid var(--border);
         background: var(--surface);
         color: var(--text);
-        border-radius: 7px;
+        border-radius: var(--radius-sm);
         padding: 5px 10px;
         font-size: 12px;
         font-weight: 500;
@@ -508,7 +536,7 @@
         padding: 2px 0 2px 14px;
         font-size: 15px;
         line-height: 1.8;
-        font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        font-family: var(--font-editor);
         background: transparent;
         color: #2d2d2d;
         box-shadow: none;
@@ -520,6 +548,7 @@
       /* ── Markdown typography — readable, document-grade ─────────────── */
 
       .preview-markdown {
+        font-family: var(--font-prose);
         font-size: 16px;
         line-height: 1.8;
         color: #2d2d2d;
@@ -584,7 +613,7 @@
         padding: 1px 6px;
         border-radius: 4px;
         font-size: 0.88em;
-        font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        font-family: var(--font-mono);
         color: #6d28d9;
       }
 
@@ -604,6 +633,7 @@
         padding: 0;
         color: #2d2d2d;
         font-size: 0.9em;
+        font-family: var(--font-mono);
       }
 
       /* Blockquote */
@@ -635,8 +665,8 @@
         left: 0;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 8px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-pop);
         padding: 6px;
         z-index: 100;
         min-width: 190px;
@@ -670,7 +700,7 @@
       }
 
       .action-button--destructive {
-        color: #991b1b !important;
+        color: var(--danger) !important;
       }
 
       .action-button--destructive:hover {
