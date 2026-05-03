@@ -174,11 +174,28 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
   // toastPreviewMount.querySelector('.toastui-editor-md-preview'). The harness
   // simulates that lookup by attaching a stand-in scroll element and a
   // minimal querySelector that returns it for the known selector.
+  //
+  // Toast UI's real DOM contains a nested .toastui-editor-contents element
+  // INSIDE .toastui-editor-md-preview that ends up being the visible
+  // scroller in our embedding. The harness mirrors that nesting: the outer
+  // stand-in exposes querySelector('.toastui-editor-contents') so the
+  // production code can find and write the ratio to both surfaces.
+  const _previewContentsEl = makeElement('div');
+  _previewContentsEl.classList = makeClassList(_previewContentsEl);
+  _previewContentsEl.scrollTop = 0;
+  _previewContentsEl.scrollHeight = 0;
+  _previewContentsEl.clientHeight = 0;
+
   const _previewScrollEl = makeElement('div');
   _previewScrollEl.classList = makeClassList(_previewScrollEl);
   _previewScrollEl.scrollTop = 0;
   _previewScrollEl.scrollHeight = 0;
   _previewScrollEl.clientHeight = 0;
+  _previewScrollEl._previewContentsEl = _previewContentsEl;
+  _previewScrollEl.querySelector = function (selector) {
+    return selector === '.toastui-editor-contents' ? _previewContentsEl : null;
+  };
+
   const _toastPreviewMount = elements.get('toastPreviewMount');
   _toastPreviewMount.scrollTop = 0;
   _toastPreviewMount.scrollHeight = 0;
@@ -2776,6 +2793,51 @@ test('bug #2: cross-note Preview restore wins against Toast UI 200ms afterPrevie
   // 0.3 * (1000 - 400) = 180. NOT 600 (the simulated bottom).
   assert.equal(previewEl.scrollTop, 180,
     "A's saved Preview scroll position must be restored after the Toast UI 200ms scroll fires");
+});
+
+test('bug #2: Preview restore writes the ratio to BOTH .toastui-editor-md-preview AND .toastui-editor-contents', async () => {
+  // Manual QA showed the visible Preview scroller in the real Electron app
+  // is `.toastui-editor-contents` (nested inside `.toastui-editor-md-preview`)
+  // — not always the outer element Toast UI's own ScrollSync2 writes to.
+  // Since which element actually scrolls is environment-dependent, the
+  // helper writes the ratio to BOTH; applyScrollRatio is short-target safe
+  // so writes to a non-scrollable element are harmless no-ops.
+  const { calls, elements, flushTimers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushTimers();
+
+  // Write at 40% (240 / 600).
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  // Outer Preview surface: distinct dimensions from the inner. Max=600.
+  const outerPreview = elements.get('toastPreviewMount')._previewScrollEl;
+  outerPreview.scrollHeight = 1000;
+  outerPreview.clientHeight = 400;
+  outerPreview.scrollTop    = 0;
+
+  // Inner Preview contents: different dimensions to prove BOTH receive a
+  // ratio-correct write (not the same pixel value as the outer). Max=400.
+  const innerContents = outerPreview._previewContentsEl;
+  innerContents.scrollHeight = 800;
+  innerContents.clientHeight = 400;
+  innerContents.scrollTop    = 0;
+
+  elements.get('previewModeButton').fire('click');
+  flushTimers();
+
+  // Outer: 0.4 * (1000 - 400) = 240.
+  assert.equal(outerPreview.scrollTop, 240,
+    '.toastui-editor-md-preview must receive ratio applied against its own scrollable range');
+  // Inner: 0.4 * (800 - 400) = 160. Different pixel value, same ratio.
+  assert.equal(innerContents.scrollTop, 160,
+    '.toastui-editor-contents must receive the SAME ratio applied against its own scrollable range');
 });
 
 test('bug #2: stale Preview tier-3 timer does not stomp the pane after the user has left Preview', async () => {

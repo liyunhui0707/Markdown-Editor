@@ -2341,7 +2341,18 @@ Today the app reacts better to real external MCP ingests.
         const apply = function () {
           if (generation !== _previewScrollApplyGeneration) return;
           if (currentMode !== 'preview') return;
-          if (_applyScrollRatio) _applyScrollRatio(previewScrollEl(), ratio);
+          if (!_applyScrollRatio) return;
+          // Toast UI's DOM nests .toastui-editor-contents inside
+          // .toastui-editor-md-preview. Either can be the actual visible
+          // scroll container depending on host CSS / layout. Write to
+          // both — applyScrollRatio is short-target safe, so a write to
+          // a non-scrollable element is a harmless no-op.
+          const outer = previewScrollEl();
+          _applyScrollRatio(outer, ratio);
+          if (outer) {
+            const inner = outer.querySelector('.toastui-editor-contents');
+            if (inner) _applyScrollRatio(inner, ratio);
+          }
         };
         requestAnimationFrame(apply);
         requestAnimationFrame(function () { requestAnimationFrame(apply); });
@@ -2433,7 +2444,8 @@ Today the app reacts better to real external MCP ingests.
         setActiveMode('preview');
 
         // Bounded-retry apply to win against Toast UI's 200 ms
-        // afterPreviewRender setTimeout (see helper for details).
+        // afterPreviewRender setTimeout, with dual-target writes
+        // (.toastui-editor-md-preview + nested .toastui-editor-contents).
         applyPreviewScrollRatioWithRetries(ratio);
       }
 

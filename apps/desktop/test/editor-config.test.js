@@ -573,14 +573,28 @@ test('restoreNoteViewState uses applyPreviewScrollRatioWithRetries for the previ
   );
 });
 
+test('applyPreviewScrollRatioWithRetries writes the ratio to .toastui-editor-contents in addition to .toastui-editor-md-preview', () => {
+  const html = readIndexHtml();
+  // Manual QA showed the visible scroll surface in our embedding is the
+  // nested `.toastui-editor-contents`, not always the outer `.md-preview`.
+  // The helper must apply the ratio to BOTH so whichever is actually
+  // scrollable absorbs the meaningful write. applyScrollRatio short-target
+  // safety makes the no-op case harmless.
+  assert.match(
+    html,
+    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]*?querySelector\s*\(\s*['"]\.toastui-editor-contents['"]\s*\)[\s\S]*?_applyScrollRatio\s*\(/,
+    'helper must locate .toastui-editor-contents and apply the ratio to it'
+  );
+});
+
 test('applyPreviewScrollRatioWithRetries schedules a setTimeout past Toast UI 200ms timer', () => {
   const html = readIndexHtml();
   // The tier-3 setTimeout must use a delay > 200 ms so it fires AFTER Toast
-  // UI's ScrollSync2 afterPreviewRender setTimeout(..., 200). The regex
-  // accepts any integer ≥ 201 (within ~800 chars of the helper declaration).
+  // UI's ScrollSync2 afterPreviewRender setTimeout(..., 200). Non-greedy
+  // search picks the FIRST qualifying setTimeout after the helper opens.
   assert.match(
     html,
-    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]{0,800}setTimeout\s*\([^,]+,\s*(?:2(?:[1-9][0-9]|0[1-9])|[3-9][0-9]{2}|[1-9][0-9]{3,})/,
+    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]*?setTimeout\s*\([^,]+,\s*(?:2(?:[1-9][0-9]|0[1-9])|[3-9][0-9]{2}|[1-9][0-9]{3,})/,
     'tier-3 setTimeout delay must exceed 200ms (Toast UI afterPreviewRender timer)'
   );
 });
