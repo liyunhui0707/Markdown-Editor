@@ -1257,6 +1257,15 @@ Write the core idea here.
       // and intentionally deferred; see comment near the engine wiring below).
       const noteEditorStates      = new Map();
 
+      // Per-note view state for Bug #2 follow-up: each note remembers its own
+      // mode (Write or Preview) and its own scroll ratio. Captured when
+      // leaving a note (renderEditor's switch branch), restored when entering
+      // a note. Default for never-visited notes is { mode: 'write',
+      // scrollRatio: 0 }. Migrated alongside noteEditorStates on save id
+      // changes (rename / draft → vault), cleaned up on delete.
+      const noteViewStates        = new Map();
+      let   currentMode           = 'write';
+
       let notes = [
         {
           id: 'draft:1',
@@ -1361,6 +1370,15 @@ Today the app reacts better to real external MCP ingests.
             }
           }
 
+          // Capture per-note view state (mode + scroll ratio) for the OUTGOING
+          // note so a future return to this note can restore it. Reads the
+          // currently-visible pane's scroll metrics, which is correct because
+          // the click handler hasn't yet mutated the DOM (we're inside the
+          // very renderEditor call triggered by the note switch).
+          if (liveEditorLastNoteId) {
+            captureNoteViewState(liveEditorLastNoteId);
+          }
+
           liveEditorLastNoteId = note.id;
 
           // Migration: if the body doesn't already start with inline metadata,
@@ -1395,6 +1413,11 @@ Today the app reacts better to real external MCP ingests.
           if (!restored) {
             liveEditorInstance.setText(note.body);
           }
+
+          // Restore the INCOMING note's saved mode + scroll ratio. Defaults
+          // to { mode: 'write', scrollRatio: 0 } for never-visited notes,
+          // matching the user's product rule.
+          restoreNoteViewState(note.id);
         }
       }
 
@@ -1999,16 +2022,27 @@ Today the app reacts better to real external MCP ingests.
           return;
         }
 
-        // Successful rename: realign liveEditorLastNoteId BEFORE the post-save
-        // refresh so the upcoming renderEditor sees the same id and noops.
-        // That preserves the live CM6 EditorState (with its undo/redo history)
-        // across the id change. Drop the now-defunct cache entry so it
-        // doesn't leak under the dead id.
-        if (result.renamed && result.relativePath) {
+        // Realign liveEditorLastNoteId BEFORE the post-save refresh so the
+        // upcoming renderEditor sees the same id and noops. That preserves
+        // the live CM6 EditorState (with its undo/redo history) across the
+        // id change AND prevents the per-note view-state capture/restore
+        // from running with stale ids. Fires on ANY id change — both rename
+        // (vault:a.md → vault:b.md) and draft → vault (draft:N → vault:foo.md).
+        if (result.ok && result.relativePath) {
           const oldId = selectedNote.id;
           const newId = `vault:${result.relativePath}`;
           if (oldId !== newId) {
+            // Drop the now-defunct CM6 cache entry. The live editor state is
+            // preserved via the liveEditorLastNoteId realignment below; no
+            // migration of noteEditorStates needed.
             noteEditorStates.delete(oldId);
+            // Migrate per-note view state (mode + scrollRatio) so the next
+            // visit to this note (under its new id) restores the user's
+            // saved view rather than resetting to the default Write/0.
+            if (noteViewStates.has(oldId)) {
+              noteViewStates.set(newId, noteViewStates.get(oldId));
+              noteViewStates.delete(oldId);
+            }
             liveEditorLastNoteId = newId;
           }
         }
@@ -2054,6 +2088,7 @@ Today the app reacts better to real external MCP ingests.
 
         notes = notes.filter((note) => note.id !== selectedNote.id);
         noteEditorStates.delete(selectedNote.id);
+        noteViewStates.delete(selectedNote.id);
 
         if (notes.length === 0) {
           const fallbackNote = {
@@ -2114,6 +2149,11 @@ Today the app reacts better to real external MCP ingests.
           setStatus('error', `Delete failed: ${result.error}`);
           return;
         }
+
+        // Symmetric cleanup: drop the deleted note's per-note caches before
+        // the post-delete refresh re-loads the notes list.
+        noteEditorStates.delete(selectedNote.id);
+        noteViewStates.delete(selectedNote.id);
 
         const refreshed = await refreshVaultNotes('', false);
 
@@ -2244,69 +2284,113 @@ Today the app reacts better to real external MCP ingests.
       }
 
       // ── Write / Preview mode toggle ──────────────────────────────────────
-      // Scroll-position sync is ratio-based (not cursor-based): we capture the
-      // source surface's scroll ratio BEFORE the toggle and apply that ratio
-      // to the target surface in the next animation frame, after the browser
-      // has committed the show/hide change so scrollHeight/clientHeight on the
-      // newly-visible target are meaningful. captureScrollRatio /
-      // applyScrollRatio live in lib/scroll-sync.js and no-op safely on
-      // missing or short containers.
+      // Scroll-position sync is ratio-based. The apply step runs across TWO
+      // animation frames (scheduleApplyAfterLayout) so it lands AFTER Toast
+      // UI's own scroll-after-setMarkdown logic — otherwise our applyScrollRatio
+      // gets stomped on Write→Preview, which is the bug-1 symptom.
+      // captureScrollRatio / applyScrollRatio live in lib/scroll-sync.js and
+      // no-op safely on missing or short containers.
       const _captureScrollRatio = window.ScrollSync ? window.ScrollSync.captureScrollRatio : null;
       const _applyScrollRatio   = window.ScrollSync ? window.ScrollSync.applyScrollRatio   : null;
 
-      function showWriteMode() {
-        // Capture from the Preview scroll target BEFORE switching surfaces.
-        const ratio = _captureScrollRatio
-          ? _captureScrollRatio(toastPreviewMount.querySelector('.toastui-editor-md-preview'))
-          : 0;
+      function previewScrollEl() {
+        return toastPreviewMount.querySelector('.toastui-editor-md-preview');
+      }
 
-        hybridWritePane.classList.remove('is-hidden');
-        toastPreviewMount.classList.remove('is-visible');
-        writeModeButton.classList.add('mode-button-active');
-        previewModeButton.classList.remove('mode-button-active');
-        writeModeButton.setAttribute('aria-selected', 'true');
-        previewModeButton.setAttribute('aria-selected', 'false');
+      function activeScrollEl() {
+        return currentMode === 'preview' ? previewScrollEl() : hybridWritePane;
+      }
 
-        if (_applyScrollRatio) {
-          requestAnimationFrame(function () {
-            _applyScrollRatio(hybridWritePane, ratio);
-          });
+      // Double rAF: lets layout commit AND lets Toast UI's own
+      // scroll-after-render settle before we apply. With single rAF, our
+      // apply ran in the same pass as Toast UI's first-frame stub and got
+      // overridden in the next frame. Two frames put us last.
+      function scheduleApplyAfterLayout(cb) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(cb);
+        });
+      }
+
+      // setActiveMode owns the DOM/button mutations and the Toast UI preview
+      // tab activation. currentMode is the single source of truth. The DOM
+      // class set is always re-applied (idempotent) so callers can rely on
+      // the page reflecting `mode` regardless of how the page was last left.
+      // Only the eventEmitter `changePreviewTabPreview` notification is gated
+      // on an actual mode change to avoid spamming Toast UI.
+      function setActiveMode(mode) {
+        const wasChange = currentMode !== mode;
+        currentMode = mode;
+        if (mode === 'preview') {
+          hybridWritePane.classList.add('is-hidden');
+          toastPreviewMount.classList.add('is-visible');
+          writeModeButton.classList.remove('mode-button-active');
+          previewModeButton.classList.add('mode-button-active');
+          writeModeButton.setAttribute('aria-selected', 'false');
+          previewModeButton.setAttribute('aria-selected', 'true');
+          if (wasChange && _toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
+            _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
+          }
+        } else {
+          hybridWritePane.classList.remove('is-hidden');
+          toastPreviewMount.classList.remove('is-visible');
+          writeModeButton.classList.add('mode-button-active');
+          previewModeButton.classList.remove('mode-button-active');
+          writeModeButton.setAttribute('aria-selected', 'true');
+          previewModeButton.setAttribute('aria-selected', 'false');
         }
       }
 
+      // Capture the current note's mode + scroll ratio under its id. Called
+      // when leaving a note (renderEditor's switch branch). Skip if the
+      // outgoing note is no longer in `notes` — e.g. it was just deleted, or
+      // an external watcher event dropped it. Without this guard, a
+      // post-delete renderEditor pass would re-create a stale entry under
+      // the deleted note's id, which would then leak its mode/scroll into
+      // any future note that takes the same id (e.g. a recreated file at the
+      // same relativePath). Mirrors the same `notes.find` guard used by the
+      // CM6 EditorState cache above.
+      function captureNoteViewState(noteId) {
+        if (!noteId) return;
+        if (!notes.some((n) => n.id === noteId)) return;
+        const ratio = _captureScrollRatio ? _captureScrollRatio(activeScrollEl()) : 0;
+        noteViewStates.set(noteId, { mode: currentMode, scrollRatio: ratio });
+      }
+
+      // Restore the saved mode + scroll ratio for a note. Defaults to
+      // { mode: 'write', scrollRatio: 0 } for never-visited notes.
+      function restoreNoteViewState(noteId) {
+        const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
+        setActiveMode(saved.mode);
+        scheduleApplyAfterLayout(function () {
+          const target = saved.mode === 'preview' ? previewScrollEl() : hybridWritePane;
+          if (_applyScrollRatio) _applyScrollRatio(target, saved.scrollRatio);
+        });
+      }
+
+      function showWriteMode() {
+        if (currentMode === 'write') return;
+        // Capture from the Preview scroll target BEFORE switching surfaces.
+        const ratio = _captureScrollRatio ? _captureScrollRatio(previewScrollEl()) : 0;
+        setActiveMode('write');
+        scheduleApplyAfterLayout(function () {
+          if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, ratio);
+        });
+      }
+
       function showPreviewMode() {
+        if (currentMode === 'preview') return;
         // Capture FIRST so the Write pane's measurements are still live —
         // before exitWriteMode swaps the active textarea or setMarkdown
-        // re-renders Toast UI. Both happen on the same toggle.
+        // re-renders Toast UI.
         const ratio = _captureScrollRatio ? _captureScrollRatio(hybridWritePane) : 0;
 
-        // Flush in-progress active-block edits so getText() returns the
-        // committed source, then mirror it to Toast UI before activating
-        // its preview pane.
         liveEditorInstance.exitWriteMode();
         _toastuiInstance.setMarkdown(getCurrentEditorText());
-        // Activate Toast UI's preview pane in tab-style mode. This is the
-        // canonical internal event Toast UI dispatches when the user clicks
-        // its own Preview tab; emitting it ensures the preview pane (not the
-        // markdown editor pane) is the active sub-view inside toastPreviewMount.
-        if (_toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
-          _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
-        }
-        hybridWritePane.classList.add('is-hidden');
-        toastPreviewMount.classList.add('is-visible');
-        writeModeButton.classList.remove('mode-button-active');
-        previewModeButton.classList.add('mode-button-active');
-        writeModeButton.setAttribute('aria-selected', 'false');
-        previewModeButton.setAttribute('aria-selected', 'true');
+        setActiveMode('preview');
 
-        // Defer the apply to the next animation frame: by then the browser
-        // has committed the .is-visible class, Toast UI has rendered, and
-        // its preview pane's scrollHeight/clientHeight are usable.
-        if (_applyScrollRatio) {
-          requestAnimationFrame(function () {
-            _applyScrollRatio(toastPreviewMount.querySelector('.toastui-editor-md-preview'), ratio);
-          });
-        }
+        scheduleApplyAfterLayout(function () {
+          if (_applyScrollRatio) _applyScrollRatio(previewScrollEl(), ratio);
+        });
       }
 
       writeModeButton.addEventListener('click', showWriteMode);

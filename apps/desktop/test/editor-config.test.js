@@ -235,12 +235,10 @@ test('Preview toggle activates Toast UI preview pane (not just mounts it)', () =
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // Toast UI's preview pane must be explicitly activated. We use the canonical
-  // internal event 'changePreviewTabPreview' for tab-style preview mode.
-  assert.match(
-    html,
-    /function\s+showPreviewMode\s*\([\s\S]*?changePreviewTabPreview/
-  );
+  // Toast UI's preview pane must be explicitly activated via the canonical
+  // 'changePreviewTabPreview' event. Now lives inside setActiveMode (owned
+  // by the per-note view-state model); regex covers either path.
+  assert.match(html, /changePreviewTabPreview/);
 });
 
 test('Preview toggle hides hybridWritePane and shows toastPreviewMount', () => {
@@ -248,9 +246,16 @@ test('Preview toggle hides hybridWritePane and shows toastPreviewMount', () => {
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
+  // The class mutations now live inside setActiveMode (idempotent class
+  // synchronization owned by the per-note view-state model). Verify the
+  // preview branch exists and toggles both panes correctly.
   assert.match(
     html,
-    /function\s+showPreviewMode\s*\([\s\S]*?hybridWritePane\.classList\.add\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.add\(\s*['"]is-visible['"]\s*\)/
+    /setActiveMode\s*\(\s*['"]preview['"]\s*\)/
+  );
+  assert.match(
+    html,
+    /function\s+setActiveMode[\s\S]*?if\s*\(\s*mode\s*===\s*['"]preview['"]\s*\)\s*\{[\s\S]*?hybridWritePane\.classList\.add\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.add\(\s*['"]is-visible['"]\s*\)/
   );
 });
 
@@ -261,7 +266,11 @@ test('Write toggle shows hybridWritePane and hides toastPreviewMount', () => {
   );
   assert.match(
     html,
-    /function\s+showWriteMode\s*\([\s\S]*?hybridWritePane\.classList\.remove\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.remove\(\s*['"]is-visible['"]\s*\)/
+    /setActiveMode\s*\(\s*['"]write['"]\s*\)/
+  );
+  assert.match(
+    html,
+    /function\s+setActiveMode[\s\S]*?\}\s*else\s*\{[\s\S]*?hybridWritePane\.classList\.remove\(\s*['"]is-hidden['"]\s*\)[\s\S]*?toastPreviewMount\.classList\.remove\(\s*['"]is-visible['"]\s*\)/
   );
 });
 
@@ -461,28 +470,88 @@ test('showPreviewMode captures from hybridWritePane BEFORE setMarkdown', () => {
   );
 });
 
-test('showPreviewMode applies the ratio to .toastui-editor-md-preview inside requestAnimationFrame', () => {
+test('showPreviewMode applies the ratio to .toastui-editor-md-preview after layout', () => {
   const html = readIndexHtml();
-  // After the body switches visibility, defer the apply to a frame so the
-  // newly-shown Preview pane has its scrollHeight/clientHeight committed.
+  // The deferred apply now goes through scheduleApplyAfterLayout (which
+  // nests two requestAnimationFrames, so the apply lands AFTER Toast UI's
+  // own scroll-after-setMarkdown). Regex covers either direct rAF or the
+  // helper path.
   assert.match(
     html,
-    /function\s+showPreviewMode\s*\([\s\S]*?requestAnimationFrame\s*\([\s\S]*?applyScrollRatio\s*\([\s\S]*?toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\)/
+    /function\s+showPreviewMode\s*\([\s\S]*?(?:scheduleApplyAfterLayout|requestAnimationFrame)\s*\([\s\S]*?applyScrollRatio\s*\([\s\S]*?(?:previewScrollEl\s*\(\s*\)|toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\))/
   );
 });
 
-test('showWriteMode captures from .toastui-editor-md-preview', () => {
+test('showWriteMode captures from the preview scroll element', () => {
   const html = readIndexHtml();
   assert.match(
     html,
-    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\)\s*\)/
+    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*(?:previewScrollEl\s*\(\s*\)|toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\))\s*\)/
   );
 });
 
-test('showWriteMode applies the ratio to hybridWritePane inside requestAnimationFrame', () => {
+test('showWriteMode applies the ratio to hybridWritePane after layout', () => {
   const html = readIndexHtml();
   assert.match(
     html,
-    /function\s+showWriteMode\s*\([\s\S]*?requestAnimationFrame\s*\([\s\S]*?applyScrollRatio\s*\(\s*hybridWritePane\s*,/
+    /function\s+showWriteMode\s*\([\s\S]*?(?:scheduleApplyAfterLayout|requestAnimationFrame)\s*\([\s\S]*?applyScrollRatio\s*\(\s*hybridWritePane\s*,/
+  );
+});
+
+// ── Bug #2 follow-up: per-note view state + double-rAF apply (supplemental) ──
+// The behavior of these features is exercised by the renderer-boot tests;
+// the assertions below pin the static structure so future refactors don't
+// silently break the per-note model.
+
+test('renderer declares a per-note view-state map', () => {
+  const html = readIndexHtml();
+  assert.match(html, /const\s+noteViewStates\s*=\s*new\s+Map\s*\(\s*\)/,
+    'noteViewStates Map must be declared at renderer scope');
+});
+
+test('apply step uses double requestAnimationFrame to win against post-render scrollers', () => {
+  const html = readIndexHtml();
+  // scheduleApplyAfterLayout (or equivalent) must nest two rAFs.
+  assert.match(
+    html,
+    /requestAnimationFrame\s*\([\s\S]{0,200}requestAnimationFrame/,
+    'double-rAF pattern must appear so apply lands AFTER post-render scrolls'
+  );
+});
+
+test('renderEditor switch branch captures outgoing AND restores incoming view state', () => {
+  const html = readIndexHtml();
+  // Inside renderEditor, the order of operations must be:
+  //   captureNoteViewState(liveEditorLastNoteId)  ← outgoing capture
+  //   liveEditorLastNoteId = note.id              ← id change
+  //   ... setText / setState ...
+  //   restoreNoteViewState(note.id)               ← incoming restore
+  assert.match(
+    html,
+    /function\s+renderEditor\s*\([\s\S]*?captureNoteViewState\s*\(\s*liveEditorLastNoteId\s*\)[\s\S]*?liveEditorLastNoteId\s*=\s*note\.id[\s\S]*?restoreNoteViewState\s*\(\s*note\.id\s*\)/
+  );
+});
+
+test('saveCurrentNote migrates noteViewStates on any id change (rename or draft → vault)', () => {
+  const html = readIndexHtml();
+  // The id-change block must migrate noteViewStates alongside the existing
+  // noteEditorStates cleanup. The condition must NOT be gated solely on
+  // `result.renamed` so draft → vault id changes also migrate.
+  assert.match(
+    html,
+    /noteEditorStates\.delete\s*\(\s*oldId\s*\)[\s\S]{0,400}noteViewStates\.set\s*\(\s*newId\s*,\s*noteViewStates\.get\s*\(\s*oldId\s*\)\s*\)[\s\S]{0,200}noteViewStates\.delete\s*\(\s*oldId\s*\)/
+  );
+});
+
+test('deleteCurrentNote paths clean up noteViewStates symmetrically', () => {
+  const html = readIndexHtml();
+  // Both delete paths (deleteDraftNote and deleteFileBackedNote) must drop
+  // the per-note view state alongside the noteEditorStates cleanup.
+  const draftMatches = html.match(
+    /noteEditorStates\.delete\s*\(\s*selectedNote\.id\s*\)\s*;\s*noteViewStates\.delete\s*\(\s*selectedNote\.id\s*\)/g
+  );
+  assert.ok(
+    draftMatches && draftMatches.length >= 2,
+    `expected at least 2 paired cleanups (draft + vault delete), found ${draftMatches ? draftMatches.length : 0}`
   );
 });

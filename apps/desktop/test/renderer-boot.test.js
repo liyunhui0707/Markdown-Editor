@@ -239,6 +239,11 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     unwatchVaultFolder: 0,
     vaultChangedCallback: null,
     rafQueue: [],
+    // Bug #2 follow-up: opt-in flag that simulates Toast UI's own
+    // scroll-after-setMarkdown by enqueueing a "scroll preview to bottom"
+    // rAF on the harness queue. Tests that prove our apply runs LAST
+    // (double-rAF) flip this to true.
+    toastAutoScrollOnSetMarkdown: false,
   };
 
   const storage = {
@@ -258,6 +263,23 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     };
     this.setMarkdown = (text) => {
       calls.toastSetMarkdown.push(text);
+      // Optional simulation: real Toast UI scrolls its preview after a
+      // setMarkdown re-render (cursor-tracking) in a TWO-frame schedule.
+      // The first rAF stub fires; its body enqueues the actual scroll for
+      // the NEXT flushRaf pass. With single-rAF apply, our apply runs in
+      // pass 1 alongside the stub, then the actual scroll lands in pass 2
+      // and overrides — that is the reported bug. With double-rAF apply,
+      // our inner apply runs in pass 2 AFTER the actual scroll (FIFO) and
+      // wins. This is what makes the bug-1 test fail-first under single
+      // rAF and pass under double rAF.
+      if (calls.toastAutoScrollOnSetMarkdown) {
+        calls.rafQueue.push(function toastAutoScrollFirstFrameStub() {
+          calls.rafQueue.push(function toastAutoScrollSecondFrameScroll() {
+            const max = (_previewScrollEl.scrollHeight || 0) - (_previewScrollEl.clientHeight || 0);
+            if (max > 0) _previewScrollEl.scrollTop = max;
+          });
+        });
+      }
     };
   }
 
@@ -447,6 +469,17 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
       calls.unwatchVaultFolder += 1;
       return { ok: true };
     },
+    async deleteNoteFile(payload) {
+      calls.deleteNoteFilePayloads = calls.deleteNoteFilePayloads || [];
+      calls.deleteNoteFilePayloads.push(payload);
+      const idx = persistedVaultNotes.findIndex((n) => n.relativePath === payload.relativePath);
+      if (idx >= 0) persistedVaultNotes.splice(idx, 1);
+      return {
+        ok: true,
+        fileName: String(payload.relativePath || '').split('/').pop(),
+        relativePath: payload.relativePath,
+      };
+    },
   };
 
   const VaultActions = {
@@ -526,9 +559,20 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
   const bootScript = getBootScript(html);
   new vm.Script(bootScript, { filename: 'index.html:inline-boot.js' }).runInContext(context);
 
+  // Drain in a loop because the production code may schedule a second rAF
+  // from inside the first (double-rAF pattern). Each pass empties the queue;
+  // any callbacks enqueued during that pass run in the next pass. The loop
+  // exits cleanly once the queue stays empty.
   function flushRaf() {
-    const queued = calls.rafQueue.splice(0);
-    queued.forEach((cb) => cb());
+    let passes = 0;
+    while (calls.rafQueue.length > 0) {
+      const queued = calls.rafQueue.splice(0);
+      queued.forEach((cb) => cb());
+      passes += 1;
+      if (passes > 16) {
+        throw new Error('flushRaf: rAF queue did not stabilize after 16 passes');
+      }
+    }
   }
 
   return { calls, elements, window, documentHandlers, flushRaf };
@@ -2108,6 +2152,14 @@ test('scroll sync: Preview → Write applies the captured ratio to hybridWritePa
   const { elements, flushRaf } = makeRendererHarness();
   await elements.get('chooseVaultButton').fireAsync('click');
 
+  // Enter Preview mode first — the per-note view-state model uses
+  // currentMode as the single source of truth, so clicking Write while
+  // already in Write is now a no-op. Clicking Preview here flips
+  // currentMode to 'preview', after which the Write button click does
+  // the capture-then-apply we want to verify.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+
   // Preview at 70% scrolled. Max scrollTop = 800 - 400 = 400. 280 / 400 = 0.7.
   const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
   previewEl.scrollHeight = 800;
@@ -2247,6 +2299,477 @@ test('scroll sync: CM6 engine uses hybridWritePane as the Write scroll target', 
 
   // 0.7 * (1000 - 400) = 0.7 * 600 = 420.
   assert.equal(writePane.scrollTop, 420);
+});
+
+// ── Bug #2 follow-up: per-note view state + double-rAF apply ───────────────
+// Three intertwined defects:
+//   1. Write → Preview still jumps to bottom (Toast UI's own auto-scroll
+//      after setMarkdown runs AFTER our applyScrollRatio in single-rAF).
+//   2. Mode bleeds across notes (no per-note mode tracking).
+//   3. Scroll position bleeds across notes (no per-note scroll tracking).
+//
+// The fix introduces a renderer-only Map<note.id, { mode, scrollRatio }> that
+// is captured on note-leave and restored on note-arrive, plus a double-rAF
+// apply step so the apply runs AFTER Toast UI's two-step scroll-sync.
+
+// Helper: simulate a two-frame Toast UI auto-scroll. The first scheduled rAF
+// fires our auto-scroll stub, which enqueues a SECOND rAF that scrolls the
+// preview to the bottom. With single-rAF apply, our apply runs in the same
+// pass as the stub and gets stomped by the second-frame scroll. With
+// double-rAF apply, our inner apply runs in the same pass as the
+// second-frame scroll BUT after it (FIFO), and wins.
+
+test('bug #2: Write → Preview wins against simulated Toast UI auto-scroll-after-setMarkdown', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 2100;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  // Enable the harness's two-frame Toast UI scroll-after-setMarkdown sim.
+  // Single-rAF apply produces the bottom (FAIL); double-rAF wins (PASS).
+  calls.toastAutoScrollOnSetMarkdown = true;
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+
+  // 0.4 * (2100-400) = 680. NOT 1700 (the simulated bottom).
+  assert.equal(previewEl.scrollTop, 680,
+    'apply must land AFTER Toast UI auto-scroll — final scrollTop must be the captured ratio');
+});
+
+test('bug #2: each note remembers its own Write/Preview mode', async () => {
+  const { elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writeBtn   = elements.get('writeModeButton');
+  const previewBtn = elements.get('previewModeButton');
+
+  // A → Preview.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  assert.ok(previewBtn.className.includes('mode-button-active'), 'A is now in Preview');
+
+  // Switch to B (default Write).
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  assert.ok(writeBtn.className.includes('mode-button-active'), 'B opens in default Write');
+
+  // C (default Write), then C → Preview.
+  elements.get('noteList').children[2].fire('click');
+  flushRaf();
+  assert.ok(writeBtn.className.includes('mode-button-active'), 'C opens in default Write');
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  assert.ok(previewBtn.className.includes('mode-button-active'), 'C is now in Preview');
+
+  // Now rotate among them; each must restore its own mode.
+  elements.get('noteList').children[0].fire('click'); // A
+  flushRaf();
+  assert.ok(previewBtn.className.includes('mode-button-active'),
+    'A restored to its saved Preview mode');
+
+  elements.get('noteList').children[1].fire('click'); // B
+  flushRaf();
+  assert.ok(writeBtn.className.includes('mode-button-active'),
+    'B restored to its saved Write mode');
+
+  elements.get('noteList').children[2].fire('click'); // C
+  flushRaf();
+  assert.ok(previewBtn.className.includes('mode-button-active'),
+    'C restored to its saved Preview mode');
+});
+
+test('bug #2: each note remembers its own Write scroll position', async () => {
+  const { elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // A at 40%
+
+  // Switch to B → never visited → opens at top.
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 0,
+    'never-visited note opens at default scrollTop');
+
+  // Back to A → restores 40%.
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    "A's saved Write scroll position must be restored");
+});
+
+test('bug #2: each note remembers its own Preview scroll position', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 0;
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+
+  // Enable the auto-scroll simulation so this test also exercises double-rAF.
+  calls.toastAutoScrollOnSetMarkdown = true;
+
+  // A → Preview, then user scrolls to 30%.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  previewEl.scrollTop = 180; // 30% of (1000-400) = 0.3*600 = 180.
+
+  // Switch to B (default Write).
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+
+  // B → Preview, scroll to 70%.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  previewEl.scrollTop = 420;
+
+  // Switch back to A — A restores Preview at 30%.
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  assert.equal(previewEl.scrollTop, 180,
+    "A's saved Preview scroll position must be restored");
+
+  // Back to B — B restores Preview at 70%.
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  assert.equal(previewEl.scrollTop, 420,
+    "B's saved Preview scroll position must be restored");
+});
+
+test('bug #2: never-visited note opens in Write mode at top, ignoring previous note state', async () => {
+  const { elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // A → Preview at 50% (so B should NOT inherit).
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 300; // 50% in Write
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop = 300;
+
+  // First visit to B.
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+
+  assert.ok(elements.get('writeModeButton').className.includes('mode-button-active'),
+    'never-visited note opens in default Write mode');
+  assert.equal(writePane.scrollTop, 0,
+    'never-visited note opens at scrollTop 0');
+});
+
+test('bug #2: vault re-save preserves the note view state across the post-save refresh', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Drain the initial restoreNoteViewState's deferred apply (which would
+  // otherwise override the manual scrollTop assignment below).
+  flushRaf();
+
+  // Edit so the IPC has something to send.
+  calls.hybridAdapter.text = '# A edited';
+  calls.hybridOnChange('# A edited');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  await elements.get('saveNoteButton').fireAsync('click');
+  flushRaf();
+
+  // Same id, same path — DOM-natural scroll preservation. View state intact.
+  assert.ok(elements.get('writeModeButton').className.includes('mode-button-active'));
+  assert.equal(writePane.scrollTop, 240,
+    'vault re-save must NOT reset the view position');
+});
+
+test('bug #2: rename migrates the per-note view state to the new id', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:c.md', title: 'C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  // Switch to C and back so A's entry is captured under its OLD id (vault:a.md).
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240, 'sanity: A restored to 40%');
+
+  // Rename A → "Hello". After save, harness's persistedVaultNotes splice
+  // out a.md and push hello.md, so order becomes [c.md, hello.md].
+  setDraftTitle(elements, 'Hello');
+  await elements.get('saveNoteButton').fireAsync('click');
+  flushRaf();
+
+  // Sanity: renamed note is still at 40% (DOM-natural; renderEditor branch
+  // didn't fire because liveEditorLastNoteId was realigned to the new id).
+  assert.equal(writePane.scrollTop, 240, 'sanity: post-rename the renamed note holds 40%');
+
+  // Now switch to C (children[0]) and back to renamed (children[1]).
+  // If migration worked, the renamed note's NEW id has the saved entry and
+  // restoreNoteViewState applies 40%. Without migration, the new id has
+  // no entry and restore would reset to top.
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    'rename must migrate the view state — renamed note must restore the saved 40%');
+});
+
+test('bug #2: draft → vault save migrates the per-note view state to the new vault id', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:other.md', title: 'Other', body: '# Other', fileName: 'other.md', relativePath: 'other.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushRaf();
+
+  // Create a Plan draft.
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'Plan');
+  calls.hybridAdapter.text = '# Plan';
+  calls.hybridOnChange('# Plan');
+  flushRaf();
+
+  // Show all so we have a known second note (Other) to switch to.
+  // notes after newNote: [draft:2 (Plan), vault:other.md].
+  // children[0] = Plan (selected), children[1] = Other.
+  elements.get('filterAll').fire('click');
+  flushRaf();
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  // Switch to Other and back so Plan's view state is captured under its DRAFT id.
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240, 'sanity: Plan restored to 40%');
+
+  // Save Plan → becomes vault:plan.md. id changes from draft:2 to vault:plan.md;
+  // view state must migrate.
+  await elements.get('saveNoteButton').fireAsync('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    'sanity: post-save the saved-as-vault note still holds 40% (DOM-natural)');
+
+  // After save: persistedVaultNotes order = [Other, plan.md] (push at end of
+  // existing list). children = [Other, plan.md] under 'all'.
+  // Switch to Other then back to (saved) Plan; the migrated entry must
+  // restore 40% under the new vault id.
+  elements.get('noteList').children[0].fire('click'); // → Other
+  flushRaf();
+  elements.get('noteList').children[1].fire('click'); // → renamed Plan
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    'draft → vault save must migrate the view state to the new vault id');
+});
+
+test('bug #2: deleted note id does not leak its view state into a recreated note with the same id', async () => {
+  // Codex follow-up: after delete, renderApp/refreshVaultNotes can fire
+  // renderEditor while liveEditorLastNoteId still points at the deleted
+  // note. Without the captureNoteViewState guard, the deleted id would get
+  // re-captured into noteViewStates, then leak into any future note that
+  // takes the same id (e.g. a file recreated at the same relativePath).
+  const { calls, elements, flushRaf, window } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushRaf();
+
+  // Auto-confirm the delete prompt that deleteFileBackedNote() raises.
+  window.confirm = function () { return true; };
+
+  // Give A a non-default mode AND a non-default scroll. To get the entry
+  // recorded under A's id, we must leave A — capture happens on note-switch.
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40% in Write
+
+  // A → Preview, scroll preview to 40% so both axes diverge from default.
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 240;
+
+  // Switch to B → captures A's view state under id 'vault:a.md'
+  // as { mode: 'preview', scrollRatio: 0.4 }.
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  // Switch back to A so the "deleted while selected" code path runs.
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+
+  // Delete A. With the guard, the post-delete renderEditor pass will see
+  // that A is no longer in `notes` and skip captureNoteViewState — so
+  // noteViewStates['vault:a.md'] stays deleted.
+  await elements.get('deleteNoteButton').fireAsync('click');
+  flushRaf();
+
+  // Sanity: A really is gone from disk + memory.
+  assert.equal(calls.deleteNoteFilePayloads.length, 1);
+  assert.equal(calls.deleteNoteFilePayloads[0].relativePath, 'a.md');
+
+  // Recreate a note at the same path: new draft → save with title 'A'.
+  // The harness's saveNote mock assigns relativePath='a.md' and
+  // id='vault:a.md', i.e. the SAME id the deleted note used.
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'A');
+  calls.hybridAdapter.text = '# A new';
+  calls.hybridOnChange('# A new');
+  await elements.get('saveNoteButton').fireAsync('click');
+  flushRaf();
+
+  // Show all so we have deterministic indexing for the next switch.
+  // After delete + recreate: persistedVaultNotes order is [b.md, a.md]
+  // (push at end). children[0]=B, children[1]=recreated A.
+  elements.get('filterAll').fire('click');
+  flushRaf();
+
+  // Switch to B then back to the recreated A. This forces renderEditor's
+  // switch branch to fire with note.id='vault:a.md' and run
+  // restoreNoteViewState. With the leaked entry: A would open in Preview
+  // at 40%. With the guard: no entry exists → default { write, 0 } →
+  // Write mode at top.
+  elements.get('noteList').children[0].fire('click'); // → B
+  flushRaf();
+  elements.get('noteList').children[1].fire('click'); // → recreated A
+  flushRaf();
+
+  assert.ok(
+    elements.get('writeModeButton').className.includes('mode-button-active'),
+    'recreated note must open in default Write mode, not the deleted note\'s Preview'
+  );
+  assert.equal(
+    writePane.scrollTop, 0,
+    'recreated note must open at default scrollTop, not the deleted note\'s 40%'
+  );
+});
+
+test('CM6 parity: per-note Write scroll persists across switches', async () => {
+  const { elements, flushRaf } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  elements.get('noteList').children[1].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 0);
+
+  elements.get('noteList').children[0].fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240,
+    'CM6: per-note Write scroll must persist across switches');
+});
+
+test('CM6 parity: same-note Write↔Preview round-trip preserves position with auto-scroll sim', async () => {
+  const { calls, elements, flushRaf } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240;
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  calls.toastAutoScrollOnSetMarkdown = true;
+
+  elements.get('previewModeButton').fire('click');
+  flushRaf();
+  assert.equal(previewEl.scrollTop, 240, 'CM6: Write→Preview lands at 40% (wins auto-scroll)');
+
+  writePane.scrollTop = 0;
+  elements.get('writeModeButton').fire('click');
+  flushRaf();
+  assert.equal(writePane.scrollTop, 240, 'CM6: Preview→Write returns to 40%');
 });
 
 test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
