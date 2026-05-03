@@ -244,6 +244,19 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     // rAF on the harness queue. Tests that prove our apply runs LAST
     // (double-rAF) flip this to true.
     toastAutoScrollOnSetMarkdown: false,
+    // Bug #2 timing follow-up: opt-in flag that simulates Toast UI's
+    // ScrollSync2.addScrollSyncEvent (lib/toastui-bundle.js:32882-32889),
+    // which schedules `syncPreviewScrollTop(true)` on a 200 ms setTimeout
+    // off `afterPreviewRender`. That timer scrolls the preview to the
+    // (hidden) MD editor's cursor — typically end-of-document — and stomps
+    // any earlier scroll write. Tests that exercise the bounded-retry
+    // helper flip this to true and drain via `flushTimers()`.
+    toastDelayedScrollOnSetMarkdown: false,
+    // Queue-aware setTimeout substitute. Each entry is { cb, delay }.
+    // flushTimers() drains rAF and setTimeout queues alternately until
+    // both stabilize, processing setTimeouts in delay order so that
+    // simulated Toast UI's 200 ms timer fires before our 250 ms tier-3.
+    setTimeoutQueue: [],
   };
 
   const storage = {
@@ -278,6 +291,19 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
             const max = (_previewScrollEl.scrollHeight || 0) - (_previewScrollEl.clientHeight || 0);
             if (max > 0) _previewScrollEl.scrollTop = max;
           });
+        });
+      }
+      // Realistic simulation: Toast UI's ScrollSync2 schedules its preview
+      // scroll on a 200 ms setTimeout off `afterPreviewRender` (its
+      // syncPreviewScrollTop reads the hidden MD editor's cursor and writes
+      // the preview's scrollTop). Tests use flushTimers() to drain.
+      if (calls.toastDelayedScrollOnSetMarkdown) {
+        calls.setTimeoutQueue.push({
+          cb: function toastDelayedAfterPreviewRender() {
+            const max = (_previewScrollEl.scrollHeight || 0) - (_previewScrollEl.clientHeight || 0);
+            if (max > 0) _previewScrollEl.scrollTop = max;
+          },
+          delay: 200,
         });
       }
     };
@@ -542,8 +568,19 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     VaultActions,
     document,
     console: window.console,
-    setTimeout() {},
-    clearTimeout() {},
+    // Queue-aware setTimeout / clearTimeout. flushTimers() in the return
+    // value drains both rAF and setTimeout queues — this lets tests
+    // simulate Toast UI's 200 ms afterPreviewRender setTimeout and verify
+    // the apply-with-retries helper still wins via its 250 ms tier.
+    setTimeout(cb, delay) {
+      const handle = { cb, delay: Number(delay) || 0 };
+      calls.setTimeoutQueue.push(handle);
+      return handle;
+    },
+    clearTimeout(handle) {
+      const idx = calls.setTimeoutQueue.indexOf(handle);
+      if (idx >= 0) calls.setTimeoutQueue.splice(idx, 1);
+    },
     // Bug #2 scroll-sync defers the apply step to the next animation frame.
     // The harness queues callbacks; tests flush them via flushRaf() to drive
     // the deferred apply synchronously.
@@ -575,7 +612,34 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     }
   }
 
-  return { calls, elements, window, documentHandlers, flushRaf };
+  // Drain BOTH rAF and setTimeout queues until both stabilize. rAFs drain
+  // first (mirrors browser ordering: rAF callbacks run before paint, while
+  // setTimeouts are macrotasks). When rAFs are empty, the next-earliest
+  // setTimeout (by delay) fires; rAFs may be re-queued by it; loop again.
+  // This matches what the production renderer needs for the bounded-retry
+  // Preview-restore helper (rAF + double-rAF + setTimeout(250ms)).
+  function flushTimers() {
+    let passes = 0;
+    while (calls.rafQueue.length > 0 || calls.setTimeoutQueue.length > 0) {
+      // Drain all pending rAFs first.
+      while (calls.rafQueue.length > 0) {
+        const queued = calls.rafQueue.splice(0);
+        queued.forEach((cb) => cb());
+      }
+      // Then fire the next-earliest setTimeout (if any).
+      if (calls.setTimeoutQueue.length > 0) {
+        calls.setTimeoutQueue.sort((a, b) => a.delay - b.delay);
+        const next = calls.setTimeoutQueue.shift();
+        next.cb();
+      }
+      passes += 1;
+      if (passes > 32) {
+        throw new Error('flushTimers: queues did not stabilize after 32 passes');
+      }
+    }
+  }
+
+  return { calls, elements, window, documentHandlers, flushRaf, flushTimers };
 }
 
 test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
@@ -2627,6 +2691,144 @@ test('bug #2: draft → vault save migrates the per-note view state to the new v
   flushRaf();
   assert.equal(writePane.scrollTop, 240,
     'draft → vault save must migrate the view state to the new vault id');
+});
+
+// ── Bug #2 timing follow-up: bounded-retry Preview restore ─────────────────
+// The previous double-rAF-only fix wins against rAF-based Toast UI scroll
+// stomps but loses against Toast UI's actual mechanism — a 200 ms setTimeout
+// scheduled off `afterPreviewRender` (lib/toastui-bundle.js:32886). The
+// bounded-retry helper applies the ratio at multiple checkpoints, the last
+// of which is past 200 ms, so it wins regardless of which timer model real
+// Toast UI uses on a given platform.
+
+test('bug #2: same-note Write → Preview wins against Toast UI 200ms afterPreviewRender setTimeout', async () => {
+  const { calls, elements, flushTimers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushTimers();
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 2100;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  // Realistic simulation: setMarkdown enqueues a 200 ms setTimeout that
+  // scrolls the preview to the bottom (Toast UI's syncPreviewScrollTop with
+  // isBottomPos === true). Our double-rAF apply (~32 ms) loses; the
+  // bounded-retry tier-3 setTimeout(250 ms) wins.
+  calls.toastDelayedScrollOnSetMarkdown = true;
+
+  elements.get('previewModeButton').fire('click');
+  flushTimers();
+
+  // 0.4 * (2100-400) = 680. NOT 1700 (the simulated bottom).
+  assert.equal(previewEl.scrollTop, 680,
+    'Preview must end at the captured ratio after Toast UI 200ms scroll fires');
+});
+
+test('bug #2: cross-note Preview restore wins against Toast UI 200ms afterPreviewRender setTimeout', async () => {
+  const { calls, elements, flushTimers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushTimers();
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 0;
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+
+  // Capture A in Preview at 30% (180 / 600 = 0.3).
+  elements.get('previewModeButton').fire('click');
+  flushTimers();
+  previewEl.scrollTop = 180;
+
+  // Switch to B (captures A's view state under id vault:a.md as
+  // { mode: 'preview', scrollRatio: 0.3 }).
+  elements.get('noteList').children[1].fire('click');
+  flushTimers();
+
+  // Enable the realistic 200 ms scroll-to-bottom AFTER the capture so
+  // it only fires for the next setMarkdown (the upcoming switch back).
+  calls.toastDelayedScrollOnSetMarkdown = true;
+
+  // Switch back to A. Restore should fire applyPreviewScrollRatioWithRetries
+  // with ratio 0.3. Toast UI's 200 ms timer fires between our rAF tiers and
+  // our 250 ms tier; the 250 ms tier wins.
+  elements.get('noteList').children[0].fire('click');
+  flushTimers();
+
+  // 0.3 * (1000 - 400) = 180. NOT 600 (the simulated bottom).
+  assert.equal(previewEl.scrollTop, 180,
+    "A's saved Preview scroll position must be restored after the Toast UI 200ms scroll fires");
+});
+
+test('bug #2: stale Preview tier-3 timer does not stomp the pane after the user has left Preview', async () => {
+  // Codex follow-up: the bounded-retry helper's tier-3 setTimeout(250) can
+  // still be pending after the user toggles to Write (or switches to a
+  // Write-mode note). Without the stale-timer guard, the delayed apply
+  // re-queries previewScrollEl() and writes the OLD ratio onto the
+  // (now-hidden) preview pane. The guard makes the apply no-op when:
+  //   - currentMode is no longer 'preview', OR
+  //   - a newer applyPreviewScrollRatioWithRetries has bumped the generation.
+  const { calls, elements, flushRaf, flushTimers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  flushTimers();
+
+  const writePane = elements.get('hybridWritePane');
+  writePane.scrollHeight = 1000;
+  writePane.clientHeight = 400;
+  writePane.scrollTop    = 240; // 40%
+
+  const previewEl = elements.get('toastPreviewMount')._previewScrollEl;
+  previewEl.scrollHeight = 1000;
+  previewEl.clientHeight = 400;
+  previewEl.scrollTop    = 0;
+
+  // Click Preview → applyPreviewScrollRatioWithRetries(0.4) schedules
+  // tier-1 + tier-2 + tier-3. Then immediately click Write → showWriteMode
+  // sets currentMode='write' and schedules its own apply.
+  elements.get('previewModeButton').fire('click');
+  elements.get('writeModeButton').fire('click');
+
+  // Drain rAFs only — tier-1 + tier-2 of the preview helper fire (apply
+  // 0.4 to previewEl), and the Write apply fires. The tier-3 setTimeout
+  // for Preview is still pending in the timer queue.
+  flushRaf();
+
+  // Sentinel value: anything that is NOT 0.4 * 600 = 240. Without the
+  // stale-timer guard, the pending tier-3 will overwrite this with 240.
+  previewEl.scrollTop = 999;
+
+  // Drain remaining timers — the stale tier-3 fires here.
+  flushTimers();
+
+  // With the guard: tier-3 sees currentMode === 'write' and noops; the
+  // sentinel 999 is preserved. Without the guard: tier-3 applies 0.4 to
+  // previewEl, overwriting 999 with 240.
+  assert.equal(
+    previewEl.scrollTop, 999,
+    'stale Preview tier-3 must not overwrite the pane after the user has toggled to Write'
+  );
 });
 
 test('bug #2: deleted note id does not leak its view state into a recreated note with the same id', async () => {

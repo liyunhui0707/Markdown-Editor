@@ -472,13 +472,12 @@ test('showPreviewMode captures from hybridWritePane BEFORE setMarkdown', () => {
 
 test('showPreviewMode applies the ratio to .toastui-editor-md-preview after layout', () => {
   const html = readIndexHtml();
-  // The deferred apply now goes through scheduleApplyAfterLayout (which
-  // nests two requestAnimationFrames, so the apply lands AFTER Toast UI's
-  // own scroll-after-setMarkdown). Regex covers either direct rAF or the
-  // helper path.
+  // The deferred apply now routes through applyPreviewScrollRatioWithRetries
+  // (which schedules rAF + double-rAF + setTimeout(250ms)). Regex covers
+  // any of: bounded-retry helper, scheduleApplyAfterLayout, direct rAF.
   assert.match(
     html,
-    /function\s+showPreviewMode\s*\([\s\S]*?(?:scheduleApplyAfterLayout|requestAnimationFrame)\s*\([\s\S]*?applyScrollRatio\s*\([\s\S]*?(?:previewScrollEl\s*\(\s*\)|toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\))/
+    /function\s+showPreviewMode\s*\([\s\S]*?(?:applyPreviewScrollRatioWithRetries|scheduleApplyAfterLayout|requestAnimationFrame)\s*\(/
   );
 });
 
@@ -540,6 +539,49 @@ test('saveCurrentNote migrates noteViewStates on any id change (rename or draft 
   assert.match(
     html,
     /noteEditorStates\.delete\s*\(\s*oldId\s*\)[\s\S]{0,400}noteViewStates\.set\s*\(\s*newId\s*,\s*noteViewStates\.get\s*\(\s*oldId\s*\)\s*\)[\s\S]{0,200}noteViewStates\.delete\s*\(\s*oldId\s*\)/
+  );
+});
+
+// ── Bug #2 timing follow-up: bounded-retry Preview restore (supplemental) ──
+// Manual QA is the primary gate for the real Toast UI 200 ms timer.
+// These regex assertions pin the static structure: the helper exists, both
+// Preview-restore call sites use it, and the helper schedules a setTimeout
+// past Toast UI's 200 ms afterPreviewRender timer.
+
+test('renderer defines applyPreviewScrollRatioWithRetries helper', () => {
+  const html = readIndexHtml();
+  assert.match(html, /function\s+applyPreviewScrollRatioWithRetries\s*\(/,
+    'bounded-retry Preview helper must be defined');
+});
+
+test('showPreviewMode uses applyPreviewScrollRatioWithRetries', () => {
+  const html = readIndexHtml();
+  assert.match(
+    html,
+    /function\s+showPreviewMode\s*\([\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/,
+    'within-note Write→Preview must use the bounded-retry helper'
+  );
+});
+
+test('restoreNoteViewState uses applyPreviewScrollRatioWithRetries for the preview branch', () => {
+  const html = readIndexHtml();
+  // Inside restoreNoteViewState, the preview branch must route through the
+  // bounded-retry helper. The Write branch keeps scheduleApplyAfterLayout.
+  assert.match(
+    html,
+    /function\s+restoreNoteViewState\s*\([\s\S]*?saved\.mode\s*===\s*['"]preview['"][\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/
+  );
+});
+
+test('applyPreviewScrollRatioWithRetries schedules a setTimeout past Toast UI 200ms timer', () => {
+  const html = readIndexHtml();
+  // The tier-3 setTimeout must use a delay > 200 ms so it fires AFTER Toast
+  // UI's ScrollSync2 afterPreviewRender setTimeout(..., 200). The regex
+  // accepts any integer ≥ 201 (within ~800 chars of the helper declaration).
+  assert.match(
+    html,
+    /function\s+applyPreviewScrollRatioWithRetries\s*\([\s\S]{0,800}setTimeout\s*\([^,]+,\s*(?:2(?:[1-9][0-9]|0[1-9])|[3-9][0-9]{2}|[1-9][0-9]{3,})/,
+    'tier-3 setTimeout delay must exceed 200ms (Toast UI afterPreviewRender timer)'
   );
 });
 

@@ -2311,6 +2311,43 @@ Today the app reacts better to real external MCP ingests.
         });
       }
 
+      // Bounded-retry Preview scroll restore. Toast UI's ScrollSync2
+      // schedules a 200 ms setTimeout off `afterPreviewRender` that scrolls
+      // the preview to the (hidden) MD editor's cursor — typically
+      // end-of-document — and stomps any earlier scroll write. Double-rAF
+      // applies at ~32 ms and loses; we apply at multiple tiers so the
+      // last one runs after the 200 ms timer and wins:
+      //   tier 1: requestAnimationFrame   (~16 ms)
+      //   tier 2: requestAnimationFrame   (~32 ms)  — same coverage
+      //                                   the previous double-rAF gave
+      //   tier 3: setTimeout(250 ms)      (50 ms past Toast UI's 200 ms)
+      // Each tier re-queries previewScrollEl() so we always target the
+      // live DOM node (defensive — Toast UI updates innerHTML rather than
+      // replacing .toastui-editor-md-preview, but re-querying is cheap).
+      // applyScrollRatio is idempotent (same ratio, same target); duplicate
+      // applies are harmless.
+      //
+      // Stale-timer protection: each call increments a generation counter;
+      // each scheduled apply captures its generation and bails if a newer
+      // call has happened. Each apply also bails if `currentMode` is no
+      // longer 'preview' — without this guard, a stale tier-3 (250 ms) for
+      // an old note could fire after the user has toggled to Write or
+      // switched to a Write-mode note, re-querying previewScrollEl() and
+      // writing the OLD ratio onto the (now-hidden) preview pane.
+      let _previewScrollApplyGeneration = 0;
+      function applyPreviewScrollRatioWithRetries(ratio) {
+        _previewScrollApplyGeneration += 1;
+        const generation = _previewScrollApplyGeneration;
+        const apply = function () {
+          if (generation !== _previewScrollApplyGeneration) return;
+          if (currentMode !== 'preview') return;
+          if (_applyScrollRatio) _applyScrollRatio(previewScrollEl(), ratio);
+        };
+        requestAnimationFrame(apply);
+        requestAnimationFrame(function () { requestAnimationFrame(apply); });
+        setTimeout(apply, 250);
+      }
+
       // setActiveMode owns the DOM/button mutations and the Toast UI preview
       // tab activation. currentMode is the single source of truth. The DOM
       // class set is always re-applied (idempotent) so callers can rely on
@@ -2357,14 +2394,21 @@ Today the app reacts better to real external MCP ingests.
       }
 
       // Restore the saved mode + scroll ratio for a note. Defaults to
-      // { mode: 'write', scrollRatio: 0 } for never-visited notes.
+      // { mode: 'write', scrollRatio: 0 } for never-visited notes. Preview
+      // restores route through applyPreviewScrollRatioWithRetries so they
+      // win against Toast UI's 200 ms afterPreviewRender setTimeout; Write
+      // restores keep the lighter scheduleApplyAfterLayout (no Toast UI
+      // interference on that surface).
       function restoreNoteViewState(noteId) {
         const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
         setActiveMode(saved.mode);
-        scheduleApplyAfterLayout(function () {
-          const target = saved.mode === 'preview' ? previewScrollEl() : hybridWritePane;
-          if (_applyScrollRatio) _applyScrollRatio(target, saved.scrollRatio);
-        });
+        if (saved.mode === 'preview') {
+          applyPreviewScrollRatioWithRetries(saved.scrollRatio);
+        } else {
+          scheduleApplyAfterLayout(function () {
+            if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, saved.scrollRatio);
+          });
+        }
       }
 
       function showWriteMode() {
@@ -2388,9 +2432,9 @@ Today the app reacts better to real external MCP ingests.
         _toastuiInstance.setMarkdown(getCurrentEditorText());
         setActiveMode('preview');
 
-        scheduleApplyAfterLayout(function () {
-          if (_applyScrollRatio) _applyScrollRatio(previewScrollEl(), ratio);
-        });
+        // Bounded-retry apply to win against Toast UI's 200 ms
+        // afterPreviewRender setTimeout (see helper for details).
+        applyPreviewScrollRatioWithRetries(ratio);
       }
 
       writeModeButton.addEventListener('click', showWriteMode);
