@@ -7,9 +7,9 @@
      - 'cm6'    — Stage 3 CodeMirror 6 production adapter (single document)
 
    Selection priority (highest first):
-     1. URL query param  ?writeEngine=cm6
-     2. localStorage     markdownVault.writeEngine = 'cm6'
-     3. default          'hybrid'
+     1. URL query param  ?writeEngine=hybrid
+     2. localStorage     markdownVault.writeEngine = 'hybrid'
+     3. default          'cm6'
 
    Invalid values at any layer are treated as absent and fall through to
    the next layer. Pure function; takes injected dependencies so it is
@@ -25,7 +25,7 @@
 
   const STORAGE_KEY = 'markdownVault.writeEngine';
   const QUERY_KEY   = 'writeEngine';
-  const DEFAULT     = 'hybrid';
+  const DEFAULT     = 'cm6';
   const VALID       = new Set(['hybrid', 'cm6']);
 
   function readQuery(search) {

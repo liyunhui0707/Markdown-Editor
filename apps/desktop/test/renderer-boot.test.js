@@ -2,9 +2,10 @@
    Run: node --test test/renderer-boot.test.js
 
    These tests execute the real inline boot script against a small fake
-   renderer environment. They pin Step 3B behavior: HybridWriteView remains the
-   default, while the production CM6 adapter is activated only when the write
-   engine resolver explicitly selects 'cm6'. */
+   renderer environment. They pin Step 4 behavior: the production CM6 adapter
+   is the default Write-mode engine, while HybridWriteView is reachable only
+   when the write engine resolver explicitly selects 'hybrid' (via
+   ?writeEngine=hybrid or localStorage markdownVault.writeEngine='hybrid'). */
 'use strict';
 
 const { test } = require('node:test');
@@ -705,12 +706,21 @@ test('index.html loads CM6 scripts before write-engine and before the inline boo
   );
 });
 
-test('default renderer boot resolves hybrid, constructs HybridWriteView, and does not construct CM6', () => {
+test('default renderer boot resolves cm6, constructs CM6 adapter, and does not construct HybridWriteView', () => {
   const { calls } = makeRendererHarness();
+
+  assert.deepEqual(calls.resolvedEngines, ['cm6']);
+  assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'cm6']]);
+  assert.equal(calls.toastConstructed, 1);
+  assert.equal(calls.hybridConstructed, 0);
+  assert.equal(calls.cm6Constructed, 1);
+});
+
+test('renderer boot with ?writeEngine=hybrid constructs HybridWriteView and not CM6', () => {
+  const { calls } = makeRendererHarness({ search: '?writeEngine=hybrid' });
 
   assert.deepEqual(calls.resolvedEngines, ['hybrid']);
   assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'hybrid']]);
-  assert.equal(calls.toastConstructed, 1);
   assert.equal(calls.hybridConstructed, 1);
   assert.equal(calls.cm6Constructed, 0);
 });
@@ -737,7 +747,7 @@ test('renderer boot with localStorage writeEngine=cm6 constructs CM6 when no que
 });
 
 test('hybrid-backed adapter still uses setText, getText, and exitWriteMode for boot and Preview', () => {
-  const { calls, elements } = makeRendererHarness();
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid' });
 
   assert.equal(calls.hybridSetText.length, 1, 'initial render should load the selected note');
   assert.match(calls.hybridSetText[0], /^Tags: mcp, ingest\nSource: manual\n\n# Day 25/);
@@ -931,7 +941,7 @@ async function assertSavingOneUnsavedDraftPreservesAnother({ search = '', engine
 }
 
 test('saving one unsaved draft preserves other unsaved drafts for later saving (hybrid)', async () => {
-  await assertSavingOneUnsavedDraftPreservesAnother({ engineName: 'hybrid' });
+  await assertSavingOneUnsavedDraftPreservesAnother({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('saving one unsaved draft preserves other unsaved drafts for later saving (CM6)', async () => {
@@ -1075,6 +1085,7 @@ test('Hybrid: note switching continues to use setText (note-local undo intention
   // detect their absence and fall back to setText. This pins Hybrid as
   // intentionally deferred, not accidentally broken.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
@@ -1175,7 +1186,7 @@ async function assertSavePreservesUnrelatedDirtyVaultNotes({ search = '', engine
 }
 
 test('save preserves unrelated dirty vault-backed notes (hybrid)', async () => {
-  await assertSavePreservesUnrelatedDirtyVaultNotes({ engineName: 'hybrid' });
+  await assertSavePreservesUnrelatedDirtyVaultNotes({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('save preserves unrelated dirty vault-backed notes (cm6)', async () => {
@@ -1185,10 +1196,13 @@ test('save preserves unrelated dirty vault-backed notes (cm6)', async () => {
   });
 });
 
-test('save preserves both dirty vault notes AND unsaved drafts in the same flow', async () => {
+test('save preserves both dirty vault notes AND unsaved drafts in the same flow (hybrid)', async () => {
   // Mixed scenario: a vault note and a draft both have unsaved edits when
   // another vault note is saved. Both must survive the refresh.
+  // Pinned to hybrid because the test pokes hybridAdapter directly; the CM6
+  // path is covered by the cache-preservation suite below.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
@@ -1247,13 +1261,15 @@ test('save preserves both dirty vault notes AND unsaved drafts in the same flow'
     "D's edited body must survive saving A");
 });
 
-test('after save, the saved note remains selected and shows the saved body', async () => {
+test('after save, the saved note remains selected and shows the saved body (hybrid)', async () => {
   // Selection-and-canonicality regression: after a save+refresh the just-saved
   // note must remain the selected one and `notes[i].body` for that note must
   // equal what was sent to saveNote (the disk truth). This pins the behavior
   // in the presence of the new overlay logic — the saved note must NOT be
-  // routed through the in-memory overlay.
+  // routed through the in-memory overlay. Pinned to hybrid because it pokes
+  // hybridAdapter directly.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
@@ -1284,13 +1300,16 @@ test('after save, the saved note remains selected and shows the saved body', asy
     "the saved note's in-memory body matches the saved/disk version");
 });
 
-test('watcher refresh uses disk truth for the changed file but preserves edits in unrelated notes', async () => {
+test('watcher refresh uses disk truth for the changed file but preserves edits in unrelated notes (hybrid)', async () => {
   // The watcher only knows that ONE specific file changed. Disk truth is the
   // right answer for that file (whether the change came from our save or an
   // external editor), but every other vault-backed note is unchanged on disk
   // and its in-memory edits must NOT be silently reverted. Drafts continue to
-  // be auto-preserved by refreshVaultNotes.
+  // be auto-preserved by refreshVaultNotes. Pinned to hybrid because it pokes
+  // hybridAdapter directly; CM6 watcher behavior is covered by the cache
+  // preservation tests below.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
@@ -1394,7 +1413,7 @@ async function assertSaveAndWatcherPreserveOtherDirtyVaultNotes({ search = '', e
 }
 
 test('save + post-save watcher both preserve unrelated dirty vault notes (hybrid)', async () => {
-  await assertSaveAndWatcherPreserveOtherDirtyVaultNotes({ engineName: 'hybrid' });
+  await assertSaveAndWatcherPreserveOtherDirtyVaultNotes({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('save + post-save watcher both preserve unrelated dirty vault notes (cm6)', async () => {
@@ -1404,11 +1423,14 @@ test('save + post-save watcher both preserve unrelated dirty vault notes (cm6)',
   });
 });
 
-test('save + watcher preserve both a dirty vault note AND an unsaved draft', async () => {
+test('save + watcher preserve both a dirty vault note AND an unsaved draft (hybrid)', async () => {
   // Mixed regression: when another note is saved, both the unrelated dirty
   // saved note and an unsaved draft must survive (1) the save refresh and
   // (2) the watcher refresh that fires for the saved file.
+  // Pinned to hybrid because it pokes hybridAdapter directly; the CM6 mixed
+  // case is covered by the cache-preservation suite below.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A disk', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B disk', fileName: 'b.md', relativePath: 'b.md' },
@@ -1852,11 +1874,14 @@ test('save is blocked: draft title collides with another unsaved draft', async (
   await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'plan.md' });
 });
 
-test('save succeeds: re-saving an existing vault note targets its own file', async () => {
+test('save succeeds: re-saving an existing vault note targets its own file (hybrid)', async () => {
   // Even though notes[A].relativePath = 'note.md' equals the candidate for a
   // hypothetical draft titled "Note", saving the vault note A itself is the
-  // legitimate update flow and must NOT be blocked.
+  // legitimate update flow and must NOT be blocked. Pinned to hybrid because
+  // it pokes hybridAdapter directly; the CM6 path is covered by save-flow
+  // tests above.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:note.md', title: 'Note', body: '# Note disk', fileName: 'note.md', relativePath: 'note.md' },
     ],
@@ -1901,7 +1926,7 @@ async function assertDraftConflictBlocksSave({ search, engineName }) {
 }
 
 test('engine parity: vault conflict blocks save (hybrid)', async () => {
-  await assertVaultConflictBlocksSave({ search: '', engineName: 'hybrid' });
+  await assertVaultConflictBlocksSave({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('engine parity: vault conflict blocks save (cm6)', async () => {
@@ -1909,7 +1934,7 @@ test('engine parity: vault conflict blocks save (cm6)', async () => {
 });
 
 test('engine parity: draft-vs-draft conflict blocks save (hybrid)', async () => {
-  await assertDraftConflictBlocksSave({ search: '', engineName: 'hybrid' });
+  await assertDraftConflictBlocksSave({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('engine parity: draft-vs-draft conflict blocks save (cm6)', async () => {
@@ -1924,11 +1949,13 @@ test('engine parity: draft-vs-draft conflict blocks save (cm6)', async () => {
 // relativePath. Pre-existing title/filename mismatches stay put on a save
 // where the user did not touch the title.
 
-test('rename: existing vault note with mismatched title/filename and no title change saves in place', async () => {
+test('rename: existing vault note with mismatched title/filename and no title change saves in place (hybrid)', async () => {
   // Note seeded with a deliberate disk-vs-title mismatch (title "Beautiful
   // Title", relativePath "note-x.md"). User clicks Save without touching
-  // the titleInput → no rename, save in place at the original path.
+  // the titleInput → no rename, save in place at the original path. Pinned
+  // to hybrid because it pokes hybridAdapter directly.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:note-x.md', title: 'Beautiful Title', body: '# Beautiful Title body',
         fileName: 'note-x.md', relativePath: 'note-x.md' },
@@ -2116,8 +2143,10 @@ test('CM6: title-change rename keeps the renamed note selected and preserves CM6
     'restored state marker must equal the pre-rename marker');
 });
 
-test('rename: dirty unrelated vault note + draft survive a rename save and the post-save watcher', async () => {
+test('rename: dirty unrelated vault note + draft survive a rename save and the post-save watcher (hybrid)', async () => {
+  // Pinned to hybrid because it pokes hybridAdapter directly.
   const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
@@ -2205,7 +2234,7 @@ async function assertVaultRenameWorks({ search, engineName }) {
 }
 
 test('rename engine parity: vault rename works (hybrid)', async () => {
-  await assertVaultRenameWorks({ search: '', engineName: 'hybrid' });
+  await assertVaultRenameWorks({ search: '?writeEngine=hybrid', engineName: 'hybrid' });
 });
 
 test('rename engine parity: vault rename works (cm6)', async () => {
@@ -2607,8 +2636,10 @@ test('bug #2: never-visited note opens in Write mode at top, ignoring previous n
     'never-visited note opens at scrollTop 0');
 });
 
-test('bug #2: vault re-save preserves the note view state across the post-save refresh', async () => {
+test('bug #2: vault re-save preserves the note view state across the post-save refresh (hybrid)', async () => {
+  // Pinned to hybrid because it pokes hybridAdapter directly.
   const { calls, elements, flushRaf } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
     ],
@@ -2679,8 +2710,10 @@ test('bug #2: rename migrates the per-note view state to the new id', async () =
     'rename must migrate the view state — renamed note must restore the saved 40%');
 });
 
-test('bug #2: draft → vault save migrates the per-note view state to the new vault id', async () => {
+test('bug #2: draft → vault save migrates the per-note view state to the new vault id (hybrid)', async () => {
+  // Pinned to hybrid because it pokes hybridAdapter directly.
   const { calls, elements, flushRaf } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:other.md', title: 'Other', body: '# Other', fileName: 'other.md', relativePath: 'other.md' },
     ],
@@ -2946,13 +2979,15 @@ test('bug #2: stale Preview tier-3 timer does not stomp the pane after the user 
   );
 });
 
-test('bug #2: deleted note id does not leak its view state into a recreated note with the same id', async () => {
+test('bug #2: deleted note id does not leak its view state into a recreated note with the same id (hybrid)', async () => {
   // Codex follow-up: after delete, renderApp/refreshVaultNotes can fire
   // renderEditor while liveEditorLastNoteId still points at the deleted
   // note. Without the captureNoteViewState guard, the deleted id would get
   // re-captured into noteViewStates, then leak into any future note that
   // takes the same id (e.g. a file recreated at the same relativePath).
+  // Pinned to hybrid because it pokes hybridAdapter directly.
   const { calls, elements, flushRaf, window } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
     vaultNotes: [
       { id: 'vault:a.md', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
       { id: 'vault:b.md', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },

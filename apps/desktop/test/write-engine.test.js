@@ -2,11 +2,11 @@
    Run: node --test test/write-engine.test.js
 
    The resolver chooses which Write-mode editor implementation the renderer
-   should construct: the existing 'hybrid' (HybridWriteView) or the new 'cm6'
-   (CodeMirror 6). Selection layers, in priority order:
-     1. URL query param  ?writeEngine=cm6
-     2. localStorage     markdownVault.writeEngine = 'cm6'
-     3. default          'hybrid'
+   should construct: the legacy 'hybrid' (HybridWriteView) or the production
+   'cm6' (CodeMirror 6). Selection layers, in priority order:
+     1. URL query param  ?writeEngine=hybrid
+     2. localStorage     markdownVault.writeEngine = 'hybrid'
+     3. default          'cm6'
    Invalid values at any layer are ignored (treated as absent).
 */
 'use strict';
@@ -25,13 +25,13 @@ function makeStorage(map) {
   };
 }
 
-test('default engine is "hybrid" when no storage and no search', () => {
-  assert.equal(resolveWriteEngine({ search: '', storage: makeStorage({}) }), 'hybrid');
+test('default engine is "cm6" when no storage and no search', () => {
+  assert.equal(resolveWriteEngine({ search: '', storage: makeStorage({}) }), 'cm6');
 });
 
-test('default engine is "hybrid" when inputs are omitted entirely', () => {
-  assert.equal(resolveWriteEngine({}), 'hybrid');
-  assert.equal(resolveWriteEngine(), 'hybrid');
+test('default engine is "cm6" when inputs are omitted entirely', () => {
+  assert.equal(resolveWriteEngine({}), 'cm6');
+  assert.equal(resolveWriteEngine(), 'cm6');
 });
 
 test('localStorage markdownVault.writeEngine="cm6" selects cm6', () => {
@@ -89,16 +89,16 @@ test('invalid URL value falls back to localStorage', () => {
   );
 });
 
-test('invalid URL value with no localStorage falls back to "hybrid"', () => {
+test('invalid URL value with no localStorage falls back to "cm6"', () => {
   assert.equal(
     resolveWriteEngine({ search: '?writeEngine=bogus', storage: makeStorage({}) }),
-    'hybrid'
+    'cm6'
   );
 });
 
-test('invalid localStorage value falls back to "hybrid"', () => {
+test('invalid localStorage value falls back to "cm6"', () => {
   const storage = makeStorage({ 'markdownVault.writeEngine': 'lexical' });
-  assert.equal(resolveWriteEngine({ search: '', storage }), 'hybrid');
+  assert.equal(resolveWriteEngine({ search: '', storage }), 'cm6');
 });
 
 test('empty URL value is treated as absent (falls back to localStorage)', () => {
@@ -111,14 +111,14 @@ test('empty URL value is treated as absent (falls back to localStorage)', () => 
 
 test('empty localStorage value is treated as absent (falls back to default)', () => {
   const storage = makeStorage({ 'markdownVault.writeEngine': '' });
-  assert.equal(resolveWriteEngine({ search: '', storage }), 'hybrid');
+  assert.equal(resolveWriteEngine({ search: '', storage }), 'cm6');
 });
 
 test('URL with unrelated params is ignored', () => {
   const search = '?other=1&another=foo';
   assert.equal(
     resolveWriteEngine({ search, storage: makeStorage({}) }),
-    'hybrid'
+    'cm6'
   );
 });
 
@@ -131,9 +131,9 @@ test('URL with unrelated params alongside writeEngine still resolves', () => {
 });
 
 test('null/undefined storage does not throw — resolver tolerates absence', () => {
-  assert.equal(resolveWriteEngine({ search: '', storage: null }), 'hybrid');
-  assert.equal(resolveWriteEngine({ search: '', storage: undefined }), 'hybrid');
-  assert.equal(resolveWriteEngine({ search: '?writeEngine=cm6', storage: null }), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '', storage: null }), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '', storage: undefined }), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '?writeEngine=hybrid', storage: null }), 'hybrid');
 });
 
 test('null/undefined search does not throw', () => {
@@ -144,15 +144,16 @@ test('null/undefined search does not throw', () => {
 
 test('storage that throws on getItem is treated as absent', () => {
   const storage = { getItem() { throw new Error('blocked'); } };
-  assert.equal(resolveWriteEngine({ search: '', storage }), 'hybrid');
-  assert.equal(resolveWriteEngine({ search: '?writeEngine=cm6', storage }), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '', storage }), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '?writeEngine=hybrid', storage }), 'hybrid');
 });
 
 test('case sensitivity: "CM6" is not accepted (only lowercase canonical values)', () => {
   // Pin current behavior: we accept exactly 'cm6' and 'hybrid', no case folding.
   // This keeps the contract simple and prevents accidental matches.
+  // Invalid value falls through to the default ('cm6').
   assert.equal(
     resolveWriteEngine({ search: '?writeEngine=CM6', storage: makeStorage({}) }),
-    'hybrid'
+    'cm6'
   );
 });
