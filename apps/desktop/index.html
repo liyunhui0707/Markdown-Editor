@@ -2219,6 +2219,28 @@ Today the app reacts better to real external MCP ingests.
         window.makeEditorConfig(toastPreviewMount)
       );
 
+      // Disable Toast UI's internal Editor↔Preview scroll sync. Toast UI's
+      // ScrollSync2 (lib/toastui-bundle.js) runs an animated scrollTop write
+      // loop (`setTimeout(step, 1)` driven by ANIMATION_TIME = 100 ms),
+      // started 200 ms after every `afterPreviewRender`. It uses the hidden
+      // markdown editor's cursor as the scroll target, so on every
+      // setMarkdown the preview gets scrolled to end-of-document — fighting
+      // any restore we attempt and stomping it for the full 100 ms anim.
+      // Our app uses Toast UI only as a Preview *renderer*; we own all
+      // Write/Preview scroll state via noteViewStates +
+      // applyPreviewScrollRatioWithRetries, so Toast UI's editor↔preview
+      // scroll-sync is purely interference. Replacing the two inner methods
+      // with no-ops short-circuits both write paths (the afterPreviewRender
+      // timer and the scroll-event listener) without touching any
+      // EventEmitter listener registration — avoiding the collateral
+      // removeEventHandler('scroll') damage that scrollSync.destroy() would
+      // cause to CodeBlockView2's bindEvent. toggleScrollSync alone would
+      // not work: it gates only the scroll-event path.
+      if (_toastuiInstance && _toastuiInstance.scrollSync) {
+        _toastuiInstance.scrollSync.syncPreviewScrollTop = function () {};
+        _toastuiInstance.scrollSync.syncEditorScrollTop  = function () {};
+      }
+
       function handleWriteChange(text) {
         _toastuiInstance.setMarkdown(text || '');
         const selectedNote = getSelectedNote();

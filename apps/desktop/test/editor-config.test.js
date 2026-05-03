@@ -573,6 +573,26 @@ test('restoreNoteViewState uses applyPreviewScrollRatioWithRetries for the previ
   );
 });
 
+test('renderer disables Toast UI internal scroll-sync after _toastuiInstance is constructed', () => {
+  const html = readIndexHtml();
+  // Toast UI's ScrollSync2 runs an animated scrollTop write loop on a
+  // setTimeout-driven step every ~1 ms across ANIMATION_TIME = 100 ms,
+  // triggered 200 ms after every afterPreviewRender. We neutralize it by
+  // replacing the two inner methods with no-ops directly after the editor
+  // is constructed. Pin both overrides AND their order relative to the
+  // construction so a future refactor can't silently delete them.
+  assert.match(
+    html,
+    /const\s+_toastuiInstance\s*=\s*new\s+window\.ToastuiEditor[\s\S]*?_toastuiInstance\.scrollSync\.syncPreviewScrollTop\s*=\s*function\s*\(\s*\)\s*\{\s*\}/,
+    'syncPreviewScrollTop must be replaced with a no-op after _toastuiInstance construction'
+  );
+  assert.match(
+    html,
+    /const\s+_toastuiInstance\s*=\s*new\s+window\.ToastuiEditor[\s\S]*?_toastuiInstance\.scrollSync\.syncEditorScrollTop\s*=\s*function\s*\(\s*\)\s*\{\s*\}/,
+    'syncEditorScrollTop must be replaced with a no-op after _toastuiInstance construction'
+  );
+});
+
 test('applyPreviewScrollRatioWithRetries writes the ratio to .toastui-editor-contents in addition to .toastui-editor-md-preview', () => {
   const html = readIndexHtml();
   // Manual QA showed the visible scroll surface in our embedding is the

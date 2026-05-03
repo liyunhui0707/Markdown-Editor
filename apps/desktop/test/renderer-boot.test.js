@@ -256,6 +256,18 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     unwatchVaultFolder: 0,
     vaultChangedCallback: null,
     rafQueue: [],
+    // Captures the most recently constructed Toast UI instance so tests can
+    // poke its scrollSync methods directly. Used by the "Toast UI scroll-sync
+    // is neutralized after boot" test.
+    toastInstance: null,
+    // Spy counters for Toast UI's internal scroll-sync methods. The mock's
+    // scrollSync object initially points its methods at these spies; the
+    // production code replaces them with no-ops immediately after the editor
+    // is constructed. Tests invoke the (now-replaced) methods on
+    // calls.toastInstance.scrollSync and assert the spy counters do NOT
+    // increment — proving the override actually ran.
+    toastNativeSyncPreview: 0,
+    toastNativeSyncEditor: 0,
     // Bug #2 follow-up: opt-in flag that simulates Toast UI's own
     // scroll-after-setMarkdown by enqueueing a "scroll preview to bottom"
     // rAF on the harness queue. Tests that prove our apply runs LAST
@@ -291,6 +303,16 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
         calls.toastEmits.push(name);
       },
     };
+    // Mirror Toast UI's real shape: ScrollSync2 is exposed on the editor as
+    // `this.scrollSync`. The production code overrides these two methods
+    // with no-ops right after construction, so subsequent calls become a
+    // no-op. Tests invoke them on calls.toastInstance to verify the
+    // override took effect.
+    this.scrollSync = {
+      syncPreviewScrollTop: function () { calls.toastNativeSyncPreview += 1; },
+      syncEditorScrollTop:  function () { calls.toastNativeSyncEditor  += 1; },
+    };
+    calls.toastInstance = this;
     this.setMarkdown = (text) => {
       calls.toastSetMarkdown.push(text);
       // Optional simulation: real Toast UI scrolls its preview after a
@@ -2838,6 +2860,37 @@ test('bug #2: Preview restore writes the ratio to BOTH .toastui-editor-md-previe
   // Inner: 0.4 * (800 - 400) = 160. Different pixel value, same ratio.
   assert.equal(innerContents.scrollTop, 160,
     '.toastui-editor-contents must receive the SAME ratio applied against its own scrollable range');
+});
+
+test('bug #2: Toast UI internal scroll-sync is disabled after _toastuiInstance is constructed', async () => {
+  // Toast UI's ScrollSync2 (lib/toastui-bundle.js) runs an animated scrollTop
+  // write loop driven by `setTimeout(step, 1)` over `ANIMATION_TIME = 100 ms`,
+  // started 200 ms after every `afterPreviewRender` event. No bounded retry
+  // can reliably win that race. The fix replaces both inner methods with
+  // no-ops immediately after the editor is constructed. This test asserts
+  // the override actually ran by invoking the method via the public
+  // `scrollSync` property and verifying the harness's spy counters do NOT
+  // increment — proving the production code replaced them.
+  const { calls, elements } = makeRendererHarness();
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  assert.ok(calls.toastInstance, 'Toast UI instance must be constructed at boot');
+  assert.ok(calls.toastInstance.scrollSync,
+    'mocked Toast UI instance must expose .scrollSync (mirroring real shape)');
+
+  const previewBefore = calls.toastNativeSyncPreview;
+  const editorBefore  = calls.toastNativeSyncEditor;
+
+  // Invoke the methods exactly as Toast UI itself would after the
+  // afterPreviewRender 200 ms timer fires. With the production override,
+  // both calls return without touching scrollTop.
+  calls.toastInstance.scrollSync.syncPreviewScrollTop();
+  calls.toastInstance.scrollSync.syncEditorScrollTop();
+
+  assert.equal(calls.toastNativeSyncPreview, previewBefore,
+    'Toast UI scrollSync.syncPreviewScrollTop must be replaced with a no-op');
+  assert.equal(calls.toastNativeSyncEditor, editorBefore,
+    'Toast UI scrollSync.syncEditorScrollTop must be replaced with a no-op');
 });
 
 test('bug #2: stale Preview tier-3 timer does not stomp the pane after the user has left Preview', async () => {
