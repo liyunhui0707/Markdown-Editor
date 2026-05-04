@@ -17,6 +17,7 @@ const vm       = require('node:vm');
 const WriteEngine = require('../lib/write-engine');
 const FileName    = require('../lib/file-name');
 const ScrollSync  = require('../lib/scroll-sync');
+const DocStats    = require('../lib/doc-stats');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -135,6 +136,10 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     'ingestBanner',
     'statusText',
     'vaultPathText',
+    'docWords',
+    'docChars',
+    'docLines',
+    'docEngine',
     'chooseVaultButton',
     'seedDemoVaultButton',
     'templateSelect',
@@ -593,6 +598,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     },
     FileName,
     ScrollSync,
+    DocStats,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -3142,4 +3148,92 @@ test('renderer source keeps save and note-switch reads on liveEditorInstance.get
     /_toastuiInstance\.setMarkdown\(\s*getCurrentEditorText\(\)\s*\)/,
     'Preview should mirror through the current liveEditorInstance adapter'
   );
+});
+
+// ── Stage 5.2: status-bar readouts (renderer-level wiring) ──────────────
+//
+// The pure helpers (countWords / countChars / countLines / formatNumber) are
+// covered by test/doc-stats.test.js. These tests cover the renderer wiring:
+// element population on boot, onChange-driven updates, blank-doc state, and
+// the engine label for both selection paths. They use the real DocStats
+// module (loaded into window.DocStats by the harness above) so any future
+// drift between the helpers and the renderer is caught here.
+
+function expectedReadout(text, kind) {
+  const fn = kind === 'words' ? DocStats.countWords
+           : kind === 'chars' ? DocStats.countChars
+           : DocStats.countLines;
+  return DocStats.formatNumber(fn(text)) + ' ' + kind;
+}
+
+test('Stage 5.2: initial CM6 boot — engine label is "CM6" and readouts reflect the seeded note text', () => {
+  const { calls, elements } = makeRendererHarness();
+
+  assert.equal(elements.get('docEngine').textContent, 'CM6');
+
+  // The seeded note is loaded through CM6's setText; readouts should match
+  // DocStats applied to that exact text.
+  const seeded = calls.cm6SetText[0];
+  assert.equal(typeof seeded, 'string');
+  assert.equal(elements.get('docWords').textContent, expectedReadout(seeded, 'words'));
+  assert.equal(elements.get('docChars').textContent, expectedReadout(seeded, 'chars'));
+  assert.equal(elements.get('docLines').textContent, expectedReadout(seeded, 'lines'));
+});
+
+test('Stage 5.2: blank doc (CM6 onChange with "") shows 0 / 0 / 0 readouts', () => {
+  const { calls, elements } = makeRendererHarness();
+
+  calls.cm6OnChange('');
+
+  assert.equal(elements.get('docWords').textContent, '0 words');
+  assert.equal(elements.get('docChars').textContent, '0 chars');
+  assert.equal(elements.get('docLines').textContent, '0 lines');
+});
+
+test('Stage 5.2: typing via CM6 onChange updates words / chars / lines readouts', () => {
+  const { calls, elements } = makeRendererHarness();
+
+  calls.cm6OnChange('hello world');
+  assert.equal(elements.get('docWords').textContent, '2 words');
+  assert.equal(elements.get('docChars').textContent, '11 chars');
+  assert.equal(elements.get('docLines').textContent, '1 lines');
+
+  // CJK summed with latin per the Stage 5.2 word rule, plus a newline that
+  // bumps the line count.
+  calls.cm6OnChange('hello 世界\n第二行');
+  assert.equal(elements.get('docWords').textContent, '6 words');   // 1 latin + 5 CJK
+  assert.equal(elements.get('docChars').textContent, '12 chars');  // includes the \n
+  assert.equal(elements.get('docLines').textContent, '2 lines');
+});
+
+test('Stage 5.2: New Note (note switch to a blank-body draft) resets readouts to 0 / 0 / 0', () => {
+  const { calls, elements } = makeRendererHarness();
+
+  // Sanity: boot landed on the seeded note with non-empty content.
+  assert.notEqual(elements.get('docWords').textContent, '0 words');
+
+  // Type something into the current note so we can prove the switch resets.
+  calls.cm6OnChange('temporary text');
+  assert.equal(elements.get('docWords').textContent, '2 words');
+
+  // Switching to a new blank draft (templateSelect is 'blank' in the harness)
+  // routes through renderApp and should refresh readouts to the new note's
+  // body — which is empty.
+  elements.get('newNoteButton').fire('click');
+  assert.equal(elements.get('docWords').textContent, '0 words');
+  assert.equal(elements.get('docChars').textContent, '0 chars');
+  assert.equal(elements.get('docLines').textContent, '0 lines');
+});
+
+test('Stage 5.2: ?writeEngine=hybrid shows engine label "Hybrid" and readouts reflect Hybrid onChange', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid' });
+
+  assert.equal(elements.get('docEngine').textContent, 'Hybrid');
+
+  // Hybrid commits text through the same onChange-style hook the host wired
+  // in; verify the readouts update on that path too.
+  calls.hybridOnChange('one two three\nfour');
+  assert.equal(elements.get('docWords').textContent, '4 words');
+  assert.equal(elements.get('docChars').textContent, '18 chars');
+  assert.equal(elements.get('docLines').textContent, '2 lines');
 });
