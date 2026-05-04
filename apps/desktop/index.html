@@ -276,8 +276,8 @@
       /* ── Note list items ─────────────────────────────────────────────── */
 
       .note-item {
-        padding: 7px 10px;
-        margin-bottom: 2px;
+        padding: 10px 12px;
+        margin-bottom: 3px;
         border-radius: 6px;
         background: transparent;
         cursor: pointer;
@@ -293,11 +293,23 @@
         border-left-color: var(--accent);
       }
 
+      /* Top row: title (flex-grows, ellipsises) + optional badge. */
+      .note-row-head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 3px;
+      }
+
       .note-title {
+        flex: 1 1 auto;
+        min-width: 0;
         font-size: 13px;
         font-weight: 600;
-        margin-bottom: 3px;
         color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .note-item.active .note-title {
@@ -317,8 +329,53 @@
         line-height: 1.4;
       }
 
+      /* Type badge (right of title). Vault notes get no badge. */
+      .note-badge {
+        flex: 0 0 auto;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        padding: 1px 6px;
+        border-radius: 3px;
+        line-height: 1.4;
+      }
+
+      .note-badge-ai {
+        background: var(--accent-bg);
+        color: var(--accent);
+      }
+
+      .note-badge-draft {
+        background: var(--surface-muted);
+        color: var(--text-muted);
+        border: 1px solid var(--border-subtle);
+      }
+
+      /* Tag chips below the meta line. Wraps if many; capped to 3 + overflow. */
+      .note-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 6px;
+      }
+
+      .note-tag,
+      .note-tag-overflow {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-muted);
+        background: var(--surface-muted);
+        padding: 1px 6px;
+        border-radius: 3px;
+      }
+
+      .note-tag-overflow {
+        color: var(--text-faint);
+      }
+
       mark {
-        background: rgba(124, 58, 237, 0.12);
+        background: var(--accent-bg);
         color: var(--accent);
         padding: 0 2px;
         border-radius: 2px;
@@ -1014,6 +1071,7 @@
     <script src="./lib/file-name.js"></script>
     <script src="./lib/scroll-sync.js"></script>
     <script src="./lib/doc-stats.js"></script>
+    <script src="./lib/note-row.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1566,7 +1624,10 @@ Today the app reacts better to real external MCP ingests.
         updateFilterCounts();
       }
 
-      function getNoteSecondaryText(note) {
+      // `options.skipTags` is set by renderNoteList when a row will render
+      // tag chips, so the meta line doesn't show the same tags twice.
+      function getNoteSecondaryText(note, options) {
+        const skipTags = options && options.skipTags === true;
         const tags = normalizeTags(note.frontmatter?.tags);
         const sourceValue = note.frontmatter?.source ? String(note.frontmatter.source).trim() : '';
         const metadataBits = [];
@@ -1581,7 +1642,7 @@ Today the app reacts better to real external MCP ingests.
           metadataBits.push('unsaved draft');
         }
 
-        if (tags.length > 0) {
+        if (!skipTags && tags.length > 0) {
           metadataBits.push(`tags: ${tags.join(', ')}`);
         }
 
@@ -1623,14 +1684,45 @@ Today the app reacts better to real external MCP ingests.
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
           const displayTitle = note.title.trim().length === 0 ? 'Untitled note' : note.title;
-          const secondaryText = getNoteSecondaryText(note);
+          const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(note) : null;
+          const tagsInfo = window.NoteRow
+            ? window.NoteRow.computeNoteTags(note)
+            : { visible: [], overflow: 0 };
+          const hasTagChips = tagsInfo.visible.length > 0;
+          const secondaryText = getNoteSecondaryText(note, { skipTags: hasTagChips });
           const snippetHtml = result.snippet
             ? `<div class="note-snippet">${highlightText(result.snippet, currentSearchQuery)}</div>`
             : '';
 
+          const badgeHtml = badge
+            ? `<span class="note-badge note-badge-${badge.kind}">${escapeHtml(badge.label)}</span>`
+            : '';
+
+          let tagsHtml = '';
+          if (hasTagChips) {
+            const chips = tagsInfo.visible
+              .map((t) => `<span class="note-tag">#${escapeHtml(t)}</span>`)
+              .join('');
+            const overflow = tagsInfo.overflow > 0
+              ? `<span class="note-tag-overflow">+${tagsInfo.overflow}</span>`
+              : '';
+            tagsHtml = `<div class="note-tags">${chips}${overflow}</div>`;
+          }
+
+          // Tooltip on the outer row so the (possibly quoted) displayTitle
+          // is attribute-encoded by the browser via the DOM property, not by
+          // our escapeHtml helper (which doesn't escape `"`). The native
+          // `title` attribute cascades to children, so hovering anywhere on
+          // the row shows the full title.
+          item.title = displayTitle;
+
           item.innerHTML = `
-            <div class="note-title">${highlightText(displayTitle, currentSearchQuery)}</div>
+            <div class="note-row-head">
+              <div class="note-title">${highlightText(displayTitle, currentSearchQuery)}</div>
+              ${badgeHtml}
+            </div>
             <div class="note-meta">${highlightText(secondaryText, currentSearchQuery)}</div>
+            ${tagsHtml}
             ${snippetHtml}
           `;
 

@@ -18,6 +18,7 @@ const WriteEngine = require('../lib/write-engine');
 const FileName    = require('../lib/file-name');
 const ScrollSync  = require('../lib/scroll-sync');
 const DocStats    = require('../lib/doc-stats');
+const NoteRow     = require('../lib/note-row');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -599,6 +600,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     FileName,
     ScrollSync,
     DocStats,
+    NoteRow,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -3236,4 +3238,96 @@ test('Stage 5.2: ?writeEngine=hybrid shows engine label "Hybrid" and readouts re
   assert.equal(elements.get('docWords').textContent, '4 words');
   assert.equal(elements.get('docChars').textContent, '18 chars');
   assert.equal(elements.get('docLines').textContent, '2 lines');
+});
+
+// ── Stage 5.3: note-list row redesign (renderer-level wiring) ─────────────
+//
+// The pure helpers (computeNoteBadge / computeNoteTags) are covered by
+// test/note-row.test.js. These tests exercise the renderer wiring: the new
+// row markup must contain the right badge / tag chips / overflow chip,
+// the meta line must not duplicate the tags shown as chips, and rows for
+// plain vault notes must contain neither badge nor chips.
+
+test('Stage 5.3: draft row renders the Draft badge and tag chips for the seeded draft', () => {
+  const { elements } = makeRendererHarness();
+
+  // Default seed is one draft note with tags ['mcp', 'ingest'].
+  const row = elements.get('noteList').children[0];
+  assert.ok(row, 'expected at least one row in the note list');
+  const html = row.innerHTML;
+
+  assert.ok(html.includes('note-badge note-badge-draft'), 'draft row should render the Draft badge');
+  assert.ok(html.includes('>Draft<'), 'Draft badge label should appear in the markup');
+  assert.ok(!html.includes('note-badge-ai'), 'draft row should not render the AI badge');
+
+  assert.ok(html.includes('class="note-tag">#mcp<'),    'first tag chip should render');
+  assert.ok(html.includes('class="note-tag">#ingest<'), 'second tag chip should render');
+  assert.ok(!html.includes('note-tag-overflow'), '2 tags (≤3) should not render an overflow chip');
+});
+
+test('Stage 5.3: when tag chips render, the meta line drops the duplicate "tags: ..." segment', () => {
+  const { elements } = makeRendererHarness();
+
+  const row = elements.get('noteList').children[0];
+  const html = row.innerHTML;
+
+  // The seeded draft has tags ['mcp', 'ingest']. They should appear as
+  // chips (asserted above) but not also be repeated as text in the meta.
+  assert.ok(!html.includes('tags: mcp, ingest'), 'meta line should not duplicate tags rendered as chips');
+});
+
+test('Stage 5.3: plain vault note (no aiImported, no tags) renders no badge and no tag chips', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [{
+      title: 'Plain vault note',
+      body: '# Plain vault note\n\nbody',
+      relativePath: 'plain.md',
+      fileName: 'plain.md',
+      frontmatter: { tags: [], source: '' },
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const rows = elements.get('noteList').children;
+  // Find the vault row by className-agnostic substring (titles are unique).
+  const vaultRow = Array.from(rows).find((r) => r.innerHTML.includes('Plain vault note'));
+  assert.ok(vaultRow, 'vault row should be present after Choose Vault');
+
+  const html = vaultRow.innerHTML;
+  assert.ok(!html.includes('note-badge'),    'vault note should not render any type badge');
+  assert.ok(!html.includes('class="note-tag">'), 'vault note with no tags should not render tag chips');
+  assert.ok(!html.includes('note-tag-overflow'), 'vault note with no tags should not render overflow chip');
+});
+
+test('Stage 5.3: AI-imported vault note renders the AI badge and overflow chip when tags > 3', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [{
+      title: 'Imported essay',
+      body: '# Imported',
+      relativePath: 'imported.md',
+      fileName: 'imported.md',
+      aiImported: true,
+      frontmatter: { tags: ['ai', 'practice', 'long-form', 'archive', 'idea'], source: 'mcp' },
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const rows = elements.get('noteList').children;
+  const aiRow = Array.from(rows).find((r) => r.innerHTML.includes('Imported essay'));
+  assert.ok(aiRow, 'AI-imported row should be present after Choose Vault');
+
+  const html = aiRow.innerHTML;
+  assert.ok(html.includes('note-badge note-badge-ai'), 'AI-imported row should render the AI badge');
+  assert.ok(html.includes('>AI<'), 'AI badge label should appear in the markup');
+  assert.ok(!html.includes('note-badge-draft'), 'AI-imported row should not render the Draft badge');
+
+  // First 3 of 5 tags visible; remaining 2 collapse into the +N overflow chip.
+  assert.ok(html.includes('class="note-tag">#ai<'),        'first tag visible');
+  assert.ok(html.includes('class="note-tag">#practice<'),  'second tag visible');
+  assert.ok(html.includes('class="note-tag">#long-form<'), 'third tag visible');
+  assert.ok(!html.includes('class="note-tag">#archive<'),  'fourth tag should be hidden behind overflow');
+  assert.ok(!html.includes('class="note-tag">#idea<'),     'fifth tag should be hidden behind overflow');
+  assert.ok(html.includes('class="note-tag-overflow">+2<'), 'overflow chip should read +2');
 });
