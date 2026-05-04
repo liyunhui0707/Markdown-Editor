@@ -112,6 +112,9 @@ function makeElement(tag = 'div', id = '') {
     },
     focus() {},
     select() {},
+    contains(node) {
+      return this === node || this.children.includes(node);
+    },
   };
 
   Object.defineProperty(el, 'innerHTML', {
@@ -231,6 +234,7 @@ function makeRendererHarness({
 
   const documentHandlers = {};
   const document = {
+    activeElement: null,
     getElementById(id) {
       assert.ok(elements.has(id), `unexpected document.getElementById(${id})`);
       return elements.get(id);
@@ -737,7 +741,7 @@ function makeRendererHarness({
     }
   }
 
-  return { calls, elements, window, documentHandlers, flushRaf, flushTimers };
+  return { calls, elements, window, documentHandlers, flushRaf, flushTimers, document };
 }
 
 test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
@@ -4847,4 +4851,242 @@ test('Ctrl+Alt+S does not trigger save', async () => {
 
   assert.equal(calls.saveNotePayloads.length, 0, 'Ctrl+Alt+S must not trigger save');
   assert.ok(!preventDefaultCalled, 'Ctrl+Alt+S must not call preventDefault()');
+});
+
+// ── Stage 8.2: ArrowDown / ArrowUp note navigation ───────────────────────────
+// After vault load, the renderer auto-selects the first visible note.
+// Tests therefore start from that state (first note at index 0 selected).
+
+test('ArrowDown moves selection from the first note to the second note', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const noteList = elements.get('noteList');
+  assert.ok(!noteList.children[0].className.includes('active'), 'Note A should no longer be active');
+  assert.ok(noteList.children[1].className.includes('active'), 'Note B should become active');
+  assert.ok(preventDefaultCalled, 'ArrowDown must call preventDefault()');
+});
+
+test('ArrowDown from the second note moves to the third note', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'Note C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const noteList = elements.get('noteList');
+  assert.ok(noteList.children[2].className.includes('active'), 'Note C should become active');
+  assert.ok(preventDefaultCalled, 'ArrowDown must call preventDefault()');
+});
+
+test('ArrowUp from the second note moves back to the first note', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowUp');
+
+  const noteList = elements.get('noteList');
+  assert.ok(noteList.children[0].className.includes('active'), 'Note A should be re-selected');
+  assert.ok(!noteList.children[1].className.includes('active'), 'Note B should no longer be active');
+  assert.ok(preventDefaultCalled, 'ArrowUp must call preventDefault()');
+});
+
+test('ArrowDown at the last note does nothing', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown at last note must not change selection');
+  assert.ok(preventDefaultCalled, 'ArrowDown at last note must still call preventDefault()');
+});
+
+test('ArrowUp at the first note does nothing', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowUp');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowUp at first note must not change selection');
+  assert.ok(preventDefaultCalled, 'ArrowUp at first note must still call preventDefault()');
+});
+
+test('ArrowDown while titleInput is focused does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  doc.activeElement = elements.get('titleInput');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown while titleInput is focused must not navigate');
+  assert.ok(!preventDefaultCalled, 'ArrowDown in titleInput must not call preventDefault()');
+});
+
+test('ArrowDown while searchInput is focused does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  doc.activeElement = elements.get('searchInput');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown while searchInput is focused must not navigate');
+  assert.ok(!preventDefaultCalled, 'ArrowDown in searchInput must not call preventDefault()');
+});
+
+test('ArrowDown while focus is inside hybridWritePane does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const editorInner = { tagName: 'DIV', id: 'cm6-inner', children: [] };
+  elements.get('hybridWritePane').children.push(editorInner);
+  doc.activeElement = editorInner;
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown inside hybridWritePane must not navigate');
+  assert.ok(!preventDefaultCalled, 'ArrowDown inside hybridWritePane must not call preventDefault()');
+});
+
+// ── Negative: modified arrows must not trigger note navigation ────────────────
+
+test('Cmd+ArrowDown does not navigate the note list', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown', { metaKey: true });
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'Cmd+ArrowDown must not navigate');
+  assert.ok(!preventDefaultCalled, 'Cmd+ArrowDown must not call preventDefault()');
+});
+
+test('Shift+ArrowDown does not navigate the note list', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown', { shiftKey: true });
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'Shift+ArrowDown must not navigate');
+  assert.ok(!preventDefaultCalled, 'Shift+ArrowDown must not call preventDefault()');
+});
+
+test('Ctrl+ArrowDown does not navigate the note list', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown', { ctrlKey: true });
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'Ctrl+ArrowDown must not navigate');
+  assert.ok(!preventDefaultCalled, 'Ctrl+ArrowDown must not call preventDefault()');
+});
+
+test('Alt+ArrowUp does not navigate the note list', async () => {
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowUp', { altKey: true });
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'Alt+ArrowUp must not navigate');
+  assert.ok(!preventDefaultCalled, 'Alt+ArrowUp must not call preventDefault()');
+});
+
+// ── Boundary: no note selected (empty vault) ──────────────────────────────────
+// The auto-selection in ensureSelectionMatchesVisibleResults() means that once
+// notes are loaded, a note is always selected. The "no note selected + visible
+// notes" state is unreachable through normal harness operations. This test
+// covers the structurally equivalent boundary: selectedNoteId is empty and
+// visible results are also empty, confirming the handler exits cleanly with no
+// navigation and no crash.
+
+test('ArrowDown with no note selected and no visible notes does nothing', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown with no notes must not change note list');
+  assert.ok(preventDefaultCalled, 'ArrowDown with no notes must still call preventDefault()');
 });

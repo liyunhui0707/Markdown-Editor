@@ -3146,6 +3146,31 @@ Write the core idea here.
         const key = String(e.key || '').toLowerCase();
         if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
         if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          const focused = document.activeElement;
+          const inTextSurface = focused === titleInput
+            || focused === searchInput
+            || (hybridWritePane && hybridWritePane.contains(focused));
+          if (!inTextSurface) {
+            e.preventDefault();
+            const results = getVisibleResults();
+            const currentIndex = results.findIndex((r) => r.note.id === selectedNoteId);
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            const nextIndex = currentIndex + delta;
+            if (nextIndex >= 0 && nextIndex < results.length) {
+              const outgoing = getSelectedNote();
+              if (liveEditorInstance && outgoing) {
+                liveEditorInstance.exitWriteMode();
+                outgoing.body = liveEditorInstance.getText();
+              }
+              selectedNoteId = results[nextIndex].note.id;
+              renderApp();
+              setStatusFromSelectedNote();
+            }
+          }
+          return;
+        }
       });
 
       moreMenu.addEventListener('click', closeMenu);
