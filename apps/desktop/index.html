@@ -2535,6 +2535,29 @@ Write the core idea here.
         stopWatchingVault();
       });
 
+      // Stage 6.3A: main asks the renderer for its dirty-note summary at
+      // close time so it can decide whether to prompt before quitting.
+      // The renderer is the source of truth for dirty state — we read
+      // the live notes array (not a snapshot) and reply with the same
+      // shape Stage 6.1's summarizeDirty already returns. If DirtyState
+      // is missing for any reason (boot didn't complete loading the
+      // helper, or it threw), respond with `null` so main treats this
+      // as unknown / unsafe and prompts. NEVER fall back to a clean-
+      // looking response — that would silently bypass the guard.
+      if (window.vaultApi && typeof window.vaultApi.onCloseRequest === 'function') {
+        window.vaultApi.onCloseRequest((respond) => {
+          let summary = null;
+          if (window.DirtyState && typeof window.DirtyState.summarizeDirty === 'function') {
+            try {
+              summary = window.DirtyState.summarizeDirty(notes);
+            } catch (_err) {
+              summary = null;
+            }
+          }
+          respond(summary);
+        });
+      }
+
       // ── Boot the Markdown editor ──────────────────────────────────────────
       // The selected Write engine is mounted in hybridWritePane.
       // Toast UI is mounted as the Preview renderer (and stays in sync via onChange).

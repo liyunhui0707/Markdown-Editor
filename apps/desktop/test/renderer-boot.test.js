@@ -303,6 +303,10 @@ function makeRendererHarness({
     // both stabilize, processing setTimeouts in delay order so that
     // simulated Toast UI's 200 ms timer fires before our 250 ms tier-3.
     setTimeoutQueue: [],
+    // Stage 6.3A: captured callback the renderer registers via
+    // vaultApi.onCloseRequest. Tests invoke it with a respond spy to
+    // observe the dirty-summary the renderer reports back to main.
+    closeRequestHandler: null,
   };
 
   const storage = {
@@ -544,6 +548,17 @@ function makeRendererHarness({
       return () => {
         if (calls.vaultChangedCallback === callback) {
           calls.vaultChangedCallback = null;
+        }
+      };
+    },
+    // Stage 6.3A: the renderer registers one callback that, when
+    // invoked by main at close time, computes the current dirty
+    // summary and calls back via `respond`. Tests drive this directly.
+    onCloseRequest(handler) {
+      calls.closeRequestHandler = handler;
+      return () => {
+        if (calls.closeRequestHandler === handler) {
+          calls.closeRequestHandler = null;
         }
       };
     },
@@ -4079,4 +4094,113 @@ test('Stage 6.2: meaningful draft (non-empty body) IS preserved across Choose Va
   elements.get('searchInput').fire('input');
   assert.match(elements.get('searchMeta').textContent, /Found 1 result/,
     'meaningful draft (non-empty body) must survive Choose Vault with body intact');
+});
+
+// ── Stage 6.3A: close-request dirty-summary responder ────────────────
+//
+// Main asks the renderer at close time via vaultApi.onCloseRequest. The
+// renderer registers exactly one responder that, when invoked with a
+// `respond` callback, replies with DirtyState.summarizeDirty(notes).
+// Boot must register the responder exactly once. The summary must
+// reflect the live notes array at the moment of the request (not a
+// stale snapshot).
+
+test('Stage 6.3A: renderer registers a single close-request responder at boot', () => {
+  const { calls } = makeRendererHarness();
+  assert.equal(typeof calls.closeRequestHandler, 'function',
+    'boot must register a close-request handler via vaultApi.onCloseRequest');
+});
+
+test('Stage 6.3A: close-request responder reports clean summary for a fresh app (no notes yet)', () => {
+  const { calls } = makeRendererHarness();
+  let received = 'unset';
+  calls.closeRequestHandler((summary) => { received = summary; });
+  assert.deepEqual(received, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'no notes means nothing dirty');
+});
+
+test('Stage 6.3A: close-request responder reports dirty summary after a draft gains content', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  // Stage 6.2: empty initial state — create a draft, then type into it.
+  elements.get('newNoteButton').fire('click');
+  calls.cm6OnChange('Real content typed by the user.');
+
+  let received = 'unset';
+  calls.closeRequestHandler((summary) => { received = summary; });
+
+  assert.deepEqual(received, { count: 1, hasDraft: true, hasDirtyVault: false },
+    'meaningful draft must register as 1 dirty draft');
+});
+
+test('Stage 6.3A: close-request responder reports clean for an untouched placeholder draft', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  // Untouched placeholder: title === 'Untitled note', body === ''. Not dirty.
+  elements.get('newNoteButton').fire('click');
+
+  let received = 'unset';
+  calls.closeRequestHandler((summary) => { received = summary; });
+
+  assert.deepEqual(received, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'an untouched blank-template draft is not unsaved work');
+});
+
+test('Stage 6.3A: close-request responder reports a dirty vault note', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a',
+      title: 'Vault A',
+      body: '# Vault A\n\nbody',
+      fileName: 'a.md',
+      relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Mutate via the live editor's onChange → marks the vault note dirty.
+  calls.cm6OnChange('# Vault A\n\nbody edited');
+
+  let received = 'unset';
+  calls.closeRequestHandler((summary) => { received = summary; });
+
+  assert.deepEqual(received, { count: 1, hasDraft: false, hasDirtyVault: true },
+    'edited vault note must register as 1 dirty vault note');
+});
+
+test('Stage 6.3A: close-request responder uses the live notes (re-invocation reflects latest state)', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  let received1 = 'unset';
+  calls.closeRequestHandler((s) => { received1 = s; });
+  assert.deepEqual(received1, { count: 0, hasDraft: false, hasDirtyVault: false });
+
+  elements.get('newNoteButton').fire('click');
+  calls.cm6OnChange('Now there is content.');
+
+  let received2 = 'unset';
+  calls.closeRequestHandler((s) => { received2 = s; });
+  assert.deepEqual(received2, { count: 1, hasDraft: true, hasDirtyVault: false },
+    'the responder must read the LIVE notes array, not a boot-time snapshot');
+});
+
+test('Stage 6.3A: close-request responder reports null when DirtyState is missing (Codex issue 3)', () => {
+  const { calls, window } = makeRendererHarness();
+  // Simulate the helper not being loaded (boot order broken, script
+  // failed to execute, etc.). We must NOT fall back to a clean-looking
+  // summary — main has to treat this as unsafe and show the dialog.
+  window.DirtyState = undefined;
+  let received = 'unset';
+  calls.closeRequestHandler((s) => { received = s; });
+  assert.equal(received, null,
+    'missing DirtyState must produce a null reply — never a clean-looking summary');
+});
+
+test('Stage 6.3A: close-request responder reports null when summarizeDirty throws', () => {
+  const { calls, window } = makeRendererHarness();
+  window.DirtyState = {
+    summarizeDirty: () => { throw new Error('boom'); },
+  };
+  let received = 'unset';
+  calls.closeRequestHandler((s) => { received = s; });
+  assert.equal(received, null,
+    'a throwing summarizeDirty must reply with null, not silently allow close');
 });

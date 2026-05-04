@@ -56,6 +56,17 @@ Use this checklist before sharing the app with another person.
 - [ ] Draft delete works  
 - [ ] File-backed delete works safely  
   
+## Close warning (Stage 6.3A)
+
+- [ ] Clean state, click window close button → app closes, no dialog
+- [ ] Clean state, Cmd+Q (macOS) → app quits, no dialog
+- [ ] Type into a new draft, click window close button → warning dialog appears
+- [ ] Warning: Cancel keeps the app open and the draft intact
+- [ ] Warning: Discard & Quit closes the app (draft is intentionally lost)
+- [ ] Edit a vault note, Cmd+Q → warning dialog appears
+- [ ] Cancel from the warning leaves the dirty vault note still dirty (Draft status)
+- [ ] Untouched "Untitled note" draft does NOT trigger the warning
+
 ## Packaging  
   
 - [ ] Local packaged app artifact exists  
