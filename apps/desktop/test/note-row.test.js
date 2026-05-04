@@ -49,6 +49,33 @@ test('computeNoteBadge: null/undefined/empty note input returns null', () => {
   assert.equal(computeNoteBadge({}), null);
 });
 
+// ── Stage 6.1: dirty hint extends the Draft case ────────────────────
+
+test('computeNoteBadge: dirty vault note returns the Draft badge', () => {
+  const note = { aiImported: false, source: 'vault' };
+  assert.deepEqual(computeNoteBadge(note, true), { kind: 'draft', label: 'Draft' });
+});
+
+test('computeNoteBadge: clean vault note returns null even with isDirty=false', () => {
+  const note = { aiImported: false, source: 'vault' };
+  assert.equal(computeNoteBadge(note, false), null);
+});
+
+test('computeNoteBadge: AI takes precedence over dirty hint', () => {
+  const note = { aiImported: true, source: 'vault' };
+  assert.deepEqual(computeNoteBadge(note, true), { kind: 'ai', label: 'AI' });
+});
+
+test('computeNoteBadge: draft + dirty still returns Draft (no double badge)', () => {
+  const note = { aiImported: false, source: 'draft' };
+  assert.deepEqual(computeNoteBadge(note, true), { kind: 'draft', label: 'Draft' });
+});
+
+test('computeNoteBadge: omitted isDirty preserves pre-Stage-6.1 behavior for vault notes', () => {
+  const note = { aiImported: false, source: 'vault' };
+  assert.equal(computeNoteBadge(note), null);
+});
+
 // ── computeNoteTags ─────────────────────────────────────────────────
 
 test('computeNoteTags: missing frontmatter returns empty', () => {
