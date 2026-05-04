@@ -74,6 +74,11 @@ function makeElement(tag = 'div', id = '') {
     attributes: {},
     handlers: {},
     classList: null,
+    scrollTop: 0,
+    scrollHeight: 0,
+    clientHeight: 0,
+    offsetTop: 0,
+    offsetHeight: 0,
     appendChild(child) {
       this.children.push(child);
       return child;
@@ -692,6 +697,23 @@ function makeRendererHarness({
     },
   };
   context.globalThis = context;
+
+  // Simulate note-list layout so scroll tests can assert meaningful offsetTop /
+  // offsetHeight values without a real layout engine. renderApp() always calls
+  // noteList.innerHTML = '' (which resets children to []) then noteList.appendChild(item)
+  // for each note. Deriving offsetTop from children.length BEFORE the push means the
+  // counter auto-resets to 0 whenever the list is cleared — no innerHTML override needed.
+  const _noteListEl = elements.get('noteList');
+  const _NOTE_ITEM_HEIGHT = 50;
+  const _noteListOrigAppend = _noteListEl.appendChild.bind(_noteListEl);
+  _noteListEl.appendChild = function(child) {
+    child.offsetTop = this.children.length * _NOTE_ITEM_HEIGHT;
+    child.offsetHeight = _NOTE_ITEM_HEIGHT;
+    const result = _noteListOrigAppend(child);
+    this.scrollHeight = this.children.length * _NOTE_ITEM_HEIGHT;
+    return result;
+  };
+
   vm.createContext(context);
 
   const html = readIndexHtml();
@@ -5089,4 +5111,114 @@ test('ArrowDown with no note selected and no visible notes does nothing', async 
 
   assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown with no notes must not change note list');
   assert.ok(preventDefaultCalled, 'ArrowDown with no notes must still call preventDefault()');
+});
+
+// ── Stage 8.3: scroll selected note into view ─────────────────────────────────
+// Layout simulation: each note item gets offsetTop = index * 50, offsetHeight = 50.
+// With 2 notes: scrollHeight = 100, items at [0-50] and [50-100].
+// With 3 notes: scrollHeight = 150, items at [0-50], [50-100], [100-150].
+
+test('ArrowDown scrolls down when the selected note is below the viewport', async () => {
+  // 2 notes, viewport shows 60px (just over 1 row). Note A at [0-50] is visible,
+  // Note B at [50-100] has its bottom (100) outside the viewport bottom (0+60=60).
+  // Expected: scrollTop = itemBottom - clientHeight = 100 - 60 = 40.
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 60;
+  noteList.scrollTop = 0;
+
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  assert.equal(noteList.scrollTop, 40,
+    'ArrowDown must scroll down so the bottom of Note B is within the viewport (100 - 60 = 40)');
+});
+
+test('ArrowUp scrolls up when the selected note is above the viewport', async () => {
+  // 3 notes, viewport 60px, scrolled to show Note C (scrollTop=100).
+  // ArrowUp selects Note B at [50-100]. itemTop=50 < viewTop=100 → scroll up to 50.
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'Note C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Navigate to Note C.
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 60;
+  noteList.scrollTop = 100;
+
+  await fireDocumentKeydown(documentHandlers, 'ArrowUp');
+
+  assert.equal(noteList.scrollTop, 50,
+    'ArrowUp must scroll up to Note B\'s offsetTop (50) when it is above the viewport');
+});
+
+test('no scroll when the selected note is already fully visible', async () => {
+  // 3 notes, viewport 120px (shows ~2 notes). Scroll at 0, viewport bottom = 120.
+  // ArrowDown → Note B at [50-100]. itemBottom=100 <= viewBottom=120 → no-op.
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'Note C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 120;
+  noteList.scrollTop = 0;
+
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  assert.equal(noteList.scrollTop, 0,
+    'no scroll expected when Note B [50-100] is fully within the viewport [0-120]');
+});
+
+test('no scroll when entire list fits in the viewport', async () => {
+  // scrollHeight (100) <= clientHeight (200): the guard exits early, scrollTop unchanged.
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 200;
+  noteList.scrollTop = 0;
+
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  assert.equal(noteList.scrollTop, 0,
+    'no scroll expected when scrollHeight (100) <= clientHeight (200)');
+});
+
+test('mouse click on a note below the viewport scrolls it into view', async () => {
+  // 2 notes, viewport 60px. Click Note B at [50-100]: itemBottom=100 > viewBottom=60.
+  // Expected: scrollTop = 100 - 60 = 40.
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 60;
+  noteList.scrollTop = 0;
+
+  noteList.children[1].fire('click');
+
+  assert.equal(noteList.scrollTop, 40,
+    'mouse click on Note B must scroll its bottom into view (100 - 60 = 40)');
 });
