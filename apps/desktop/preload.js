@@ -30,5 +30,24 @@ contextBridge.exposeInMainWorld('vaultApi', {
     };
     ipcRenderer.on('request-dirty-summary', listener);
     return () => ipcRenderer.removeListener('request-dirty-summary', listener);
+  },
+  // Stage 6.3B Save All & Quit. Main sends 'request-save-all' when the
+  // user picks Save All & Quit; the renderer runs saveAllDirtyNotes()
+  // and replies on the per-request channel with one ok/error result.
+  // Same per-request reply-channel discipline as onCloseRequest so
+  // concurrent or retried requests cannot mix replies.
+  onSaveAllRequest: (handler) => {
+    const listener = (_event, payload) => {
+      const replyChannel = payload && payload.replyChannel;
+      let replied = false;
+      const respond = (result) => {
+        if (replied || !replyChannel) return;
+        replied = true;
+        ipcRenderer.send(replyChannel, result);
+      };
+      handler(respond);
+    };
+    ipcRenderer.on('request-save-all', listener);
+    return () => ipcRenderer.removeListener('request-save-all', listener);
   }
 });

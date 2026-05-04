@@ -25,20 +25,37 @@ let watchDebounceTimer = null;
 // follow-up).
 const closeController = CloseGuard.createCloseController();
 
-// Monotonic counter for per-request reply channels so concurrent or
-// retried close requests cannot mix up replies. The requester factory
-// owns its own listener cleanup on success / timeout / send failure
-// (Codex issue 4).
+// Monotonic counters for per-request reply channels so concurrent or
+// retried close requests cannot mix up replies. The requester factories
+// own their own listener cleanup on success / timeout / send failure.
 let dirtySummaryRequestId = 0;
+let saveAllRequestId      = 0;
+const getMainWebContents = () =>
+  mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null;
+
 const requestDirtySummaryFromRenderer = CloseGuard.createDirtySummaryRequester({
   ipcMain,
-  getWebContents: () =>
-    mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null,
+  getWebContents: getMainWebContents,
   makeReplyChannel: () => {
     dirtySummaryRequestId += 1;
     return `dirty-summary-reply:${dirtySummaryRequestId}`;
   },
   timeoutMs: 1500,
+});
+
+// Stage 6.3B: save-all uses the same generic IPC round-trip pattern,
+// pinned to a longer timeout — saves can take seconds on slow disks
+// and the no-vault path opens an OS folder picker that the user may
+// take a while to dismiss. Listener cleanup on every exit path is
+// inherited from the shared factory.
+const requestSaveAllFromRenderer = CloseGuard.createSaveAllRequester({
+  ipcMain,
+  getWebContents: getMainWebContents,
+  makeReplyChannel: () => {
+    saveAllRequestId += 1;
+    return `save-all-reply:${saveAllRequestId}`;
+  },
+  timeoutMs: 30000,
 });
 
 function createWindow() {
@@ -74,17 +91,23 @@ function createWindow() {
 
 async function showCloseDialog(summary) {
   const detail = CloseGuard.formatDirtyDetail(summary);
+  // Stage 6.3B: three-button dialog. Save All & Quit is the default
+  // (Enter), Cancel is the dismiss action (Esc / dialog close). Order
+  // and indices are wired tightly to the response → choice mapping
+  // below — keep them in sync.
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
-    buttons: ['Cancel', 'Discard & Quit'],
+    buttons: ['Save All & Quit', 'Discard & Quit', 'Cancel'],
     defaultId: 0,
-    cancelId:  0,
+    cancelId:  2,
     noLink: true,
     title: 'Unsaved changes',
     message: 'You have unsaved changes.',
     detail,
   });
-  return result.response === 1 ? 'discard' : 'cancel';
+  if (result.response === 0) return 'save-all';
+  if (result.response === 1) return 'discard';
+  return 'cancel';
 }
 
 async function runCloseGuardForSource(source) {
@@ -94,6 +117,7 @@ async function runCloseGuardForSource(source) {
     decision = await CloseGuard.runCloseGuard({
       getDirtySummary: requestDirtySummaryFromRenderer,
       showDialog:      showCloseDialog,
+      requestSaveAll:  requestSaveAllFromRenderer,
     });
   } catch (_err) {
     // Defensive: any unexpected failure in the guard itself must not

@@ -1,13 +1,18 @@
 'use strict';
 
 /* close-guard — pure helpers + dependency-injected factories
-   for the Stage 6.3A close-time data-loss guard.
+   for the Stage 6.3A close-time data-loss guard, extended in Stage
+   6.3B with the Save All & Quit flow.
 
    The renderer is the source of truth for dirty state (via Stage 6.1's
    DirtyState.summarizeDirty). The main process intercepts the close
    intent, asks the renderer for its summary over IPC, and decides
-   whether to close, prompt, or block. Everything that does not need
-   Electron lives here so it can be unit-tested under node:test.
+   whether to close, prompt, or block. Stage 6.3B adds a second IPC
+   round-trip for the Save All flow: main asks the renderer to save
+   everything dirty; the renderer reuses the existing save-note IPC
+   per-note and replies with a single ok/error result. Everything
+   that does not need Electron lives here so it can be unit-tested
+   under node:test.
 
    Exports:
 
@@ -18,31 +23,48 @@
      {count:0}-but-missing-booleans response is NOT clean.
 
    decideCloseAction({ summary, userChoice })
-     Pure. Total. Returns 'allow-close' or 'block-close'. A clean
-     summary always allows. Any other shape (dirty, unknown, malformed)
-     allows close ONLY when userChoice === 'discard'.
+     Pure. Total. Returns 'allow-close' or 'block-close' for the
+     non-save branches (cancel / discard / unknown). The 'save-all'
+     branch is async and lives in runCloseGuard.
 
    formatDirtyDetail(summary)
      Pure. Builds the dialog detail string. Handles invalid/null and
      singular/plural copy from { count, hasDraft, hasDirtyVault }.
 
-   runCloseGuard({ getDirtySummary, showDialog })
+   runCloseGuard({ getDirtySummary, showDialog, requestSaveAll })
      Async orchestrator:
        1. ask renderer for summary
        2. clean → 'allow-close' (no dialog)
-       3. anything else → showDialog(summaryOrNull) → decideCloseAction
-     getDirtySummary is expected to settle on its own (it owns the
-     timeout). A rejection / null / malformed response is treated as
-     unknown — the dialog is always shown for those cases.
+       3. anything else → showDialog(summaryOrNull):
+            'cancel' / 'discard' / unknown → decideCloseAction
+            'save-all' (Stage 6.3B) → await requestSaveAll(); ok=true
+                                      allows close, anything else
+                                      blocks. Rejection / null /
+                                      missing dep all block — never
+                                      silently allow.
+     getDirtySummary owns its own timeout (via the IPC requester it
+     came from). A rejection / null / malformed response is treated
+     as unknown — the dialog is always shown for those cases.
+
+   createIpcRoundTripRequester({ ipcMain, getWebContents,
+                                  requestChannel, makeReplyChannel,
+                                  timeoutMs, timeoutMessage })
+     Generic factory — single source of truth for the cleanup
+     discipline (settled flag + cleanup() in every exit path). Used
+     by both 6.3A (dirty-summary) and 6.3B (save-all). Resolves with
+     whatever the renderer sent on the per-request reply channel;
+     rejects on timeout, missing webContents, send throw, or sync
+     getWebContents throw. ALWAYS removes the per-request listener.
 
    createDirtySummaryRequester({ ipcMain, getWebContents, makeReplyChannel, timeoutMs })
-     Factory that returns a request function. Each call:
-       - registers ONE per-channel listener via ipcMain.once
-       - sends the request to the renderer with the reply channel
-       - resolves on reply / rejects on timeout or send failure
-       - GUARANTEES the listener is removed on every exit path
-     This is the cleanup-discipline layer Codex flagged: stale
-     listeners across timeouts/retries are eliminated by construction.
+     Stage 6.3A wrapper. Pinned to the 'request-dirty-summary'
+     channel; default timeout 1500 ms.
+
+   createSaveAllRequester({ ipcMain, getWebContents, makeReplyChannel, timeoutMs })
+     Stage 6.3B wrapper. Pinned to the 'request-save-all' channel;
+     default timeout 30000 ms (saves can take seconds on slow disks
+     and the OS folder picker for the no-vault path can take
+     longer).
 
    createCloseController()
      Tiny state machine for the "this close is already confirmed —
@@ -107,6 +129,7 @@
   async function runCloseGuard(deps) {
     const getDirtySummary = deps.getDirtySummary;
     const showDialog      = deps.showDialog;
+    const requestSaveAll  = deps.requestSaveAll;
 
     let summary = null;
     try {
@@ -120,20 +143,48 @@
     }
 
     // Malformed / unknown / dirty: hand the raw value to the dialog so
-    // its detail line can adapt; decideCloseAction also rejects unknown
-    // shapes unless the user explicitly Discards.
+    // its detail line can adapt; decideCloseAction rejects unknown
+    // shapes unless the user explicitly Discards. The Save All branch
+    // is async and is handled here rather than in decideCloseAction.
     const valueForDialog = isValidSummary(summary) ? summary : null;
     const userChoice     = await showDialog(valueForDialog);
+
+    if (userChoice === 'save-all') {
+      // Defensive: if the dialog can return 'save-all' but the caller
+      // didn't wire the requester, blocking is the only safe outcome.
+      if (typeof requestSaveAll !== 'function') {
+        return 'block-close';
+      }
+      let saveResult = null;
+      try {
+        saveResult = await requestSaveAll();
+      } catch (_err) {
+        saveResult = null;
+      }
+      // ok:true is the ONLY shape that allows close. null, malformed,
+      // ok:false (conflict, generic failure, vault-cancel, save error)
+      // all keep the app open. The renderer is responsible for surfacing
+      // the user-facing error message via its own status pill.
+      if (saveResult && saveResult.ok === true) {
+        return 'allow-close';
+      }
+      return 'block-close';
+    }
+
     return decideCloseAction({ summary: summary, userChoice: userChoice });
   }
 
-  function createDirtySummaryRequester(deps) {
+  function createIpcRoundTripRequester(deps) {
     const ipcMain          = deps.ipcMain;
     const getWebContents   = deps.getWebContents;
     const makeReplyChannel = deps.makeReplyChannel;
+    const requestChannel   = deps.requestChannel;
     const timeoutMs        = typeof deps.timeoutMs === 'number' ? deps.timeoutMs : 1500;
+    const timeoutMessage   = typeof deps.timeoutMessage === 'string' && deps.timeoutMessage.length > 0
+      ? deps.timeoutMessage
+      : `close-guard: ${requestChannel} timeout`;
 
-    return function requestDirtySummary() {
+    return function ipcRoundTripRequest() {
       return new Promise(function (resolve, reject) {
         const replyChannel = makeReplyChannel();
         let settled = false;
@@ -160,12 +211,12 @@
           reject(err);
         }
 
-        ipcMain.once(replyChannel, function (_event, summary) {
-          settleResolve(summary);
+        ipcMain.once(replyChannel, function (_event, payload) {
+          settleResolve(payload);
         });
 
         timer = setTimeout(function () {
-          settleReject(new Error('close-guard: dirty-summary timeout'));
+          settleReject(new Error(timeoutMessage));
         }, timeoutMs);
 
         let webContents;
@@ -180,12 +231,34 @@
           return;
         }
         try {
-          webContents.send('request-dirty-summary', { replyChannel: replyChannel });
+          webContents.send(requestChannel, { replyChannel: replyChannel });
         } catch (err) {
           settleReject(err);
         }
       });
     };
+  }
+
+  function createDirtySummaryRequester(deps) {
+    return createIpcRoundTripRequester({
+      ipcMain:          deps.ipcMain,
+      getWebContents:   deps.getWebContents,
+      makeReplyChannel: deps.makeReplyChannel,
+      requestChannel:   'request-dirty-summary',
+      timeoutMs:        typeof deps.timeoutMs === 'number' ? deps.timeoutMs : 1500,
+      timeoutMessage:   'close-guard: dirty-summary timeout',
+    });
+  }
+
+  function createSaveAllRequester(deps) {
+    return createIpcRoundTripRequester({
+      ipcMain:          deps.ipcMain,
+      getWebContents:   deps.getWebContents,
+      makeReplyChannel: deps.makeReplyChannel,
+      requestChannel:   'request-save-all',
+      timeoutMs:        typeof deps.timeoutMs === 'number' ? deps.timeoutMs : 30000,
+      timeoutMessage:   'close-guard: save-all timeout',
+    });
   }
 
   function createCloseController() {
@@ -232,7 +305,9 @@
     decideCloseAction:           decideCloseAction,
     formatDirtyDetail:           formatDirtyDetail,
     runCloseGuard:               runCloseGuard,
+    createIpcRoundTripRequester: createIpcRoundTripRequester,
     createDirtySummaryRequester: createDirtySummaryRequester,
+    createSaveAllRequester:      createSaveAllRequester,
     createCloseController:       createCloseController,
   };
 });

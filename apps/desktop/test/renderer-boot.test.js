@@ -307,6 +307,10 @@ function makeRendererHarness({
     // vaultApi.onCloseRequest. Tests invoke it with a respond spy to
     // observe the dirty-summary the renderer reports back to main.
     closeRequestHandler: null,
+    // Stage 6.3B: captured callback the renderer registers via
+    // vaultApi.onSaveAllRequest. Tests invoke it with a respond spy
+    // and await the result that saveAllDirtyNotes computes.
+    saveAllRequestHandler: null,
   };
 
   const storage = {
@@ -559,6 +563,17 @@ function makeRendererHarness({
       return () => {
         if (calls.closeRequestHandler === handler) {
           calls.closeRequestHandler = null;
+        }
+      };
+    },
+    // Stage 6.3B: parallel registration channel for Save All & Quit.
+    // Main asks the renderer to save every dirty note; the handler
+    // calls saveAllDirtyNotes() and reports a single ok/error result.
+    onSaveAllRequest(handler) {
+      calls.saveAllRequestHandler = handler;
+      return () => {
+        if (calls.saveAllRequestHandler === handler) {
+          calls.saveAllRequestHandler = null;
         }
       };
     },
@@ -4203,4 +4218,429 @@ test('Stage 6.3A: close-request responder reports null when summarizeDirty throw
   calls.closeRequestHandler((s) => { received = s; });
   assert.equal(received, null,
     'a throwing summarizeDirty must reply with null, not silently allow close');
+});
+
+// ── Stage 6.3B: saveAllDirtyNotes via vaultApi.onSaveAllRequest ──────
+//
+// The renderer registers one save-all responder at boot that, when
+// invoked, runs saveAllDirtyNotes() and replies with a single
+// { ok: boolean, error?: string, savedCount?: number } shape.
+// Drive it via calls.saveAllRequestHandler and a respond spy that
+// resolves a Promise. The renderer is responsible for: flushing the
+// editor, snapshotting dirty ids, triggering Choose Vault when
+// needed, sequentially saving via the existing save-note IPC,
+// suppressing watcher refreshes during the loop, and a single
+// post-loop refreshVaultNotes.
+
+function invokeSaveAllHandler(calls) {
+  return new Promise((resolve) => {
+    calls.saveAllRequestHandler((result) => {
+      // The renderer constructs result objects inside the vm.context,
+      // so their prototype is the VM's Object.prototype, not this
+      // test runtime's. Re-spread into a plain object so deepEqual
+      // comparisons against `{...}` literals don't trip on prototype
+      // identity. Values are primitives → no nested-prototype issues.
+      resolve(result == null ? result : { ...result });
+    });
+  });
+}
+
+test('Stage 6.3B: boot registers a single save-all request handler', () => {
+  const { calls } = makeRendererHarness();
+  assert.equal(typeof calls.saveAllRequestHandler, 'function',
+    'boot must register a save-all handler via vaultApi.onSaveAllRequest');
+});
+
+test('Stage 6.3B: save-all on a clean app returns { ok: true, savedCount: 0 } and never calls saveNote', async () => {
+  const { calls } = makeRendererHarness();
+  const result = await invokeSaveAllHandler(calls);
+  assert.deepEqual(result, { ok: true, savedCount: 0 });
+  assert.equal(calls.saveNotePayloads.length, 0);
+});
+
+test('Stage 6.3B: save-all saves a single dirty vault note', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a',
+      title: 'Vault A',
+      body: '# Vault A\n\noriginal',
+      fileName: 'a.md',
+      relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Mutate the live editor so the vault note becomes dirty.
+  calls.cm6Adapter.text = '# Vault A\n\nedited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.deepEqual({ ok: result.ok, savedCount: result.savedCount },
+                   { ok: true, savedCount: 1 });
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.relativePath, 'a.md');
+  assert.match(calls.saveNotePayloads[0].note.body, /edited/);
+});
+
+test('Stage 6.3B: save-all saves an unsaved draft and migrates its id', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  // Give the draft a meaningful title so DirtyState marks it dirty.
+  elements.get('titleInput').value = 'My Idea';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('# My Idea\n\nbody');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.savedCount, 1);
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.title, 'My Idea');
+  // Source on the outgoing payload reflects the draft origin; the
+  // server-side migration to vault: happens in the response handling.
+  assert.equal(calls.saveNotePayloads[0].note.source, 'draft');
+});
+
+test('Stage 6.3B: save-all saves multiple dirty notes sequentially in snapshot order', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'A', body: '# A\n\norig-a', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'B', body: '# B\n\norig-b', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Currently selected is the first note; mutate it dirty. Set both
+  // the adapter buffer (which the click-handler flush reads via
+  // getText) AND fire cm6OnChange so the renderer observes the edit.
+  calls.cm6Adapter.text = '# A\n\nedited-a';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Switch to the second list row and mutate it dirty too.
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6Adapter.text = '# B\n\nedited-b';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.savedCount, 2);
+  assert.equal(calls.saveNotePayloads.length, 2);
+  // Snapshot iterates `notes` in array order — A first, then B.
+  assert.deepEqual(
+    calls.saveNotePayloads.map((p) => p.note.relativePath),
+    ['a.md', 'b.md']
+  );
+});
+
+test('Stage 6.3B: save-all flushes the editor before reading the selected note body', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Simulate an in-progress edit that bypassed cm6OnChange (e.g. an
+  // active Markdown shortcut still in the buffer). saveAllDirtyNotes
+  // must call exitWriteMode + getText so the saved body matches the
+  // current editor view, not the pre-flush note.body.
+  calls.cm6Adapter.text = '# A\n\nedited-via-buffer-only';
+
+  // The note body in `notes[]` still reflects the pre-buffer state;
+  // confirm this baseline first.
+  // (We can't read notes[] directly — but we know cm6OnChange wasn't
+  // called, so the dirty check would only catch this if the renderer
+  // flushes correctly.)
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.savedCount, 1);
+  // The whole point: the saved payload contains the post-flush text.
+  assert.match(calls.saveNotePayloads[0].note.body, /edited-via-buffer-only/);
+  // And the live editor was flushed via exitWriteMode prior to the read.
+  assert.ok(calls.cm6ExitWriteMode >= 1, 'exitWriteMode must run before save');
+});
+
+test('Stage 6.3B: save-all triggers Choose Vault when no vault is selected', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  // Pre-vault dirty draft (Stage 6.2 path).
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'Pre-Vault Draft';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('# Pre-Vault Draft\n\nbody');
+
+  const initialLoadCount = calls.loadVaultNotesPayloads.length;
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.savedCount, 1);
+  // Choose Vault was triggered → vault was loaded → save proceeded.
+  assert.ok(calls.loadVaultNotesPayloads.length > initialLoadCount,
+    'choose-vault must run during save-all when no vault is selected');
+  assert.equal(calls.saveNotePayloads.length, 1);
+});
+
+test('Stage 6.3B: save-all returns failure when Choose Vault is canceled', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    chooseVaultCanceled: true,
+  });
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'Pre-Vault Draft';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('# Pre-Vault Draft\n\nbody');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false);
+  assert.match(String(result.error || ''), /vault.*cancel/i);
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'no save attempts when the user canceled the vault picker');
+});
+
+test('Stage 6.3B: save-all aborts on a duplicate filename conflict and reports failure', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:my-idea.md', title: 'My Idea', body: '# My Idea\n\norig',
+        fileName: 'my-idea.md', relativePath: 'my-idea.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Create a draft whose derived filename collides with the existing
+  // vault note. The renderer pre-check (FileName.findRelativePathConflict)
+  // catches this before the IPC save call runs.
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'My Idea';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('# My Idea\n\ndraft-body');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false,
+    'duplicate filename must block the entire save-all and the close');
+  assert.match(String(result.error || ''), /already exists|conflict|exists/i);
+  // The colliding draft's save IPC must NOT have been attempted.
+  // (Saves of OTHER non-colliding dirty notes also abort — sequential.)
+  const draftPaylod = calls.saveNotePayloads.find(
+    (p) => p.note.source === 'draft' && p.note.title === 'My Idea'
+  );
+  assert.equal(draftPaylod, undefined,
+    'the colliding draft must not be sent to the saveNote IPC');
+});
+
+test('Stage 6.3B: save-all aborts on generic save failure and reports failure', async () => {
+  const { calls, elements, window } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'A', body: '# A\n\norig-a', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A\n\nedited-a';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Inject a failing saveNote.
+  window.vaultApi.saveNote = async () => ({ ok: false, error: 'EACCES: permission denied' });
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false);
+  assert.match(String(result.error || ''), /EACCES|permission|denied/i);
+});
+
+test('Stage 6.3B: save-all success clears dirty state for the saved note', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A\n\nedited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Pre: status pill shows Draft (Stage 6.1 derivation).
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  // After save+refresh, the note's loadedBody equals body, so dirty
+  // is cleared. The status pill rolls back from Draft.
+  assert.notEqual(elements.get('statusText').textContent, 'Draft',
+    'after a successful save-all, the dirty pill must clear');
+
+  // The dirty-summary responder also reports clean.
+  let postSummary = 'unset';
+  calls.closeRequestHandler((s) => { postSummary = s; });
+  assert.deepEqual(postSummary, { count: 0, hasDraft: false, hasDirtyVault: false });
+});
+
+test('Stage 6.3B: save-all suppresses watcher refresh during the loop', async () => {
+  const { calls, elements, window } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A\n\nedited-watcher-test';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const beforeLoad = calls.loadVaultNotesPayloads.length;
+  const realSaveFn = window.vaultApi.saveNote;
+  window.vaultApi.saveNote = async (payload) => {
+    // Fire a watcher event mid-save. If saveAllInProgress is set,
+    // the renderer's onVaultChanged handler must bail out and NOT
+    // trigger an in-loop refreshVaultNotes. Without suppression, this
+    // would add an extra loadVaultNotes call before the post-loop
+    // refresh, racing the in-flight save.
+    if (typeof calls.vaultChangedCallback === 'function') {
+      await calls.vaultChangedCallback({ fileName: 'a.md' });
+    }
+    return realSaveFn(payload);
+  };
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  // Exactly ONE refresh after the loop; the mid-flight watcher event
+  // must have been suppressed.
+  const refreshesDuringSaveAll = calls.loadVaultNotesPayloads.length - beforeLoad;
+  assert.equal(refreshesDuringSaveAll, 1,
+    'save-all must suppress mid-loop watcher refreshes (exactly one post-loop refresh)');
+});
+
+// ── Stage 6.3B Codex post-review: data-safety races & overlap guard ──
+//
+// These tests pin the three holes Codex flagged after the first 6.3B
+// pass:
+//   1. A note edited DURING the save loop (after its own save) must
+//      keep that new edit and force save-all to return ok:false.
+//   2. A partial failure (A succeeds, B fails) must surface as
+//      ok:false with the dirty content for B preserved.
+//   3. An overlapping save-all request must not start a second loop
+//      against the same notes array.
+
+test('Stage 6.3B (Codex follow-up): post-save edit during the loop forces ok:false and preserves the edit', async () => {
+  const { calls, elements, window } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // First edit: this is what the initial dirty snapshot will save.
+  calls.cm6Adapter.text = '# A\n\nfirst-edit';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Wrap saveNote: AFTER it returns ok:true, sneak in a second edit
+  // while saveAllDirtyNotes is still running. Without the captured-
+  // at-save baselines + post-loop preserved overlay + final dirty
+  // check, this new edit would be misclassified as already-saved
+  // and main would be told it's safe to quit.
+  const realSave = window.vaultApi.saveNote;
+  let already = false;
+  window.vaultApi.saveNote = async (payload) => {
+    const result = await realSave(payload);
+    if (!already && result.ok && payload.note.relativePath === 'a.md') {
+      already = true;
+      calls.cm6Adapter.text = '# A\n\nsneaked-second-edit';
+      calls.cm6OnChange(calls.cm6Adapter.text);
+    }
+    return result;
+  };
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false,
+    'a post-save in-flight edit must keep save-all from declaring success');
+  assert.match(String(result.error || ''), /unsaved|still/i);
+
+  // The sneaked edit must remain in memory — main must not close.
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.equal(summary && summary.count, 1,
+    'the second edit must remain dirty in memory so the user does not lose it');
+});
+
+test('Stage 6.3B (Codex follow-up): partial failure (A saves, B fails) returns ok:false and preserves B', async () => {
+  const { calls, elements, window } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'A', body: '# A\n\norig-a', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'B', body: '# B\n\norig-b', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A\n\nedited-a';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6Adapter.text = '# B\n\nedited-b';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Inject failure for B only.
+  const realSave = window.vaultApi.saveNote;
+  window.vaultApi.saveNote = async (payload) => {
+    if (payload.note.relativePath === 'b.md') {
+      return { ok: false, error: 'EACCES: simulated failure' };
+    }
+    return realSave(payload);
+  };
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false,
+    'a partial failure must NOT report ok:true');
+  assert.match(String(result.error || ''), /EACCES|simulated|unsaved/i);
+
+  // B's in-memory edit must survive the post-loop refresh — the
+  // overlay preserves all vault notes' current state, not just the
+  // not-saved ones.
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.ok(summary && summary.count >= 1,
+    'B (the failed note) must remain dirty so its content is not lost');
+});
+
+test('Stage 6.3B (Codex follow-up): a second concurrent save-all request is rejected with ok:false', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A\n\nedited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Fire two save-all requests synchronously. The first sets the
+  // saveAllInProgress latch before any await; the second sees it
+  // and returns immediately with ok:false.
+  const promise1 = new Promise((resolve) => {
+    calls.saveAllRequestHandler((r) => resolve(r == null ? r : { ...r }));
+  });
+  const promise2 = new Promise((resolve) => {
+    calls.saveAllRequestHandler((r) => resolve(r == null ? r : { ...r }));
+  });
+
+  const [r1, r2] = await Promise.all([promise1, promise2]);
+
+  // Exactly one must succeed; exactly one must be the overlap reject.
+  const successes = [r1, r2].filter((r) => r && r.ok === true);
+  const failures  = [r1, r2].filter((r) => r && r.ok === false);
+  assert.equal(successes.length, 1, 'exactly one save-all must complete normally');
+  assert.equal(failures.length,  1, 'exactly one save-all must be rejected as overlapping');
+  assert.match(String(failures[0].error || ''), /already in progress|in flight|busy/i,
+    'the overlap rejection error must explain why');
 });

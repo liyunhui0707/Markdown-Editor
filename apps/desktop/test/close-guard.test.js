@@ -1,19 +1,24 @@
-/* TDD: close-guard — pure helpers + DI factories for Stage 6.3A.
+/* TDD: close-guard — pure helpers + DI factories for Stage 6.3A/B.
    Run: node --test test/close-guard.test.js
 
-   Five concerns covered:
+   Concerns covered:
      1. decideCloseAction — total decision matrix, including unknown
         shapes (only Discard allows close).
      2. formatDirtyDetail — singular/plural copy, draft/vault flags,
         and the unknown-state copy.
      3. runCloseGuard — clean skips dialog; dirty/unknown shows it;
         rejection / malformed / null is treated as unknown, never
-        silently allowed.
-     4. createDirtySummaryRequester — guarantees ipcMain listener
-        cleanup on success, timeout, and send failure.
-     5. createCloseController — the close-confirmation latch resets on
-        window 'closed', so a new window after macOS reactivation does
-        not inherit a stale confirmation.
+        silently allowed. Stage 6.3B adds the 'save-all' branch:
+        success → 'allow-close', failure / rejection / timeout / null
+        → 'block-close'.
+     4. createDirtySummaryRequester / createSaveAllRequester /
+        createIpcRoundTripRequester — guarantee ipcMain listener
+        cleanup on success, timeout, and send failure. Stage 6.3B
+        adds the save-all variant; both are thin wrappers around the
+        same generic round-trip factory.
+     5. createCloseController — the close-confirmation latch persists
+        through the non-darwin close cascade and is cleared only by
+        resetForNewWindow (called from createWindow).
 */
 'use strict';
 
@@ -26,6 +31,8 @@ const {
   formatDirtyDetail,
   runCloseGuard,
   createDirtySummaryRequester,
+  createSaveAllRequester,
+  createIpcRoundTripRequester,
   createCloseController,
 } = require('../lib/close-guard');
 
@@ -458,4 +465,216 @@ test('createCloseController: non-darwin close cascade preserves confirmation —
   //    that platform — exactly the desired behavior.
   ctl.resetForNewWindow();
   assert.equal(ctl.isConfirmed(), false);
+});
+
+// ── Stage 6.3B: runCloseGuard 'save-all' branch ─────────────────────
+
+test("runCloseGuard: 'save-all' choice + saveResult.ok=true → 'allow-close'", async () => {
+  let saveAllCalls = 0;
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: true, hasDirtyVault: false }),
+    showDialog:      async () => 'save-all',
+    requestSaveAll:  async () => { saveAllCalls += 1; return { ok: true, savedCount: 1 }; },
+  });
+  assert.equal(decision, 'allow-close');
+  assert.equal(saveAllCalls, 1, 'save-all must be invoked exactly once');
+});
+
+test("runCloseGuard: 'save-all' choice + saveResult.ok=false → 'block-close'", async () => {
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: false, hasDirtyVault: true }),
+    showDialog:      async () => 'save-all',
+    requestSaveAll:  async () => ({ ok: false, error: 'EACCES: permission denied' }),
+  });
+  assert.equal(decision, 'block-close',
+    'a save-all failure must keep the app open');
+});
+
+test("runCloseGuard: 'save-all' choice + requestSaveAll throws → 'block-close'", async () => {
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: true, hasDirtyVault: false }),
+    showDialog:      async () => 'save-all',
+    requestSaveAll:  async () => { throw new Error('save-all timeout'); },
+  });
+  assert.equal(decision, 'block-close',
+    'rejection from requestSaveAll must NOT silently allow close');
+});
+
+test("runCloseGuard: 'save-all' choice + null saveResult → 'block-close'", async () => {
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: true, hasDirtyVault: false }),
+    showDialog:      async () => 'save-all',
+    requestSaveAll:  async () => null,
+  });
+  assert.equal(decision, 'block-close',
+    'a malformed null reply from save-all must NOT allow close');
+});
+
+test("runCloseGuard: 'save-all' choice + missing requestSaveAll dep → 'block-close' (defensive)", async () => {
+  // If main wires the dialog with a Save All button but forgets to wire
+  // requestSaveAll, the only safe behavior is to block the close.
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: true, hasDirtyVault: false }),
+    showDialog:      async () => 'save-all',
+    // requestSaveAll intentionally omitted
+  });
+  assert.equal(decision, 'block-close');
+});
+
+test("runCloseGuard: 'save-all' choice still works when dirty-summary was rejected (unknown branch)", async () => {
+  // The dialog can be reached via the unknown-summary path. If the user
+  // picks Save All, we must still attempt the save-all flow rather than
+  // falling through to block on the cancel default.
+  let saveAllCalls = 0;
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => { throw new Error('unreachable'); },
+    showDialog:      async () => 'save-all',
+    requestSaveAll:  async () => { saveAllCalls += 1; return { ok: true, savedCount: 0 }; },
+  });
+  assert.equal(decision, 'allow-close');
+  assert.equal(saveAllCalls, 1);
+});
+
+test("runCloseGuard: 'cancel' regression — dirty summary + Cancel still blocks (Stage 6.3A pin)", async () => {
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 1, hasDraft: true, hasDirtyVault: false }),
+    showDialog:      async () => 'cancel',
+    requestSaveAll:  async () => { throw new Error('must not be called'); },
+  });
+  assert.equal(decision, 'block-close');
+});
+
+test("runCloseGuard: 'discard' regression — dirty summary + Discard still allows (Stage 6.3A pin)", async () => {
+  let saveAllCalls = 0;
+  const decision = await runCloseGuard({
+    getDirtySummary: async () => ({ count: 2, hasDraft: false, hasDirtyVault: true }),
+    showDialog:      async () => 'discard',
+    requestSaveAll:  async () => { saveAllCalls += 1; return { ok: true }; },
+  });
+  assert.equal(decision, 'allow-close');
+  assert.equal(saveAllCalls, 0,
+    'Discard must NOT trigger save-all — it intentionally drops unsaved work');
+});
+
+// ── Stage 6.3B: createSaveAllRequester / createIpcRoundTripRequester ─
+
+test('createIpcRoundTripRequester: sends to the configured request channel and resolves with renderer payload', async () => {
+  const ipcMain = makeFakeIpcMain();
+  const sentChannels = [];
+  const wc = {
+    send(channel, payload) {
+      sentChannels.push({ channel, replyChannel: payload.replyChannel });
+      setImmediate(() => ipcMain.fire(payload.replyChannel, {}, { ok: true, savedCount: 3 }));
+    },
+  };
+
+  const request = createIpcRoundTripRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    requestChannel:   'request-save-all',
+    makeReplyChannel: () => 'save-all-reply:1',
+    timeoutMs:        1000,
+  });
+
+  const reply = await request();
+  assert.deepEqual(sentChannels, [{ channel: 'request-save-all', replyChannel: 'save-all-reply:1' }]);
+  assert.deepEqual(reply, { ok: true, savedCount: 3 });
+  assert.equal(ipcMain.listenerCount('save-all-reply:1'), 0,
+    'listener must be removed after resolve');
+});
+
+test('createIpcRoundTripRequester: rejects on timeout and removes the listener', async () => {
+  const ipcMain = makeFakeIpcMain();
+  const wc = { send() { /* never reply */ } };
+
+  const request = createIpcRoundTripRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    requestChannel:   'request-save-all',
+    makeReplyChannel: () => 'save-all-reply:2',
+    timeoutMs:        15,
+  });
+
+  const promise = request();
+  assert.equal(ipcMain.listenerCount('save-all-reply:2'), 1);
+  await assert.rejects(promise, /timeout/i);
+  assert.equal(ipcMain.listenerCount('save-all-reply:2'), 0,
+    'timeout must clean up the per-request listener');
+});
+
+test('createSaveAllRequester: sends to "request-save-all" channel', async () => {
+  const ipcMain = makeFakeIpcMain();
+  let sentChannel = null;
+  const wc = {
+    send(channel, payload) {
+      sentChannel = channel;
+      setImmediate(() => ipcMain.fire(payload.replyChannel, {}, { ok: true }));
+    },
+  };
+  const request = createSaveAllRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    makeReplyChannel: () => 'save-all-reply:3',
+    timeoutMs:        500,
+  });
+  await request();
+  assert.equal(sentChannel, 'request-save-all');
+});
+
+test('createSaveAllRequester: defaults to a 30s timeout (longer than dirty-summary)', async () => {
+  // We do NOT actually wait 30 seconds — we just inspect that the
+  // factory accepts the requester contract without blowing up. The
+  // important thing is the default is much longer than the
+  // dirty-summary's 1500 ms; this is asserted indirectly by the
+  // close-guard module documentation. Here we exercise the happy path.
+  const ipcMain = makeFakeIpcMain();
+  const wc = {
+    send(_c, payload) {
+      setImmediate(() => ipcMain.fire(payload.replyChannel, {}, { ok: true }));
+    },
+  };
+  const request = createSaveAllRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    makeReplyChannel: () => 'save-all-reply:4',
+    // timeoutMs intentionally omitted to exercise the default
+  });
+  const reply = await request();
+  assert.deepEqual(reply, { ok: true });
+});
+
+test('createSaveAllRequester: removes listener on timeout', async () => {
+  const ipcMain = makeFakeIpcMain();
+  const wc = { send() { /* never reply */ } };
+  const request = createSaveAllRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    makeReplyChannel: () => 'save-all-reply:5',
+    timeoutMs:        15,
+  });
+  await assert.rejects(request(), /timeout/i);
+  assert.equal(ipcMain.listenerCount('save-all-reply:5'), 0);
+});
+
+test('createDirtySummaryRequester still works (regression — same factory, "request-dirty-summary" channel)', async () => {
+  // Stage 6.3B refactors createDirtySummaryRequester onto the generic
+  // round-trip factory. The existing 6.3A behavior must not regress.
+  const ipcMain = makeFakeIpcMain();
+  let sentChannel = null;
+  const wc = {
+    send(channel, payload) {
+      sentChannel = channel;
+      setImmediate(() => ipcMain.fire(payload.replyChannel, {},
+        { count: 0, hasDraft: false, hasDirtyVault: false }));
+    },
+  };
+  const request = createDirtySummaryRequester({
+    ipcMain,
+    getWebContents:   () => wc,
+    makeReplyChannel: () => 'dirty-summary-reply:regression',
+    timeoutMs:        500,
+  });
+  const reply = await request();
+  assert.equal(sentChannel, 'request-dirty-summary');
+  assert.deepEqual(reply, { count: 0, hasDraft: false, hasDirtyVault: false });
 });

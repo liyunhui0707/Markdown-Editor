@@ -67,6 +67,21 @@ Use this checklist before sharing the app with another person.
 - [ ] Cancel from the warning leaves the dirty vault note still dirty (Draft status)
 - [ ] Untouched "Untitled note" draft does NOT trigger the warning
 
+## Save All & Quit (Stage 6.3B)
+
+- [ ] Dialog shows three buttons: Save All & Quit, Discard & Quit, Cancel
+- [ ] Default button (Enter) is Save All & Quit
+- [ ] Esc / dialog dismiss → Cancel (app stays open)
+- [ ] Edit one vault note, Save All & Quit → file saves, app quits
+- [ ] Edit one new draft (with a real title), Save All & Quit → draft saves under derived filename, app quits
+- [ ] Mixed dirty drafts + dirty vault notes, Save All & Quit → all save, app quits
+- [ ] Edit a draft pre-vault, Save All & Quit → OS folder picker opens; pick a folder → save proceeds, app quits
+- [ ] Edit a draft pre-vault, Save All & Quit → cancel the OS picker → app stays open, draft still dirty
+- [ ] Two new drafts with the same title → Save All & Quit aborts on the conflict, error toast, app stays open
+- [ ] File-permission error during save → Save All & Quit aborts, error toast, app stays open
+- [ ] Discard & Quit (regression) still works alongside Save All
+- [ ] Cancel (regression) still keeps the app open
+
 ## Packaging  
   
 - [ ] Local packaged app artifact exists  
