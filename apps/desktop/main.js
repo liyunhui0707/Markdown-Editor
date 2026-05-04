@@ -2,14 +2,56 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const FileName = require('./lib/file-name');
+const FileName   = require('./lib/file-name');
+const CloseGuard = require('./lib/close-guard');
 
 let mainWindow = null;
 let currentVaultWatcher = null;
 let currentWatchedVaultPath = '';
 let watchDebounceTimer = null;
 
+// Stage 6.3A close guard. The CloseController owns two latches:
+// `confirmed` lets every close/quit event in the active cascade
+// through unmodified — that includes the bypassed re-fire of the
+// originating event AND the non-darwin chain
+//   close → closed → window-all-closed → app.quit → before-quit
+// where before-quit must NOT re-run the guard against a torn-down
+// renderer. `inFlight` stops Cmd+Q-after-window-close-button from
+// stacking two prompts. Both are cleared by resetForNewWindow(),
+// which runs at the start of createWindow(); that fires only when a
+// fresh window is being constructed (e.g. macOS Dock reactivation),
+// so the cascade above is never interrupted, and a re-activated app
+// still cannot inherit a stale confirmation (Codex issue 1 +
+// follow-up).
+const closeController = CloseGuard.createCloseController();
+
+// Monotonic counter for per-request reply channels so concurrent or
+// retried close requests cannot mix up replies. The requester factory
+// owns its own listener cleanup on success / timeout / send failure
+// (Codex issue 4).
+let dirtySummaryRequestId = 0;
+const requestDirtySummaryFromRenderer = CloseGuard.createDirtySummaryRequester({
+  ipcMain,
+  getWebContents: () =>
+    mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null,
+  makeReplyChannel: () => {
+    dirtySummaryRequestId += 1;
+    return `dirty-summary-reply:${dirtySummaryRequestId}`;
+  },
+  timeoutMs: 1500,
+});
+
 function createWindow() {
+  // Reset the close-guard latches BEFORE attaching this window's
+  // listeners. On macOS Dock reactivation a previous window may have
+  // been closed via Discard — its confirmed=true latch must not carry
+  // over to this fresh window. We deliberately reset here (a fresh-
+  // window event) rather than on the previous window's 'closed'
+  // (which is part of the non-darwin close cascade `close → closed →
+  // window-all-closed → app.quit → before-quit` and would break the
+  // last step by clearing the latch too early).
+  closeController.resetForNewWindow();
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -22,6 +64,52 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  mainWindow.on('close', (event) => {
+    if (closeController.isConfirmed()) return;
+    event.preventDefault();
+    runCloseGuardForSource('window-close');
+  });
+}
+
+async function showCloseDialog(summary) {
+  const detail = CloseGuard.formatDirtyDetail(summary);
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Cancel', 'Discard & Quit'],
+    defaultId: 0,
+    cancelId:  0,
+    noLink: true,
+    title: 'Unsaved changes',
+    message: 'You have unsaved changes.',
+    detail,
+  });
+  return result.response === 1 ? 'discard' : 'cancel';
+}
+
+async function runCloseGuardForSource(source) {
+  if (!closeController.beginGuard()) return;
+  let decision;
+  try {
+    decision = await CloseGuard.runCloseGuard({
+      getDirtySummary: requestDirtySummaryFromRenderer,
+      showDialog:      showCloseDialog,
+    });
+  } catch (_err) {
+    // Defensive: any unexpected failure in the guard itself must not
+    // silently quit. Block until the user retries.
+    decision = 'block-close';
+  } finally {
+    closeController.endGuard();
+  }
+  if (decision !== 'allow-close') return;
+
+  closeController.confirmClose();
+  if (source === 'before-quit') {
+    app.quit();
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
 }
 
 // Filename derivation + save orchestration live in the shared FileName helper
@@ -606,7 +694,16 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  // Stage 6.3A: Cmd+Q (and any app.quit() not triggered by the guard
+  // itself) must run through the dirty-summary prompt first. Once the
+  // guard has confirmed close, we let this handler fall through and
+  // the app shuts down normally.
+  if (!closeController.isConfirmed()) {
+    event.preventDefault();
+    runCloseGuardForSource('before-quit');
+    return;
+  }
   stopWatchingVault();
 });
 

@@ -12,5 +12,23 @@ contextBridge.exposeInMainWorld('vaultApi', {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('vault-changed', listener);
     return () => ipcRenderer.removeListener('vault-changed', listener);
+  },
+  // Stage 6.3A close-time data-loss guard. Main sends 'request-dirty-summary'
+  // with a one-shot replyChannel; the renderer's handler computes the
+  // current dirty-note summary and replies via that channel exactly once.
+  // Per-request reply channels keep concurrent requests from racing.
+  onCloseRequest: (handler) => {
+    const listener = (_event, payload) => {
+      const replyChannel = payload && payload.replyChannel;
+      let replied = false;
+      const respond = (summary) => {
+        if (replied || !replyChannel) return;
+        replied = true;
+        ipcRenderer.send(replyChannel, summary);
+      };
+      handler(respond);
+    };
+    ipcRenderer.on('request-dirty-summary', listener);
+    return () => ipcRenderer.removeListener('request-dirty-summary', listener);
   }
 });
