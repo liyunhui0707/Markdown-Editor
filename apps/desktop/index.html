@@ -802,7 +802,28 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        max-width: 60%;
+        max-width: 40%;
+      }
+
+      /* Read-only document readouts in the centre of the status bar.
+         min-width:0 + overflow:hidden lets the cluster shrink at narrow
+         widths instead of pushing the right-hand status pill out of view. */
+      .status-bar-counts {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-faint);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .status-bar-counts .sep {
+        color: var(--border);
       }
 
       /* ── Toast UI Editor integration ─────────────────────────────────── */
@@ -963,6 +984,15 @@
 
       <footer class="status-bar">
         <div id="vaultPathText" class="status-bar-path">Vault: not selected</div>
+        <div class="status-bar-counts" aria-label="Document statistics">
+          <span id="docWords">0 words</span>
+          <span class="sep">·</span>
+          <span id="docChars">0 chars</span>
+          <span class="sep">·</span>
+          <span id="docLines">0 lines</span>
+          <span id="sepEngine" class="sep">·</span>
+          <span id="docEngine">CM6</span>
+        </div>
         <div id="statusText" class="status-bar-status status-ready">Ready</div>
       </footer>
     </div>
@@ -983,6 +1013,7 @@
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
     <script src="./lib/scroll-sync.js"></script>
+    <script src="./lib/doc-stats.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1248,6 +1279,10 @@ Write the core idea here.
       const ingestBanner           = document.getElementById('ingestBanner');
       const statusText             = document.getElementById('statusText');
       const vaultPathText          = document.getElementById('vaultPathText');
+      const docWords               = document.getElementById('docWords');
+      const docChars               = document.getElementById('docChars');
+      const docLines               = document.getElementById('docLines');
+      const docEngine              = document.getElementById('docEngine');
       const chooseVaultButton      = document.getElementById('chooseVaultButton');
       const seedDemoVaultButton    = document.getElementById('seedDemoVaultButton');
       const templateSelect         = document.getElementById('templateSelect');
@@ -1348,6 +1383,21 @@ Today the app reacts better to real external MCP ingests.
         } else {
           vaultPathText.textContent = `Vault: ${currentVaultPath}`;
         }
+      }
+
+      // Read-only status-bar readouts: words / chars / lines.
+      // Engine label is set once at boot (constant for the session).
+      // Pass `text` to skip a redundant getText() round-trip from the
+      // change handler; omit it to read live from the active editor.
+      function updateStatusReadouts(text) {
+        const stats = window.DocStats;
+        if (!stats) return;
+        const t = text != null
+          ? text
+          : (liveEditorInstance ? liveEditorInstance.getText() : '');
+        docWords.textContent = stats.formatNumber(stats.countWords(t)) + ' words';
+        docChars.textContent = stats.formatNumber(stats.countChars(t)) + ' chars';
+        docLines.textContent = stats.formatNumber(stats.countLines(t)) + ' lines';
       }
 
       function updateLayoutVisibility() {
@@ -1619,10 +1669,17 @@ Today the app reacts better to real external MCP ingests.
           titleInput.value  = '';
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
+          updateStatusReadouts('');
           return;
         }
 
         renderEditor(selectedNote);
+        // Pass the note body directly rather than reading via
+        // liveEditorInstance.getText() — handleWriteChange and
+        // updateSelectedNoteFromInputs keep selectedNote.body in sync with
+        // the editor, and avoiding getText() here keeps the existing Preview
+        // boot/switch flow's getText call counts unchanged.
+        updateStatusReadouts(selectedNote.body || '');
       }
 
       function updateSelectedNoteFromInputs() {
@@ -2241,6 +2298,9 @@ Today the app reacts better to real external MCP ingests.
         storage: window.localStorage,
       });
 
+      // Engine label is constant for the session; set once.
+      docEngine.textContent = selectedWriteEngine === 'cm6' ? 'CM6' : 'Hybrid';
+
       if (window.console && typeof window.console.debug === 'function') {
         window.console.debug('[write-engine]', selectedWriteEngine);
       }
@@ -2273,6 +2333,7 @@ Today the app reacts better to real external MCP ingests.
 
       function handleWriteChange(text) {
         _toastuiInstance.setMarkdown(text || '');
+        updateStatusReadouts(text || '');
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
         selectedNote.body = text;
