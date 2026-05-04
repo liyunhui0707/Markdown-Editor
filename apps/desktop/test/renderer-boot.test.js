@@ -4644,3 +4644,207 @@ test('Stage 6.3B (Codex follow-up): a second concurrent save-all request is reje
   assert.match(String(failures[0].error || ''), /already in progress|in flight|busy/i,
     'the overlap rejection error must explain why');
 });
+
+// ── Keyboard shortcuts (Stage 8.1) ────────────────────────────────────────
+
+// Fires all document-level 'keydown' handlers and awaits completion.
+// Returns { preventDefaultCalled } so tests can assert on preventDefault behavior.
+async function fireDocumentKeydown(documentHandlers, key, {
+  metaKey = false, ctrlKey = false, shiftKey = false, altKey = false, isComposing = false,
+} = {}) {
+  let preventDefaultCalled = false;
+  const event = {
+    key,
+    metaKey,
+    ctrlKey,
+    shiftKey,
+    altKey,
+    isComposing,
+    preventDefault() { preventDefaultCalled = true; },
+  };
+  await Promise.all((documentHandlers['keydown'] || []).map((h) => h(event)));
+  return { preventDefaultCalled };
+}
+
+test('Cmd+N with no note selected creates a new draft', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'n', { metaKey: true });
+
+  assert.equal(
+    elements.get('statusText').textContent,
+    'Draft created from template: blank'
+  );
+  assert.ok(preventDefaultCalled, 'Cmd+N must call preventDefault()');
+});
+
+test('Cmd+N with a clean vault note selected adds a draft without saving', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  await fireDocumentKeydown(documentHandlers, 'n', { metaKey: true });
+
+  assert.equal(
+    elements.get('statusText').textContent,
+    'Draft created from template: blank',
+    'Cmd+N should create a new draft'
+  );
+  assert.equal(calls.saveNotePayloads.length, 0, 'Cmd+N must not trigger a save');
+});
+
+test('Cmd+N during IME composition does nothing', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+  const beforeStatus = elements.get('statusText').textContent;
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'n', { metaKey: true, isComposing: true });
+
+  assert.equal(
+    elements.get('statusText').textContent,
+    beforeStatus,
+    'Cmd+N must be suppressed during IME composition'
+  );
+  assert.ok(!preventDefaultCalled, 'Cmd+N during IME composition must not call preventDefault()');
+});
+
+test('Ctrl+N creates a new draft (cross-platform)', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'n', { ctrlKey: true });
+
+  assert.equal(
+    elements.get('statusText').textContent,
+    'Draft created from template: blank',
+    'Ctrl+N should create a new draft'
+  );
+  assert.ok(preventDefaultCalled, 'Ctrl+N must call preventDefault()');
+});
+
+test('Cmd+N with uppercase N (Caps Lock) creates a new draft', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'N', { metaKey: true });
+
+  assert.equal(
+    elements.get('statusText').textContent,
+    'Draft created from template: blank',
+    'Cmd+N with Caps Lock should create a new draft'
+  );
+  assert.ok(preventDefaultCalled, 'Cmd+N with uppercase key must call preventDefault()');
+});
+
+test('Cmd+S with a vault note selected triggers save once', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'Cmd+S should trigger exactly one save');
+  assert.ok(preventDefaultCalled, 'Cmd+S must call preventDefault()');
+});
+
+test('Cmd+S with no selected note does not call save IPC', async () => {
+  const { calls, documentHandlers } = makeRendererHarness();
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 0, 'Cmd+S with no selection must not call saveNote');
+  assert.ok(preventDefaultCalled, 'Cmd+S must call preventDefault() even with no selection');
+});
+
+test('Ctrl+S triggers save (cross-platform)', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 's', { ctrlKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'Ctrl+S should trigger exactly one save');
+  assert.ok(preventDefaultCalled, 'Ctrl+S must call preventDefault()');
+});
+
+test('Cmd+S with uppercase S (Caps Lock) triggers save', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'S', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'Cmd+S with Caps Lock should trigger save');
+  assert.ok(preventDefaultCalled, 'Cmd+S with uppercase key must call preventDefault()');
+});
+
+test('Cmd+S with an unsaved draft and no vault triggers the choose-vault then save flow', async () => {
+  const { calls, documentHandlers } = makeRendererHarness();
+
+  // Create a draft first, then immediately save without a vault
+  await fireDocumentKeydown(documentHandlers, 'n', { metaKey: true });
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  // Vault was chosen: watchVaultFolder is called exactly once during chooseVaultFolder
+  assert.equal(calls.watchVaultFolderPayloads.length, 1, 'vault should be chosen automatically');
+  assert.equal(calls.saveNotePayloads.length, 1, 'save should proceed after vault selection');
+});
+
+// ── Negative tests: Shift and Alt modifier combinations must not fire ─────
+
+test('Cmd+Shift+N does not create a new draft', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+  const beforeStatus = elements.get('statusText').textContent;
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'n', { metaKey: true, shiftKey: true });
+
+  assert.equal(elements.get('statusText').textContent, beforeStatus, 'Cmd+Shift+N must not create a draft');
+  assert.ok(!preventDefaultCalled, 'Cmd+Shift+N must not call preventDefault()');
+});
+
+test('Cmd+Shift+S does not trigger save', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 's', { metaKey: true, shiftKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 0, 'Cmd+Shift+S must not trigger save');
+  assert.ok(!preventDefaultCalled, 'Cmd+Shift+S must not call preventDefault()');
+});
+
+test('Ctrl+Alt+N does not create a new draft', async () => {
+  const { elements, documentHandlers } = makeRendererHarness();
+  const beforeStatus = elements.get('statusText').textContent;
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'n', { ctrlKey: true, altKey: true });
+
+  assert.equal(elements.get('statusText').textContent, beforeStatus, 'Ctrl+Alt+N must not create a draft');
+  assert.ok(!preventDefaultCalled, 'Ctrl+Alt+N must not call preventDefault()');
+});
+
+test('Ctrl+Alt+S does not trigger save', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 's', { ctrlKey: true, altKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 0, 'Ctrl+Alt+S must not trigger save');
+  assert.ok(!preventDefaultCalled, 'Ctrl+Alt+S must not call preventDefault()');
+});

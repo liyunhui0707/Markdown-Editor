@@ -3138,8 +3138,14 @@ Write the core idea here.
 
       document.addEventListener('click', closeMenu);
 
-      document.addEventListener('keydown', (e) => {
+      document.addEventListener('keydown', async (e) => {
         if (e.key === 'Escape') closeMenu();
+        if (e.isComposing) return;
+        const mod = e.metaKey || e.ctrlKey;
+        const plain = !e.shiftKey && !e.altKey;
+        const key = String(e.key || '').toLowerCase();
+        if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
+        if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
       });
 
       moreMenu.addEventListener('click', closeMenu);
