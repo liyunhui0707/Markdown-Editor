@@ -451,6 +451,21 @@
         cursor: text;
       }
 
+      /* Stage 6.2: no-selection state. Disable mouse interaction with the
+         editor so typed text can't accumulate on a non-existent note, and
+         visually mute the surface so the disabled state is obvious. */
+      .live-editor-container.is-no-selection {
+        pointer-events: none;
+        opacity: 0.45;
+        user-select: none;
+        cursor: default;
+      }
+
+      .title-input:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
       /* Hint shown in an empty note */
       .live-editor-empty-hint {
         padding: 4px 0;
@@ -1390,31 +1405,14 @@ Write the core idea here.
       const noteViewStates        = new Map();
       let   currentMode           = 'write';
 
-      let notes = [
-        {
-          id: 'draft:1',
-          title: 'Welcome to Markdown Vault App',
-          body: `# Day 25
-
-Today the app reacts better to real external MCP ingests.
-
-## Goal
-- auto-refresh
-- switch to AI Imports
-- focus the new imported note`,
-          meta: 'Unsaved draft',
-          fileName: '',
-          relativePath: '',
-          source: 'draft',
-          aiImported: false,
-          frontmatter: {
-            tags: ['mcp', 'ingest'],
-            source: 'manual'
-          }
-        }
-      ];
-      let selectedNoteId = 'draft:1';
-      let nextDraftId = 2;
+      // Stage 6.2: empty initial state. The previous editable Welcome
+      // draft was a real (and editable) note that the choose-vault flow
+      // would silently wipe; the new contract is "show nothing until the
+      // user creates a note or chooses a vault". The renderer's
+      // no-selection branch already paints a usable empty editor.
+      let notes = [];
+      let selectedNoteId = '';
+      let nextDraftId = 1;
 
       function getSelectedNote() {
         return notes.find((note) => note.id === selectedNoteId);
@@ -1797,10 +1795,22 @@ Today the app reacts better to real external MCP ingests.
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
           updateStatusReadouts('');
+          // Stage 6.2: visually + functionally disable editing in the
+          // no-selection state. The title input is disabled outright; the
+          // editor container gets a CSS class that disables pointer events
+          // and mutes the surface. handleWriteChange also early-returns
+          // when there's no selection (defense-in-depth against keyboard
+          // tab focus reaching the editor).
+          titleInput.disabled = true;
+          liveEditorContainer.classList.add('is-no-selection');
           // Stage 6.1: empty/no-selection state is never dirty.
           setStatusFromSelectedNote();
           return;
         }
+
+        // Stage 6.2: re-enable editing now that we have a selected note.
+        titleInput.disabled = false;
+        liveEditorContainer.classList.remove('is-no-selection');
 
         renderEditor(selectedNote);
         // Pass the note body directly rather than reading via
@@ -2010,8 +2020,24 @@ Today the app reacts better to real external MCP ingests.
       }
 
       function shouldPreserveDraft(note) {
-        return note.source === 'draft'
-          && !(note.title === 'Untitled note' && !String(note.body || '').trim() && !note.relativePath);
+        // Stage 6.2 revision: align with DirtyState.isNoteDirty for draft
+        // notes — a draft is preservable iff its content is meaningful
+        // (non-empty body, OR a non-placeholder non-empty title). This
+        // matches the contract Stage 6.1 already uses for the Drafts
+        // filter, the Draft badge, and the status pill, so empty and
+        // whitespace-only drafts are consistently treated as "not work
+        // worth preserving".
+        if (note.source !== 'draft') return false;
+        if (window.DirtyState) {
+          return window.DirtyState.isNoteDirty(note);
+        }
+        // Defensive fallback if DirtyState somehow isn't loaded — the
+        // same draft semantics inlined.
+        const title = String(note.title == null ? '' : note.title).trim();
+        const body  = String(note.body  == null ? '' : note.body ).trim();
+        if (body !== '') return true;
+        if (title === '' || title === 'Untitled note') return false;
+        return true;
       }
 
       // Snapshot in-memory state for vault-backed notes other than the one whose
@@ -2044,11 +2070,26 @@ Today the app reacts better to real external MCP ingests.
         preservedVaultEdits = null,
         preserveCachedEditorStates = false
       ) {
+        // Stage 6.2: drop the hasLoadedVaultNotes gate. Drafts that the user
+        // typed before any vault was selected must survive the FIRST
+        // choose-vault refresh. shouldPreserveDraft already filters out the
+        // bare "Untitled note" placeholder, so this is safe.
         const draftsToPreserve = Array.isArray(preservedDrafts)
           ? preservedDrafts
-          : hasLoadedVaultNotes
-          ? notes.filter(shouldPreserveDraft)
-          : [];
+          : notes.filter(shouldPreserveDraft);
+
+        // Stage 6.2: if the currently-selected note is a draft that survives
+        // preservation, remember its id so post-refresh selection can stay
+        // on it instead of jumping to the first vault note. Both the Case A
+        // (Save-without-vault) and Case B (Choose Vault directly) flows
+        // depend on this to keep the user's in-progress draft selected.
+        const previouslySelectedDraftId = (() => {
+          if (!selectedNoteId) return '';
+          const sel = notes.find((n) => n.id === selectedNoteId);
+          if (!sel || sel.source !== 'draft') return '';
+          if (!draftsToPreserve.some((d) => d.id === selectedNoteId)) return '';
+          return selectedNoteId;
+        })();
 
         // Overlay: in-memory state for vault-backed notes that the caller wants
         // preserved across this refresh, keyed by relativePath. Opt-in — only
@@ -2109,30 +2150,50 @@ Today the app reacts better to real external MCP ingests.
         });
 
         if (refreshedNotes.length === 0) {
-          notes = [
-            {
-              id: 'draft:1',
-              title: 'Untitled note',
-              body: '',
-              meta: 'Vault is empty',
-              fileName: '',
-              relativePath: '',
-              source: 'draft',
-              aiImported: false,
-              frontmatter: {
-                tags: [],
-                source: ''
-              }
+          // Stage 6.2: if the user already has preserved drafts, use them as
+          // the entire notes set instead of clobbering with the placeholder
+          // Untitled draft. Only fall back to the placeholder when there's
+          // truly nothing to show (no vault notes AND no preserved drafts).
+          if (draftsToPreserve.length > 0) {
+            notes = [...draftsToPreserve];
+            if (previouslySelectedDraftId
+                && notes.some((n) => n.id === previouslySelectedDraftId)) {
+              selectedNoteId = previouslySelectedDraftId;
+            } else {
+              selectedNoteId = notes[0].id;
             }
-          ];
-          currentFilter = 'all';
-          selectedNoteId = 'draft:1';
-          nextDraftId = 2;
+          } else {
+            notes = [
+              {
+                id: 'draft:1',
+                title: 'Untitled note',
+                body: '',
+                meta: 'Vault is empty',
+                fileName: '',
+                relativePath: '',
+                source: 'draft',
+                aiImported: false,
+                frontmatter: {
+                  tags: [],
+                  source: ''
+                }
+              }
+            ];
+            currentFilter = 'all';
+            selectedNoteId = 'draft:1';
+          }
+          nextDraftId = 1;
+          while (notes.some((note) => note.id === `draft:${nextDraftId}`)) {
+            nextDraftId += 1;
+          }
           hasLoadedVaultNotes = true;
           renderApp();
 
           if (updateStatus) {
-            setStatus('ready', 'Vault loaded: 0 notes');
+            // Stage 6.2: route through the derived helper so a preserved
+            // dirty draft (now selected) keeps showing Draft instead of
+            // being shadowed by the Vault-loaded message.
+            setStatusFromSelectedNote('Vault loaded: 0 notes');
           }
 
           return true;
@@ -2141,7 +2202,13 @@ Today the app reacts better to real external MCP ingests.
         notes = refreshedNotes;
         hasLoadedVaultNotes = true;
 
-        if (preferredRelativePath) {
+        // Stage 6.2: a previously-selected pre-vault draft (now preserved
+        // in `notes`) wins over both preferredRelativePath and the
+        // first-vault-note default. Otherwise behavior is unchanged.
+        if (previouslySelectedDraftId
+            && notes.some((n) => n.id === previouslySelectedDraftId)) {
+          selectedNoteId = previouslySelectedDraftId;
+        } else if (preferredRelativePath) {
           const matchingNote = notes.find((note) => note.relativePath === preferredRelativePath);
           selectedNoteId = matchingNote ? matchingNote.id : notes[0].id;
         } else {
@@ -2156,16 +2223,49 @@ Today the app reacts better to real external MCP ingests.
         renderApp();
 
         if (updateStatus) {
-          setStatus('ready', `Vault loaded: ${notes.length} note(s)`);
+          // Stage 6.2: see the empty-vault branch above — derived to keep
+          // Draft visible for a preserved dirty draft.
+          setStatusFromSelectedNote(`Vault loaded: ${notes.length} note(s)`);
         }
 
         return true;
       }
 
       async function saveCurrentNote() {
+        // Stage 6.2: Save Note from the no-vault state opens the existing
+        // Choose Vault flow first. After a successful selection we restore
+        // the originally-targeted draft as the selection (refreshVaultNotes
+        // already does that when the previously-selected note is a
+        // preserved draft) and fall through to the normal save path. If
+        // the user cancels the OS picker, currentVaultPath stays empty and
+        // we bail out without saving — VaultActions has already set the
+        // "Vault selection canceled" status.
         if (!currentVaultPath) {
-          setStatus('error', 'Choose a vault first');
-          return;
+          const targetSelectedNoteId = selectedNoteId;
+          const target = getSelectedNote();
+          if (!target) {
+            setStatus('error', 'No note selected');
+            return;
+          }
+          await chooseVaultFolder();
+          if (!currentVaultPath) {
+            // User canceled (or chooseVault errored). VaultActions already
+            // emitted the appropriate ready/error status.
+            return;
+          }
+          // Defensive: the preservation path inside refreshVaultNotes already
+          // restores selection to the dirty draft, but verify before we
+          // attempt to save the wrong note.
+          if (selectedNoteId !== targetSelectedNoteId) {
+            if (notes.some((n) => n.id === targetSelectedNoteId)) {
+              selectedNoteId = targetSelectedNoteId;
+              renderApp();
+            } else {
+              setStatus('error', 'The draft you were saving is no longer available.');
+              return;
+            }
+          }
+          // Fall through to the rest of the normal save flow.
         }
 
         const selectedNote = getSelectedNote();
@@ -2482,10 +2582,16 @@ Today the app reacts better to real external MCP ingests.
       }
 
       function handleWriteChange(text) {
-        _toastuiInstance.setMarkdown(text || '');
-        updateStatusReadouts(text || '');
+        // Stage 6.2: in the no-selection state the editor surface is
+        // visually disabled (pointer-events: none + .is-no-selection on
+        // the container). The early return here is defense-in-depth: if
+        // a keyboard-tab path still lets a stray keystroke through, we
+        // refuse to push the text into the Preview / readouts so it can't
+        // accumulate as content not attached to any note.
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
+        _toastuiInstance.setMarkdown(text || '');
+        updateStatusReadouts(text || '');
         selectedNote.body = text;
         renderNoteList();
         // Stage 6.1: derive from the just-updated body so type-back-to-

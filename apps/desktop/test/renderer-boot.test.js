@@ -129,7 +129,16 @@ function makeElement(tag = 'div', id = '') {
   return el;
 }
 
-function makeRendererHarness({ search = '', storageValue = null, vaultNotes = [] } = {}) {
+function makeRendererHarness({
+  search = '',
+  storageValue = null,
+  vaultNotes = [],
+  // Stage 6.2: when true, the harness's VaultActions.chooseVaultFolder
+  // simulates the user dismissing the OS folder picker — it leaves the
+  // vault path unset and the notes array unchanged. Used to test the
+  // Save-without-vault cancellation branch.
+  chooseVaultCanceled = false,
+} = {}) {
   const ids = [
     'titleInput',
     'liveEditorContainer',
@@ -566,14 +575,23 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
       setStatus,
     }) {
       assert.equal(_vaultApi, vaultApi);
+      // Stage 6.2: simulated user cancellation of the OS folder picker.
+      // Match the production behavior in lib/vault-actions.js: leave the
+      // vault path unset and emit the canceled status message.
+      if (chooseVaultCanceled) {
+        setStatus('ready', 'Vault selection canceled');
+        return;
+      }
       await stopWatching();
       setCurrentVaultPath('/fake-vault');
       updateDisplay();
       await startWatching();
-      const refreshed = await refreshVaultNotes('', false);
-      if (refreshed) {
-        setStatus('ready', 'Vault loaded');
-      }
+      // Stage 6.2: pass updateStatus=true so refreshVaultNotes itself
+      // emits the post-load message via its derived helper (which keeps
+      // Draft visible for a preserved dirty draft). The harness used to
+      // emit its own 'Vault loaded' here imperatively — that would now
+      // shadow Draft.
+      await refreshVaultNotes('', true);
     },
   };
 
@@ -756,40 +774,74 @@ test('renderer boot with localStorage writeEngine=cm6 constructs CM6 when no que
   assert.equal(calls.cm6Constructed, 1);
 });
 
-test('hybrid-backed adapter still uses setText, getText, and exitWriteMode for boot and Preview', () => {
-  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid' });
+test('hybrid-backed adapter still uses setText, getText, and exitWriteMode for boot and Preview', async () => {
+  // Stage 6.2: empty initial state means we must load a note explicitly
+  // (via vaultNotes + chooseVault) to exercise the boot-load path.
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid',
+    vaultNotes: [{
+      id: 'vault:a',
+      title: 'Vault A',
+      body: '# Vault A\n\nbody',
+      fileName: 'a.md',
+      relativePath: 'a.md',
+    }],
+  });
 
-  assert.equal(calls.hybridSetText.length, 1, 'initial render should load the selected note');
-  assert.match(calls.hybridSetText[0], /^Tags: mcp, ingest\nSource: manual\n\n# Day 25/);
-  assert.equal(calls.hybridExitWriteMode, 1, 'adapter.setText exits write mode before loading text');
-  assert.equal(calls.toastSetMarkdown.at(-1), calls.hybridSetText[0]);
+  // Initial render loads the empty no-selection doc through setText.
+  assert.equal(calls.hybridSetText[0], '', 'no-selection boot loads empty text via setText');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Vault load triggers another setText with the selected note's body.
+  // Hybrid's setText calls exitWriteMode internally, so 2 setText calls
+  // (boot empty + vault load) → 2 exitWriteMode calls before Preview.
+  assert.match(calls.hybridSetText.at(-1), /^# Vault A/);
+  assert.equal(calls.hybridExitWriteMode, 2, 'adapter.setText exits write mode before loading text');
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.hybridSetText.at(-1));
 
   elements.get('previewModeButton').fire('click');
 
   assert.equal(calls.hybridGetText, 1, 'Preview reads from the hybrid adapter');
-  assert.equal(calls.hybridExitWriteMode, 2, 'Preview flushes the hybrid adapter before rendering');
-  assert.equal(calls.toastSetMarkdown.at(-1), calls.hybridSetText[0]);
+  assert.equal(calls.hybridExitWriteMode, 3, 'Preview flushes the hybrid adapter before rendering');
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.hybridSetText.at(-1));
   assert.ok(calls.toastEmits.includes('changePreviewTabPreview'));
 });
 
-test('CM6-backed adapter uses setText, getText, and exitWriteMode for boot and Preview', () => {
-  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+test('CM6-backed adapter uses setText, getText, and exitWriteMode for boot and Preview', async () => {
+  // Stage 6.2: empty initial state — load a note via vaultNotes + chooseVault
+  // to exercise the boot-load path through setText.
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a',
+      title: 'Vault A',
+      body: '# Vault A\n\nbody',
+      fileName: 'a.md',
+      relativePath: 'a.md',
+    }],
+  });
 
-  assert.equal(calls.cm6SetText.length, 1, 'initial render should load the selected note through setText');
-  assert.match(calls.cm6SetText[0], /^Tags: mcp, ingest\nSource: manual\n\n# Day 25/);
+  assert.equal(calls.cm6SetText[0], '', 'no-selection boot loads empty text via setText');
   assert.equal(calls.cm6ExitWriteMode, 0, 'CM6 construction starts empty and loads through setText');
-  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText[0]);
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  assert.match(calls.cm6SetText.at(-1), /^# Vault A/);
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText.at(-1));
 
   elements.get('previewModeButton').fire('click');
 
   assert.equal(calls.cm6GetText, 1, 'Preview reads from the liveEditorInstance CM6 adapter');
   assert.equal(calls.cm6ExitWriteMode, 1, 'Preview flushes through the liveEditorInstance adapter');
-  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText[0]);
+  assert.equal(calls.toastSetMarkdown.at(-1), calls.cm6SetText.at(-1));
   assert.ok(calls.toastEmits.includes('changePreviewTabPreview'));
 });
 
 test('CM6 onChange uses the same preview sync, note body, note list, and draft status behavior', () => {
   const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  // Stage 6.2: create a draft so cm6OnChange has a selectedNote to update.
+  elements.get('newNoteButton').fire('click');
   const edited = '# Edited from CM6\n\nUniqueCm6SearchToken';
 
   calls.cm6OnChange(edited);
@@ -3196,6 +3248,9 @@ test('Stage 5.2: blank doc (CM6 onChange with "") shows 0 / 0 / 0 readouts', () 
 
 test('Stage 5.2: typing via CM6 onChange updates words / chars / lines readouts', () => {
   const { calls, elements } = makeRendererHarness();
+  // Stage 6.2: cm6OnChange in the no-selection state is a no-op; create a
+  // draft first so handleWriteChange can attach the text to a real note.
+  elements.get('newNoteButton').fire('click');
 
   calls.cm6OnChange('hello world');
   assert.equal(elements.get('docWords').textContent, '2 words');
@@ -3213,16 +3268,15 @@ test('Stage 5.2: typing via CM6 onChange updates words / chars / lines readouts'
 test('Stage 5.2: New Note (note switch to a blank-body draft) resets readouts to 0 / 0 / 0', () => {
   const { calls, elements } = makeRendererHarness();
 
-  // Sanity: boot landed on the seeded note with non-empty content.
-  assert.notEqual(elements.get('docWords').textContent, '0 words');
-
-  // Type something into the current note so we can prove the switch resets.
+  // Stage 6.2: empty initial state. Create a draft with content first so
+  // we can prove the switch resets to 0.
+  elements.get('newNoteButton').fire('click');
   calls.cm6OnChange('temporary text');
-  assert.equal(elements.get('docWords').textContent, '2 words');
+  assert.equal(elements.get('docWords').textContent, '2 words',
+    'after typing, readouts reflect the typed text');
 
-  // Switching to a new blank draft (templateSelect is 'blank' in the harness)
-  // routes through renderApp and should refresh readouts to the new note's
-  // body — which is empty.
+  // Switching to ANOTHER new blank draft routes through renderApp and
+  // should refresh readouts to the new note's body — which is empty.
   elements.get('newNoteButton').fire('click');
   assert.equal(elements.get('docWords').textContent, '0 words');
   assert.equal(elements.get('docChars').textContent, '0 chars');
@@ -3233,6 +3287,9 @@ test('Stage 5.2: ?writeEngine=hybrid shows engine label "Hybrid" and readouts re
   const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid' });
 
   assert.equal(elements.get('docEngine').textContent, 'Hybrid');
+
+  // Stage 6.2: create a draft so handleWriteChange has a selectedNote.
+  elements.get('newNoteButton').fire('click');
 
   // Hybrid commits text through the same onChange-style hook the host wired
   // in; verify the readouts update on that path too.
@@ -3250,10 +3307,14 @@ test('Stage 5.2: ?writeEngine=hybrid shows engine label "Hybrid" and readouts re
 // the meta line must not duplicate the tags shown as chips, and rows for
 // plain vault notes must contain neither badge nor chips.
 
-test('Stage 5.3: draft row renders the Draft badge and tag chips for the seeded draft', () => {
+test('Stage 5.3: draft row renders the Draft badge and tag chips for a templated draft', () => {
   const { elements } = makeRendererHarness();
 
-  // Default seed is one draft note with tags ['mcp', 'ingest'].
+  // Stage 6.2: empty initial state. Create a draft from the meeting
+  // template (frontmatter.tags = ['meeting']) to exercise the badge + chips.
+  elements.get('templateSelect').value = 'meeting';
+  elements.get('newNoteButton').fire('click');
+
   const row = elements.get('noteList').children[0];
   assert.ok(row, 'expected at least one row in the note list');
   const html = row.innerHTML;
@@ -3262,20 +3323,23 @@ test('Stage 5.3: draft row renders the Draft badge and tag chips for the seeded 
   assert.ok(html.includes('>Draft<'), 'Draft badge label should appear in the markup');
   assert.ok(!html.includes('note-badge-ai'), 'draft row should not render the AI badge');
 
-  assert.ok(html.includes('class="note-tag">#mcp<'),    'first tag chip should render');
-  assert.ok(html.includes('class="note-tag">#ingest<'), 'second tag chip should render');
-  assert.ok(!html.includes('note-tag-overflow'), '2 tags (≤3) should not render an overflow chip');
+  assert.ok(html.includes('class="note-tag">#meeting<'), 'tag chip should render');
+  assert.ok(!html.includes('note-tag-overflow'), '1 tag (≤3) should not render an overflow chip');
 });
 
 test('Stage 5.3: when tag chips render, the meta line drops the duplicate "tags: ..." segment', () => {
   const { elements } = makeRendererHarness();
 
+  // Stage 6.2: refixture via the meeting template (tags: ['meeting']).
+  elements.get('templateSelect').value = 'meeting';
+  elements.get('newNoteButton').fire('click');
+
   const row = elements.get('noteList').children[0];
   const html = row.innerHTML;
 
-  // The seeded draft has tags ['mcp', 'ingest']. They should appear as
-  // chips (asserted above) but not also be repeated as text in the meta.
-  assert.ok(!html.includes('tags: mcp, ingest'), 'meta line should not duplicate tags rendered as chips');
+  // The meeting template has tags ['meeting']. They should appear as
+  // chips but not also be repeated as text in the meta.
+  assert.ok(!html.includes('tags: meeting'), 'meta line should not duplicate tags rendered as chips');
 });
 
 test('Stage 5.3: plain vault note (no aiImported, no tags) renders no badge and no tag chips', async () => {
@@ -3458,17 +3522,22 @@ test('Stage 6.1: pristine vault note is NOT Draft and shows no Draft badge', asy
 test('Stage 6.1: non-empty draft is dirty (Draft status, in Drafts filter, Draft badge)', async () => {
   const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
-  // The default seeded draft has body content, so it counts as dirty.
-  // Status should be Draft on first paint.
-  assert.equal(elements.get('statusText').textContent, 'Draft');
+  // Stage 6.2: empty initial state. Create a templated draft (body comes
+  // from the template) so the new draft is non-empty → counts as dirty.
+  elements.get('templateSelect').value = 'meeting';
+  elements.get('newNoteButton').fire('click');
+  // After createNewNote the textContent is "Draft created from template: …"
+  // — assert the className (the "this is dirty" signal) instead.
+  assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
 
-  // The seeded draft's row carries the Draft badge already (source==='draft').
-  const seedRow = elements.get('noteList').children[0];
-  assert.ok(seedRow.innerHTML.includes('note-badge note-badge-draft'));
+  // The new draft's row carries the Draft badge (source==='draft').
+  const draftRow = elements.get('noteList').children[0];
+  assert.ok(draftRow.innerHTML.includes('note-badge note-badge-draft'));
 
-  // Type more — still dirty, still Draft.
+  // Type more — derivation runs through handleWriteChange → still Draft.
   calls.cm6OnChange('expanded body');
   assert.equal(elements.get('statusText').textContent, 'Draft');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
 });
 
 test('Stage 6.1: saving a dirty vault note clears dirty (status → Ready, no Draft badge)', async () => {
@@ -3661,4 +3730,353 @@ test('Stage 6.1: Drafts count in the sidebar nav includes dirty vault notes', as
   elements.get('noteList').children[1].fire('click');
   assert.equal(elements.get('filterDraftsMeta').textContent, '1 note(s)',
     'Drafts count must include a dirty vault note');
+});
+
+// ── Stage 6.2: pre-vault draft preservation + Save-without-vault flow ─────
+//
+// Bug #1: a note typed before any vault is selected disappears the moment
+// the user picks a vault, because refreshVaultNotes wipes in-memory drafts
+// when hasLoadedVaultNotes is false. Stage 6.2 also makes Save Note from
+// the no-vault state route through Choose Vault first, so a single click
+// can both pick a vault and write the draft to disk.
+//
+// Initial state: notes is empty (no editable Welcome seed). Tests that
+// need a starting note create one explicitly via newNoteButton or load
+// one via vaultNotes + chooseVaultButton.
+
+test('Stage 6.2: initial boot has no editable Welcome draft (empty notes list)', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  // No automatic note → setText is called with the empty doc only (the
+  // no-selection branch loads ''), and the note list is empty.
+  assert.deepEqual(calls.cm6SetText, [''],
+    'boot must not auto-load a Welcome note via setText');
+  assert.equal(elements.get('noteList').children.length, 0,
+    'note list must be empty until the user creates a note or chooses a vault');
+  assert.equal(elements.get('titleInput').value, '');
+});
+
+test('Stage 6.2: Case B — pre-vault draft survives Choose Vault and stays selected', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  // Create a draft and type into it.
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'My pre-vault idea';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('Body typed before choosing a vault.');
+
+  const draftIdBefore = elements.get('noteList').children[0]
+    && Array.from(elements.get('noteList').children).find((row) =>
+      row.innerHTML.includes('My pre-vault idea')
+    );
+  assert.ok(draftIdBefore, 'draft row should be present before chooseVault');
+
+  const saveCallsBefore = calls.saveNotePayloads.length;
+
+  // Now choose a vault.
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Save IPC must NOT have fired during chooseVault.
+  assert.equal(calls.saveNotePayloads.length, saveCallsBefore,
+    'choosing a vault must not auto-save existing drafts');
+
+  // The draft must still be present and selected.
+  const rows = Array.from(elements.get('noteList').children);
+  const draftRow = rows.find((row) => row.innerHTML.includes('My pre-vault idea'));
+  assert.ok(draftRow, 'pre-vault draft must survive choose-vault refresh');
+  assert.ok(draftRow.className.includes('active'),
+    'preserved pre-vault draft must remain selected after choose-vault');
+
+  // The draft body must still be readable through the editor model — verify
+  // the row's snippet/meta still reflects the typed body via search.
+  elements.get('searchInput').value = 'Body typed before';
+  elements.get('searchInput').fire('input');
+  assert.match(elements.get('searchMeta').textContent, /Found 1 result/);
+});
+
+test('Stage 6.2: Case A — Save Note before vault triggers chooseVault then saves the draft', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'A Pre Vault Draft';
+  elements.get('titleInput').fire('input');
+  // The harness's CM6 adapter only reflects setText calls in its `text`
+  // field; cm6OnChange notifies the renderer but doesn't update the mock
+  // adapter. Set both so saveCurrentNote's getText() reads what the user
+  // would have typed under real CM6.
+  const draftBody = '# A Pre Vault Draft\n\nbody-text-from-pre-vault-draft';
+  calls.cm6Adapter.text = draftBody;
+  calls.cm6OnChange(draftBody);
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Save IPC fired exactly once with the draft's body and title.
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'Save Note from no-vault must trigger exactly one save IPC after the user picks a vault');
+  const payload = calls.saveNotePayloads[0];
+  assert.equal(payload.note.title, 'A Pre Vault Draft');
+  assert.match(payload.note.body, /body-text-from-pre-vault-draft/);
+  assert.equal(payload.vaultPath, '/fake-vault',
+    'save IPC must target the vault picked during the chooseVault flow');
+});
+
+test('Stage 6.2: Case A — when the user cancels vault selection, the draft is unchanged and not saved', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    chooseVaultCanceled: true,
+  });
+
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'Untouched draft';
+  elements.get('titleInput').fire('input');
+  calls.cm6OnChange('this body must not be saved');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // No save IPC.
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'cancelling vault selection must not trigger any save IPC');
+
+  // Status reflects the cancellation (pill stays in ready className but
+  // shows the canceled message). Draft is still selected and unchanged.
+  assert.equal(elements.get('statusText').className, 'topbar-status status-ready');
+
+  const rows = Array.from(elements.get('noteList').children);
+  const draftRow = rows.find((row) => row.innerHTML.includes('Untouched draft'));
+  assert.ok(draftRow, 'draft must still be present after cancellation');
+  assert.ok(draftRow.className.includes('active'),
+    'draft must still be selected after cancellation');
+});
+
+test('Stage 6.2: Case A — duplicate-name guard still blocks save after Choose Vault picks a colliding vault', async () => {
+  // Vault contains a file whose path will collide with a draft titled
+  // "duplicate target". deriveDraftRelativePath kebabs the title.
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      {
+        id: 'vault:duplicate-target',
+        title: 'duplicate target',
+        body: '# duplicate target',
+        fileName: 'duplicate-target.md',
+        relativePath: 'duplicate-target.md',
+      },
+    ],
+  });
+
+  // Create a draft with a colliding title.
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'duplicate target';
+  elements.get('titleInput').fire('input');
+  const collidingBody = 'content that should not be written';
+  calls.cm6Adapter.text = collidingBody;
+  calls.cm6OnChange(collidingBody);
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // The duplicate-name pre-check must run after chooseVault loads the
+  // colliding vault file. Save IPC must NOT fire.
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'duplicate-name guard must block save after the new vault loads');
+
+  // Status surface should be the error class.
+  assert.equal(elements.get('statusText').className, 'topbar-status status-error');
+  assert.match(elements.get('statusText').textContent, /already exists/);
+});
+
+test('Stage 6.2: pre-vault dirty draft remains Draft after Choose Vault (Stage 6.1 regression guard)', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  elements.get('newNoteButton').fire('click');
+  calls.cm6OnChange('typed before vault');
+
+  // Pre-condition: draft is dirty → status Draft.
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // After chooseVault, the draft is preserved (Stage 6.2) and selected
+  // (Stage 6.2). It is still dirty (Stage 6.1) → status Draft.
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'pre-vault dirty draft must keep showing Draft after choose-vault preservation');
+});
+
+// ── Stage 6.2 (revision): empty-state safety + DirtyState-aligned preservation
+//
+// Two edge cases the first round missed:
+// (1) the no-selection editor was visually editable, so typed text could
+//     accumulate in the preview/readouts without ever being attached to a
+//     note. The fix disables the title input AND marks the editor
+//     container with .is-no-selection, and handleWriteChange no-ops at the
+//     top when there's no selection.
+// (2) shouldPreserveDraft only filtered the exact 'Untitled note' + empty
+//     placeholder. Whitespace-only titles/bodies sneaked through. The
+//     revised predicate aligns with DirtyState.isNoteDirty for drafts.
+
+test('Stage 6.2: initial no-selection state disables title input and marks editor container', () => {
+  const { elements } = makeRendererHarness();
+
+  assert.equal(elements.get('titleInput').disabled, true,
+    'title input must be disabled in the no-selection state');
+  assert.ok(elements.get('liveEditorContainer').className.includes('is-no-selection'),
+    'editor container must carry the .is-no-selection class so CSS can disable interaction');
+});
+
+test('Stage 6.2: New Note enables editing (no-selection lock lifts on selection)', () => {
+  const { elements } = makeRendererHarness();
+
+  // Pre-condition: disabled.
+  assert.equal(elements.get('titleInput').disabled, true);
+
+  // Create a draft → editing enabled.
+  elements.get('newNoteButton').fire('click');
+  assert.equal(elements.get('titleInput').disabled, false,
+    'after New Note, title input must be enabled');
+  assert.ok(!elements.get('liveEditorContainer').className.includes('is-no-selection'),
+    'after New Note, editor container must lose .is-no-selection');
+});
+
+test('Stage 6.2: handleWriteChange in the no-selection state is a no-op (no preview/readouts pollution)', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  // No notes → no selection. cm6OnChange must be safely ignored.
+  const toastBefore = calls.toastSetMarkdown.length;
+  calls.cm6OnChange('stray text that has nowhere to go');
+
+  assert.equal(calls.toastSetMarkdown.length, toastBefore,
+    'no-selection edits must not push text into the Toast UI Preview');
+  assert.equal(elements.get('docWords').textContent, '0 words',
+    'no-selection edits must not advance the words readout');
+  assert.equal(elements.get('docChars').textContent, '0 chars');
+  assert.equal(elements.get('docLines').textContent, '0 lines');
+});
+
+test('Stage 6.2: Save Note in the no-selection state does not pretend a note exists', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'no-selection save must not fire a save IPC');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-error');
+  assert.match(elements.get('statusText').textContent, /No note selected/,
+    'no-selection save must surface a clear "no note selected" message');
+});
+
+test('Stage 6.2: empty/placeholder draft is NOT preserved across Choose Vault', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  // Create a blank draft (templateSelect defaults to 'blank' → title
+  // 'Untitled note', empty body). DON'T type anything.
+  elements.get('newNoteButton').fire('click');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // createNewNote pinned the filter to 'drafts'; switch to 'all' to assert
+  // about the full notes set.
+  elements.get('filterAll').fire('click');
+
+  // Only the vault note remains; the empty placeholder draft was dropped.
+  const rows = Array.from(elements.get('noteList').children);
+  const titles = rows.map((r) => r.innerHTML);
+  assert.equal(rows.length, 1, 'only the vault note should remain');
+  assert.ok(titles.some((html) => html.includes('Vault A')));
+  assert.ok(!titles.some((html) => html.includes('Untitled note')),
+    'empty placeholder draft must NOT be preserved across Choose Vault');
+  assert.equal(calls.saveNotePayloads.length, 0);
+});
+
+test('Stage 6.2: whitespace-only-title draft is NOT preserved across Choose Vault', async () => {
+  const { elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  elements.get('newNoteButton').fire('click');
+  // Title is whitespace-only; body is empty.
+  elements.get('titleInput').value = '   ';
+  elements.get('titleInput').fire('input');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('filterAll').fire('click');
+
+  const rows = Array.from(elements.get('noteList').children);
+  assert.equal(rows.length, 1, 'whitespace-only draft should not be preserved');
+  assert.ok(rows[0].innerHTML.includes('Vault A'));
+});
+
+test('Stage 6.2: whitespace-only-body draft is NOT preserved across Choose Vault', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  elements.get('newNoteButton').fire('click');
+  // Title remains the bare placeholder; body is whitespace-only.
+  calls.cm6OnChange('   \n\n  \n');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('filterAll').fire('click');
+
+  const rows = Array.from(elements.get('noteList').children);
+  assert.equal(rows.length, 1, 'whitespace-only-body draft should not be preserved');
+  assert.ok(rows[0].innerHTML.includes('Vault A'));
+});
+
+test('Stage 6.2: meaningful draft (custom title) IS preserved across Choose Vault', async () => {
+  const { elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  elements.get('newNoteButton').fire('click');
+  // Custom title, empty body — DirtyState says this is dirty (custom
+  // title is meaningful), so it must be preserved.
+  elements.get('titleInput').value = 'My pre-vault idea';
+  elements.get('titleInput').fire('input');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('filterAll').fire('click');
+
+  const rows = Array.from(elements.get('noteList').children);
+  const titles = rows.map((r) => r.innerHTML);
+  assert.ok(titles.some((html) => html.includes('My pre-vault idea')),
+    'meaningful draft (custom title) must survive Choose Vault');
+});
+
+test('Stage 6.2: meaningful draft (non-empty body) IS preserved across Choose Vault', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  elements.get('newNoteButton').fire('click');
+  // Default placeholder title, but non-empty body — DirtyState says dirty.
+  calls.cm6OnChange('Real content typed by the user.');
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('filterAll').fire('click');
+
+  // Search for the typed content to confirm the draft survived with body.
+  elements.get('searchInput').value = 'Real content typed';
+  elements.get('searchInput').fire('input');
+  assert.match(elements.get('searchMeta').textContent, /Found 1 result/,
+    'meaningful draft (non-empty body) must survive Choose Vault with body intact');
 });
