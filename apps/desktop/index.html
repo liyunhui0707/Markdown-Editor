@@ -33,6 +33,7 @@
         --success:         #3f7a4f;
         --warning:         #a86a2e;
         --danger:          #a8423a;
+        --danger-bg:       rgba(168, 66, 58, 0.08);
 
         /* Typography */
         --font-ui:     "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
@@ -231,7 +232,7 @@
         color: var(--text);
         line-height: 1.5;
         background: var(--accent-bg);
-        border: 1px solid rgba(124, 58, 237, 0.2);
+        border: 1px solid var(--accent-border);
         border-radius: 6px;
         padding: 8px 10px;
       }
@@ -403,7 +404,7 @@
         flex: 1;
         min-height: 0;
         overflow: auto;
-        background: #ffffff;
+        background: var(--surface);
         display: flex;
         flex-direction: column;
       }
@@ -421,20 +422,20 @@
       .title-input {
         width: 100%;
         border: none;
-        border-bottom: 1px solid #e8e8e8;
+        border-bottom: 1px solid var(--border);
         border-radius: 0;
         padding: 0 0 14px 0;
         margin-bottom: 20px;
         font-size: 28px;
         font-weight: 700;
-        color: #1a1a1a;
+        color: var(--text);
         background: transparent;
         outline: none;
         letter-spacing: -0.01em;
       }
 
       .title-input:focus {
-        border-bottom-color: #7c3aed;
+        border-bottom-color: var(--accent);
       }
 
       /* Meta row — quiet, below the title */
@@ -469,7 +470,7 @@
       /* Hint shown in an empty note */
       .live-editor-empty-hint {
         padding: 4px 0;
-        color: #aaaaaa;
+        color: var(--text-faint);
         font-style: italic;
         font-size: 16px;
       }
@@ -603,14 +604,14 @@
         height: 100%;
         box-sizing: border-box;
         border: none;
-        border-left: 3px solid #7c3aed;
+        border-left: 3px solid var(--accent);
         border-radius: 0;
         padding: 2px 0 2px 14px;
         font-size: 15px;
         line-height: 1.8;
         font-family: var(--font-editor);
         background: transparent;
-        color: #2d2d2d;
+        color: var(--text);
         box-shadow: none;
         resize: none;
         outline: none;
@@ -623,30 +624,30 @@
         font-family: var(--font-prose);
         font-size: 16px;
         line-height: 1.8;
-        color: #2d2d2d;
+        color: var(--text);
       }
 
       .preview-markdown h1 {
         font-size: 1.75em;
         font-weight: 700;
-        color: #1a1a1a;
+        color: var(--text);
         margin: 0 0 0.4em 0;
         padding-bottom: 0.3em;
-        border-bottom: 1px solid #ebebeb;
+        border-bottom: 1px solid var(--border-subtle);
         letter-spacing: -0.02em;
       }
 
       .preview-markdown h2 {
         font-size: 1.35em;
         font-weight: 600;
-        color: #1a1a1a;
+        color: var(--text);
         margin: 0 0 0.3em 0;
       }
 
       .preview-markdown h3 {
         font-size: 1.1em;
         font-weight: 600;
-        color: #333;
+        color: var(--text);
         margin: 0 0 0.3em 0;
       }
 
@@ -666,11 +667,11 @@
 
       .preview-markdown strong {
         font-weight: 600;
-        color: #1a1a1a;
+        color: var(--text);
       }
 
       .preview-markdown a {
-        color: #7c3aed;
+        color: var(--accent);
         text-decoration: none;
       }
 
@@ -680,19 +681,19 @@
 
       /* Inline code */
       .preview-markdown code {
-        background: #f5f2ff;
-        border: 1px solid #e4dcff;
+        background: var(--accent-bg);
+        border: 1px solid var(--accent-border);
         padding: 1px 6px;
         border-radius: 4px;
         font-size: 0.88em;
         font-family: var(--font-mono);
-        color: #6d28d9;
+        color: var(--accent);
       }
 
       /* Code block */
       .preview-markdown pre {
-        background: #f8f8f6;
-        border: 1px solid #e8e8e4;
+        background: var(--surface);
+        border: 1px solid var(--border);
         padding: 16px 20px;
         border-radius: 8px;
         overflow-x: auto;
@@ -703,24 +704,24 @@
         background: transparent;
         border: none;
         padding: 0;
-        color: #2d2d2d;
+        color: var(--text);
         font-size: 0.9em;
         font-family: var(--font-mono);
       }
 
       /* Blockquote */
       .preview-markdown blockquote {
-        border-left: 3px solid #7c3aed;
-        background: #fdfcff;
+        border-left: 3px solid var(--accent);
+        background: var(--surface);
         padding: 6px 16px;
         margin: 0 0 1.1em 0;
-        color: #666;
+        color: var(--text-muted);
         border-radius: 0 4px 4px 0;
       }
 
       .preview-markdown hr {
         border: none;
-        border-top: 1px solid #ebebeb;
+        border-top: 1px solid var(--border-subtle);
         margin: 2em 0;
       }
 
@@ -776,7 +777,7 @@
       }
 
       .action-button--destructive:hover {
-        background: #fff1f2 !important;
+        background: var(--danger-bg) !important;
       }
 
       /* ── Top chrome removal ──────────────────────────────────────────── */
