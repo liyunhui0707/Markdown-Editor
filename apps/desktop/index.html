@@ -1388,6 +1388,11 @@ Write the core idea here.
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
       let hasLoadedVaultNotes     = false;
+      // Stage 6.3B: while saveAllDirtyNotes is iterating, the watcher
+      // refresh callback bails out so its loadVaultNotes calls don't
+      // race in-flight saves. Save-all does its OWN single refresh
+      // after the loop. Cleared in a try/finally to survive throws.
+      let saveAllInProgress       = false;
       // Per-note editor state cache for note-local undo/redo. Keyed by note id;
       // each value is { state, doc } where state is the opaque engine state and
       // doc is the text it represented at cache time (the mismatch guard).
@@ -1913,6 +1918,15 @@ Write the core idea here.
 
         stopVaultWatcher = window.vaultApi.onVaultChanged(async (payload) => {
           if (!currentVaultPath) {
+            return;
+          }
+          // Stage 6.3B: when Save All is iterating, the disk writes it
+          // is making fire fs.watch events that arrive here mid-loop.
+          // Letting refreshVaultNotes run during the loop would race
+          // the in-flight saves (and clobber unsaved-but-not-yet-saved
+          // dirty notes). Save All performs its own single refresh
+          // after the loop, so we drop these events.
+          if (saveAllInProgress) {
             return;
           }
 
@@ -2555,6 +2569,245 @@ Write the core idea here.
             }
           }
           respond(summary);
+        });
+      }
+
+      // Stage 6.3B: Save All & Quit. Main asks the renderer to save
+      // every dirty note; we reuse the existing save-note IPC per
+      // note, run the loop sequentially, and reply with a single
+      // ok/error result. The save-note IPC payload is unchanged.
+      //
+      // Sequencing rules (see Stage 6.3B plan, sections C and H, plus
+      // Codex post-review safety fixes):
+      //   - Flush the live editor (exitWriteMode + getText) BEFORE
+      //     reading dirty state so an in-progress Markdown shortcut
+      //     in the selected note's buffer is included.
+      //   - Set saveAllInProgress=true at the very TOP, before any
+      //     await. Concurrent / overlapping save-all requests (main
+      //     timeout + retry, accidental double-click) hit this latch
+      //     and return {ok:false} immediately — no two save loops
+      //     ever race on the same notes array.
+      //   - Snapshot dirty ids, then iterate. Saves migrate draft ids
+      //     to vault: ids; the snapshot is by id so the loop tolerates
+      //     migration without re-reading a moving array.
+      //   - Capture note.title and note.body BEFORE awaiting the save
+      //     IPC. The migration step uses the captured values so an
+      //     edit landing while saveNote is in-flight cannot be
+      //     misclassified as already-saved on the next dirty check.
+      //   - Trigger Stage 6.2's chooseVaultFolder when no vault is
+      //     selected. If the user cancels the OS picker, abort.
+      //   - Pre-check duplicate filename via FileName.findRelativePathConflict
+      //     each iteration. The main-process `wx` write is still the
+      //     authoritative no-overwrite guard.
+      //   - The watcher-suppression flag (saveAllInProgress) stays
+      //     set THROUGH the post-loop refreshVaultNotes so its
+      //     watcher events cannot race the final reconciliation.
+      //   - Run exactly ONE refreshVaultNotes after the loop with an
+      //     overlay that captures EVERY vault note's current
+      //     in-memory body/title (not just the not-saved set). Any
+      //     edit to an already-saved note that landed mid-loop is
+      //     preserved over disk truth so the final dirty check sees
+      //     it.
+      //   - After the refresh, recompute DirtyState.summarizeDirty.
+      //     Only count===0 returns {ok:true}. ANY remaining dirty
+      //     work (a note edited during the loop, a not-attempted
+      //     dirty draft, a save failure mid-loop) returns
+      //     {ok:false} and keeps the app open with the dirty content
+      //     intact.
+      async function saveAllDirtyNotes() {
+        // Overlapping-request guard. saveAllInProgress is set on the
+        // line below before any await, so the second concurrent caller
+        // sees the latch synchronously and returns immediately.
+        if (saveAllInProgress) {
+          return { ok: false, error: 'Save All is already in progress.' };
+        }
+        if (!window.DirtyState || typeof window.DirtyState.isNoteDirty !== 'function') {
+          return { ok: false, error: 'Dirty-state helper unavailable' };
+        }
+
+        saveAllInProgress = true;
+        let savedCount = 0;
+        let firstError = null;
+        let lastSavedRelativePath = '';
+
+        try {
+          // 1. Flush the live editor into the selected note's body.
+          if (liveEditorInstance && typeof liveEditorInstance.exitWriteMode === 'function') {
+            liveEditorInstance.exitWriteMode();
+            const beforeFlush = getSelectedNote();
+            if (beforeFlush) {
+              beforeFlush.body = liveEditorInstance.getText();
+            }
+          }
+
+          // 2. Snapshot dirty ids.
+          const dirtyIds = notes
+            .filter((n) => window.DirtyState.isNoteDirty(n))
+            .map((n) => n.id);
+
+          if (dirtyIds.length === 0) {
+            return { ok: true, savedCount: 0 };
+          }
+
+          // 3. Trigger Choose Vault if needed (Stage 6.2 reuse).
+          if (!currentVaultPath) {
+            await chooseVaultFolder();
+            if (!currentVaultPath) {
+              return { ok: false, error: 'Vault selection canceled' };
+            }
+          }
+
+          // 4. Sequential save loop.
+          for (const id of dirtyIds) {
+            const note = notes.find((n) => n.id === id);
+            if (!note) continue;
+
+            // Pre-check duplicate filename.
+            const isVaultBacked = note.source === 'vault' && !!note.relativePath;
+            const loadedTitle = note.loadedTitle != null ? note.loadedTitle : note.title;
+            const titleChanged = isVaultBacked && note.title !== loadedTitle;
+            let candidate = '';
+            if (!isVaultBacked) {
+              candidate = window.FileName.deriveDraftRelativePath(note.title);
+            } else if (titleChanged) {
+              const derived = window.FileName.deriveRenameRelativePath(note.relativePath, note.title);
+              if (derived.toLowerCase() !== String(note.relativePath).toLowerCase()) {
+                candidate = derived;
+              }
+            }
+            if (candidate) {
+              const conflict = window.FileName.findRelativePathConflict({
+                notes,
+                candidateRelativePath: candidate,
+                excludeId: note.id,
+              });
+              if (conflict) {
+                firstError = `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`;
+                break;
+              }
+            }
+
+            // Snapshot the values that will become this note's clean
+            // baseline AFTER the save. If the user edits this note
+            // while saveNote is awaiting, those new edits MUST NOT
+            // become the new loadedTitle/loadedBody — otherwise the
+            // post-edit state would look clean to DirtyState and the
+            // final check would silently pass.
+            const titleAtSave = note.title;
+            const bodyAtSave  = note.body;
+
+            const result = await window.vaultApi.saveNote({
+              vaultPath: currentVaultPath,
+              note: {
+                title: titleAtSave,
+                loadedTitle: note.loadedTitle != null ? note.loadedTitle : titleAtSave,
+                body:  bodyAtSave,
+                source: note.source,
+                fileName: note.fileName,
+                relativePath: note.relativePath,
+                frontmatter: {
+                  tags:   normalizeTags(note.frontmatter && note.frontmatter.tags),
+                  source: (note.frontmatter && note.frontmatter.source) || ''
+                }
+              }
+            });
+
+            if (!result.ok) {
+              firstError = result.error || 'Save failed';
+              break;
+            }
+
+            // Migrate the in-memory note so the next iteration's
+            // pre-check sees the freshly-saved relativePath. Use the
+            // captured at-save values for the new clean baseline so
+            // post-save in-flight edits remain dirty.
+            if (result.relativePath) {
+              const newId = `vault:${result.relativePath}`;
+              if (note.id !== newId) {
+                noteEditorStates.delete(note.id);
+                if (noteViewStates.has(note.id)) {
+                  noteViewStates.set(newId, noteViewStates.get(note.id));
+                  noteViewStates.delete(note.id);
+                }
+                if (selectedNoteId === note.id) {
+                  selectedNoteId = newId;
+                  liveEditorLastNoteId = newId;
+                }
+                note.id = newId;
+              }
+              note.source = 'vault';
+              note.relativePath = result.relativePath;
+              note.fileName = result.fileName || note.fileName;
+              note.loadedTitle = titleAtSave;
+              note.loadedBody  = bodyAtSave;
+              lastSavedRelativePath = result.relativePath;
+            }
+            savedCount += 1;
+          }
+
+          // 5. One post-loop refresh. The overlay preserves the
+          //    CURRENT in-memory body/title for every vault note —
+          //    not just unsaved ones. This covers:
+          //      - notes that failed mid-loop (in-memory has user's
+          //        edit, disk is old): preserve memory.
+          //      - notes saved successfully then edited again before
+          //        refresh (in-memory has new edit, disk is the just-
+          //        saved version): preserve memory so the final dirty
+          //        check sees the post-save edit.
+          //      - notes never in the dirty snapshot but edited
+          //        during the loop: preserve memory.
+          //      - clean notes: overlay matches disk → no-op.
+          const preservedVaultEdits = notes
+            .filter((n) => n.source === 'vault' && n.relativePath)
+            .map((n) => ({
+              relativePath: n.relativePath,
+              title: n.title,
+              body:  n.body,
+              frontmatter: {
+                tags:   normalizeTags(n.frontmatter && n.frontmatter.tags),
+                source: (n.frontmatter && n.frontmatter.source) || '',
+              },
+            }));
+
+          await refreshVaultNotes(
+            lastSavedRelativePath,
+            false,
+            null,
+            preservedVaultEdits,
+            true,
+          );
+
+          // 6. Final dirty-summary backstop. Even after the loop, the
+          //    only safe gate for closing is "no in-memory note is
+          //    dirty right now". This catches the cases the per-
+          //    iteration logic alone cannot:
+          //      - notes that became dirty during an await
+          //      - new drafts created during an await
+          //      - any save failure or pre-check abort that broke
+          //        the loop early
+          const finalSummary = window.DirtyState.summarizeDirty(notes);
+          if (firstError) {
+            setStatus('error', `Save All failed: ${firstError}`);
+            return { ok: false, error: firstError, savedCount };
+          }
+          if (finalSummary.count > 0) {
+            const error = 'Some notes still have unsaved changes after Save All. Please save again.';
+            setStatus('error', error);
+            return { ok: false, error, savedCount };
+          }
+          setStatus('ready', `Saved ${savedCount} note${savedCount === 1 ? '' : 's'}`);
+          return { ok: true, savedCount };
+        } finally {
+          saveAllInProgress = false;
+        }
+      }
+
+      if (window.vaultApi && typeof window.vaultApi.onSaveAllRequest === 'function') {
+        window.vaultApi.onSaveAllRequest((respond) => {
+          saveAllDirtyNotes().then(
+            (result) => respond(result),
+            (err) => respond({ ok: false, error: String((err && err.message) || err) })
+          );
         });
       }
 
