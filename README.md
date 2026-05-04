@@ -21,11 +21,25 @@ Screenshots are not included yet. Add app screenshots here before a wider public
 - Detect MCP-ingested notes under `Inbox/AI Chats/YYYY/MM/`.
 - Package a local macOS Electron build for testing.
 
+### Data-safety guarantees
+
+- Track unsaved state for drafts and vault notes with a visible dirty badge.
+- Preserve draft content across note and vault switches — no silent data loss.
+- Require vault selection before saving a pre-vault draft (OS folder picker opens automatically).
+- Block app quit when unsaved work exists — close guard dialog with Cancel, Discard & Quit, or Save All & Quit.
+- Save All & Quit saves every dirty note and draft in one action before quitting.
+- Block duplicate filenames and refuse to overwrite existing vault files on save.
+
+## Editor
+
+The default write surface is CodeMirror 6 (styled-source Markdown with syntax highlighting, real undo/redo, real selection, and Chinese IME support). A Hybrid fallback (HybridWriteView + Toast UI Preview) is available via `?writeEngine=hybrid` in the dev URL or by setting `localStorage.writeEngine = 'hybrid'` in the browser console. Hybrid removal and CM6 spike cleanup are deferred to a later stage.
+
 ## Tech Stack
 
 - Electron
 - Node.js
-- Toast UI Editor bundle
+- CodeMirror 6 (default write surface)
+- Toast UI Editor bundle (Preview renderer; Hybrid fallback)
 - `marked`
 - Node.js built-in test runner
 - Local MCP stdio server
@@ -108,6 +122,7 @@ docs/                     Install, MCP, demo, roadmap, and test docs
 - `docs/demo-script.md` - demo walkthrough
 - `docs/test-manual.md` - manual release checklist
 - `docs/roadmap.md` - roadmap notes
+- `docs/stage-history.md` - completed stages and deferred items
 
 ## Privacy And Security
 
@@ -121,8 +136,15 @@ Before publishing or sharing the repository, do not commit personal vault conten
 - There is no built-in sync across devices.
 - There is no account system or hosted backend.
 - There is no plugin system, graph view, or backlinks UI.
-- The editor bundle is generated and should be refreshed intentionally when editor dependencies change.
 - The app is intended for local testing and early feedback, not production distribution.
+
+### Known deferred items
+
+- Hybrid editor removal is deferred (CM6 is the default; Hybrid remains as a fallback).
+- CodeMirror 6 spike code cleanup is deferred.
+- Claude Design prototype is deferred.
+- Auto-save is deferred.
+- Multi-window support is deferred.
 
 ## Roadmap
 

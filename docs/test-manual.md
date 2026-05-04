@@ -21,7 +21,27 @@ Use this checklist before sharing the app with another person.
 - [ ] Existing note can be edited  
 - [ ] Save works  
 - [ ] Saved note remains visible  
-  
+
+## Dirty state and draft survival
+
+- [ ] Create a new draft — note list shows "Draft" badge
+- [ ] Edit a vault note — status bar shows "Draft" indicator
+- [ ] Switch to a different note while a draft is dirty, then switch back — content is preserved
+- [ ] Load a new vault while a draft exists — draft survives and appears in the Drafts filter
+
+## Filename collision guard
+
+- [ ] Create a draft whose title matches an existing vault filename → Save is blocked with an error toast; no file is overwritten
+- [ ] Create two drafts with the same title → Save All & Quit is blocked with an error toast; neither is saved
+
+## Editor mode (CM6 / Hybrid)
+
+- [ ] Default write surface is CodeMirror 6 (styled-source Markdown)
+- [ ] Undo and redo work correctly in CM6 mode
+- [ ] Chinese IME composition does not drop the first character in CM6 mode
+- [ ] Append `?writeEngine=hybrid` to the dev URL → Hybrid write view loads instead
+- [ ] Hybrid Preview renders Markdown correctly
+
 ## Search  
   
 - [ ] Search finds matches in title  
@@ -87,6 +107,12 @@ Use this checklist before sharing the app with another person.
 - [ ] Local packaged app artifact exists  
 - [ ] Unsigned app opens after running: `codesign --force --deep --sign - dist/mac-arm64/markdown-vault-desktop.app`  
   
+## Visual appearance (Stage 7.1 baseline)
+
+- [ ] Editor surface, title input, and empty-note hint render with the warm-paper token palette — no pure-white or pure-black areas
+- [ ] Preview headings, body text, links, inline code, code blocks, blockquotes, and horizontal rules all use design tokens, not hardcoded colors
+- [ ] Destructive button (e.g. Delete Note) hover shows a warm red tint, not bright pink
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  
