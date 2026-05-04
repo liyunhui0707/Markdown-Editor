@@ -19,6 +19,7 @@ const FileName    = require('../lib/file-name');
 const ScrollSync  = require('../lib/scroll-sync');
 const DocStats    = require('../lib/doc-stats');
 const NoteRow     = require('../lib/note-row');
+const DirtyState  = require('../lib/dirty-state');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -601,6 +602,7 @@ function makeRendererHarness({ search = '', storageValue = null, vaultNotes = []
     ScrollSync,
     DocStats,
     NoteRow,
+    DirtyState,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -3330,4 +3332,333 @@ test('Stage 5.3: AI-imported vault note renders the AI badge and overflow chip w
   assert.ok(!html.includes('class="note-tag">#archive<'),  'fourth tag should be hidden behind overflow');
   assert.ok(!html.includes('class="note-tag">#idea<'),     'fifth tag should be hidden behind overflow');
   assert.ok(html.includes('class="note-tag-overflow">+2<'), 'overflow chip should read +2');
+});
+
+// ── Stage 6.1: dirty saved-note tracking (renderer-level wiring) ───────────
+//
+// Bug #2: a vault note that was edited but not saved must continue to read
+// as Draft after the user navigates away and comes back. These tests
+// exercise the navigation-survival behavior end-to-end via the harness:
+// the status pill, Drafts filter membership, and the Draft badge must all
+// derive from the dirty primitive (lib/dirty-state) rather than from the
+// last imperatively-set status.
+
+test('Stage 6.1: editing vault A → switching to B → back to A keeps A as Draft', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Initial state on the freshly loaded vault: A is selected, no dirty
+  // signal (status pill uses the ready className; the post-load text is
+  // the "Vault loaded: N note(s)" success message).
+  assert.equal(elements.get('statusText').className, 'topbar-status status-ready');
+
+  // Simulate editing A: the adapter's getText() will return the edited body
+  // when the click handler flushes the outgoing note before switching to B.
+  calls.cm6Adapter.text = '# A edited\n\nUniqueEditAToken';
+  elements.get('noteList').children[1].fire('click');   // switch to B
+
+  // While selected note is B (clean), status should be Ready.
+  assert.equal(elements.get('statusText').textContent, 'Ready');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-ready');
+
+  // Switch back to A. A's body diverges from loadedBody → dirty → Draft.
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(elements.get('statusText').textContent,  'Draft',
+    'returning to a dirty saved note must show Draft, not Ready');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
+});
+
+test('Stage 6.1: dirty saved note appears in Drafts filter and shows the Draft badge', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A and switch to B so A's edited body is flushed into the note model.
+  calls.cm6Adapter.text = '# A edited';
+  elements.get('noteList').children[1].fire('click');
+
+  // Drafts filter should now include A even though source==='vault'.
+  elements.get('filterDrafts').fire('click');
+  const rows = elements.get('noteList').children;
+  const titles = Array.from(rows).map((row) => row.innerHTML);
+  assert.ok(titles.some((html) => html.includes('Vault A')),
+    'dirty vault note should be visible in the Drafts filter');
+
+  // The dirty vault row should render the Draft badge (same kind as drafts).
+  const draftRow = Array.from(rows).find((row) => row.innerHTML.includes('Vault A'));
+  assert.ok(draftRow, 'dirty Vault A row should be present in Drafts filter');
+  assert.ok(draftRow.innerHTML.includes('note-badge note-badge-draft'),
+    'dirty saved note should render the Draft badge');
+});
+
+test('Stage 6.1: AI badge takes precedence over Draft for a dirty AI-imported vault note', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      {
+        id: 'vault:imported',
+        title: 'Imported essay',
+        body: '# Imported',
+        fileName: 'imported.md',
+        relativePath: 'imported.md',
+        aiImported: true,
+      },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit the AI-imported note and flush by switching away.
+  calls.cm6Adapter.text = '# Imported edited';
+  elements.get('noteList').children[1].fire('click');
+
+  // The AI-imported row is dirty AND aiImported — AI badge must win.
+  const rows = elements.get('noteList').children;
+  const aiRow = Array.from(rows).find((row) => row.innerHTML.includes('Imported essay'));
+  assert.ok(aiRow, 'AI-imported row should be present');
+  assert.ok(aiRow.innerHTML.includes('note-badge note-badge-ai'),
+    'AI badge must win over Draft for a dirty AI-imported note');
+  assert.ok(!aiRow.innerHTML.includes('note-badge note-badge-draft'),
+    'AI-imported dirty row should NOT also render the Draft badge');
+});
+
+test('Stage 6.1: pristine vault note is NOT Draft and shows no Draft badge', async () => {
+  const { elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Post-load text reads "Vault loaded: 1 note(s)"; the ready className
+  // is the load-bearing dirty-signal assertion here.
+  assert.equal(elements.get('statusText').className, 'topbar-status status-ready');
+
+  const row = elements.get('noteList').children[0];
+  assert.ok(!row.innerHTML.includes('note-badge'),
+    'pristine vault note should render no badge at all');
+});
+
+test('Stage 6.1: non-empty draft is dirty (Draft status, in Drafts filter, Draft badge)', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  // The default seeded draft has body content, so it counts as dirty.
+  // Status should be Draft on first paint.
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  // The seeded draft's row carries the Draft badge already (source==='draft').
+  const seedRow = elements.get('noteList').children[0];
+  assert.ok(seedRow.innerHTML.includes('note-badge note-badge-draft'));
+
+  // Type more — still dirty, still Draft.
+  calls.cm6OnChange('expanded body');
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+});
+
+test('Stage 6.1: saving a dirty vault note clears dirty (status → Ready, no Draft badge)', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Dirty A by typing.
+  calls.cm6Adapter.text = '# A edited body';
+  calls.cm6OnChange('# A edited body');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'editing a vault note must show Draft');
+
+  // Save. Save success → refreshVaultNotes re-loads disk (which now matches
+  // the body we just wrote) → loadedBody === body → no longer dirty.
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  // Status reflects the save-success message; the underlying note is clean,
+  // so future navigation will show Ready (not Draft).
+  const row = elements.get('noteList').children[0];
+  assert.ok(!row.innerHTML.includes('note-badge note-badge-draft'),
+    'saved (no-longer-dirty) vault note should not render the Draft badge');
+
+  // Switching to itself (no-op selection) and back via setStatusFromSelectedNote
+  // would yield Ready. Verify directly: clicking the row triggers the click
+  // handler which derives status from the selected note.
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Ready',
+    'after save + reselect, status must derive to Ready');
+});
+
+// ── Stage 6.1 (revision): contextual ready messages must not silently shadow
+// a dirty selected note. The filter/search/watcher flows previously forced
+// 'ready' with a contextual message regardless of the selection's dirty
+// state, hiding the unsaved-edit signal. The fix routes them through
+// setStatusFromSelectedNote(messageIfClean) — Draft wins over the message.
+
+test('Stage 6.1: dirty selected note remains Draft after changing filters', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Dirty A by typing — status pill becomes Draft.
+  calls.cm6OnChange('# A edited');
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  // Click each filter; Draft must persist for the dirty selected note.
+  elements.get('filterAll').fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'switching to All filter must not shadow Draft for a dirty selected note');
+
+  elements.get('filterDrafts').fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'switching to Drafts filter must not shadow Draft for a dirty selected note');
+
+  elements.get('filterVault').fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'switching to Vault filter must not shadow Draft for a dirty selected note');
+});
+
+test('Stage 6.1: filter change DOES show its contextual message when the selected note is clean', async () => {
+  const { elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Selected note (vault A) is pristine → contextual message wins.
+  elements.get('filterAll').fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Filter: all');
+  assert.equal(elements.get('statusText').className, 'topbar-status status-ready');
+});
+
+test('Stage 6.1: dirty selected note remains Draft after search input changes', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  calls.cm6OnChange('# A edited body');
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  // Type into search → handleSearchInput's "Search: …" message must NOT
+  // override Draft.
+  elements.get('searchInput').value = 'edited';
+  elements.get('searchInput').fire('input');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'search input must not shadow Draft for a dirty selected note');
+
+  // Clear search → "Search cleared" message must also not override Draft.
+  elements.get('searchInput').value = '';
+  elements.get('searchInput').fire('input');
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'clearing search must not shadow Draft for a dirty selected note');
+});
+
+test('Stage 6.1: dirty selected note remains Draft after watcher refresh', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Select and dirty A.
+  calls.cm6OnChange('# A edited');
+  assert.equal(elements.get('statusText').textContent, 'Draft');
+
+  // Trigger a watcher event for an unrelated file (b.md). The overlay
+  // preservation keeps A's edited body; loadedBody captured from disk
+  // remains '# A', so isNoteDirty(A) stays true and status stays Draft.
+  assert.equal(typeof calls.vaultChangedCallback, 'function');
+  await calls.vaultChangedCallback({ fileName: 'b.md' });
+
+  assert.equal(elements.get('statusText').textContent, 'Draft',
+    'watcher refresh must not shadow Draft for a dirty selected note');
+});
+
+test('Stage 6.1: watcher refresh keeps an unrelated dirty vault note dirty (loadedBody = disk truth)', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A and switch to B so A's edit is flushed into the model and B is
+  // selected. A is now an unrelated dirty vault note.
+  calls.cm6Adapter.text = '# A edited';
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(elements.get('statusText').textContent, 'Ready',
+    'while clean B is selected, status reads Ready');
+
+  // Trigger a watcher event for B (the changed file). Overlay preserves A's
+  // edited body; loadedBody for A remains the on-disk '# A' value so A
+  // continues to read as dirty in the Drafts filter and its row badge.
+  await calls.vaultChangedCallback({ fileName: 'b.md' });
+
+  // Switch to Drafts filter — A should still be present.
+  elements.get('filterDrafts').fire('click');
+  const rows = elements.get('noteList').children;
+  const draftRow = Array.from(rows).find((row) => row.innerHTML.includes('Vault A'));
+  assert.ok(draftRow,
+    'unrelated dirty vault note must remain in the Drafts filter after watcher refresh');
+  assert.ok(draftRow.innerHTML.includes('note-badge note-badge-draft'),
+    'unrelated dirty vault note must keep its Draft badge after watcher refresh');
+});
+
+test('Stage 6.1: Drafts count in the sidebar nav includes dirty vault notes', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Initially: zero drafts (the seeded draft was wiped on chooseVault load).
+  assert.equal(elements.get('filterDraftsMeta').textContent, '0 note(s)',
+    'before any edits, Drafts count is 0');
+
+  // Edit A → A is now a dirty vault note → counted as a draft.
+  calls.cm6Adapter.text = '# A edited';
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(elements.get('filterDraftsMeta').textContent, '1 note(s)',
+    'Drafts count must include a dirty vault note');
 });

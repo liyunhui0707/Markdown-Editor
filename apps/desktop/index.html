@@ -1072,6 +1072,7 @@
     <script src="./lib/scroll-sync.js"></script>
     <script src="./lib/doc-stats.js"></script>
     <script src="./lib/note-row.js"></script>
+    <script src="./lib/dirty-state.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1435,6 +1436,26 @@ Today the app reacts better to real external MCP ingests.
         }
       }
 
+      // Stage 6.1: derive the bottom-right status from the currently-selected
+      // note's dirty state, so navigating between notes never silently loses
+      // the Draft signal for an unsaved-but-modified vault note.
+      //
+      // Callers that want a contextual ready-state message (e.g. "Filter: ai",
+      // "Search: foo", "Vault auto-refreshed") pass it as `messageIfClean`.
+      // The helper still emits Draft when the selected note is dirty, so a
+      // ready-message override never silently shadows an unsaved edit.
+      function setStatusFromSelectedNote(messageIfClean) {
+        const selected = getSelectedNote();
+        const dirty = window.DirtyState
+          ? window.DirtyState.isNoteDirty(selected)
+          : false;
+        if (dirty) {
+          setStatus('draft', 'Draft');
+        } else {
+          setStatus('ready', messageIfClean || 'Ready');
+        }
+      }
+
       function updateVaultPathDisplay() {
         if (!currentVaultPath) {
           vaultPathText.textContent = 'Vault: not selected';
@@ -1565,7 +1586,12 @@ Today the app reacts better to real external MCP ingests.
         }
 
         if (currentFilter === 'drafts') {
-          return notes.filter((note) => note.source === 'draft');
+          // Stage 6.1: dirty saved-vault notes also belong in Drafts so
+          // unsaved work is discoverable from the filter pill.
+          return notes.filter((note) =>
+            note.source === 'draft'
+            || (window.DirtyState && window.DirtyState.isNoteDirty(note))
+          );
         }
 
         if (currentFilter === 'vault') {
@@ -1605,7 +1631,10 @@ Today the app reacts better to real external MCP ingests.
       function updateFilterCounts() {
         filterAllMeta.textContent    = `${notes.length} note(s)`;
         filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
-        filterDraftsMeta.textContent = `${notes.filter((note) => note.source === 'draft').length} note(s)`;
+        filterDraftsMeta.textContent = `${notes.filter((note) =>
+          note.source === 'draft'
+          || (window.DirtyState && window.DirtyState.isNoteDirty(note))
+        ).length} note(s)`;
         filterVaultMeta.textContent  = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
       }
 
@@ -1684,7 +1713,9 @@ Today the app reacts better to real external MCP ingests.
           item.className = note.id === selectedNoteId ? 'note-item active' : 'note-item';
 
           const displayTitle = note.title.trim().length === 0 ? 'Untitled note' : note.title;
-          const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(note) : null;
+          // Stage 6.1: dirty vault notes also get the Draft badge.
+          const isDirty = window.DirtyState ? window.DirtyState.isNoteDirty(note) : false;
+          const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(note, isDirty) : null;
           const tagsInfo = window.NoteRow
             ? window.NoteRow.computeNoteTags(note)
             : { visible: [], overflow: 0 };
@@ -1738,7 +1769,11 @@ Today the app reacts better to real external MCP ingests.
             }
             selectedNoteId = note.id;
             renderApp();
-            setStatus('ready', 'Ready');
+            // Stage 6.1: a dirty saved note that the user edited and then
+            // switched away from must keep showing Draft when re-selected.
+            // Derive from the new selected note's dirty state instead of
+            // unconditionally clearing to Ready.
+            setStatusFromSelectedNote();
           });
 
           noteList.appendChild(item);
@@ -1762,6 +1797,8 @@ Today the app reacts better to real external MCP ingests.
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
           updateStatusReadouts('');
+          // Stage 6.1: empty/no-selection state is never dirty.
+          setStatusFromSelectedNote();
           return;
         }
 
@@ -1772,6 +1809,12 @@ Today the app reacts better to real external MCP ingests.
         // the editor, and avoiding getText() here keeps the existing Preview
         // boot/switch flow's getText call counts unchanged.
         updateStatusReadouts(selectedNote.body || '');
+        // Stage 6.1: ensure the bottom-right pill is always derived from
+        // the selected note's dirty state on every render. Callers that
+        // want a meaningful one-shot message (e.g. "Saved: foo.md", "Vault
+        // loaded: N note(s)") still call setStatus *after* renderApp, and
+        // those messages override this derivation as before.
+        setStatusFromSelectedNote();
       }
 
       function updateSelectedNoteFromInputs() {
@@ -1799,7 +1842,9 @@ Today the app reacts better to real external MCP ingests.
 
       function handleEdit() {
         updateSelectedNoteFromInputs();
-        setStatus('draft', 'Draft');
+        // Stage 6.1: derive so editing a vault note's title back to its
+        // loaded value re-cleans the pill rather than sticking on Draft.
+        setStatusFromSelectedNote();
       }
 
       function getSelectedTemplate() {
@@ -1901,13 +1946,17 @@ Today the app reacts better to real external MCP ingests.
               selectedNoteId = matchedNote.id;
               setIngestBanner(changedPath);
               renderApp();
-              setStatus('ready', `New AI import detected: ${matchedNote.fileName}`);
+              setStatusFromSelectedNote(`New AI import detected: ${matchedNote.fileName}`);
               return;
             }
           }
 
           renderApp();
-          setStatus('ready', 'Vault auto-refreshed');
+          // Stage 6.1: a watcher refresh that preserves an unrelated dirty
+          // vault note must keep that note showing Draft. The disk-truth
+          // loadedBody captured during refreshVaultNotes is what makes the
+          // dirty derivation correct here.
+          setStatusFromSelectedNote('Vault auto-refreshed');
         });
       }
 
@@ -2037,11 +2086,17 @@ Today the app reacts better to real external MCP ingests.
           return false;
         }
 
+        // Stage 6.1: capture loadedBody = disk truth for every vault note,
+        // mirroring the existing loadedTitle. The overlay branch preserves
+        // the user's in-progress body but loadedBody must come from disk —
+        // otherwise an overlay-restored note would always look "clean" and
+        // its dirty status would silently disappear across refreshes.
         const refreshedNotes = result.notes.map((diskNote) => {
           const overlay = vaultOverlay.get(diskNote.relativePath);
-          if (!overlay) return diskNote;
+          if (!overlay) return { ...diskNote, loadedBody: diskNote.body };
           return {
             ...diskNote,
+            loadedBody: diskNote.body,
             title: overlay.title,
             body: overlay.body,
             frontmatter: { ...overlay.frontmatter },
@@ -2359,7 +2414,10 @@ Today the app reacts better to real external MCP ingests.
       function setFilter(filterKey) {
         currentFilter = filterKey;
         renderApp();
-        setStatus('ready', `Filter: ${filterKey}`);
+        // Stage 6.1: a dirty selected note must keep showing Draft after
+        // a filter change. setStatusFromSelectedNote routes through dirty
+        // first; the contextual message only wins if the selection is clean.
+        setStatusFromSelectedNote(`Filter: ${filterKey}`);
       }
 
       function handleSearchInput() {
@@ -2367,9 +2425,9 @@ Today the app reacts better to real external MCP ingests.
         renderApp();
 
         if (currentSearchQuery) {
-          setStatus('ready', `Search: ${currentSearchQuery}`);
+          setStatusFromSelectedNote(`Search: ${currentSearchQuery}`);
         } else {
-          setStatus('ready', 'Search cleared');
+          setStatusFromSelectedNote('Search cleared');
         }
       }
 
@@ -2430,7 +2488,9 @@ Today the app reacts better to real external MCP ingests.
         if (!selectedNote) return;
         selectedNote.body = text;
         renderNoteList();
-        setStatus('draft', 'Draft');
+        // Stage 6.1: derive from the just-updated body so type-back-to-
+        // original (body === loadedBody again) returns the pill to Ready.
+        setStatusFromSelectedNote();
       }
 
       if (selectedWriteEngine === 'cm6') {
@@ -2704,7 +2764,10 @@ Today the app reacts better to real external MCP ingests.
       renderApp();
       updateLayoutVisibility();
       updateVaultPathDisplay();
-      setStatus('ready', 'Ready');
+      // Stage 6.1: derive the boot pill from the selected note so a
+      // dirty seed shows Draft on first paint instead of being clobbered
+      // back to Ready by a hardcoded final setStatus.
+      setStatusFromSelectedNote();
     </script>
   </body>
 </html>
