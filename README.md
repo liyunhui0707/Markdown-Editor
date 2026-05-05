@@ -4,7 +4,7 @@ A local-first desktop Markdown vault editor for macOS, built with Electron and p
 
 ## Screenshots
 
-Screenshots are not included yet. Add app screenshots here before a wider public release.
+Screenshots are not yet included. The app is ready for local use and collaborator sharing; add screenshots before a wider public release.
 
 ## Features
 
@@ -153,8 +153,8 @@ Before publishing or sharing the repository, do not commit personal vault conten
 - Add broader automated coverage for vault file operations.
 - Improve metadata editing and frontmatter handling.
 - Expand packaging and signing guidance.
-- Add a license file before public release.
+- Add screenshots before a wider public release.
 
 ## License
 
-The desktop package currently declares `MIT`, but this repository does not yet include a root `LICENSE` file. Add a license file before publishing publicly.
+This repository is licensed under the MIT License. See the `LICENSE` file at the repository root.
