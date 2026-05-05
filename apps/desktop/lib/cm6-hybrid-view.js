@@ -89,10 +89,16 @@
                   .range(node.from, node.to)
               );
             } else if (name === 'CodeMark') {
-              decorations.push(
-                cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
-                  .range(node.from, node.to)
-              );
+              // Lezer reuses CodeMark for InlineCode delimiters AND for
+              // FencedCode block delimiters. Stage 11 leaves fenced code
+              // raw, so scope this decoration to InlineCode parents only.
+              const parent = node.node.parent;
+              if (parent && parent.name === 'InlineCode') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
+                    .range(node.from, node.to)
+                );
+              }
             }
           },
         });

@@ -247,3 +247,126 @@ test('16. "## *Italic* and _also italic_" emits heading + two italic + four emph
     hasClassToken(m.class, 'cm-md-emphasis-mark') && hasClassToken(m.class, 'cm-md-syntax'));
   assert.equal(emMarks.length, 4, 'four emphasis markers across both italic spans');
 });
+
+// ── Stage 11.6: stabilization regression tests ──────────────────────────────
+
+test('17. "***both***" emits both cm-md-italic and cm-md-bold marks', () => {
+  // Parser nests Emphasis around StrongEmphasis: italic outer, bold inner.
+  const doc = '***both***';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-italic').length, 1, 'one italic mark');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length,   1, 'one bold mark');
+  // Four emphasis marker ranges: outer * pair + inner ** pair.
+  const emMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-emphasis-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(emMarks.length, 4, 'four emphasis markers across nested italic + bold');
+});
+
+test('18. "`**not bold**`" emits inline-code marks but no bold/emphasis marks', () => {
+  // Parser does NOT re-parse emphasis inside InlineCode — verify the walker
+  // emits zero bold/emphasis decorations for content that looks like bold.
+  const doc = '`**not bold**`';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-inline-code').length, 1);
+  const codeMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-code-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(codeMarks.length, 2, 'two backtick markers');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length, 0,
+    'no bold mark inside inline code');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark')).length, 0,
+    'no emphasis markers inside inline code');
+});
+
+test('19. heading with bold + italic + inline code emits all expected marks', () => {
+  const doc = '# **bold** *italic* `code`';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Heading-level marks (Stage 11.4 invariant).
+  assert.ok(marks.some((m) => m.class === 'cm-md-h1'),           'cm-md-h1');
+  assert.ok(marks.some((m) => m.class === 'cm-md-heading-mark'), 'cm-md-heading-mark');
+  // Inline content marks (Stage 11.5 invariant when descending into headings).
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length,        1);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-italic').length,      1);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-inline-code').length, 1);
+  // Markers: 4 emphasis (** + *) and 2 code (` `).
+  const emMarks   = marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark'));
+  const codeMarks = marks.filter((m) => hasClassToken(m.class, 'cm-md-code-mark'));
+  assert.equal(emMarks.length,   4, 'four emphasis markers');
+  assert.equal(codeMarks.length, 2, 'two code markers');
+});
+
+test('20. setext heading underline is not decorated as ATX heading marker', () => {
+  // Lezer Markdown emits SetextHeading1/2 with a HeaderMark child for the
+  // "=====" / "-----" underline. Our manual children loop is scoped to
+  // ATXHeading parents, so setext underlines must remain raw.
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
+    'no cm-md-heading-mark for setext underline');
+});
+
+test('21. fenced code delimiters do NOT get cm-md-code-mark / cm-md-syntax', () => {
+  // Lezer reuses CodeMark for fenced code delimiters. The walker must scope
+  // CodeMark decoration to InlineCode parents only — fenced code stays raw.
+  const doc = '```\n**not bold**\n```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const codeMarks = marks.filter((m) => hasClassToken(m.class, 'cm-md-code-mark'));
+  assert.equal(codeMarks.length, 0, 'fence delimiters must remain raw');
+  const syntaxMarks = marks.filter((m) => hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(syntaxMarks.length, 0, 'no cm-md-syntax inside the fenced code area');
+});
+
+test('22. fenced code content does not get bold/italic/inline-code marks', () => {
+  // Parser-level guarantee — verify the walker doesn't accidentally re-emit.
+  const doc = '```\n**not bold** *not italic* `not inline code`\n```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length,        0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-italic').length,      0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-inline-code').length, 0);
+});
+
+test('23. long mixed document creates expected mark counts', () => {
+  const doc = [
+    '# First heading with **bold**',
+    '',
+    'Body paragraph with *italic* and `code`.',
+    '',
+    '## Second heading',
+    '',
+    'More text with **bolder** content.',
+    '',
+    '```',
+    'fenced **not bold** content',
+    '```',
+    '',
+    '### Third with `inline-code` here',
+  ].join('\n');
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+
+  // 3 ATX headings (h1, h2, h3).
+  assert.equal(marks.filter((m) => /^cm-md-h\d$/.test(m.class)).length, 3);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 3);
+
+  // 2 bold runs (heading 1 + the second body paragraph).
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length, 2);
+
+  // 1 italic run (first body paragraph).
+  assert.equal(marks.filter((m) => m.class === 'cm-md-italic').length, 1);
+
+  // 2 inline-code runs (first body paragraph + heading 3).
+  assert.equal(marks.filter((m) => m.class === 'cm-md-inline-code').length, 2);
+});
+
+test('24. source-file invariant: no widget / no Decoration.replace in cm6-hybrid-view.js', () => {
+  // Structural guard — keeps the architectural commitment from Stage 11.4
+  // machine-checkable so future changes can't silently regress.
+  const fs   = require('node:fs');
+  const path = require('node:path');
+  const src  = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'lib', 'cm6-hybrid-view.js'),
+    'utf8'
+  );
+  assert.ok(!src.includes('Decoration.replace'), 'must not contain Decoration.replace');
+  assert.ok(!src.includes('WidgetType'),         'must not contain WidgetType');
+  assert.ok(!src.includes('HeadingWidget'),      'must not contain HeadingWidget');
+  assert.ok(!src.includes('ParagraphWidget'),    'must not contain ParagraphWidget');
+});
