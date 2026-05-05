@@ -5588,3 +5588,22 @@ test('Stage 11.4: obsolete widget CSS classes are removed', () => {
   assert.ok(!html.includes('.cm6-paragraph-widget'),
     'old .cm6-paragraph-widget rule must be removed');
 });
+
+test('Stage 11.5: index.html contains inline live-styling content classes', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-bold'),        'must have .cm-md-bold rule');
+  assert.ok(html.includes('.cm-md-italic'),      'must have .cm-md-italic rule');
+  assert.ok(html.includes('.cm-md-inline-code'), 'must have .cm-md-inline-code rule');
+});
+
+test('Stage 11.5: index.html contains shared .cm-md-syntax marker class', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-syntax'),
+    'must have .cm-md-syntax base rule (shared by emphasis/code markers)');
+});
+
+test('Stage 11.5: index.html reveals inline syntax markers on the active line', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-activeLine .cm-md-syntax'),
+    'must have .cm-activeLine .cm-md-syntax rule for active-line marker visibility');
+});

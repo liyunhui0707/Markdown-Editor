@@ -23,10 +23,17 @@
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
-  // Walk the Markdown syntax tree and emit Decoration.mark ranges for ATX
-  // headings. Returns a DecorationSet (or an equivalent shape from the fake
-  // backend used by adapter-contract tests). Returns an empty set when no
-  // syntaxTree is available (e.g., the fake backend used in adapter tests).
+  // Walk the Markdown syntax tree and emit Decoration.mark ranges for live
+  // styling: ATX headings (h1–h6) and inline emphasis / inline code. Returns
+  // a DecorationSet (or an equivalent shape from the fake backend used by
+  // adapter-contract tests) — empty when no syntaxTree is available.
+  //
+  // Container nodes are marked with style classes (cm-md-h<N>, cm-md-bold,
+  // cm-md-italic, cm-md-inline-code). Their delimiter children (HeaderMark,
+  // EmphasisMark, CodeMark) are marked with hide/reveal classes. The shared
+  // cm-md-syntax base class on inline markers lets one CSS rule control all
+  // of them; cm-md-heading-mark stays separate so Stage 11.4 styling is
+  // preserved verbatim.
   function buildHeadingDecorations(state, cm6) {
     const decorations = [];
 
@@ -35,27 +42,58 @@
       if (tree && typeof tree.iterate === 'function') {
         tree.iterate({
           enter(node) {
-            const m = node.name && node.name.match(/^ATXHeading([1-6])$/);
-            if (!m) return;
-            const level = m[1];
+            const name = node.name;
+            if (!name) return;
 
-            // Whole-line styling for this heading level.
-            decorations.push(
-              cm6.Decoration.mark({ class: 'cm-md-h' + level }).range(node.from, node.to)
-            );
-
-            // HeaderMark child = the "#"…"######" run at the start of the line.
-            // Iterate the heading's direct children to find it; do not rely on
-            // child position, and skip descending after we've handled this node.
-            for (let child = node.node.firstChild; child; child = child.nextSibling) {
-              if (child.name === 'HeaderMark') {
-                decorations.push(
-                  cm6.Decoration.mark({ class: 'cm-md-heading-mark' }).range(child.from, child.to)
-                );
+            const h = name.match(/^ATXHeading([1-6])$/);
+            if (h) {
+              const level = h[1];
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-h' + level }).range(node.from, node.to)
+              );
+              // HeaderMark child = the "#"…"######" run at the start of the line.
+              for (let child = node.node.firstChild; child; child = child.nextSibling) {
+                if (child.name === 'HeaderMark') {
+                  decorations.push(
+                    cm6.Decoration.mark({ class: 'cm-md-heading-mark' }).range(child.from, child.to)
+                  );
+                }
               }
+              // Do NOT return false — let the iterator descend so inline
+              // Markdown inside the heading (StrongEmphasis / Emphasis /
+              // InlineCode and their *Mark children) reaches its own
+              // enter() branch below. The HeaderMark child has no inline
+              // branch that matches, so it silently falls through and is
+              // not double-emitted.
+              return;
             }
 
-            return false;
+            // Inline live styling. Descend into these so nested children
+            // (e.g., Emphasis inside StrongEmphasis, EmphasisMark/CodeMark)
+            // are reached on their own enter() calls.
+            if (name === 'StrongEmphasis') {
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-bold' }).range(node.from, node.to)
+              );
+            } else if (name === 'Emphasis') {
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-italic' }).range(node.from, node.to)
+              );
+            } else if (name === 'InlineCode') {
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-inline-code' }).range(node.from, node.to)
+              );
+            } else if (name === 'EmphasisMark') {
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-emphasis-mark' })
+                  .range(node.from, node.to)
+              );
+            } else if (name === 'CodeMark') {
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
+                  .range(node.from, node.to)
+              );
+            }
           },
         });
       }
