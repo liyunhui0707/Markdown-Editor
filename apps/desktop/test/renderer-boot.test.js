@@ -273,6 +273,15 @@ function makeRendererHarness({
     cm6Adapter: null,
     cm6GetState: 0,
     cm6SetState: [],
+    cm6HybridConstructed: 0,
+    cm6HybridParent: null,
+    cm6HybridOptions: null,
+    cm6HybridSetText: [],
+    cm6HybridGetText: 0,
+    cm6HybridOnChange: null,
+    cm6HybridAdapter: null,
+    cm6HybridGetState: 0,
+    cm6HybridSetState: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
     watchVaultFolderPayloads: [],
@@ -446,6 +455,44 @@ function makeRendererHarness({
         },
       };
       calls.cm6Adapter = adapter;
+      return adapter;
+    },
+  };
+
+  // Stage 11.2: mock for the hybrid-cm6 adapter
+  const Cm6HybridView = {
+    createCm6HybridView(parent, opts) {
+      calls.cm6HybridConstructed += 1;
+      calls.cm6HybridParent  = parent;
+      calls.cm6HybridOptions = opts || {};
+      calls.cm6HybridOnChange = calls.cm6HybridOptions.onChange;
+      const initialDoc = calls.cm6HybridOptions.initialDoc || '';
+      const adapter = {
+        text: initialDoc,
+        _state: { doc: initialDoc, _kind: 'fresh' },
+        getText() {
+          calls.cm6HybridGetText += 1;
+          return this.text;
+        },
+        setText(text) {
+          const value = text == null ? '' : String(text);
+          calls.cm6HybridSetText.push(value);
+          this.text  = value;
+          this._state = { doc: value, _kind: 'fresh' };
+        },
+        getState() {
+          calls.cm6HybridGetState += 1;
+          this._state = { ...this._state, doc: this.text };
+          return this._state;
+        },
+        setState(state) {
+          calls.cm6HybridSetState.push(state);
+          this._state = state;
+          this.text = state && typeof state.doc === 'string' ? state.doc : '';
+        },
+        exitWriteMode() {},
+      };
+      calls.cm6HybridAdapter = adapter;
       return adapter;
     },
   };
@@ -643,6 +690,7 @@ function makeRendererHarness({
     ToastuiEditor,
     HybridWriteView,
     Cm6WriteView,
+    Cm6HybridView,
     CM6Production,
     WriteEngine: {
       ...WriteEngine,
@@ -5481,4 +5529,81 @@ test('rename-on-save uses the normalized (newline-free) title', async () => {
   const payload = calls.saveNotePayloads[0];
   assert.ok(!payload.note.title.includes('\n'), 'rename payload title must be newline-free');
   assert.equal(payload.note.title, 'New Title', 'rename uses the space-joined normalized title');
+});
+
+// ── Stage 11.2: hybrid-cm6 engine boot tests ─────────────────────────────────
+
+test('Stage 11.2: ?writeEngine=hybrid-cm6 constructs Cm6HybridView and not CM6 or HybridWriteView', () => {
+  const { calls } = makeRendererHarness({ search: '?writeEngine=hybrid-cm6' });
+
+  assert.deepEqual(calls.resolvedEngines, ['hybrid-cm6']);
+  assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'hybrid-cm6']]);
+  assert.equal(calls.cm6HybridConstructed, 1, 'Cm6HybridView should be constructed');
+  assert.equal(calls.cm6Constructed,       0, 'CM6WriteView must not be constructed');
+  assert.equal(calls.hybridConstructed,    0, 'HybridWriteView must not be constructed');
+});
+
+test('Stage 11.2: engine label shows "CM6 Hybrid" for hybrid-cm6', () => {
+  const { elements } = makeRendererHarness({ search: '?writeEngine=hybrid-cm6' });
+  assert.equal(
+    elements.get('docEngine').textContent,
+    'CM6 Hybrid',
+    'status-bar engine label must be "CM6 Hybrid" for hybrid-cm6'
+  );
+});
+
+test('Stage 11.2: default boot still uses CM6, not Cm6HybridView', () => {
+  const { calls } = makeRendererHarness();
+  assert.deepEqual(calls.resolvedEngines, ['cm6']);
+  assert.equal(calls.cm6Constructed,    1, 'default engine must be CM6');
+  assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed by default');
+});
+
+test('Stage 11.4: index.html contains .cm-md-heading-mark CSS rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-heading-mark'), 'must have .cm-md-heading-mark CSS rule');
+});
+
+test('Stage 11.4: index.html reveals heading marks on the active line', () => {
+  const html = readIndexHtml();
+  // Both classes must appear together — order may vary across browsers, but
+  // the descendant selector pairs them as ".cm-activeLine .cm-md-heading-mark".
+  assert.ok(
+    html.includes('.cm-activeLine .cm-md-heading-mark'),
+    'must have .cm-activeLine .cm-md-heading-mark rule for active-line marker visibility'
+  );
+});
+
+test('Stage 11.4: index.html contains .cm-md-h1 through .cm-md-h6 CSS rules', () => {
+  const html = readIndexHtml();
+  for (let n = 1; n <= 6; n++) {
+    assert.ok(html.includes('.cm-md-h' + n), 'must have .cm-md-h' + n + ' CSS rule');
+  }
+});
+
+test('Stage 11.4: obsolete widget CSS classes are removed', () => {
+  const html = readIndexHtml();
+  assert.ok(!html.includes('.cm6-heading-widget'),
+    'old .cm6-heading-widget rule must be removed');
+  assert.ok(!html.includes('.cm6-paragraph-widget'),
+    'old .cm6-paragraph-widget rule must be removed');
+});
+
+test('Stage 11.5: index.html contains inline live-styling content classes', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-bold'),        'must have .cm-md-bold rule');
+  assert.ok(html.includes('.cm-md-italic'),      'must have .cm-md-italic rule');
+  assert.ok(html.includes('.cm-md-inline-code'), 'must have .cm-md-inline-code rule');
+});
+
+test('Stage 11.5: index.html contains shared .cm-md-syntax marker class', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-syntax'),
+    'must have .cm-md-syntax base rule (shared by emphasis/code markers)');
+});
+
+test('Stage 11.5: index.html reveals inline syntax markers on the active line', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-activeLine .cm-md-syntax'),
+    'must have .cm-activeLine .cm-md-syntax rule for active-line marker visibility');
 });

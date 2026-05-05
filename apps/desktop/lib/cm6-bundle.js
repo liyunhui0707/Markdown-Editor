@@ -26732,6 +26732,11 @@
     EditorState,
     EditorView,
     Annotation,
+    ViewPlugin,
+    Decoration,
+    WidgetType,
+    RangeSetBuilder,
+    syntaxTree,
     history,
     markdown: () => markdown({ base: markdownLanguage, codeLanguages: [] }),
     chrome: chrome2

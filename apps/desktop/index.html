@@ -575,6 +575,45 @@
         cursor: text;
       }
 
+      /* CM6 hybrid live-styling (?writeEngine=hybrid-cm6, Stage 11.4).
+         Headings are styled via Decoration.mark — text is never replaced.
+         The "#" markers (HeaderMark) are hidden outside the active line and
+         revealed dimmed when the cursor is on the heading line. */
+      .cm-md-heading-mark {
+        display: none;
+      }
+      .cm-activeLine .cm-md-heading-mark {
+        display: inline;
+        color:   var(--text-muted);
+        opacity: 0.5;
+      }
+      .cm-md-h1 { font-size: 1.75em; font-weight: 700; line-height: 1.2; }
+      .cm-md-h2 { font-size: 1.40em; font-weight: 700; }
+      .cm-md-h3 { font-size: 1.15em; font-weight: 600; }
+      .cm-md-h4 { font-size: 1.00em; font-weight: 600; }
+      .cm-md-h5 { font-size: 0.90em; font-weight: 600; }
+      .cm-md-h6 { font-size: 0.85em; font-weight: 600; color: var(--text-muted); }
+
+      /* CM6 hybrid live-styling — inline (Stage 11.5).
+         Emphasis / inline-code content is styled in place; the delimiter
+         markers carry .cm-md-syntax so one rule can hide them by default
+         and another rule reveals them dimmed on the cursor's line. */
+      .cm-md-bold        { font-weight: 700; }
+      .cm-md-italic      { font-style:  italic; }
+      .cm-md-inline-code {
+        font-family:   var(--font-mono);
+        background:    var(--surface-muted);
+        padding:       0 0.2em;
+        border-radius: 3px;
+        font-size:     0.92em;
+      }
+      .cm-md-syntax { display: none; }
+      .cm-activeLine .cm-md-syntax {
+        display: inline;
+        color:   var(--text-muted);
+        opacity: 0.5;
+      }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write
@@ -761,7 +800,7 @@
         justify-content: space-between;
         padding: 5px 10px;
         border-bottom: 1px solid var(--border-subtle);
-        background: var(--surface);
+        background: var(--surface-chrome);
         gap: 6px;
         flex-shrink: 0;
       }
@@ -770,6 +809,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        flex-wrap: wrap;
       }
 
       .note-actions-right {
@@ -794,6 +834,7 @@
         font-size: 14px;
         line-height: 1;
         flex-shrink: 0;
+        margin-right: 4px;
         transition: color 0.15s, background 0.15s;
       }
 
@@ -1017,6 +1058,7 @@
     <script src="./lib/hybrid-write-view.js"></script>
     <script src="./lib/cm6-bundle.js"></script>
     <script src="./lib/cm6-write-view.js"></script>
+    <script src="./lib/cm6-hybrid-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
@@ -2740,7 +2782,9 @@
       });
 
       // Engine label is constant for the session; set once.
-      docEngine.textContent = selectedWriteEngine === 'cm6' ? 'CM6' : 'Hybrid';
+      docEngine.textContent = selectedWriteEngine === 'cm6'        ? 'CM6'
+                            : selectedWriteEngine === 'hybrid-cm6' ? 'CM6 Hybrid'
+                            :                                        'Hybrid';
 
       if (window.console && typeof window.console.debug === 'function') {
         window.console.debug('[write-engine]', selectedWriteEngine);
@@ -2813,6 +2857,30 @@
             _toastuiInstance.setMarkdown(cm6Write.getText());
           },
           exitWriteMode() { cm6Write.exitWriteMode(); },
+        };
+      } else if (selectedWriteEngine === 'hybrid-cm6') {
+        // Stage 11.2 experimental: CM6 with heading-block widget decorations.
+        // Inactive heading lines render as styled widgets; active heading and
+        // all non-heading content remain raw Markdown. getText() always returns
+        // raw Markdown — the file format is unchanged.
+        const cm6HybridWrite = window.Cm6HybridView.createCm6HybridView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+        });
+
+        liveEditorInstance = {
+          getText() { return cm6HybridWrite.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6HybridWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6HybridWrite.getState(); },
+          setState(state) {
+            cm6HybridWrite.setState(state);
+            _toastuiInstance.setMarkdown(cm6HybridWrite.getText());
+          },
+          exitWriteMode() { cm6HybridWrite.exitWriteMode(); },
         };
       } else {
         const hybridWrite = new window.HybridWriteView(hybridWritePane, {
