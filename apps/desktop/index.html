@@ -1632,6 +1632,24 @@ Write the core idea here.
         }
       }
 
+      function scrollSelectedNoteIntoView() {
+        let activeItem = null;
+        for (let i = 0; i < noteList.children.length; i++) {
+          if (String(noteList.children[i].className || '').includes('active')) {
+            activeItem = noteList.children[i];
+            break;
+          }
+        }
+        if (!activeItem) return;
+        if (noteList.scrollHeight <= noteList.clientHeight) return;
+        // offsetTop is relative to the nearest positioned ancestor (the body in this
+        // layout — #noteList has no position set). Use getBoundingClientRect instead
+        // so the delta is always relative to the visible noteList top edge.
+        const containerTop = noteList.getBoundingClientRect().top;
+        const itemTop = activeItem.getBoundingClientRect().top;
+        noteList.scrollTop += itemTop - containerTop;
+      }
+
       function updateFilterCounts() {
         filterAllMeta.textContent    = `${notes.length} note(s)`;
         filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
@@ -1778,6 +1796,7 @@ Write the core idea here.
             // Derive from the new selected note's dirty state instead of
             // unconditionally clearing to Ready.
             setStatusFromSelectedNote();
+            scrollSelectedNoteIntoView();
           });
 
           noteList.appendChild(item);
@@ -3146,6 +3165,32 @@ Write the core idea here.
         const key = String(e.key || '').toLowerCase();
         if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
         if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          const focused = document.activeElement;
+          const inTextSurface = focused === titleInput
+            || focused === searchInput
+            || (hybridWritePane && hybridWritePane.contains(focused));
+          if (!inTextSurface) {
+            e.preventDefault();
+            const results = getVisibleResults();
+            const currentIndex = results.findIndex((r) => r.note.id === selectedNoteId);
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            const nextIndex = currentIndex + delta;
+            if (nextIndex >= 0 && nextIndex < results.length) {
+              const outgoing = getSelectedNote();
+              if (liveEditorInstance && outgoing) {
+                liveEditorInstance.exitWriteMode();
+                outgoing.body = liveEditorInstance.getText();
+              }
+              selectedNoteId = results[nextIndex].note.id;
+              renderApp();
+              setStatusFromSelectedNote();
+              scrollSelectedNoteIntoView();
+            }
+          }
+          return;
+        }
       });
 
       moreMenu.addEventListener('click', closeMenu);
