@@ -113,7 +113,6 @@
 
       /* Buttons and controls */
       .action-button,
-      .template-select,
       .search-input {
         border: 1px solid var(--border);
         background: var(--surface);
@@ -133,11 +132,6 @@
         background: var(--surface-muted);
         color: var(--text);
         border-color: var(--border);
-      }
-
-      .template-select {
-        cursor: pointer;
-        color: var(--text-muted);
       }
 
       .search-input {
@@ -400,7 +394,7 @@
       }
 
       .workspace-body {
-        padding: 20px 24px;
+        padding: 32px clamp(40px, 8%, 96px);
         flex: 1;
         min-height: 0;
         overflow: auto;
@@ -414,13 +408,19 @@
         flex-direction: column;
         gap: 0;
         width: 100%;
+        max-width: 720px;
+        margin: 0 auto;
         flex: 1;
         min-height: 0;
       }
 
-      /* Title — document heading, no box */
+      /* Title — document heading, no box. Textarea so long titles wrap. */
       .title-input {
         width: 100%;
+        display: block;
+        resize: none;
+        overflow: hidden;
+        line-height: 1.25;
         border: none;
         border-bottom: 1px solid var(--border);
         border-radius: 0;
@@ -432,6 +432,7 @@
         background: transparent;
         outline: none;
         letter-spacing: -0.01em;
+        font-family: var(--font-ui);
       }
 
       .title-input:focus {
@@ -725,53 +726,6 @@
         margin: 2em 0;
       }
 
-      /* ── Overflow menu (···) ─────────────────────────────────────────── */
-
-      .topbar-more-wrapper {
-        position: relative;
-      }
-
-      .more-menu {
-        display: none;
-        position: absolute;
-        top: calc(100% + 6px);
-        left: 0;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-pop);
-        padding: 6px;
-        z-index: 100;
-        min-width: 190px;
-        flex-direction: column;
-        gap: 2px;
-      }
-
-      .more-menu.open {
-        display: flex;
-      }
-
-      .more-menu .action-button {
-        width: 100%;
-        text-align: left;
-        border: none;
-        border-radius: 5px;
-        padding: 8px 12px;
-        background: transparent;
-        font-weight: 500;
-        color: var(--text);
-      }
-
-      .more-menu .action-button:hover {
-        background: var(--surface-muted);
-      }
-
-      .more-menu-separator {
-        height: 1px;
-        background: var(--border-subtle);
-        margin: 4px 2px;
-      }
-
       .action-button--destructive {
         color: var(--danger) !important;
       }
@@ -983,44 +937,25 @@
                 <button
                   id="sidebarToggle"
                   class="sidebar-toggle"
-                  title="Show sidebar"
-                  aria-label="Show sidebar"
-                  aria-expanded="false"
-                >›</button>
-                <select id="templateSelect" class="template-select">
-                  <option value="blank">Blank Note</option>
-                  <option value="daily">Daily Note</option>
-                  <option value="meeting">Meeting Note</option>
-                  <option value="idea">Idea Note</option>
-                </select>
+                  title="Hide sidebar"
+                  aria-label="Hide sidebar"
+                  aria-expanded="true"
+                >‹</button>
                 <button id="newNoteButton" class="action-button">New Note</button>
                 <button id="saveNoteButton" class="action-button">Save Note</button>
-                <div class="topbar-more-wrapper">
-                  <button
-                    id="moreButton"
-                    class="action-button"
-                    aria-haspopup="true"
-                    aria-expanded="false"
-                    aria-controls="moreMenu"
-                  >···</button>
-                  <div id="moreMenu" class="more-menu" role="menu">
-                    <button id="chooseVaultButton" class="action-button" role="menuitem">Choose Vault</button>
-                    <button id="seedDemoVaultButton" class="action-button" role="menuitem">Create Demo Vault</button>
-                    <button id="loadVaultButton" class="action-button" role="menuitem">Load Vault</button>
-                    <div class="more-menu-separator"></div>
-                    <button id="deleteNoteButton" class="action-button action-button--destructive" role="menuitem">Delete Note</button>
-                  </div>
-                </div>
+                <button id="chooseVaultButton" class="action-button">Choose Vault</button>
+                <button id="loadVaultButton" class="action-button">Load Vault</button>
+                <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
             </div>
             <div class="workspace-body">
               <div class="editor-stack">
-                <input
+                <textarea
                   id="titleInput"
                   class="title-input"
-                  type="text"
                   placeholder="Untitled note"
-                />
+                  rows="1"
+                ></textarea>
 
 
                 <!-- Write / Preview mode toggle. Write is the HybridWriteView surface;
@@ -1282,71 +1217,6 @@
         };
       }
 
-      const templates = {
-        blank: {
-          title: 'Untitled note',
-          body: '',
-          frontmatter: {
-            tags: [],
-            source: ''
-          }
-        },
-        daily: {
-          title: 'Daily Note',
-          body: `# Daily Note
-
-## Top priorities
--
-
-## Notes
--
-
-## Reflection
-- `,
-          frontmatter: {
-            tags: ['daily'],
-            source: 'manual'
-          }
-        },
-        meeting: {
-          title: 'Meeting Note',
-          body: `# Meeting Note
-
-## Attendees
--
-
-## Agenda
--
-
-## Decisions
--
-
-## Action Items
-- `,
-          frontmatter: {
-            tags: ['meeting'],
-            source: 'manual'
-          }
-        },
-        idea: {
-          title: 'Idea Note',
-          body: `# Idea Note
-
-## Idea
-Write the core idea here.
-
-## Why it matters
--
-
-## Next steps
-- `,
-          frontmatter: {
-            tags: ['idea'],
-            source: 'manual'
-          }
-        }
-      };
-
       const titleInput             = document.getElementById('titleInput');
       const liveEditorContainer    = document.getElementById('liveEditorContainer');
       const searchInput            = document.getElementById('searchInput');
@@ -1359,8 +1229,6 @@ Write the core idea here.
       const docLines               = document.getElementById('docLines');
       const docEngine              = document.getElementById('docEngine');
       const chooseVaultButton      = document.getElementById('chooseVaultButton');
-      const seedDemoVaultButton    = document.getElementById('seedDemoVaultButton');
-      const templateSelect         = document.getElementById('templateSelect');
       const newNoteButton          = document.getElementById('newNoteButton');
       const saveNoteButton         = document.getElementById('saveNoteButton');
       const deleteNoteButton       = document.getElementById('deleteNoteButton');
@@ -1385,7 +1253,7 @@ Write the core idea here.
       let currentSearchQuery      = '';
       let lastIngestedRelativePath = '';
       let lastIngestedAt          = '';
-      let isSidebarHidden         = true;   // hidden by default — max note space on launch
+      let isSidebarHidden         = false;  // open by default
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
       let hasLoadedVaultNotes     = false;
@@ -1493,6 +1361,19 @@ Write the core idea here.
         sidebarToggle.setAttribute('aria-expanded', String(!isSidebarHidden));
       }
 
+      function autoResizeTitleInput() {
+        if (!titleInput.scrollHeight) return;
+        titleInput.style.height = 'auto';
+        titleInput.style.height = titleInput.scrollHeight + 'px';
+      }
+
+      // Titles are single-logical-line strings (serialized as a Markdown H1).
+      // Replace any CR/LF sequences with a single space so pasting multiline
+      // text or an IME commit that emits a newline never corrupts the file.
+      function normalizeTitleInputValue(value) {
+        return String(value).replace(/[\r\n]+/g, ' ');
+      }
+
       function setIngestBanner(relativePath) {
         lastIngestedRelativePath = relativePath || '';
         lastIngestedAt = new Date().toLocaleString();
@@ -1512,7 +1393,10 @@ Write the core idea here.
       }
 
       function renderEditor(note) {
-        titleInput.value = note.title;
+        if (titleInput.value !== note.title) {
+          titleInput.value = note.title;
+        }
+        autoResizeTitleInput();
 
         // Only reset the live editor when switching to a different note —
         // not on every renderApp() call (which would destroy the user's cursor position).
@@ -1817,6 +1701,7 @@ Write the core idea here.
 
         if (!selectedNote) {
           titleInput.value  = '';
+          autoResizeTitleInput();
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
           updateStatusReadouts('');
@@ -1859,7 +1744,13 @@ Write the core idea here.
         const fullText = liveEditorInstance.getText();
         const { tags, source } = stripMetaPrefix(fullText);
 
-        selectedNote.title = titleInput.value;
+        const rawTitle = titleInput.value;
+        const normalizedTitle = normalizeTitleInputValue(rawTitle);
+        if (rawTitle !== normalizedTitle) {
+          titleInput.value = normalizedTitle;
+          autoResizeTitleInput();
+        }
+        selectedNote.title = normalizedTitle;
         selectedNote.body  = fullText;          // body is now the canonical source
         selectedNote.frontmatter = {
           tags,                                 // mirrored for search + note list
@@ -1882,26 +1773,19 @@ Write the core idea here.
         setStatusFromSelectedNote();
       }
 
-      function getSelectedTemplate() {
-        const selectedKey = templateSelect.value;
-        return templates[selectedKey] || templates.blank;
-      }
-
       function createNewNote() {
-        const template = getSelectedTemplate();
-
         const newNote = {
           id: `draft:${nextDraftId}`,
-          title: template.title,
-          body: template.body,
+          title: '',
+          body: '',
           meta: 'Unsaved draft',
           fileName: '',
           relativePath: '',
           source: 'draft',
           aiImported: false,
           frontmatter: {
-            tags:   normalizeTags(template.frontmatter?.tags),
-            source: template.frontmatter?.source || ''
+            tags:   [],
+            source: ''
           }
         };
 
@@ -1912,9 +1796,8 @@ Write the core idea here.
         searchInput.value = '';
         selectedNoteId = newNote.id;
         renderApp();
-        setStatus('draft', `Draft created from template: ${templateSelect.value}`);
+        setStatus('draft', 'New draft created');
         titleInput.focus();
-        titleInput.select();
       }
 
       async function startVaultWatcher() {
@@ -2308,6 +2191,12 @@ Write the core idea here.
           return;
         }
 
+        // Stage 10.2: block save when a draft has no title yet.
+        if (selectedNote.source === 'draft' && !String(selectedNote.title || '').trim()) {
+          setStatus('error', 'Enter a title to save this note.');
+          return;
+        }
+
         // Duplicate-name pre-check: refuse to save if the note's derived
         // relativePath collides with another in-memory note. Three branches:
         //   - draft / new file: candidate from title via deriveDraftRelativePath.
@@ -2681,6 +2570,12 @@ Write the core idea here.
           for (const id of dirtyIds) {
             const note = notes.find((n) => n.id === id);
             if (!note) continue;
+
+            // Stage 10.2: block save when a draft has no title.
+            if (note.source === 'draft' && !String(note.title || '').trim()) {
+              firstError = 'Enter a title to save this note.';
+              break;
+            }
 
             // Pre-check duplicate filename.
             const isVaultBacked = note.source === 'vault' && !!note.relativePath;
@@ -3120,11 +3015,13 @@ Write the core idea here.
       previewModeButton.addEventListener('click', showPreviewMode);
 
       titleInput.addEventListener('input', handleEdit);
+      titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
+      });
 
       searchInput.addEventListener('input', handleSearchInput);
 
       chooseVaultButton.addEventListener('click', chooseVaultFolder);
-      seedDemoVaultButton.addEventListener('click', seedDemoVault);
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
       deleteNoteButton.addEventListener('click', deleteCurrentNote);
@@ -3139,26 +3036,7 @@ Write the core idea here.
       filterDrafts.addEventListener('click', () => setFilter('drafts'));
       filterVault.addEventListener('click',  () => setFilter('vault'));
 
-      // ── Overflow menu (···) ───────────────────────────────────────────
-      const moreButton = document.getElementById('moreButton');
-      const moreMenu   = document.getElementById('moreMenu');
-
-      function closeMenu() {
-        moreMenu.classList.remove('open');
-        moreButton.setAttribute('aria-expanded', 'false');
-      }
-
-      moreButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const opening = !moreMenu.classList.contains('open');
-        moreMenu.classList.toggle('open');
-        moreButton.setAttribute('aria-expanded', String(opening));
-      });
-
-      document.addEventListener('click', closeMenu);
-
       document.addEventListener('keydown', async (e) => {
-        if (e.key === 'Escape') closeMenu();
         if (e.isComposing) return;
         const mod = e.metaKey || e.ctrlKey;
         const plain = !e.shiftKey && !e.altKey;
@@ -3192,8 +3070,6 @@ Write the core idea here.
           return;
         }
       });
-
-      moreMenu.addEventListener('click', closeMenu);
 
       renderApp();
       updateLayoutVisibility();

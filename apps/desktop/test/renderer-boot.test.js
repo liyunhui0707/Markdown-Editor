@@ -163,8 +163,6 @@ function makeRendererHarness({
     'docLines',
     'docEngine',
     'chooseVaultButton',
-    'seedDemoVaultButton',
-    'templateSelect',
     'newNoteButton',
     'saveNoteButton',
     'deleteNoteButton',
@@ -185,18 +183,14 @@ function makeRendererHarness({
     'toastPreviewMount',
     'writeModeButton',
     'previewModeButton',
-    'moreButton',
-    'moreMenu',
   ];
 
   const elements = new Map();
   for (const id of ids) {
-    const element = makeElement(id === 'titleInput' || id === 'searchInput' ? 'input' : 'div', id);
+    const element = makeElement(id === 'titleInput' ? 'textarea' : id === 'searchInput' ? 'input' : 'div', id);
     element.classList = makeClassList(element);
     elements.set(id, element);
   }
-
-  elements.get('templateSelect').value = 'blank';
 
   // Bug #2 scroll-sync: production code finds the Preview scroller via
   // toastPreviewMount.querySelector('.toastui-editor-md-preview'). The harness
@@ -811,6 +805,103 @@ test('index.html loads CM6 scripts before write-engine and before the inline boo
     html.indexOf(writeEngineTag) < html.indexOf(bootMarker),
     'write-engine should load before the inline boot script'
   );
+});
+
+// ── Stage 10.2: toolbar simplification ─────────────────────────────────────
+//
+// These tests describe the post-simplification state. They FAIL before
+// implementation and pass once index.html is updated.
+
+test('Stage 10.2: templateSelect is not present in the toolbar DOM', () => {
+  const html = readIndexHtml();
+  assert.ok(!html.includes('id="templateSelect"'), 'templateSelect must be removed from the toolbar');
+});
+
+test('Stage 10.2: moreButton and moreMenu are not present in the DOM', () => {
+  const html = readIndexHtml();
+  assert.ok(!html.includes('id="moreButton"'), 'moreButton must be removed');
+  assert.ok(!html.includes('id="moreMenu"'),   'moreMenu must be removed');
+});
+
+test('Stage 10.2: seedDemoVaultButton is not present in the toolbar DOM', () => {
+  const html = readIndexHtml();
+  assert.ok(!html.includes('id="seedDemoVaultButton"'), 'seedDemoVaultButton must be removed from the toolbar');
+});
+
+test('Stage 10.2: chooseVaultButton, loadVaultButton, and deleteNoteButton are directly in the toolbar', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('id="chooseVaultButton"'), 'chooseVaultButton must be present');
+  assert.ok(html.includes('id="loadVaultButton"'),   'loadVaultButton must be present');
+  assert.ok(html.includes('id="deleteNoteButton"'),  'deleteNoteButton must be present');
+  assert.ok(!html.includes('id="moreMenu"'), 'no moreMenu should wrap any button');
+});
+
+test('Stage 10.2: New Note creates a draft with empty title and empty body', () => {
+  const { elements } = makeRendererHarness();
+
+  elements.get('newNoteButton').fire('click');
+
+  const titleInput = elements.get('titleInput');
+  assert.equal(titleInput.value, '', 'new note title must be empty string');
+
+  const row = elements.get('noteList').children[0];
+  assert.ok(row, 'new draft must appear in the note list');
+  assert.ok(row.innerHTML.includes('note-badge note-badge-draft'), 'new draft row must carry the Draft badge');
+});
+
+test('Stage 10.2: empty-title draft is not dirty when untouched', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+
+  elements.get('newNoteButton').fire('click');
+  // Title is '' and body is '' — untouched blank draft must not be dirty.
+
+  let received = 'unset';
+  calls.closeRequestHandler((summary) => { received = summary; });
+
+  assert.deepEqual(
+    received,
+    { count: 0, hasDraft: false, hasDirtyVault: false },
+    'untouched empty-title draft must not count as unsaved work'
+  );
+});
+
+test('Stage 10.2: saving an empty-title draft is blocked with "Enter a title" message', async () => {
+  const { calls, elements } = makeRendererHarness();
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  // Title remains '' — do not set any title before saving.
+
+  const payloadsBefore = calls.saveNotePayloads.length;
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(
+    calls.saveNotePayloads.length,
+    payloadsBefore,
+    'empty-title save must NOT invoke the save IPC'
+  );
+  assert.match(
+    elements.get('statusText').className,
+    /status-error/,
+    'empty-title save must surface an error status'
+  );
+  assert.match(
+    elements.get('statusText').textContent,
+    /enter a title/i,
+    'error message must tell the user to enter a title'
+  );
+});
+
+test('Stage 10.2: saving a titled draft still succeeds', async () => {
+  const { calls, elements } = makeRendererHarness();
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  setDraftTitle(elements, 'My Stage 10 Note');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'titled draft must be saved successfully');
 });
 
 test('default renderer boot resolves cm6, constructs CM6 adapter, and does not construct HybridWriteView', () => {
@@ -1982,7 +2073,10 @@ test('save is blocked: whitespace differences collapse to the same kebab filenam
   await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'my-note.md' });
 });
 
-test('save is blocked: empty-title draft collides with existing untitled-note.md', async () => {
+test('save is blocked: empty-title draft is blocked before filename derivation (Stage 10.2)', async () => {
+  // Stage 10.2: the empty-title guard fires before the duplicate-name check.
+  // Even when untitled-note.md exists on disk, the user sees "Enter a title"
+  // rather than a conflict error — the block is earlier and clearer.
   const { calls, elements } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:untitled-note.md', title: 'Untitled note', body: '#', fileName: 'untitled-note.md', relativePath: 'untitled-note.md' },
@@ -1991,9 +2085,16 @@ test('save is blocked: empty-title draft collides with existing untitled-note.md
 
   await elements.get('chooseVaultButton').fireAsync('click');
   elements.get('newNoteButton').fire('click');
+  // Title is already '' after Stage 10.2; explicitly clear to be safe.
   setDraftTitle(elements, '');
 
-  await assertSaveBlockedWithConflict({ elements, calls, expectedFileName: 'untitled-note.md' });
+  const payloadsBefore = calls.saveNotePayloads.length;
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, payloadsBefore, 'empty-title save must not call save IPC');
+  assert.match(elements.get('statusText').className, /status-error/);
+  assert.match(elements.get('statusText').textContent, /enter a title/i,
+    'error message must prompt for a title, not mention a conflicting filename');
 });
 
 test('save is blocked: draft title collides with another unsaved draft', async () => {
@@ -3386,12 +3487,10 @@ test('Stage 5.2: ?writeEngine=hybrid shows engine label "Hybrid" and readouts re
 // the meta line must not duplicate the tags shown as chips, and rows for
 // plain vault notes must contain neither badge nor chips.
 
-test('Stage 5.3: draft row renders the Draft badge and tag chips for a templated draft', () => {
+test('Stage 5.3: draft row renders the Draft badge for a new blank draft', () => {
   const { elements } = makeRendererHarness();
 
-  // Stage 6.2: empty initial state. Create a draft from the meeting
-  // template (frontmatter.tags = ['meeting']) to exercise the badge + chips.
-  elements.get('templateSelect').value = 'meeting';
+  // Stage 10.2: new notes start with empty title and body (no templates).
   elements.get('newNoteButton').fire('click');
 
   const row = elements.get('noteList').children[0];
@@ -3401,24 +3500,19 @@ test('Stage 5.3: draft row renders the Draft badge and tag chips for a templated
   assert.ok(html.includes('note-badge note-badge-draft'), 'draft row should render the Draft badge');
   assert.ok(html.includes('>Draft<'), 'Draft badge label should appear in the markup');
   assert.ok(!html.includes('note-badge-ai'), 'draft row should not render the AI badge');
-
-  assert.ok(html.includes('class="note-tag">#meeting<'), 'tag chip should render');
-  assert.ok(!html.includes('note-tag-overflow'), '1 tag (≤3) should not render an overflow chip');
+  assert.ok(!html.includes('class="note-tag"'), 'blank new draft has no tags — no tag chips expected');
 });
 
-test('Stage 5.3: when tag chips render, the meta line drops the duplicate "tags: ..." segment', () => {
+test('Stage 5.3: blank new draft meta line has no tag segment', () => {
   const { elements } = makeRendererHarness();
 
-  // Stage 6.2: refixture via the meeting template (tags: ['meeting']).
-  elements.get('templateSelect').value = 'meeting';
+  // Stage 10.2: new notes have no tags (templates removed).
   elements.get('newNoteButton').fire('click');
 
   const row = elements.get('noteList').children[0];
   const html = row.innerHTML;
 
-  // The meeting template has tags ['meeting']. They should appear as
-  // chips but not also be repeated as text in the meta.
-  assert.ok(!html.includes('tags: meeting'), 'meta line should not duplicate tags rendered as chips');
+  assert.ok(!html.includes('tags:'), 'blank new draft should not show a tags segment in the meta line');
 });
 
 test('Stage 5.3: plain vault note (no aiImported, no tags) renders no badge and no tag chips', async () => {
@@ -3601,12 +3695,11 @@ test('Stage 6.1: pristine vault note is NOT Draft and shows no Draft badge', asy
 test('Stage 6.1: non-empty draft is dirty (Draft status, in Drafts filter, Draft badge)', async () => {
   const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
-  // Stage 6.2: empty initial state. Create a templated draft (body comes
-  // from the template) so the new draft is non-empty → counts as dirty.
-  elements.get('templateSelect').value = 'meeting';
+  // Stage 10.2: new notes start blank (no templates). Create the draft,
+  // then type body content to make it non-empty → dirty.
   elements.get('newNoteButton').fire('click');
-  // After createNewNote the textContent is "Draft created from template: …"
-  // — assert the className (the "this is dirty" signal) instead.
+  calls.cm6OnChange('some real content typed by the user');
+  // handleWriteChange → setStatusFromSelectedNote → body non-empty → dirty.
   assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
 
   // The new draft's row carries the Draft badge (source==='draft').
@@ -4055,8 +4148,7 @@ test('Stage 6.2: empty/placeholder draft is NOT preserved across Choose Vault', 
     ],
   });
 
-  // Create a blank draft (templateSelect defaults to 'blank' → title
-  // 'Untitled note', empty body). DON'T type anything.
+  // Create a blank draft (Stage 10.2: title '', empty body). DON'T type anything.
   elements.get('newNoteButton').fire('click');
 
   await elements.get('chooseVaultButton').fireAsync('click');
@@ -4070,7 +4162,7 @@ test('Stage 6.2: empty/placeholder draft is NOT preserved across Choose Vault', 
   assert.equal(rows.length, 1, 'only the vault note should remain');
   assert.ok(titles.some((html) => html.includes('Vault A')));
   assert.ok(!titles.some((html) => html.includes('Untitled note')),
-    'empty placeholder draft must NOT be preserved across Choose Vault');
+    'empty-title draft (displayed as "Untitled note") must NOT be preserved across Choose Vault');
   assert.equal(calls.saveNotePayloads.length, 0);
 });
 
@@ -4104,7 +4196,7 @@ test('Stage 6.2: whitespace-only-body draft is NOT preserved across Choose Vault
   });
 
   elements.get('newNoteButton').fire('click');
-  // Title remains the bare placeholder; body is whitespace-only.
+  // Title is '' (Stage 10.2 default); body is whitespace-only.
   calls.cm6OnChange('   \n\n  \n');
 
   await elements.get('chooseVaultButton').fireAsync('click');
@@ -4198,7 +4290,7 @@ test('Stage 6.3A: close-request responder reports dirty summary after a draft ga
 
 test('Stage 6.3A: close-request responder reports clean for an untouched placeholder draft', () => {
   const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
-  // Untouched placeholder: title === 'Untitled note', body === ''. Not dirty.
+  // Untouched blank draft: title === '', body === ''. Not dirty (Stage 10.2).
   elements.get('newNoteButton').fire('click');
 
   let received = 'unset';
@@ -4483,6 +4575,31 @@ test('Stage 6.3B: save-all aborts on a duplicate filename conflict and reports f
     'the colliding draft must not be sent to the saveNote IPC');
 });
 
+test('Stage 10.2: save-all aborts when a dirty draft has no title, does not call save IPC, keeps draft intact', async () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  // Set adapter text AND fire onChange — same pattern as other save-all tests.
+  // exitWriteMode flushes the adapter text into the note, so both must agree.
+  calls.cm6Adapter.text = 'Important content without a title.';
+  calls.cm6OnChange('Important content without a title.');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false, 'save-all must fail when a dirty draft has no title');
+  assert.equal(calls.saveNotePayloads.length, 0, 'save IPC must not be called for an empty-title draft');
+  assert.match(
+    elements.get('statusText').textContent,
+    /enter a title/i,
+    'status must tell the user to enter a title'
+  );
+  // Draft must remain in the note list — body content not silently discarded.
+  assert.ok(
+    elements.get('noteList').children.length > 0,
+    'draft must still appear in the note list after save-all failure'
+  );
+});
+
 test('Stage 6.3B: save-all aborts on generic save failure and reports failure', async () => {
   const { calls, elements, window } = makeRendererHarness({
     search: '?writeEngine=cm6',
@@ -4722,7 +4839,7 @@ test('Cmd+N with no note selected creates a new draft', async () => {
 
   assert.equal(
     elements.get('statusText').textContent,
-    'Draft created from template: blank'
+    'New draft created'
   );
   assert.ok(preventDefaultCalled, 'Cmd+N must call preventDefault()');
 });
@@ -4739,7 +4856,7 @@ test('Cmd+N with a clean vault note selected adds a draft without saving', async
 
   assert.equal(
     elements.get('statusText').textContent,
-    'Draft created from template: blank',
+    'New draft created',
     'Cmd+N should create a new draft'
   );
   assert.equal(calls.saveNotePayloads.length, 0, 'Cmd+N must not trigger a save');
@@ -4766,7 +4883,7 @@ test('Ctrl+N creates a new draft (cross-platform)', async () => {
 
   assert.equal(
     elements.get('statusText').textContent,
-    'Draft created from template: blank',
+    'New draft created',
     'Ctrl+N should create a new draft'
   );
   assert.ok(preventDefaultCalled, 'Ctrl+N must call preventDefault()');
@@ -4779,7 +4896,7 @@ test('Cmd+N with uppercase N (Caps Lock) creates a new draft', async () => {
 
   assert.equal(
     elements.get('statusText').textContent,
-    'Draft created from template: blank',
+    'New draft created',
     'Cmd+N with Caps Lock should create a new draft'
   );
   assert.ok(preventDefaultCalled, 'Cmd+N with uppercase key must call preventDefault()');
@@ -5228,4 +5345,140 @@ test('mouse click aligns the clicked note to the top using getBoundingClientRect
 
   assert.equal(noteList.scrollTop, 50,
     'mouse click must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
+});
+
+// ── Stage 10.1: title textarea + sidebar default ──────────────────────────────
+
+test('titleInput is a textarea element', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  assert.equal(elements.get('titleInput').tagName, 'TEXTAREA',
+    'titleInput must be a textarea so long titles can wrap to multiple lines');
+});
+
+test('titleInput.value interface is preserved: setting value and firing input updates note title', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Short', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const titleInput = elements.get('titleInput');
+  const longTitle = 'A Very Long Title That Would Wrap Across Multiple Lines In A Narrow Editor Column';
+  titleInput.value = longTitle;
+  titleInput.fire('input');
+  assert.equal(titleInput.value, longTitle, 'titleInput.value must reflect the long title');
+});
+
+test('titleInput is disabled when no note is selected', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  assert.equal(elements.get('titleInput').disabled, true,
+    'titleInput must be disabled with no note selected');
+});
+
+test('titleInput is enabled after selecting a note', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  assert.equal(elements.get('titleInput').disabled, false,
+    'titleInput must be enabled once a note is selected');
+});
+
+test('sidebar is open by default on fresh boot', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  const toggle = elements.get('sidebarToggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true',
+    'sidebar toggle aria-expanded must be true (open) on fresh boot');
+});
+
+test('sidebar toggle closes then re-opens the sidebar', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  const toggle = elements.get('sidebarToggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true', 'starts open');
+  toggle.fire('click');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false', 'closed after first click');
+  toggle.fire('click');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true', 're-opened after second click');
+});
+
+// ── Stage 10.1 revision: title newline normalization ──────────────────────────
+
+test('Enter keydown in title textarea is prevented', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  let preventDefaultCalled = false;
+  elements.get('titleInput').fire('keydown', {
+    key: 'Enter',
+    isComposing: false,
+    preventDefault() { preventDefaultCalled = true; },
+  });
+  assert.ok(preventDefaultCalled, 'non-composing Enter in title textarea must call preventDefault()');
+});
+
+test('Enter keydown during IME composition in title textarea does not call preventDefault', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  let preventDefaultCalled = false;
+  elements.get('titleInput').fire('keydown', {
+    key: 'Enter',
+    isComposing: true,
+    preventDefault() { preventDefaultCalled = true; },
+  });
+  assert.ok(!preventDefaultCalled, 'composing Enter must not call preventDefault() — IME commit must not be blocked');
+});
+
+test('multiline paste into title textarea is normalized to single line before note title is stored', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const titleInput = elements.get('titleInput');
+  titleInput.value = 'Line 1\nLine 2\r\nLine 3';
+  titleInput.fire('input');
+  assert.ok(!titleInput.value.includes('\n'), 'titleInput.value must have no newlines after normalization');
+  assert.ok(!titleInput.value.includes('\r'), 'titleInput.value must have no CR after normalization');
+  assert.equal(titleInput.value, 'Line 1 Line 2 Line 3', 'newlines replaced by spaces');
+});
+
+test('selectedNote.title contains no \\r or \\n after multiline title input', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('titleInput').value = 'First\nSecond';
+  elements.get('titleInput').fire('input');
+  await elements.get('saveNoteButton').fireAsync('click');
+  const savedTitle = calls.saveNotePayloads[0].note.title;
+  assert.ok(!savedTitle.includes('\n'), 'save payload title must contain no newline');
+  assert.ok(!savedTitle.includes('\r'), 'save payload title must contain no CR');
+  assert.equal(savedTitle, 'First Second');
+});
+
+test('rename-on-save uses the normalized (newline-free) title', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('titleInput').value = 'New\nTitle';
+  elements.get('titleInput').fire('input');
+  await elements.get('saveNoteButton').fireAsync('click');
+  const payload = calls.saveNotePayloads[0];
+  assert.ok(!payload.note.title.includes('\n'), 'rename payload title must be newline-free');
+  assert.equal(payload.note.title, 'New Title', 'rename uses the space-joined normalized title');
 });
