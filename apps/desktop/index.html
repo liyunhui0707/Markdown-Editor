@@ -575,23 +575,24 @@
         cursor: text;
       }
 
-      /* CM6 hybrid-render heading widgets (?writeEngine=hybrid-cm6).
-         Inactive heading blocks are replaced by a .cm6-heading-widget div;
-         the active heading remains raw Markdown source.
-         textContent is used in toDOM(), so & < > are auto-escaped by the DOM. */
-      .cm6-heading-widget {
-        font-family: var(--font-prose);
-        color:       var(--text);
-        line-height: 1.2;
-        padding:     0.1em 0;
-        cursor:      text;
+      /* CM6 hybrid live-styling (?writeEngine=hybrid-cm6, Stage 11.4).
+         Headings are styled via Decoration.mark — text is never replaced.
+         The "#" markers (HeaderMark) are hidden outside the active line and
+         revealed dimmed when the cursor is on the heading line. */
+      .cm-md-heading-mark {
+        display: none;
       }
-      .cm6-h1 { font-size: 1.75em; font-weight: 700; }
-      .cm6-h2 { font-size: 1.40em; font-weight: 700; }
-      .cm6-h3 { font-size: 1.15em; font-weight: 600; }
-      .cm6-h4 { font-size: 1.00em; font-weight: 600; }
-      .cm6-h5 { font-size: 0.90em; font-weight: 600; }
-      .cm6-h6 { font-size: 0.85em; font-weight: 600; color: var(--text-muted); }
+      .cm-activeLine .cm-md-heading-mark {
+        display: inline;
+        color:   var(--text-muted);
+        opacity: 0.5;
+      }
+      .cm-md-h1 { font-size: 1.75em; font-weight: 700; line-height: 1.2; }
+      .cm-md-h2 { font-size: 1.40em; font-weight: 700; }
+      .cm-md-h3 { font-size: 1.15em; font-weight: 600; }
+      .cm-md-h4 { font-size: 1.00em; font-weight: 600; }
+      .cm-md-h5 { font-size: 0.90em; font-weight: 600; }
+      .cm-md-h6 { font-size: 0.85em; font-weight: 600; color: var(--text-muted); }
 
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and

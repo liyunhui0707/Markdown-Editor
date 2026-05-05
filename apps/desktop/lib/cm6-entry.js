@@ -28,6 +28,7 @@ import {
   defaultHighlightStyle,
   bracketMatching,
   indentOnInput,
+  syntaxTree,
 } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 
@@ -57,6 +58,7 @@ window.CM6Production = {
   Decoration,
   WidgetType,
   RangeSetBuilder,
+  syntaxTree,
   history,
   markdown: () => markdown({ base: markdownLanguage, codeLanguages: [] }),
   chrome,

@@ -5559,11 +5559,32 @@ test('Stage 11.2: default boot still uses CM6, not Cm6HybridView', () => {
   assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed by default');
 });
 
-test('Stage 11.2: index.html contains .cm6-heading-widget and heading-level CSS rules', () => {
+test('Stage 11.4: index.html contains .cm-md-heading-mark CSS rule', () => {
   const html = readIndexHtml();
-  assert.ok(html.includes('.cm6-heading-widget'), 'must have .cm6-heading-widget CSS rule');
-  assert.ok(html.includes('.cm6-h1'), 'must have .cm6-h1 CSS rule');
-  assert.ok(html.includes('.cm6-h2'), 'must have .cm6-h2 CSS rule');
-  assert.ok(html.includes('.cm6-h3'), 'must have .cm6-h3 CSS rule');
-  assert.ok(html.includes('.cm6-h6'), 'must have .cm6-h6 CSS rule');
+  assert.ok(html.includes('.cm-md-heading-mark'), 'must have .cm-md-heading-mark CSS rule');
+});
+
+test('Stage 11.4: index.html reveals heading marks on the active line', () => {
+  const html = readIndexHtml();
+  // Both classes must appear together — order may vary across browsers, but
+  // the descendant selector pairs them as ".cm-activeLine .cm-md-heading-mark".
+  assert.ok(
+    html.includes('.cm-activeLine .cm-md-heading-mark'),
+    'must have .cm-activeLine .cm-md-heading-mark rule for active-line marker visibility'
+  );
+});
+
+test('Stage 11.4: index.html contains .cm-md-h1 through .cm-md-h6 CSS rules', () => {
+  const html = readIndexHtml();
+  for (let n = 1; n <= 6; n++) {
+    assert.ok(html.includes('.cm-md-h' + n), 'must have .cm-md-h' + n + ' CSS rule');
+  }
+});
+
+test('Stage 11.4: obsolete widget CSS classes are removed', () => {
+  const html = readIndexHtml();
+  assert.ok(!html.includes('.cm6-heading-widget'),
+    'old .cm6-heading-widget rule must be removed');
+  assert.ok(!html.includes('.cm6-paragraph-widget'),
+    'old .cm6-paragraph-widget rule must be removed');
 });
