@@ -120,6 +120,9 @@ function makeElement(tag = 'div', id = '') {
     contains(node) {
       return this === node || this.children.includes(node);
     },
+    getBoundingClientRect() {
+      return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
+    },
   };
 
   Object.defineProperty(el, 'innerHTML', {
@@ -698,17 +701,37 @@ function makeRendererHarness({
   };
   context.globalThis = context;
 
-  // Simulate note-list layout so scroll tests can assert meaningful offsetTop /
-  // offsetHeight values without a real layout engine. renderApp() always calls
-  // noteList.innerHTML = '' (which resets children to []) then noteList.appendChild(item)
-  // for each note. Deriving offsetTop from children.length BEFORE the push means the
-  // counter auto-resets to 0 whenever the list is cleared — no innerHTML override needed.
+  // Simulate note-list layout so scroll tests reflect the real browser situation.
+  //
+  // In production, #noteList has overflow:auto but no position set. Its children's
+  // offsetTop is therefore relative to the body (the nearest positioned ancestor),
+  // not to #noteList. We simulate this by adding a _SIDEBAR_OFFSET so that
+  // child.offsetTop != child's position within noteList — tests using the wrong
+  // formula (scrollTop = offsetTop) will compute incorrect scrollTop values.
+  //
+  // child.getBoundingClientRect().top is computed correctly (viewport-relative,
+  // accounting for noteList.scrollTop) so the production formula
+  //   noteList.scrollTop += item.getBoundingClientRect().top - noteList.getBoundingClientRect().top
+  // works correctly.
+  //
+  // noteList.getBoundingClientRect().top = 0 (stable reference at viewport top).
+  // child at index n: getBoundingClientRect().top = n*50 - noteList.scrollTop.
   const _noteListEl = elements.get('noteList');
   const _NOTE_ITEM_HEIGHT = 50;
+  const _SIDEBAR_OFFSET = 200; // simulates body-relative offsetTop mismatch
   const _noteListOrigAppend = _noteListEl.appendChild.bind(_noteListEl);
+  _noteListEl.getBoundingClientRect = function() {
+    return { top: 0, bottom: this.clientHeight, left: 0, right: 0, width: 0, height: this.clientHeight };
+  };
   _noteListEl.appendChild = function(child) {
-    child.offsetTop = this.children.length * _NOTE_ITEM_HEIGHT;
+    const indexTop = this.children.length * _NOTE_ITEM_HEIGHT;
+    child.offsetTop = _SIDEBAR_OFFSET + indexTop; // body-relative, intentionally wrong for scrollTop formula
     child.offsetHeight = _NOTE_ITEM_HEIGHT;
+    child.getBoundingClientRect = (function(capturedIndexTop) {
+      return function() {
+        return { top: capturedIndexTop - _noteListEl.scrollTop };
+      };
+    }(indexTop));
     const result = _noteListOrigAppend(child);
     this.scrollHeight = this.children.length * _NOTE_ITEM_HEIGHT;
     return result;
@@ -5113,15 +5136,23 @@ test('ArrowDown with no note selected and no visible notes does nothing', async 
   assert.ok(preventDefaultCalled, 'ArrowDown with no notes must still call preventDefault()');
 });
 
-// ── Stage 8.3: scroll selected note into view ─────────────────────────────────
-// Layout simulation: each note item gets offsetTop = index * 50, offsetHeight = 50.
-// With 2 notes: scrollHeight = 100, items at [0-50] and [50-100].
-// With 3 notes: scrollHeight = 150, items at [0-50], [50-100], [100-150].
+// ── Stage 8.3: scroll selected note to top using getBoundingClientRect ──────────
+// Formula: noteList.scrollTop += item.getBoundingClientRect().top - noteList.getBoundingClientRect().top
+//
+// Layout simulation (harness):
+//   - noteList.getBoundingClientRect().top = 0 (stable viewport reference)
+//   - child at index n: getBoundingClientRect().top = n*50 - noteList.scrollTop
+//   - child.offsetTop = _SIDEBAR_OFFSET(200) + n*50  ← body-relative, as in real browser
+//
+// Expected scrollTop after selecting note at index n:
+//   delta = (n*50 - current_scrollTop) - 0
+//   scrollTop += delta  →  scrollTop = n*50
+//
+// Any formula using child.offsetTop directly would produce scrollTop = 200 + n*50 (wrong).
 
-test('ArrowDown scrolls down when the selected note is below the viewport', async () => {
-  // 2 notes, viewport shows 60px (just over 1 row). Note A at [0-50] is visible,
-  // Note B at [50-100] has its bottom (100) outside the viewport bottom (0+60=60).
-  // Expected: scrollTop = itemBottom - clientHeight = 100 - 60 = 40.
+test('ArrowDown aligns the selected note to the top using getBoundingClientRect', async () => {
+  // 2 notes. Note B is at index 1 (getBoundingClientRect().top = 50 - scrollTop).
+  // Starting scrollTop=0: delta = (50-0)-0 = 50 → scrollTop = 50.
   const { elements, documentHandlers } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -5134,38 +5165,14 @@ test('ArrowDown scrolls down when the selected note is below the viewport', asyn
   noteList.scrollTop = 0;
 
   await fireDocumentKeydown(documentHandlers, 'ArrowDown');
-
-  assert.equal(noteList.scrollTop, 40,
-    'ArrowDown must scroll down so the bottom of Note B is within the viewport (100 - 60 = 40)');
-});
-
-test('ArrowUp scrolls up when the selected note is above the viewport', async () => {
-  // 3 notes, viewport 60px, scrolled to show Note C (scrollTop=100).
-  // ArrowUp selects Note B at [50-100]. itemTop=50 < viewTop=100 → scroll up to 50.
-  const { elements, documentHandlers } = makeRendererHarness({
-    vaultNotes: [
-      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
-      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
-      { id: 'vault:c.md', title: 'Note C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
-    ],
-  });
-  await elements.get('chooseVaultButton').fireAsync('click');
-  // Navigate to Note C.
-  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
-  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
-  const noteList = elements.get('noteList');
-  noteList.clientHeight = 60;
-  noteList.scrollTop = 100;
-
-  await fireDocumentKeydown(documentHandlers, 'ArrowUp');
 
   assert.equal(noteList.scrollTop, 50,
-    'ArrowUp must scroll up to Note B\'s offsetTop (50) when it is above the viewport');
+    'ArrowDown must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
 });
 
-test('no scroll when the selected note is already fully visible', async () => {
-  // 3 notes, viewport 120px (shows ~2 notes). Scroll at 0, viewport bottom = 120.
-  // ArrowDown → Note B at [50-100]. itemBottom=100 <= viewBottom=120 → no-op.
+test('ArrowUp aligns the selected note to the top using getBoundingClientRect', async () => {
+  // 3 notes. Navigate to Note C (two ArrowDowns → scrollTop=100).
+  // ArrowUp → Note B: getBoundingClientRect().top = 50-100 = -50. delta=-50 → scrollTop=50.
   const { elements, documentHandlers } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -5175,17 +5182,18 @@ test('no scroll when the selected note is already fully visible', async () => {
   });
   await elements.get('chooseVaultButton').fireAsync('click');
   const noteList = elements.get('noteList');
-  noteList.clientHeight = 120;
-  noteList.scrollTop = 0;
+  noteList.clientHeight = 60;
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 50
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 100
 
-  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  await fireDocumentKeydown(documentHandlers, 'ArrowUp'); // scrollTop → 50
 
-  assert.equal(noteList.scrollTop, 0,
-    'no scroll expected when Note B [50-100] is fully within the viewport [0-120]');
+  assert.equal(noteList.scrollTop, 50,
+    'ArrowUp must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
 });
 
 test('no scroll when entire list fits in the viewport', async () => {
-  // scrollHeight (100) <= clientHeight (200): the guard exits early, scrollTop unchanged.
+  // scrollHeight(100) <= clientHeight(200): guard exits early, scrollTop stays 0.
   const { elements, documentHandlers } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -5200,12 +5208,11 @@ test('no scroll when entire list fits in the viewport', async () => {
   await fireDocumentKeydown(documentHandlers, 'ArrowDown');
 
   assert.equal(noteList.scrollTop, 0,
-    'no scroll expected when scrollHeight (100) <= clientHeight (200)');
+    'no scroll when scrollHeight(100) <= clientHeight(200)');
 });
 
-test('mouse click on a note below the viewport scrolls it into view', async () => {
-  // 2 notes, viewport 60px. Click Note B at [50-100]: itemBottom=100 > viewBottom=60.
-  // Expected: scrollTop = 100 - 60 = 40.
+test('mouse click aligns the clicked note to the top using getBoundingClientRect', async () => {
+  // Click Note B (index 1, getBoundingClientRect().top = 50-0 = 50). delta=50 → scrollTop=50.
   const { elements } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -5219,6 +5226,6 @@ test('mouse click on a note below the viewport scrolls it into view', async () =
 
   noteList.children[1].fire('click');
 
-  assert.equal(noteList.scrollTop, 40,
-    'mouse click on Note B must scroll its bottom into view (100 - 60 = 40)');
+  assert.equal(noteList.scrollTop, 50,
+    'mouse click must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
 });

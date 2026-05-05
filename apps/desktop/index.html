@@ -1642,15 +1642,12 @@ Write the core idea here.
         }
         if (!activeItem) return;
         if (noteList.scrollHeight <= noteList.clientHeight) return;
-        const itemTop = activeItem.offsetTop;
-        const itemBottom = itemTop + activeItem.offsetHeight;
-        const viewTop = noteList.scrollTop;
-        const viewBottom = viewTop + noteList.clientHeight;
-        if (itemTop < viewTop) {
-          noteList.scrollTop = itemTop;
-        } else if (itemBottom > viewBottom) {
-          noteList.scrollTop = itemBottom - noteList.clientHeight;
-        }
+        // offsetTop is relative to the nearest positioned ancestor (the body in this
+        // layout — #noteList has no position set). Use getBoundingClientRect instead
+        // so the delta is always relative to the visible noteList top edge.
+        const containerTop = noteList.getBoundingClientRect().top;
+        const itemTop = activeItem.getBoundingClientRect().top;
+        noteList.scrollTop += itemTop - containerTop;
       }
 
       function updateFilterCounts() {
