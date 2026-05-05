@@ -9,9 +9,12 @@
    This entry is production-only. The throwaway spike entry
    (lib/spike-cm6-entry.js) and its bundle remain in place for spike
    reproducibility but are not consumed at runtime by the production app. */
-import { EditorState, Annotation } from '@codemirror/state';
+import { EditorState, Annotation, RangeSetBuilder } from '@codemirror/state';
 import {
   EditorView,
+  ViewPlugin,
+  Decoration,
+  WidgetType,
   keymap,
   drawSelection,
   highlightActiveLine,
@@ -50,6 +53,10 @@ window.CM6Production = {
   EditorState,
   EditorView,
   Annotation,
+  ViewPlugin,
+  Decoration,
+  WidgetType,
+  RangeSetBuilder,
   history,
   markdown: () => markdown({ base: markdownLanguage, codeLanguages: [] }),
   chrome,

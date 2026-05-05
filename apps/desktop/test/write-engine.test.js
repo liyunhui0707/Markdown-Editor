@@ -157,3 +157,38 @@ test('case sensitivity: "CM6" is not accepted (only lowercase canonical values)'
     'cm6'
   );
 });
+
+// ── Stage 11.2: hybrid-cm6 engine tests ──────────────────────────────────────
+
+test('Stage 11.2: ?writeEngine=hybrid-cm6 resolves to "hybrid-cm6"', () => {
+  assert.equal(
+    resolveWriteEngine({ search: '?writeEngine=hybrid-cm6', storage: makeStorage({}) }),
+    'hybrid-cm6'
+  );
+});
+
+test('Stage 11.2: localStorage hybrid-cm6 resolves to "hybrid-cm6"', () => {
+  const storage = makeStorage({ 'markdownVault.writeEngine': 'hybrid-cm6' });
+  assert.equal(resolveWriteEngine({ search: '', storage }), 'hybrid-cm6');
+});
+
+test('Stage 11.2: default engine remains "cm6" — hybrid-cm6 is not default', () => {
+  assert.equal(resolveWriteEngine({}), 'cm6');
+  assert.equal(resolveWriteEngine({ search: '', storage: makeStorage({}) }), 'cm6');
+});
+
+test('Stage 11.2: URL hybrid-cm6 wins over localStorage cm6', () => {
+  const storage = makeStorage({ 'markdownVault.writeEngine': 'cm6' });
+  assert.equal(
+    resolveWriteEngine({ search: '?writeEngine=hybrid-cm6', storage }),
+    'hybrid-cm6'
+  );
+});
+
+test('Stage 11.2: URL cm6 wins over localStorage hybrid-cm6', () => {
+  const storage = makeStorage({ 'markdownVault.writeEngine': 'hybrid-cm6' });
+  assert.equal(
+    resolveWriteEngine({ search: '?writeEngine=cm6', storage }),
+    'cm6'
+  );
+});

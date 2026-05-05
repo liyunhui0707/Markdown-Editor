@@ -575,6 +575,24 @@
         cursor: text;
       }
 
+      /* CM6 hybrid-render heading widgets (?writeEngine=hybrid-cm6).
+         Inactive heading blocks are replaced by a .cm6-heading-widget div;
+         the active heading remains raw Markdown source.
+         textContent is used in toDOM(), so & < > are auto-escaped by the DOM. */
+      .cm6-heading-widget {
+        font-family: var(--font-prose);
+        color:       var(--text);
+        line-height: 1.2;
+        padding:     0.1em 0;
+        cursor:      text;
+      }
+      .cm6-h1 { font-size: 1.75em; font-weight: 700; }
+      .cm6-h2 { font-size: 1.40em; font-weight: 700; }
+      .cm6-h3 { font-size: 1.15em; font-weight: 600; }
+      .cm6-h4 { font-size: 1.00em; font-weight: 600; }
+      .cm6-h5 { font-size: 0.90em; font-weight: 600; }
+      .cm6-h6 { font-size: 0.85em; font-weight: 600; color: var(--text-muted); }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write
@@ -1019,6 +1037,7 @@
     <script src="./lib/hybrid-write-view.js"></script>
     <script src="./lib/cm6-bundle.js"></script>
     <script src="./lib/cm6-write-view.js"></script>
+    <script src="./lib/cm6-hybrid-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
@@ -2742,7 +2761,9 @@
       });
 
       // Engine label is constant for the session; set once.
-      docEngine.textContent = selectedWriteEngine === 'cm6' ? 'CM6' : 'Hybrid';
+      docEngine.textContent = selectedWriteEngine === 'cm6'        ? 'CM6'
+                            : selectedWriteEngine === 'hybrid-cm6' ? 'CM6 Hybrid'
+                            :                                        'Hybrid';
 
       if (window.console && typeof window.console.debug === 'function') {
         window.console.debug('[write-engine]', selectedWriteEngine);
@@ -2815,6 +2836,30 @@
             _toastuiInstance.setMarkdown(cm6Write.getText());
           },
           exitWriteMode() { cm6Write.exitWriteMode(); },
+        };
+      } else if (selectedWriteEngine === 'hybrid-cm6') {
+        // Stage 11.2 experimental: CM6 with heading-block widget decorations.
+        // Inactive heading lines render as styled widgets; active heading and
+        // all non-heading content remain raw Markdown. getText() always returns
+        // raw Markdown — the file format is unchanged.
+        const cm6HybridWrite = window.Cm6HybridView.createCm6HybridView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+        });
+
+        liveEditorInstance = {
+          getText() { return cm6HybridWrite.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6HybridWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6HybridWrite.getState(); },
+          setState(state) {
+            cm6HybridWrite.setState(state);
+            _toastuiInstance.setMarkdown(cm6HybridWrite.getText());
+          },
+          exitWriteMode() { cm6HybridWrite.exitWriteMode(); },
         };
       } else {
         const hybridWrite = new window.HybridWriteView(hybridWritePane, {
