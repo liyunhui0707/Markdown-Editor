@@ -400,7 +400,7 @@
       }
 
       .workspace-body {
-        padding: 20px 24px;
+        padding: 32px clamp(40px, 8%, 96px);
         flex: 1;
         min-height: 0;
         overflow: auto;
@@ -414,13 +414,19 @@
         flex-direction: column;
         gap: 0;
         width: 100%;
+        max-width: 720px;
+        margin: 0 auto;
         flex: 1;
         min-height: 0;
       }
 
-      /* Title — document heading, no box */
+      /* Title — document heading, no box. Textarea so long titles wrap. */
       .title-input {
         width: 100%;
+        display: block;
+        resize: none;
+        overflow: hidden;
+        line-height: 1.25;
         border: none;
         border-bottom: 1px solid var(--border);
         border-radius: 0;
@@ -432,6 +438,7 @@
         background: transparent;
         outline: none;
         letter-spacing: -0.01em;
+        font-family: var(--font-ui);
       }
 
       .title-input:focus {
@@ -983,10 +990,10 @@
                 <button
                   id="sidebarToggle"
                   class="sidebar-toggle"
-                  title="Show sidebar"
-                  aria-label="Show sidebar"
-                  aria-expanded="false"
-                >›</button>
+                  title="Hide sidebar"
+                  aria-label="Hide sidebar"
+                  aria-expanded="true"
+                >‹</button>
                 <select id="templateSelect" class="template-select">
                   <option value="blank">Blank Note</option>
                   <option value="daily">Daily Note</option>
@@ -1015,12 +1022,12 @@
             </div>
             <div class="workspace-body">
               <div class="editor-stack">
-                <input
+                <textarea
                   id="titleInput"
                   class="title-input"
-                  type="text"
                   placeholder="Untitled note"
-                />
+                  rows="1"
+                ></textarea>
 
 
                 <!-- Write / Preview mode toggle. Write is the HybridWriteView surface;
@@ -1385,7 +1392,7 @@ Write the core idea here.
       let currentSearchQuery      = '';
       let lastIngestedRelativePath = '';
       let lastIngestedAt          = '';
-      let isSidebarHidden         = true;   // hidden by default — max note space on launch
+      let isSidebarHidden         = false;  // open by default
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
       let hasLoadedVaultNotes     = false;
@@ -1493,6 +1500,19 @@ Write the core idea here.
         sidebarToggle.setAttribute('aria-expanded', String(!isSidebarHidden));
       }
 
+      function autoResizeTitleInput() {
+        if (!titleInput.scrollHeight) return;
+        titleInput.style.height = 'auto';
+        titleInput.style.height = titleInput.scrollHeight + 'px';
+      }
+
+      // Titles are single-logical-line strings (serialized as a Markdown H1).
+      // Replace any CR/LF sequences with a single space so pasting multiline
+      // text or an IME commit that emits a newline never corrupts the file.
+      function normalizeTitleInputValue(value) {
+        return String(value).replace(/[\r\n]+/g, ' ');
+      }
+
       function setIngestBanner(relativePath) {
         lastIngestedRelativePath = relativePath || '';
         lastIngestedAt = new Date().toLocaleString();
@@ -1512,7 +1532,10 @@ Write the core idea here.
       }
 
       function renderEditor(note) {
-        titleInput.value = note.title;
+        if (titleInput.value !== note.title) {
+          titleInput.value = note.title;
+        }
+        autoResizeTitleInput();
 
         // Only reset the live editor when switching to a different note —
         // not on every renderApp() call (which would destroy the user's cursor position).
@@ -1817,6 +1840,7 @@ Write the core idea here.
 
         if (!selectedNote) {
           titleInput.value  = '';
+          autoResizeTitleInput();
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
           updateStatusReadouts('');
@@ -1859,7 +1883,13 @@ Write the core idea here.
         const fullText = liveEditorInstance.getText();
         const { tags, source } = stripMetaPrefix(fullText);
 
-        selectedNote.title = titleInput.value;
+        const rawTitle = titleInput.value;
+        const normalizedTitle = normalizeTitleInputValue(rawTitle);
+        if (rawTitle !== normalizedTitle) {
+          titleInput.value = normalizedTitle;
+          autoResizeTitleInput();
+        }
+        selectedNote.title = normalizedTitle;
         selectedNote.body  = fullText;          // body is now the canonical source
         selectedNote.frontmatter = {
           tags,                                 // mirrored for search + note list
@@ -3120,6 +3150,9 @@ Write the core idea here.
       previewModeButton.addEventListener('click', showPreviewMode);
 
       titleInput.addEventListener('input', handleEdit);
+      titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
+      });
 
       searchInput.addEventListener('input', handleSearchInput);
 

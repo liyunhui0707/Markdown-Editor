@@ -191,7 +191,7 @@ function makeRendererHarness({
 
   const elements = new Map();
   for (const id of ids) {
-    const element = makeElement(id === 'titleInput' || id === 'searchInput' ? 'input' : 'div', id);
+    const element = makeElement(id === 'titleInput' ? 'textarea' : id === 'searchInput' ? 'input' : 'div', id);
     element.classList = makeClassList(element);
     elements.set(id, element);
   }
@@ -5228,4 +5228,140 @@ test('mouse click aligns the clicked note to the top using getBoundingClientRect
 
   assert.equal(noteList.scrollTop, 50,
     'mouse click must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
+});
+
+// ── Stage 10.1: title textarea + sidebar default ──────────────────────────────
+
+test('titleInput is a textarea element', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  assert.equal(elements.get('titleInput').tagName, 'TEXTAREA',
+    'titleInput must be a textarea so long titles can wrap to multiple lines');
+});
+
+test('titleInput.value interface is preserved: setting value and firing input updates note title', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Short', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const titleInput = elements.get('titleInput');
+  const longTitle = 'A Very Long Title That Would Wrap Across Multiple Lines In A Narrow Editor Column';
+  titleInput.value = longTitle;
+  titleInput.fire('input');
+  assert.equal(titleInput.value, longTitle, 'titleInput.value must reflect the long title');
+});
+
+test('titleInput is disabled when no note is selected', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  assert.equal(elements.get('titleInput').disabled, true,
+    'titleInput must be disabled with no note selected');
+});
+
+test('titleInput is enabled after selecting a note', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  assert.equal(elements.get('titleInput').disabled, false,
+    'titleInput must be enabled once a note is selected');
+});
+
+test('sidebar is open by default on fresh boot', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  const toggle = elements.get('sidebarToggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true',
+    'sidebar toggle aria-expanded must be true (open) on fresh boot');
+});
+
+test('sidebar toggle closes then re-opens the sidebar', () => {
+  const { elements } = makeRendererHarness({ vaultNotes: [] });
+  const toggle = elements.get('sidebarToggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true', 'starts open');
+  toggle.fire('click');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false', 'closed after first click');
+  toggle.fire('click');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true', 're-opened after second click');
+});
+
+// ── Stage 10.1 revision: title newline normalization ──────────────────────────
+
+test('Enter keydown in title textarea is prevented', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  let preventDefaultCalled = false;
+  elements.get('titleInput').fire('keydown', {
+    key: 'Enter',
+    isComposing: false,
+    preventDefault() { preventDefaultCalled = true; },
+  });
+  assert.ok(preventDefaultCalled, 'non-composing Enter in title textarea must call preventDefault()');
+});
+
+test('Enter keydown during IME composition in title textarea does not call preventDefault', async () => {
+  const { elements } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  let preventDefaultCalled = false;
+  elements.get('titleInput').fire('keydown', {
+    key: 'Enter',
+    isComposing: true,
+    preventDefault() { preventDefaultCalled = true; },
+  });
+  assert.ok(!preventDefaultCalled, 'composing Enter must not call preventDefault() — IME commit must not be blocked');
+});
+
+test('multiline paste into title textarea is normalized to single line before note title is stored', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const titleInput = elements.get('titleInput');
+  titleInput.value = 'Line 1\nLine 2\r\nLine 3';
+  titleInput.fire('input');
+  assert.ok(!titleInput.value.includes('\n'), 'titleInput.value must have no newlines after normalization');
+  assert.ok(!titleInput.value.includes('\r'), 'titleInput.value must have no CR after normalization');
+  assert.equal(titleInput.value, 'Line 1 Line 2 Line 3', 'newlines replaced by spaces');
+});
+
+test('selectedNote.title contains no \\r or \\n after multiline title input', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('titleInput').value = 'First\nSecond';
+  elements.get('titleInput').fire('input');
+  await elements.get('saveNoteButton').fireAsync('click');
+  const savedTitle = calls.saveNotePayloads[0].note.title;
+  assert.ok(!savedTitle.includes('\n'), 'save payload title must contain no newline');
+  assert.ok(!savedTitle.includes('\r'), 'save payload title must contain no CR');
+  assert.equal(savedTitle, 'First Second');
+});
+
+test('rename-on-save uses the normalized (newline-free) title', async () => {
+  const { elements, calls } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('titleInput').value = 'New\nTitle';
+  elements.get('titleInput').fire('input');
+  await elements.get('saveNoteButton').fireAsync('click');
+  const payload = calls.saveNotePayloads[0];
+  assert.ok(!payload.note.title.includes('\n'), 'rename payload title must be newline-free');
+  assert.equal(payload.note.title, 'New Title', 'rename uses the space-joined normalized title');
 });
