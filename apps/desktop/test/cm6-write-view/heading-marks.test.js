@@ -370,3 +370,115 @@ test('24. source-file invariant: no widget / no Decoration.replace in cm6-hybrid
   assert.ok(!src.includes('HeadingWidget'),      'must not contain HeadingWidget');
   assert.ok(!src.includes('ParagraphWidget'),    'must not contain ParagraphWidget');
 });
+
+// ── Stage 11.7: inline link live styling (non-clickable) ────────────────────
+
+test('25. "[OpenAI](https://openai.com)" emits cm-md-link-text over the label', () => {
+  const doc = '[OpenAI](https://openai.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const linkText = marks.find((m) => m.class === 'cm-md-link-text');
+  assert.ok(linkText, 'cm-md-link-text mark exists');
+  assert.equal(linkText.from, 1, 'starts after the opening "["');
+  assert.equal(linkText.to,   7, 'ends before the closing "]"');
+});
+
+test('26. inline link punctuation and URL get cm-md-syntax cm-md-link-mark', () => {
+  const doc = '[OpenAI](https://openai.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const linkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-link-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  // Expected: "[", "]", "(", URL, ")" → 5 ranges total.
+  assert.equal(linkMarks.length, 5, 'four LinkMarks plus the URL');
+  // Verify the URL range is covered.
+  const urlRange = linkMarks.find((m) => m.from === 9 && m.to === 27);
+  assert.ok(urlRange, 'URL range [9,27] covered with link-mark');
+});
+
+test('27. link with title also hides the title as link syntax', () => {
+  const doc = '[OpenAI](https://openai.com "the title")';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const linkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-link-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  // Expected: "[", "]", "(", URL, LinkTitle, ")" → 6 ranges total.
+  assert.equal(linkMarks.length, 6, 'five LinkMarks/URL plus the LinkTitle');
+  const titleRange = linkMarks.find((m) => m.from === 28 && m.to === 39);
+  assert.ok(titleRange, 'LinkTitle range covered with link-mark');
+});
+
+test('28. "[**bold link**](url)" emits both cm-md-link-text and cm-md-bold', () => {
+  const doc = '[**bold link**](https://example.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const linkText = marks.find((m) => m.class === 'cm-md-link-text');
+  const bold     = marks.find((m) => m.class === 'cm-md-bold');
+  assert.ok(linkText, 'cm-md-link-text exists');
+  assert.ok(bold,     'cm-md-bold exists (nested formatting still applies)');
+  // Link text covers the full label including the ** delimiters.
+  assert.equal(linkText.from, 1);
+  assert.equal(linkText.to,   14);
+  // Bold covers the StrongEmphasis range inside.
+  assert.equal(bold.from, 1);
+  assert.equal(bold.to,   14);
+});
+
+test('29. "![alt](image.png)" gets no cm-md-link-text and no cm-md-link-mark', () => {
+  const doc = '![alt text](image.png)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
+    'image alt text must not be styled as link text');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
+    'image syntax must not be styled as link syntax');
+});
+
+test('30. "[OpenAI][1]" reference-style link is not styled (no URL child)', () => {
+  const doc = '[OpenAI][1]\n\n[1]: https://openai.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
+    'reference-style link must not get cm-md-link-text');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
+    'reference-style link must not get cm-md-link-mark');
+});
+
+test('31. "<https://openai.com>" autolink gets no cm-md-link-mark', () => {
+  const doc = '<https://openai.com>';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0);
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
+    'autolink must not be styled as Markdown link');
+});
+
+test('32. bare "https://openai.com" gets no cm-md-link-mark', () => {
+  const doc = 'go to https://openai.com today';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0);
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
+    'bare URL must not be styled');
+});
+
+test('33. "# See [OpenAI](https://openai.com)" composes heading and link marks', () => {
+  const doc = '# See [OpenAI](https://openai.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Heading marks (Stage 11.4 invariant).
+  assert.ok(marks.some((m) => m.class === 'cm-md-h1'),           'cm-md-h1 present');
+  assert.ok(marks.some((m) => m.class === 'cm-md-heading-mark'), 'cm-md-heading-mark present');
+  // Link marks (Stage 11.7).
+  const linkText = marks.find((m) => m.class === 'cm-md-link-text');
+  assert.ok(linkText, 'cm-md-link-text present inside heading');
+  assert.equal(linkText.from, 7,  'after the "[" at position 6');
+  assert.equal(linkText.to,   13, 'before the "]" at position 13');
+  const linkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-link-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(linkMarks.length, 5, 'four LinkMarks plus URL');
+});
+
+test('34. source-file invariant: no <a / no href in cm6-hybrid-view.js', () => {
+  // Stage 11.7 must remain non-clickable. No <a> tag and no href anywhere
+  // in the hybrid view source — including comments and string literals.
+  const fs   = require('node:fs');
+  const path = require('node:path');
+  const src  = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'lib', 'cm6-hybrid-view.js'),
+    'utf8'
+  );
+  assert.ok(!src.includes('<a'),    'must not contain "<a" anywhere');
+  assert.ok(!src.includes('href'),  'must not contain "href" anywhere');
+});

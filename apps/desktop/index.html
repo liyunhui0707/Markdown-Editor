@@ -614,6 +614,18 @@
         opacity: 0.5;
       }
 
+      /* CM6 hybrid live-styling — inline links (Stage 11.7).
+         Inline [text](url) labels render as underlined link-like text.
+         No <a>, no href, no click behavior — purely Decoration.mark styling.
+         Brackets, parens, URL, and optional title share the cm-md-syntax
+         hide/reveal mechanism above. */
+      .cm-md-link-text {
+        text-decoration:           underline;
+        text-decoration-color:     var(--text-muted);
+        text-decoration-thickness: 1px;
+        text-underline-offset:     2px;
+      }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write
