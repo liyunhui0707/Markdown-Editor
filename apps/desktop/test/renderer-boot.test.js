@@ -5623,3 +5623,15 @@ test('Stage 11.7: .cm-md-link-text rule includes text-decoration', () => {
   assert.ok(ruleBlock.includes('text-decoration'),
     '.cm-md-link-text must use text-decoration to give link-like styling');
 });
+
+test('Stage 11.8: index.html contains .cm-md-list-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-list-mark'),
+    'must have .cm-md-list-mark CSS rule for dimmed list markers');
+});
+
+test('Stage 11.8: index.html contains .cm-md-quote-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-quote-mark'),
+    'must have .cm-md-quote-mark CSS rule for dimmed blockquote markers');
+});

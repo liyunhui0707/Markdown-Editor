@@ -482,3 +482,110 @@ test('34. source-file invariant: no <a / no href in cm6-hybrid-view.js', () => {
   assert.ok(!src.includes('<a'),    'must not contain "<a" anywhere');
   assert.ok(!src.includes('href'),  'must not contain "href" anywhere');
 });
+
+// ── Stage 11.8: list and blockquote marker dimming ──────────────────────────
+
+test('35. "- one" emits one cm-md-list-mark over the dash', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('- one'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1);
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   1);
+});
+
+test('36. "* one" emits one cm-md-list-mark over the asterisk', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('* one'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1);
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   1);
+});
+
+test('37. "+ one" emits one cm-md-list-mark over the plus', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('+ one'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1);
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   1);
+});
+
+test('38. "1. one" emits one cm-md-list-mark over "1."', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('1. one'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1);
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   2, 'covers both "1" and "."');
+});
+
+test('39. "1) one" emits one cm-md-list-mark over "1)"', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('1) one'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1);
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   2, 'covers both "1" and ")"');
+});
+
+test('40. "> quote" emits one cm-md-quote-mark over ">"', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('> a quote'), cm6));
+  const quoteMarks = marks.filter((m) => m.class === 'cm-md-quote-mark');
+  assert.equal(quoteMarks.length, 1);
+  assert.equal(quoteMarks[0].from, 0);
+  assert.equal(quoteMarks[0].to,   1);
+});
+
+test('41. multi-line bullet list emits one cm-md-list-mark per item', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('- one\n- two\n- three'), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 3, 'three list items, three markers');
+});
+
+test('42. multi-line blockquote emits one cm-md-quote-mark per line', () => {
+  // Lezer quirk: lines 2+ markers live inside the spanning Paragraph node,
+  // not as direct children of Blockquote. The iterator still reaches them.
+  const marks = collectMarks(buildHeadingDecorations(makeState('> first\n> second\n> third'), cm6));
+  const quoteMarks = marks.filter((m) => m.class === 'cm-md-quote-mark');
+  assert.equal(quoteMarks.length, 3);
+});
+
+test('43. nested bullet list emits cm-md-list-mark at each level', () => {
+  const doc = '- outer\n  - inner\n  - inner2\n- another';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 4, 'one outer, two inner, one second outer');
+});
+
+test('44. nested blockquote emits cm-md-quote-mark at each level', () => {
+  // Per the parser diagnostic, "> outer\n>> inner\n> back" emits FOUR
+  // QuoteMark ranges: outer ">", first ">" of ">>", second ">" of ">>",
+  // and the ">" of "> back".
+  const doc = '> outer\n>> inner\n> back';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const quoteMarks = marks.filter((m) => m.class === 'cm-md-quote-mark');
+  assert.equal(quoteMarks.length, 4);
+});
+
+test('45. "- item with **bold**" emits both cm-md-list-mark and cm-md-bold', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('- item with **bold** text'), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-list-mark'),  'cm-md-list-mark present');
+  assert.ok(marks.some((m) => m.class === 'cm-md-bold'),       'cm-md-bold present (nested inline still works)');
+});
+
+test('46. "> see [OpenAI](url)" emits both cm-md-quote-mark and cm-md-link-text', () => {
+  const doc = '> see [OpenAI](https://openai.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-quote-mark'), 'cm-md-quote-mark present');
+  assert.ok(marks.some((m) => m.class === 'cm-md-link-text'),  'cm-md-link-text present (nested inline link)');
+});
+
+test('47. "- [ ] todo" emits cm-md-list-mark only — task checkbox stays raw', () => {
+  // Stage 11.8 dims the bullet "-" but does NOT style the TaskMarker "[ ]".
+  // Interactive checkboxes are explicitly deferred.
+  const marks = collectMarks(buildHeadingDecorations(makeState('- [ ] todo'), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-list-mark').length, 1,
+    'list mark for the dash');
+  // Verify no class names ending with "-task" / containing "task" exist.
+  for (const m of marks) {
+    assert.ok(typeof m.class !== 'string' || !/task/i.test(m.class),
+      'no task-checkbox class should be emitted');
+  }
+});

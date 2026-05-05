@@ -157,6 +157,24 @@
                     .range(node.from, node.to)
                 );
               }
+            } else if (name === 'ListMark') {
+              // Stage 11.8: dim "-", "*", "+", "1.", "1)" markers. ListMark
+              // appears only inside ListItem per the parser, so no parent
+              // guard is needed. Markers stay visible (not hidden) so the
+              // visual structure of lists is preserved.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-list-mark' })
+                  .range(node.from, node.to)
+              );
+            } else if (name === 'QuoteMark') {
+              // Stage 11.8: dim ">" markers. QuoteMark appears only inside
+              // Blockquote (or its spanning Paragraph for multi-line cases),
+              // so no parent guard is needed. Like ListMark, the marker stays
+              // visible so the quoted-block character remains scannable.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-quote-mark' })
+                  .range(node.from, node.to)
+              );
             }
           },
         });
