@@ -6009,3 +6009,356 @@ test('Stage 11.9: index.html contains .cm-md-fenced-code-info rule', () => {
   assert.ok(html.includes('.cm-md-fenced-code-info'),
     'must have .cm-md-fenced-code-info CSS rule for dimmed code-block language info');
 });
+
+// ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────
+//
+// These tests exercise host-level wiring (save payload, dirty state, close
+// guard, Save All, note switching) against the hybrid-cm6 engine using the
+// renderer harness's Cm6HybridView mock. Real CM6 state-level coverage and
+// long-document smoke live in test/cm6-write-view/hybrid-cm6-readiness.test.js.
+//
+// Stage 11.11 must not change product behavior; these are tests-only changes
+// to prove parity with the cm6 engine before any future default flip.
+
+// ── Section A: engine boot / selection ──
+//
+// A.1 default-cm6 boot is already covered above (renderer-boot test "default
+// boot still uses CM6, not Cm6HybridView" at the Stage 11.2 boot section).
+// A.2 ?writeEngine=hybrid-cm6 boot is covered there as well.
+// A.5 ?writeEngine=hybrid → HybridWriteView is covered at the Stage 5.x
+// section. A.3 and A.4 are the new gaps.
+
+test('Stage 11.11/A.3: localStorage hybrid-cm6 boots Cm6HybridView when no query is present', () => {
+  const { calls } = makeRendererHarness({ storageValue: 'hybrid-cm6' });
+  assert.deepEqual(calls.resolvedEngines, ['hybrid-cm6']);
+  assert.equal(calls.cm6HybridConstructed, 1, 'Cm6HybridView must be constructed');
+  assert.equal(calls.cm6Constructed,       0, 'normal CM6 must not be constructed');
+  assert.equal(calls.hybridConstructed,    0, 'old HybridWriteView must not be constructed');
+});
+
+test('Stage 11.11/A.4: ?writeEngine=cm6 overrides localStorage hybrid-cm6', () => {
+  const { calls } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    storageValue: 'hybrid-cm6',
+  });
+  assert.deepEqual(calls.resolvedEngines, ['cm6']);
+  assert.equal(calls.cm6Constructed,       1, 'URL must win — normal CM6 is constructed');
+  assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed');
+});
+
+// ── Section B: raw Markdown save payload ──
+
+test('Stage 11.11/B.1-3: hybrid-cm6 save payload is raw Markdown across all live-styled constructs', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:r.md', title: 'Readiness',
+      body: '# Readiness\n\nseed',
+      fileName: 'r.md', relativePath: 'r.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // A document that exercises every Stage 11.4–11.9 live-styled construct.
+  const raw = [
+    '# Heading 1',
+    '',
+    'Body with **bold**, *italic*, and `inline code`.',
+    '',
+    '[OpenAI](https://openai.com)',
+    '',
+    '- bullet one',
+    '- bullet two',
+    '',
+    '> a blockquote',
+    '',
+    '```js',
+    'let x = 1;',
+    '```',
+    '',
+  ].join('\n');
+  calls.cm6HybridAdapter.text = raw;
+  calls.cm6HybridOnChange(raw);
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'one save must occur');
+  const body = calls.saveNotePayloads[0].note.body;
+
+  // B.1+B.2 — payload IS the raw Markdown.
+  assert.equal(body, raw, 'save payload must be the raw Markdown verbatim');
+  assert.ok(body.includes('# '),               'payload preserves "#" heading marker');
+  assert.ok(body.includes('**bold**'),         'payload preserves "**" bold markers');
+  assert.ok(body.includes('[OpenAI](https://openai.com)'),
+    'payload preserves inline link "[text](url)" syntax');
+  assert.ok(body.includes('\n- bullet one'),   'payload preserves "-" list marker');
+  assert.ok(body.includes('\n> a blockquote'), 'payload preserves ">" blockquote marker');
+  assert.ok(body.includes('```'),              'payload preserves "```" fence delimiter');
+
+  // B.3 — payload contains no rendered styling artifacts.
+  assert.ok(!body.includes('cm-md-'),   'no Decoration class names');
+  assert.ok(!body.includes('<h1'),      'no rendered heading HTML');
+  assert.ok(!body.includes('<strong'),  'no rendered <strong>');
+  assert.ok(!body.includes('<em'),      'no rendered <em>');
+  assert.ok(!body.includes('<code'),    'no rendered <code>');
+  assert.ok(!body.includes('<a '),      'no rendered <a>');
+  assert.ok(!body.includes('href='),    'no link href attribute');
+  assert.ok(!body.includes('<ul'),      'no rendered <ul>');
+  assert.ok(!body.includes('<blockquote'), 'no rendered <blockquote>');
+});
+
+// ── Section C: dirty-state parity ──
+
+test('Stage 11.11/C.1: editing body in hybrid-cm6 marks the note dirty', () => {
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid-cm6' });
+  elements.get('newNoteButton').fire('click');
+
+  // Pre-edit: untouched draft is not dirty.
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.deepEqual(summary, { count: 0, hasDraft: false, hasDirtyVault: false });
+
+  calls.cm6HybridOnChange('Real content typed by the user.');
+
+  let postSummary = 'unset';
+  calls.closeRequestHandler((s) => { postSummary = s; });
+  assert.deepEqual(postSummary, { count: 1, hasDraft: true, hasDirtyVault: false },
+    'meaningful onChange in hybrid-cm6 must mark the draft dirty');
+});
+
+test('Stage 11.11/C.2: setText / load in hybrid-cm6 does NOT mark the note dirty', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A\n\nbody',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Loading the vault routed setText through the adapter; nothing should be dirty.
+  assert.ok(calls.cm6HybridSetText.length >= 1, 'setText must have been used to load the note');
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.deepEqual(summary, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'loading via setText must not mark anything dirty');
+});
+
+test('Stage 11.11/C.3: editing title in hybrid-cm6 marks the note dirty', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A\n\nbody',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  elements.get('titleInput').value = 'A renamed';
+  elements.get('titleInput').fire('input');
+
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.deepEqual(summary, { count: 1, hasDraft: false, hasDirtyVault: true },
+    'title-only edit must mark the vault note dirty');
+});
+
+test('Stage 11.11/C.4: returning body to baseline in hybrid-cm6 clears dirty', async () => {
+  // dirty-state.test.js already proves the underlying body===loadedBody rule
+  // (test "vault note returning to original body via undo is NOT dirty"). This
+  // test pins the same semantic through the hybrid-cm6 onChange wiring.
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A\n\nbody',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit → dirty
+  calls.cm6HybridOnChange('# A\n\nbody edited');
+  let dirty = 'unset';
+  calls.closeRequestHandler((s) => { dirty = s; });
+  assert.deepEqual(dirty, { count: 1, hasDraft: false, hasDirtyVault: true });
+
+  // Revert to baseline → not dirty
+  calls.cm6HybridOnChange('# A\n\nbody');
+  let clean = 'unset';
+  calls.closeRequestHandler((s) => { clean = s; });
+  assert.deepEqual(clean, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'returning body to loadedBody clears dirty in hybrid-cm6');
+});
+
+// ── Section D: close guard parity ──
+//
+// D.3 (save/discard flow) and D.4 (failed-summary unsafe behavior) are
+// engine-agnostic and already covered by Stage 6.3A tests "responder reports
+// null when DirtyState is missing" and "responder reports null when
+// summarizeDirty throws". The summary responder is wired once at boot and
+// has no per-engine code path. D.1 + D.2 below pin the boot wiring against
+// hybrid-cm6 explicitly.
+
+test('Stage 11.11/D.1: dirty hybrid-cm6 note triggers a non-clean close summary', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6HybridOnChange('# A edited via hybrid-cm6');
+
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.deepEqual(summary, { count: 1, hasDraft: false, hasDirtyVault: true },
+    'dirty hybrid-cm6 vault note must surface in the close-request summary');
+});
+
+test('Stage 11.11/D.2: clean hybrid-cm6 note produces a clean close summary', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  let summary = 'unset';
+  calls.closeRequestHandler((s) => { summary = s; });
+  assert.deepEqual(summary, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'fresh-loaded hybrid-cm6 vault note must produce a clean summary');
+});
+
+// ── Section E: Save All parity ──
+
+test('Stage 11.11/E.1+E.3: Save All in hybrid-cm6 saves raw Markdown for multiple dirty notes', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# A\n\norig-a',
+        fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# B\n\norig-b',
+        fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Edit A first.
+  calls.cm6HybridAdapter.text = '# A\n\n**edited-a** with [link](https://x.test)';
+  calls.cm6HybridOnChange(calls.cm6HybridAdapter.text);
+
+  // Switch to B and edit it too.
+  elements.get('noteList').children[1].fire('click');
+  calls.cm6HybridAdapter.text = '# B\n\n- bullet\n\n> quoted-edited-b';
+  calls.cm6HybridOnChange(calls.cm6HybridAdapter.text);
+
+  const result = await invokeSaveAllHandler(calls);
+
+  // E.1
+  assert.equal(result.ok, true,         'save-all must succeed');
+  assert.equal(result.savedCount, 2,    'both dirty notes must be saved');
+  assert.equal(calls.saveNotePayloads.length, 2);
+  assert.deepEqual(
+    calls.saveNotePayloads.map((p) => p.note.relativePath),
+    ['a.md', 'b.md'],
+    'snapshot order preserved in save-all'
+  );
+
+  // E.3 — payloads contain raw Markdown only.
+  for (const p of calls.saveNotePayloads) {
+    assert.ok(!p.note.body.includes('cm-md-'),  'no Decoration class names in any save-all payload');
+    assert.ok(!p.note.body.includes('<h1'),     'no rendered <h1>');
+    assert.ok(!p.note.body.includes('<strong'), 'no rendered <strong>');
+    assert.ok(!p.note.body.includes('<a '),     'no rendered <a>');
+  }
+  assert.match(calls.saveNotePayloads[0].note.body, /\*\*edited-a\*\*/);
+  assert.match(calls.saveNotePayloads[0].note.body, /\[link\]\(https:\/\/x\.test\)/);
+  assert.match(calls.saveNotePayloads[1].note.body, /^- bullet$/m);
+  assert.match(calls.saveNotePayloads[1].note.body, /^> quoted-edited-b$/m);
+});
+
+test('Stage 11.11/E.2: Save All in hybrid-cm6 blocks an empty-title draft', async () => {
+  // Mirrors Stage 10.2 save-all empty-title test, pinned to hybrid-cm6.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=hybrid-cm6' });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('newNoteButton').fire('click');
+  calls.cm6HybridAdapter.text = 'Important content without a title.';
+  calls.cm6HybridOnChange('Important content without a title.');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, false, 'save-all must fail when a dirty draft has no title');
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'save IPC must not run for an empty-title draft in hybrid-cm6');
+});
+
+test('Stage 11.11/E.4: Save All in hybrid-cm6 final dirty summary is clean only after success', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [{
+      id: 'vault:a.md', title: 'A', body: '# A\n\norig',
+      fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6HybridAdapter.text = '# A\n\nedited';
+  calls.cm6HybridOnChange(calls.cm6HybridAdapter.text);
+
+  // Pre-condition: dirty.
+  let preSummary = 'unset';
+  calls.closeRequestHandler((s) => { preSummary = s; });
+  assert.deepEqual(preSummary, { count: 1, hasDraft: false, hasDirtyVault: true });
+
+  const result = await invokeSaveAllHandler(calls);
+  assert.equal(result.ok, true);
+
+  // Post-condition: clean only after a successful save+refresh.
+  let postSummary = 'unset';
+  calls.closeRequestHandler((s) => { postSummary = s; });
+  assert.deepEqual(postSummary, { count: 0, hasDraft: false, hasDirtyVault: false },
+    'after Save All success in hybrid-cm6, dirty summary must be clean');
+});
+
+// ── Section F.1: note-switching preserves text in hybrid-cm6 ──
+// F.2–F.4 (real-CM6 state round-trip, cursor-only does not fire onChange after
+// live decorations) live in test/cm6-write-view/hybrid-cm6-readiness.test.js.
+
+test('Stage 11.11/F.1: A → B → A in hybrid-cm6 preserves the outgoing edit', async () => {
+  // Like the CM6 engine, hybrid-cm6 exposes getState / setState — so the host
+  // caches per-note EditorState and restores it via setState on return rather
+  // than re-running setText. We verify by reading the adapter's resulting text
+  // (the mock's setState writes state.doc back into adapter.text).
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=hybrid-cm6',
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'A', body: '# Note A',
+        fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'B', body: '# Note B',
+        fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  assert.equal(calls.cm6HybridSetText.at(-1), '# Note A',
+    'A loaded via setText on initial select');
+
+  // Edit A through the adapter buffer (mimicking unflushed CM6 state) and
+  // also fire onChange so the renderer captures it.
+  calls.cm6HybridAdapter.text = '# Note A edited via hybrid-cm6';
+  calls.cm6HybridOnChange(calls.cm6HybridAdapter.text);
+
+  // Switch to B → outgoing flush + B loads via setText.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.cm6HybridSetText.at(-1), '# Note B',
+    'B loaded via setText on switch');
+  assert.equal(calls.cm6HybridAdapter.text, '# Note B', 'adapter now shows B');
+
+  // Switch back to A — the edited body must come back via setState.
+  elements.get('noteList').children[0].fire('click');
+  assert.equal(calls.cm6HybridAdapter.text, '# Note A edited via hybrid-cm6',
+    'A’s in-memory edit must be restored on return through setState');
+  assert.ok(calls.cm6HybridSetState.length >= 1,
+    'host must use setState (not setText) to restore A’s cached editor state');
+});
