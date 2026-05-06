@@ -1331,6 +1331,13 @@
       // race in-flight saves. Save-all does its OWN single refresh
       // after the loop. Cleared in a try/finally to survive throws.
       let saveAllInProgress       = false;
+      // Issue #12 R3: per-note save concurrency latch. saveCurrentNote
+      // is async (it may await chooseVaultFolder() and a delayed IPC),
+      // so a second Cmd+S or toolbar click while the first is in flight
+      // would re-enter and double-dispatch. Set inside saveCurrentNote()
+      // before any await; cleared in try/finally so all exit paths
+      // (success, cancel, thrown error) reset the latch.
+      let savePerNoteInProgress   = false;
       // Per-note editor state cache for note-local undo/redo. Keyed by note id;
       // each value is { state, doc } where state is the opaque engine state and
       // doc is the text it represented at cache time (the mismatch guard).
@@ -1842,6 +1849,26 @@
         setStatusFromSelectedNote();
       }
 
+      // Issue #12 R1a: titleInput listens to 'input', not 'change'. A
+      // keystroke that fires 'keydown' before 'input' leaves
+      // selectedNote.title stale relative to titleInput.value. Save
+      // paths (Cmd+S, toolbar Save, save-all) must reconcile before
+      // reading the model.
+      //
+      // Value-based gate (NOT focus-based): when toolbar Save runs, the
+      // browser has already moved focus to the button, so a focus-gated
+      // sync would be skipped exactly when it's needed. Comparing
+      // normalized titleInput.value against selectedNote.title catches
+      // the staleness regardless of where focus lives.
+      function syncSelectedTitleFromInput() {
+        const selectedNote = getSelectedNote();
+        if (!selectedNote) return;
+        const normalized = normalizeTitleInputValue(titleInput.value);
+        if (titleInput.value !== normalized || selectedNote.title !== normalized) {
+          updateSelectedNoteFromInputs();
+        }
+      }
+
       function createNewNote() {
         const newNote = {
           id: `draft:${nextDraftId}`,
@@ -2218,171 +2245,189 @@
       }
 
       async function saveCurrentNote() {
-        // Stage 6.2: Save Note from the no-vault state opens the existing
-        // Choose Vault flow first. After a successful selection we restore
-        // the originally-targeted draft as the selection (refreshVaultNotes
-        // already does that when the previously-selected note is a
-        // preserved draft) and fall through to the normal save path. If
-        // the user cancels the OS picker, currentVaultPath stays empty and
-        // we bail out without saving — VaultActions has already set the
-        // "Vault selection canceled" status.
-        if (!currentVaultPath) {
-          const targetSelectedNoteId = selectedNoteId;
-          const target = getSelectedNote();
-          if (!target) {
+        // Issue #12 R3: per-note save concurrency latch. Block reentry on
+        // the synchronous prologue so a second Cmd+S or toolbar click
+        // during a delayed IPC / pre-vault picker can't double-dispatch.
+        // Cleared in finally so success, cancel, and thrown-error paths
+        // all reset the latch.
+        if (savePerNoteInProgress) return;
+        savePerNoteInProgress = true;
+        try {
+          // Issue #12 R1a: sync the title BEFORE the pre-vault branch.
+          // refreshVaultNotes() (called by chooseVaultFolder()) decides
+          // draft preservation and uses selectedNote.title for filename
+          // derivation downstream. An unsynced DOM title here would lead
+          // to the wrong preservation decision and the wrong saved name.
+          syncSelectedTitleFromInput();
+
+          // Stage 6.2: Save Note from the no-vault state opens the existing
+          // Choose Vault flow first. After a successful selection we restore
+          // the originally-targeted draft as the selection (refreshVaultNotes
+          // already does that when the previously-selected note is a
+          // preserved draft) and fall through to the normal save path. If
+          // the user cancels the OS picker, currentVaultPath stays empty and
+          // we bail out without saving — VaultActions has already set the
+          // "Vault selection canceled" status.
+          if (!currentVaultPath) {
+            const targetSelectedNoteId = selectedNoteId;
+            const target = getSelectedNote();
+            if (!target) {
+              setStatus('error', 'No note selected');
+              return;
+            }
+            await chooseVaultFolder();
+            if (!currentVaultPath) {
+              // User canceled (or chooseVault errored). VaultActions already
+              // emitted the appropriate ready/error status.
+              return;
+            }
+            // Defensive: the preservation path inside refreshVaultNotes already
+            // restores selection to the dirty draft, but verify before we
+            // attempt to save the wrong note.
+            if (selectedNoteId !== targetSelectedNoteId) {
+              if (notes.some((n) => n.id === targetSelectedNoteId)) {
+                selectedNoteId = targetSelectedNoteId;
+                renderApp();
+              } else {
+                setStatus('error', 'The draft you were saving is no longer available.');
+                return;
+              }
+            }
+            // Fall through to the rest of the normal save flow.
+          }
+
+          const selectedNote = getSelectedNote();
+          if (!selectedNote) {
             setStatus('error', 'No note selected');
             return;
           }
-          await chooseVaultFolder();
-          if (!currentVaultPath) {
-            // User canceled (or chooseVault errored). VaultActions already
-            // emitted the appropriate ready/error status.
+
+          // Stage 10.2: block save when a draft has no title yet.
+          if (selectedNote.source === 'draft' && !String(selectedNote.title || '').trim()) {
+            setStatus('error', 'Enter a title to save this note.');
             return;
           }
-          // Defensive: the preservation path inside refreshVaultNotes already
-          // restores selection to the dirty draft, but verify before we
-          // attempt to save the wrong note.
-          if (selectedNoteId !== targetSelectedNoteId) {
-            if (notes.some((n) => n.id === targetSelectedNoteId)) {
-              selectedNoteId = targetSelectedNoteId;
-              renderApp();
-            } else {
-              setStatus('error', 'The draft you were saving is no longer available.');
-              return;
+
+          // Duplicate-name pre-check: refuse to save if the note's derived
+          // relativePath collides with another in-memory note. Three branches:
+          //   - draft / new file: candidate from title via deriveDraftRelativePath.
+          //   - vault save-in-place (title unchanged from loadedTitle, OR derived
+          //     equals current case-insensitively): no candidate, no check.
+          //   - vault rename (titleChanged AND derived differs case-insensitively
+          //     from current): candidate from deriveRenameRelativePath.
+          // The main process still runs the authoritative `wx` write — this
+          // renderer-side check is fast feedback, not the safety mechanism.
+          if (window.FileName) {
+            const sn = selectedNote;
+            const isVaultBacked = sn.source === 'vault' && sn.relativePath;
+            const loadedTitle = sn.loadedTitle != null ? sn.loadedTitle : sn.title;
+            const titleChanged = isVaultBacked && sn.title !== loadedTitle;
+
+            let candidate = '';
+            if (!isVaultBacked) {
+              candidate = window.FileName.deriveDraftRelativePath(sn.title);
+            } else if (titleChanged) {
+              const derived = window.FileName.deriveRenameRelativePath(sn.relativePath, sn.title);
+              if (derived.toLowerCase() !== String(sn.relativePath).toLowerCase()) {
+                candidate = derived;
+              }
             }
-          }
-          // Fall through to the rest of the normal save flow.
-        }
 
-        const selectedNote = getSelectedNote();
-        if (!selectedNote) {
-          setStatus('error', 'No note selected');
-          return;
-        }
-
-        // Stage 10.2: block save when a draft has no title yet.
-        if (selectedNote.source === 'draft' && !String(selectedNote.title || '').trim()) {
-          setStatus('error', 'Enter a title to save this note.');
-          return;
-        }
-
-        // Duplicate-name pre-check: refuse to save if the note's derived
-        // relativePath collides with another in-memory note. Three branches:
-        //   - draft / new file: candidate from title via deriveDraftRelativePath.
-        //   - vault save-in-place (title unchanged from loadedTitle, OR derived
-        //     equals current case-insensitively): no candidate, no check.
-        //   - vault rename (titleChanged AND derived differs case-insensitively
-        //     from current): candidate from deriveRenameRelativePath.
-        // The main process still runs the authoritative `wx` write — this
-        // renderer-side check is fast feedback, not the safety mechanism.
-        if (window.FileName) {
-          const sn = selectedNote;
-          const isVaultBacked = sn.source === 'vault' && sn.relativePath;
-          const loadedTitle = sn.loadedTitle != null ? sn.loadedTitle : sn.title;
-          const titleChanged = isVaultBacked && sn.title !== loadedTitle;
-
-          let candidate = '';
-          if (!isVaultBacked) {
-            candidate = window.FileName.deriveDraftRelativePath(sn.title);
-          } else if (titleChanged) {
-            const derived = window.FileName.deriveRenameRelativePath(sn.relativePath, sn.title);
-            if (derived.toLowerCase() !== String(sn.relativePath).toLowerCase()) {
-              candidate = derived;
+            if (candidate) {
+              const conflict = window.FileName.findRelativePathConflict({
+                notes,
+                candidateRelativePath: candidate,
+                excludeId: sn.id,
+              });
+              if (conflict) {
+                setStatus(
+                  'error',
+                  `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
+                );
+                return;
+              }
             }
           }
 
-          if (candidate) {
-            const conflict = window.FileName.findRelativePathConflict({
-              notes,
-              candidateRelativePath: candidate,
-              excludeId: sn.id,
-            });
-            if (conflict) {
-              setStatus(
-                'error',
-                `A note named "${candidate}" already exists in this vault. Rename your note to save without overwriting.`
-              );
-              return;
+          setStatus('saving', 'Saving...');
+
+          // Flush any in-progress active-block edit so getText() returns the
+          // committed source before we send it to disk.
+          liveEditorInstance.exitWriteMode();
+          const savedBody = liveEditorInstance.getText();
+          selectedNote.body = savedBody;
+          const preservedDrafts = notes.filter((note) =>
+            note.id !== selectedNote.id && shouldPreserveDraft(note)
+          );
+          // Snapshot in-memory state for every other vault-backed note so the
+          // post-save refresh does not silently revert their unsaved edits to
+          // disk truth. The selected note is excluded — the freshly-saved disk
+          // version is canonical for it.
+          const preservedVaultEdits = snapshotDirtyVaultEdits(selectedNote.relativePath || '');
+
+          const result = await window.vaultApi.saveNote({
+            vaultPath: currentVaultPath,
+            note: {
+              title: selectedNote.title,
+              // Baseline that lets main.js detect intentional title changes.
+              // Defaults to title so the rename gate is no-op when missing.
+              loadedTitle: selectedNote.loadedTitle != null
+                ? selectedNote.loadedTitle
+                : selectedNote.title,
+              body:  savedBody,
+              source: selectedNote.source,
+              fileName: selectedNote.fileName,
+              relativePath: selectedNote.relativePath,
+              frontmatter: {
+                tags:   normalizeTags(selectedNote.frontmatter?.tags),
+                source: selectedNote.frontmatter?.source || ''
+              }
+            }
+          });
+
+          if (!result.ok) {
+            setStatus('error', `Save failed: ${result.error}`);
+            return;
+          }
+
+          // Realign liveEditorLastNoteId BEFORE the post-save refresh so the
+          // upcoming renderEditor sees the same id and noops. That preserves
+          // the live CM6 EditorState (with its undo/redo history) across the
+          // id change AND prevents the per-note view-state capture/restore
+          // from running with stale ids. Fires on ANY id change — both rename
+          // (vault:a.md → vault:b.md) and draft → vault (draft:N → vault:foo.md).
+          if (result.ok && result.relativePath) {
+            const oldId = selectedNote.id;
+            const newId = `vault:${result.relativePath}`;
+            if (oldId !== newId) {
+              // Drop the now-defunct CM6 cache entry. The live editor state is
+              // preserved via the liveEditorLastNoteId realignment below; no
+              // migration of noteEditorStates needed.
+              noteEditorStates.delete(oldId);
+              // Migrate per-note view state (mode + scrollRatio) so the next
+              // visit to this note (under its new id) restores the user's
+              // saved view rather than resetting to the default Write/0.
+              if (noteViewStates.has(oldId)) {
+                noteViewStates.set(newId, noteViewStates.get(oldId));
+                noteViewStates.delete(oldId);
+              }
+              liveEditorLastNoteId = newId;
             }
           }
-        }
 
-        setStatus('saving', 'Saving...');
+          const refreshed = await refreshVaultNotes(
+            result.relativePath,
+            false,
+            preservedDrafts,
+            preservedVaultEdits,
+            true,
+          );
 
-        // Flush any in-progress active-block edit so getText() returns the
-        // committed source before we send it to disk.
-        liveEditorInstance.exitWriteMode();
-        const savedBody = liveEditorInstance.getText();
-        selectedNote.body = savedBody;
-        const preservedDrafts = notes.filter((note) =>
-          note.id !== selectedNote.id && shouldPreserveDraft(note)
-        );
-        // Snapshot in-memory state for every other vault-backed note so the
-        // post-save refresh does not silently revert their unsaved edits to
-        // disk truth. The selected note is excluded — the freshly-saved disk
-        // version is canonical for it.
-        const preservedVaultEdits = snapshotDirtyVaultEdits(selectedNote.relativePath || '');
-
-        const result = await window.vaultApi.saveNote({
-          vaultPath: currentVaultPath,
-          note: {
-            title: selectedNote.title,
-            // Baseline that lets main.js detect intentional title changes.
-            // Defaults to title so the rename gate is no-op when missing.
-            loadedTitle: selectedNote.loadedTitle != null
-              ? selectedNote.loadedTitle
-              : selectedNote.title,
-            body:  savedBody,
-            source: selectedNote.source,
-            fileName: selectedNote.fileName,
-            relativePath: selectedNote.relativePath,
-            frontmatter: {
-              tags:   normalizeTags(selectedNote.frontmatter?.tags),
-              source: selectedNote.frontmatter?.source || ''
-            }
+          if (refreshed) {
+            setStatus('ready', `Saved: ${result.fileName}`);
           }
-        });
-
-        if (!result.ok) {
-          setStatus('error', `Save failed: ${result.error}`);
-          return;
-        }
-
-        // Realign liveEditorLastNoteId BEFORE the post-save refresh so the
-        // upcoming renderEditor sees the same id and noops. That preserves
-        // the live CM6 EditorState (with its undo/redo history) across the
-        // id change AND prevents the per-note view-state capture/restore
-        // from running with stale ids. Fires on ANY id change — both rename
-        // (vault:a.md → vault:b.md) and draft → vault (draft:N → vault:foo.md).
-        if (result.ok && result.relativePath) {
-          const oldId = selectedNote.id;
-          const newId = `vault:${result.relativePath}`;
-          if (oldId !== newId) {
-            // Drop the now-defunct CM6 cache entry. The live editor state is
-            // preserved via the liveEditorLastNoteId realignment below; no
-            // migration of noteEditorStates needed.
-            noteEditorStates.delete(oldId);
-            // Migrate per-note view state (mode + scrollRatio) so the next
-            // visit to this note (under its new id) restores the user's
-            // saved view rather than resetting to the default Write/0.
-            if (noteViewStates.has(oldId)) {
-              noteViewStates.set(newId, noteViewStates.get(oldId));
-              noteViewStates.delete(oldId);
-            }
-            liveEditorLastNoteId = newId;
-          }
-        }
-
-        const refreshed = await refreshVaultNotes(
-          result.relativePath,
-          false,
-          preservedDrafts,
-          preservedVaultEdits,
-          true,
-        );
-
-        if (refreshed) {
-          setStatus('ready', `Saved: ${result.fileName}`);
+        } finally {
+          savePerNoteInProgress = false;
         }
       }
 
@@ -2617,6 +2662,11 @@
               beforeFlush.body = liveEditorInstance.getText();
             }
           }
+
+          // 1b. Issue #12 R1a: sync the selected note's title from the
+          // DOM so an unflushed titleInput keystroke is captured before
+          // the dirty-id snapshot below classifies notes as clean/dirty.
+          syncSelectedTitleFromInput();
 
           // 2. Snapshot dirty ids.
           const dirtyIds = notes
