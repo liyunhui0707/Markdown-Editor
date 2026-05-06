@@ -6010,6 +6010,25 @@ test('Stage 11.9: index.html contains .cm-md-fenced-code-info rule', () => {
     'must have .cm-md-fenced-code-info CSS rule for dimmed code-block language info');
 });
 
+// ── Stage 12.1: bottom scroll padding for the CM6 editor ─────────────────
+//
+// The Write-mode CM6 editor (used by both ?writeEngine=cm6 and
+// ?writeEngine=hybrid-cm6) gets a bottom padding so the last line of a long
+// document can be manually scrolled up to roughly the middle of the viewport.
+// CSS-only — no document mutation, no save-payload effect, no dirty-state
+// effect. Acceptance criterion is "manual scroll past end"; automatic
+// cursor centering on Cmd+End is intentionally NOT a contract.
+
+test('Stage 12.1: index.html scopes #hybridWritePane .cm-content padding-bottom: 50vh', () => {
+  const html = readIndexHtml();
+  // Bind the entire rule in one regex so we pin: (a) the scoped selector,
+  // (b) padding-bottom inside that block, and (c) the exact 50vh value.
+  // [\s\S]*? is non-greedy so the match cannot escape the closing brace.
+  const re = /#hybridWritePane\s+\.cm-content\s*\{[\s\S]*?padding-bottom\s*:\s*50vh\s*;?[\s\S]*?\}/;
+  assert.ok(re.test(html),
+    'must contain "#hybridWritePane .cm-content { … padding-bottom: 50vh; … }"');
+});
+
 // ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────
 //
 // These tests exercise host-level wiring (save payload, dirty state, close

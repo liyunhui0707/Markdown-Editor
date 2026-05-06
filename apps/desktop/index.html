@@ -641,6 +641,16 @@
       .cm-md-fenced-code-mark { color: var(--text-muted); }
       .cm-md-fenced-code-info { color: var(--text-muted); }
 
+      /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
+         of a long document be manually scrolled up to roughly the middle of
+         the viewport, leaving ~half a viewport of empty space below. Pure
+         layout: nothing enters view.state.doc, so save payload, dirty state,
+         and Preview mode are all unaffected. Scoped to the Write-mode mount
+         so the legacy hybrid (textareas, no .cm-content) is excluded. */
+      #hybridWritePane .cm-content {
+        padding-bottom: 50vh;
+      }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write
