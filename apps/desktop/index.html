@@ -614,6 +614,33 @@
         opacity: 0.5;
       }
 
+      /* CM6 hybrid live-styling — inline links (Stage 11.7).
+         Inline [text](url) labels render as underlined link-like text.
+         No <a>, no href, no click behavior — purely Decoration.mark styling.
+         Brackets, parens, URL, and optional title share the cm-md-syntax
+         hide/reveal mechanism above. */
+      .cm-md-link-text {
+        text-decoration:           underline;
+        text-decoration-color:     var(--text-muted);
+        text-decoration-thickness: 1px;
+        text-underline-offset:     2px;
+      }
+
+      /* CM6 hybrid live-styling — list and blockquote markers (Stage 11.8).
+         Markers stay visible at all times so list/quote structure remains
+         scannable; just dim them so the content reads as the focus. No
+         active-line reveal needed because nothing is hidden. */
+      .cm-md-list-mark  { color: var(--text-muted); }
+      .cm-md-quote-mark { color: var(--text-muted); }
+
+      /* CM6 hybrid live-styling — fenced code block markers (Stage 11.9).
+         Fence delimiters (``` and ~~~) and the optional language info
+         string are dimmed but stay visible. Code content is left untouched
+         — the parser doesn't recurse into it, so existing inline branches
+         can't accidentally style Markdown-looking text inside a fence. */
+      .cm-md-fenced-code-mark { color: var(--text-muted); }
+      .cm-md-fenced-code-info { color: var(--text-muted); }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write

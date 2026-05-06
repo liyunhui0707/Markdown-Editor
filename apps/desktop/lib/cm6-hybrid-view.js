@@ -23,10 +23,44 @@
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
+  // True only for an inline Markdown link — a Link node with a direct URL
+  // child. Reference-style Link nodes (which have a LinkLabel instead of a
+  // URL) and non-Link constructs (Image, Autolink, LinkReference, bare URL)
+  // all return false. Used by both the Link branch and the parent-guard for
+  // LinkMark / URL / LinkTitle children.
+  function isInlineLinkNode(linkNode) {
+    if (!linkNode || linkNode.name !== 'Link') return false;
+    for (let child = linkNode.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') return true;
+    }
+    return false;
+  }
+
+  // For an inline Link, return the label range — the text between the first
+  // "[" LinkMark and the first "]" LinkMark. Returns null if the structure
+  // is unexpected. The range can be empty (e.g., "[](url)") and callers
+  // should guard against that before emitting a decoration.
+  function inlineLinkLabelRange(linkNode) {
+    let openBracket = null;
+    let closeBracket = null;
+    for (let child = linkNode.firstChild; child; child = child.nextSibling) {
+      if (child.name !== 'LinkMark') continue;
+      if (!openBracket) {
+        openBracket = child;
+      } else if (!closeBracket) {
+        closeBracket = child;
+        break;
+      }
+    }
+    if (!openBracket || !closeBracket) return null;
+    return { from: openBracket.to, to: closeBracket.from };
+  }
+
   // Walk the Markdown syntax tree and emit Decoration.mark ranges for live
-  // styling: ATX headings (h1–h6) and inline emphasis / inline code. Returns
-  // a DecorationSet (or an equivalent shape from the fake backend used by
-  // adapter-contract tests) — empty when no syntaxTree is available.
+  // styling: ATX headings (h1–h6), inline emphasis / inline code, and
+  // inline Markdown links. Returns a DecorationSet (or an equivalent shape
+  // from the fake backend used by adapter-contract tests) — empty when no
+  // syntaxTree is available.
   //
   // Container nodes are marked with style classes (cm-md-h<N>, cm-md-bold,
   // cm-md-italic, cm-md-inline-code). Their delimiter children (HeaderMark,
@@ -89,8 +123,70 @@
                   .range(node.from, node.to)
               );
             } else if (name === 'CodeMark') {
+              // Lezer reuses CodeMark for InlineCode delimiters AND for
+              // FencedCode block delimiters. They get different decorations:
+              //   - InlineCode  → hidden via cm-md-syntax (revealed on active line)
+              //   - FencedCode  → dimmed but always visible (Stage 11.9)
+              const parent = node.node.parent;
+              if (parent && parent.name === 'InlineCode') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
+                    .range(node.from, node.to)
+                );
+              } else if (parent && parent.name === 'FencedCode') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-fenced-code-mark' })
+                    .range(node.from, node.to)
+                );
+              }
+            } else if (name === 'CodeInfo') {
+              // Stage 11.9: dim the language info string after an opening
+              // fence (e.g., "js" in "```js"). CodeInfo only appears inside
+              // FencedCode per the parser, so no parent guard is needed.
               decorations.push(
-                cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
+                cm6.Decoration.mark({ class: 'cm-md-fenced-code-info' })
+                  .range(node.from, node.to)
+              );
+            } else if (name === 'Link') {
+              // Stage 11.7: inline [text](url) only. Reference-style links
+              // (no URL child) are deferred. Style the label range with
+              // cm-md-link-text; the iterator descends to handle LinkMark/
+              // URL/LinkTitle children plus any nested emphasis in the label.
+              if (isInlineLinkNode(node.node)) {
+                const labelRange = inlineLinkLabelRange(node.node);
+                if (labelRange && labelRange.from < labelRange.to) {
+                  decorations.push(
+                    cm6.Decoration.mark({ class: 'cm-md-link-text' })
+                      .range(labelRange.from, labelRange.to)
+                  );
+                }
+              }
+            } else if (name === 'LinkMark' || name === 'URL' || name === 'LinkTitle') {
+              // Hide brackets, parens, URL, and title — but only when they
+              // belong to an inline Link (excludes Image, Autolink, bare URL,
+              // LinkReference, and reference-style Link nodes without URL).
+              if (isInlineLinkNode(node.node.parent)) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-link-mark' })
+                    .range(node.from, node.to)
+                );
+              }
+            } else if (name === 'ListMark') {
+              // Stage 11.8: dim "-", "*", "+", "1.", "1)" markers. ListMark
+              // appears only inside ListItem per the parser, so no parent
+              // guard is needed. Markers stay visible (not hidden) so the
+              // visual structure of lists is preserved.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-list-mark' })
+                  .range(node.from, node.to)
+              );
+            } else if (name === 'QuoteMark') {
+              // Stage 11.8: dim ">" markers. QuoteMark appears only inside
+              // Blockquote (or its spanning Paragraph for multi-line cases),
+              // so no parent guard is needed. Like ListMark, the marker stays
+              // visible so the quoted-block character remains scannable.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-quote-mark' })
                   .range(node.from, node.to)
               );
             }

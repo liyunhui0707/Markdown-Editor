@@ -5607,3 +5607,43 @@ test('Stage 11.5: index.html reveals inline syntax markers on the active line', 
   assert.ok(html.includes('.cm-activeLine .cm-md-syntax'),
     'must have .cm-activeLine .cm-md-syntax rule for active-line marker visibility');
 });
+
+test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-link-text'),
+    'must have .cm-md-link-text CSS rule for inline link styling');
+});
+
+test('Stage 11.7: .cm-md-link-text rule includes text-decoration', () => {
+  const html = readIndexHtml();
+  // Locate the .cm-md-link-text rule body and assert it sets text-decoration.
+  const idx = html.indexOf('.cm-md-link-text');
+  assert.ok(idx >= 0, 'rule must exist');
+  const ruleBlock = html.slice(idx, idx + 400);
+  assert.ok(ruleBlock.includes('text-decoration'),
+    '.cm-md-link-text must use text-decoration to give link-like styling');
+});
+
+test('Stage 11.8: index.html contains .cm-md-list-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-list-mark'),
+    'must have .cm-md-list-mark CSS rule for dimmed list markers');
+});
+
+test('Stage 11.8: index.html contains .cm-md-quote-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-quote-mark'),
+    'must have .cm-md-quote-mark CSS rule for dimmed blockquote markers');
+});
+
+test('Stage 11.9: index.html contains .cm-md-fenced-code-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-fenced-code-mark'),
+    'must have .cm-md-fenced-code-mark CSS rule for dimmed fence delimiters');
+});
+
+test('Stage 11.9: index.html contains .cm-md-fenced-code-info rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-fenced-code-info'),
+    'must have .cm-md-fenced-code-info CSS rule for dimmed code-block language info');
+});
