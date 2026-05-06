@@ -5635,3 +5635,15 @@ test('Stage 11.8: index.html contains .cm-md-quote-mark rule', () => {
   assert.ok(html.includes('.cm-md-quote-mark'),
     'must have .cm-md-quote-mark CSS rule for dimmed blockquote markers');
 });
+
+test('Stage 11.9: index.html contains .cm-md-fenced-code-mark rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-fenced-code-mark'),
+    'must have .cm-md-fenced-code-mark CSS rule for dimmed fence delimiters');
+});
+
+test('Stage 11.9: index.html contains .cm-md-fenced-code-info rule', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes('.cm-md-fenced-code-info'),
+    'must have .cm-md-fenced-code-info CSS rule for dimmed code-block language info');
+});

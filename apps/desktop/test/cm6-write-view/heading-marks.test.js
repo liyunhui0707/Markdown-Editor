@@ -589,3 +589,92 @@ test('47. "- [ ] todo" emits cm-md-list-mark only — task checkbox stays raw', 
       'no task-checkbox class should be emitted');
   }
 });
+
+// ── Stage 11.9: fenced code block marker dimming ────────────────────────────
+
+test('48. "```\\nfoo\\n```" emits two cm-md-fenced-code-mark ranges', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('```\nfoo\n```'), cm6));
+  const fenceMarks = marks.filter((m) => m.class === 'cm-md-fenced-code-mark');
+  assert.equal(fenceMarks.length, 2, 'opening and closing fence');
+  assert.equal(fenceMarks[0].to - fenceMarks[0].from, 3, 'opening "```" is 3 chars');
+  assert.equal(fenceMarks[1].to - fenceMarks[1].from, 3, 'closing "```" is 3 chars');
+});
+
+test('49. "~~~\\nfoo\\n~~~" emits two cm-md-fenced-code-mark ranges', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('~~~\nfoo\n~~~'), cm6));
+  const fenceMarks = marks.filter((m) => m.class === 'cm-md-fenced-code-mark');
+  assert.equal(fenceMarks.length, 2);
+  assert.equal(fenceMarks[0].to - fenceMarks[0].from, 3);
+  assert.equal(fenceMarks[1].to - fenceMarks[1].from, 3);
+});
+
+test('50. "```js" emits cm-md-fenced-code-info plus two cm-md-fenced-code-mark ranges', () => {
+  const doc = '```js\nlet x = 1;\n```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const info = marks.find((m) => m.class === 'cm-md-fenced-code-info');
+  assert.ok(info, 'cm-md-fenced-code-info present');
+  assert.equal(info.from, 3, 'info starts after "```"');
+  assert.equal(info.to,   5, 'info covers "js"');
+  const fenceMarks = marks.filter((m) => m.class === 'cm-md-fenced-code-mark');
+  assert.equal(fenceMarks.length, 2);
+});
+
+test('51. long fence "```` … ````" emits marker ranges covering the full marker length', () => {
+  const doc = '````\nlet x = 1;\n````';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const fenceMarks = marks.filter((m) => m.class === 'cm-md-fenced-code-mark');
+  assert.equal(fenceMarks.length, 2);
+  assert.equal(fenceMarks[0].to - fenceMarks[0].from, 4, 'opening "````" is 4 chars');
+  assert.equal(fenceMarks[1].to - fenceMarks[1].from, 4, 'closing "````" is 4 chars');
+});
+
+test('52. unclosed fence emits only the opening cm-md-fenced-code-mark', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('```\nstill open'), cm6));
+  const fenceMarks = marks.filter((m) => m.class === 'cm-md-fenced-code-mark');
+  assert.equal(fenceMarks.length, 1, 'only the opening fence');
+  assert.equal(fenceMarks[0].from, 0);
+  assert.equal(fenceMarks[0].to,   3);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-info').length, 0);
+});
+
+test('53. Markdown-looking content inside fenced code emits no inline-style marks', () => {
+  const doc = '```\n# not a heading\n**not bold**\n[not a link](url)\n```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Parser-level guarantee: nothing inside CodeText is parsed as inline syntax.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length,        0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length,      0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0);
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark')).length, 0);
+  // But the fence delimiters are still dimmed.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-mark').length, 2);
+});
+
+test('54. inline `code` outside fenced code still styles correctly', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('outside `code` content'), cm6));
+  // Stage 11.5/11.6 inline-code behavior preserved.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-inline-code').length, 1);
+  const inlineMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-code-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(inlineMarks.length, 2, 'two inline backtick markers (cm-md-syntax)');
+  // Stage 11.9 must NOT misclassify inline backticks as fenced code.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-mark').length, 0);
+});
+
+test('55. fenced code marks must not carry cm-md-syntax', () => {
+  // Fence delimiters stay visible — they are dimmed, not hidden. So they
+  // must NOT carry the cm-md-syntax class that triggers display:none.
+  const marks = collectMarks(buildHeadingDecorations(makeState('```\nfoo\n```'), cm6));
+  for (const m of marks.filter((mm) => hasClassToken(mm.class, 'cm-md-fenced-code-mark'))) {
+    assert.ok(!hasClassToken(m.class, 'cm-md-syntax'),
+      'cm-md-fenced-code-mark must not also carry cm-md-syntax');
+  }
+});
+
+test('56. fence inside list composes list mark + fenced code mark', () => {
+  const doc = '- item\n  ```\n  code\n  ```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-list-mark'),
+    'list dash dimmed by Stage 11.8');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-mark').length, 2,
+    'fence delimiters dimmed by Stage 11.9');
+});

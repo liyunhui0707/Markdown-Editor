@@ -124,15 +124,29 @@
               );
             } else if (name === 'CodeMark') {
               // Lezer reuses CodeMark for InlineCode delimiters AND for
-              // FencedCode block delimiters. Stage 11 leaves fenced code
-              // raw, so scope this decoration to InlineCode parents only.
+              // FencedCode block delimiters. They get different decorations:
+              //   - InlineCode  → hidden via cm-md-syntax (revealed on active line)
+              //   - FencedCode  → dimmed but always visible (Stage 11.9)
               const parent = node.node.parent;
               if (parent && parent.name === 'InlineCode') {
                 decorations.push(
                   cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-code-mark' })
                     .range(node.from, node.to)
                 );
+              } else if (parent && parent.name === 'FencedCode') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-fenced-code-mark' })
+                    .range(node.from, node.to)
+                );
               }
+            } else if (name === 'CodeInfo') {
+              // Stage 11.9: dim the language info string after an opening
+              // fence (e.g., "js" in "```js"). CodeInfo only appears inside
+              // FencedCode per the parser, so no parent guard is needed.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-fenced-code-info' })
+                  .range(node.from, node.to)
+              );
             } else if (name === 'Link') {
               // Stage 11.7: inline [text](url) only. Reference-style links
               // (no URL child) are deferred. Style the label range with
