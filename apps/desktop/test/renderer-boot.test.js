@@ -5063,6 +5063,368 @@ test('Ctrl+Alt+S does not trigger save', async () => {
   assert.ok(!preventDefaultCalled, 'Ctrl+Alt+S must not call preventDefault()');
 });
 
+// ── Stage A (Issue #12 R1a + R3): title sync + per-note save latch ────────
+// R1a: titleInput listens to 'input', not 'change'. A keystroke that fires
+// 'keydown' before 'input' leaves selectedNote.title stale. saveCurrentNote
+// and saveAllDirtyNotes must call updateSelectedNoteFromInputs() (via a
+// value-based gate) before reading selectedNote.title.
+// R3: saveCurrentNote is async. Without a per-note latch, two Cmd+S
+// keystrokes during a delayed save (or pre-vault picker) double-dispatch.
+
+// Manually-released barrier for in-flight latch tests.
+function makeBlocker() {
+  let resolveFn;
+  let rejectFn;
+  const promise = new Promise((res, rej) => { resolveFn = res; rejectFn = rej; });
+  return {
+    wait:    () => promise,
+    release: (v) => resolveFn(v),
+    fail:    (e) => rejectFn(e),
+  };
+}
+
+// Drain the microtask queue so an awaited async function reaches its first
+// real `await` (e.g., the IPC barrier). Two ticks is empirically enough for
+// saveCurrentNote's synchronous prologue.
+async function flushMicrotasks(n = 8) {
+  for (let i = 0; i < n; i++) await Promise.resolve();
+}
+
+// Like fireDocumentKeydown, but returns the in-flight promise *without*
+// awaiting it. Use for concurrency tests where awaiting would block on a
+// barrier that the test hasn't released yet. preventDefaultCalled is
+// readable synchronously because the keydown handler calls preventDefault()
+// before any `await`.
+function fireDocumentKeydownAsync(documentHandlers, key, opts = {}) {
+  let preventDefaultCalled = false;
+  const event = {
+    key,
+    metaKey:     opts.metaKey     || false,
+    ctrlKey:     opts.ctrlKey     || false,
+    shiftKey:    opts.shiftKey    || false,
+    altKey:      opts.altKey      || false,
+    isComposing: opts.isComposing || false,
+    preventDefault() { preventDefaultCalled = true; },
+  };
+  const promise = Promise.all((documentHandlers['keydown'] || []).map((h) => h(event)));
+  return {
+    promise,
+    get preventDefaultCalled() { return preventDefaultCalled; },
+  };
+}
+
+// ── Cluster A: title sync via Cmd+S and toolbar Save ─────────────────────
+
+test('A1: Cmd+S with pending titleInput value saves the new title', async () => {
+  const { calls, elements, documentHandlers, document: doc } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'Original', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Type a new title in the DOM but DO NOT fire 'input' — mirrors the
+  // keydown-before-input race a real keystroke can produce.
+  elements.get('titleInput').value = 'Renamed';
+  doc.activeElement = elements.get('titleInput');
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 1, 'one save dispatched');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Renamed',
+    'saved title reflects the unflushed DOM value');
+});
+
+test('A2: toolbar Save with pending titleInput value (focus moved away) saves the new title', async () => {
+  const { calls, elements, document: doc } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'Original', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  elements.get('titleInput').value = 'Renamed';
+  // Real-browser case: clicking the button moved focus off titleInput
+  // BEFORE the click handler runs. An activeElement-based gate would skip
+  // the sync here; the value-based gate must catch it.
+  doc.activeElement = elements.get('saveNoteButton');
+
+  await elements.get('saveNoteButton').fireAsync('click');
+
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Renamed',
+    'toolbar Save must sync the unflushed title even when focus is not on titleInput');
+});
+
+test('A3: Cmd+S with no selected note dispatches no save', async () => {
+  const { calls, documentHandlers } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+  });
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 0,
+    'Cmd+S with no selection must not dispatch a save');
+});
+
+test('A4: Cmd+S with titleInput.value === selectedNote.title saves the existing title', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'Original', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // titleInput.value already matches selectedNote.title from the load.
+  // Make a body edit so save proceeds (no-op saves return early elsewhere).
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.saveNotePayloads.length, 1);
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Original',
+    'unchanged title flows through unchanged');
+});
+
+// ── Cluster B: concurrency latch ─────────────────────────────────────────
+
+test('B1: two Cmd+S during a delayed save IPC dispatch the IPC once', async () => {
+  const { calls, elements, documentHandlers, window: win } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const blocker  = makeBlocker();
+  const realSave = win.vaultApi.saveNote;
+  win.vaultApi.saveNote = async (payload) => {
+    await blocker.wait();
+    return realSave(payload);
+  };
+
+  // Use the non-awaiting helper so pre-implementation (where the second
+  // call also blocks on the barrier) fails cleanly via the saveNotePayloads
+  // count assertion instead of timing out.
+  const first  = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  const second = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  blocker.release();
+  await Promise.all([first.promise, second.promise]);
+
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'second Cmd+S during in-flight save must not dispatch a second IPC');
+});
+
+test('B2: two Cmd+S during a delayed pre-vault picker open one picker and one save', async () => {
+  const { calls, elements, documentHandlers, window: win } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+  });
+  // Pre-vault draft.
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'Draft';
+  elements.get('titleInput').fire('input');
+  calls.cm6Adapter.text = 'body';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // Block the renderer's chooseVaultFolder behind a barrier.
+  const blocker     = makeBlocker();
+  const realChoose  = win.VaultActions.chooseVaultFolder;
+  win.VaultActions.chooseVaultFolder = async (deps) => {
+    await blocker.wait();
+    return realChoose(deps);
+  };
+
+  const first  = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  const second = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  blocker.release();
+  await Promise.all([first.promise, second.promise]);
+
+  assert.equal(calls.watchVaultFolderPayloads.length, 1,
+    'only one pre-vault picker completes');
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'only one save IPC fires');
+});
+
+test('B3: per-note save latch resets after a successful save', async () => {
+  const { calls, elements, documentHandlers } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A first';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+  assert.equal(calls.saveNotePayloads.length, 1);
+
+  // Make another dirty edit and save again. Latch must have reset.
+  calls.cm6Adapter.text = '# A second';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+  assert.equal(calls.saveNotePayloads.length, 2,
+    'second save proceeds after first completed (latch reset in finally)');
+});
+
+test('B4: per-note save latch resets after a thrown save error', async () => {
+  const { calls, elements, documentHandlers, window: win } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A first';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const realSave = win.vaultApi.saveNote;
+  let throwOnce = true;
+  win.vaultApi.saveNote = async (payload) => {
+    if (throwOnce) {
+      throwOnce = false;
+      throw new Error('simulated IPC throw');
+    }
+    return realSave(payload);
+  };
+
+  // First save throws inside the IPC; finally must reset the latch.
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true }).catch(() => {});
+
+  // Second save (impl now succeeds) must proceed.
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'second save proceeds after first threw (latch reset in finally)');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'A');
+});
+
+test('B5: per-note save latch resets after a pre-vault cancel', async () => {
+  const { calls, elements, documentHandlers, window: win } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    chooseVaultCanceled: true,
+  });
+  // Pre-vault draft with a real title.
+  elements.get('newNoteButton').fire('click');
+  elements.get('titleInput').value = 'Draft';
+  elements.get('titleInput').fire('input');
+  calls.cm6Adapter.text = 'body';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  // First Cmd+S: pre-vault, user cancels.
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+  assert.equal(calls.saveNotePayloads.length, 0, 'cancel produces no save');
+
+  // Second attempt: override VaultActions.chooseVaultFolder to succeed
+  // (no longer canceled). The latch must have reset, so the second Cmd+S
+  // enters saveCurrentNote, completes choose-vault, and dispatches a save.
+  win.VaultActions.chooseVaultFolder = async (deps) => {
+    await deps.stopWatching();
+    deps.setCurrentVaultPath('/fake-vault');
+    deps.updateDisplay();
+    await deps.startWatching();
+    await deps.refreshVaultNotes('', true);
+  };
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'second Cmd+S proceeds (latch was reset by finally)');
+});
+
+test('B6: Cmd+S calls preventDefault even when a save is already in flight', async () => {
+  const { calls, elements, documentHandlers, window: win } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  calls.cm6Adapter.text = '# A edited';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  const blocker  = makeBlocker();
+  const realSave = win.vaultApi.saveNote;
+  win.vaultApi.saveNote = async (payload) => {
+    await blocker.wait();
+    return realSave(payload);
+  };
+
+  const first  = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  const second = fireDocumentKeydownAsync(documentHandlers, 's', { metaKey: true });
+  await flushMicrotasks();
+  // preventDefault is called synchronously by the keydown handler before
+  // it awaits saveCurrentNote, so it is observable here regardless of
+  // whether the latch will accept or reject the call.
+  assert.ok(second.preventDefaultCalled,
+    'Cmd+S during in-flight save must still call preventDefault()');
+
+  blocker.release();
+  await Promise.all([first.promise, second.promise]);
+});
+
+// ── Cluster C: save-all title sync ────────────────────────────────────────
+
+test('C1: Save All with pending titleInput value (only dirty via title) saves the new title', async () => {
+  const { calls, elements, document: doc } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+    vaultNotes: [{
+      id: 'vault:a', title: 'Original', body: '# A', fileName: 'a.md', relativePath: 'a.md',
+    }],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // The body is unchanged from load — the only dirty signal is the
+  // unflushed title in the DOM. Without sync running before dirty-id
+  // snapshotting, save-all would see no dirty notes and dispatch nothing.
+  elements.get('titleInput').value = 'Renamed';
+  doc.activeElement = elements.get('titleInput');
+
+  const result = await invokeSaveAllHandler(calls);
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'sync makes the note dirty before the dirty-id snapshot');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Renamed');
+});
+
+// ── Cluster D: pre-vault title-only Cmd+S (ordering proof) ───────────────
+
+test('D1: pre-vault title-only Cmd+S preserves the draft and saves with the pending title', async () => {
+  const { calls, elements, documentHandlers, document: doc } = makeRendererHarness({
+    search: '?writeEngine=cm6',
+  });
+  // Fresh boot, no vault. Create a draft.
+  elements.get('newNoteButton').fire('click');
+  // Type a title into the DOM WITHOUT firing 'input' — selectedNote.title
+  // stays '' (the createNewNote default).
+  elements.get('titleInput').value = 'Renamed';
+  doc.activeElement = elements.get('titleInput');
+
+  // Body has content so the empty-title guard's title check is what
+  // matters (without sync, title='' would block the save).
+  calls.cm6Adapter.text = 'body';
+  calls.cm6OnChange(calls.cm6Adapter.text);
+
+  await fireDocumentKeydown(documentHandlers, 's', { metaKey: true });
+
+  assert.equal(calls.watchVaultFolderPayloads.length, 1,
+    'vault was chosen during the pre-vault flow');
+  assert.equal(calls.saveNotePayloads.length, 1,
+    'one save dispatched after vault selection');
+  assert.equal(calls.saveNotePayloads[0].note.title, 'Renamed',
+    'saved title reflects the unflushed DOM value (sync ran BEFORE chooseVault)');
+});
+
 // ── Stage 8.2: ArrowDown / ArrowUp note navigation ───────────────────────────
 // After vault load, the renderer auto-selects the first visible note.
 // Tests therefore start from that state (first note at index 0 selected).
