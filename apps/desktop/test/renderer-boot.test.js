@@ -118,7 +118,12 @@ function makeElement(tag = 'div', id = '') {
     focus() {},
     select() {},
     contains(node) {
-      return this === node || this.children.includes(node);
+      if (this === node) return true;
+      for (const child of this.children) {
+        if (child === node) return true;
+        if (child && typeof child.contains === 'function' && child.contains(node)) return true;
+      }
+      return false;
     },
     getBoundingClientRect() {
       return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
@@ -217,6 +222,10 @@ function makeRendererHarness({
   _previewScrollEl.querySelector = function (selector) {
     return selector === '.toastui-editor-contents' ? _previewContentsEl : null;
   };
+  // #23-C: also attach the nested contents as a real child so the harness's
+  // recursive contains() matches real-DOM Node.contains semantics. Tests can
+  // still reach the nested node via the _previewContentsEl alias above.
+  _previewScrollEl.appendChild(_previewContentsEl);
 
   const _toastPreviewMount = elements.get('toastPreviewMount');
   _toastPreviewMount.scrollTop = 0;
@@ -226,6 +235,9 @@ function makeRendererHarness({
   _toastPreviewMount.querySelector = function (selector) {
     return selector === '.toastui-editor-md-preview' ? _previewScrollEl : null;
   };
+  // #23-C: also attach the preview scroller as a real child so the harness's
+  // recursive contains() matches real-DOM Node.contains semantics.
+  _toastPreviewMount.appendChild(_previewScrollEl);
   // hybridWritePane is the Write-side scroll container for both Hybrid and
   // CM6 (the CM6 view mounts inside it via Cm6WriteView's `parent: parent`,
   // and its outer pane's `overflow: auto` handles scrolling).
@@ -5571,6 +5583,81 @@ test('ArrowDown while focus is inside hybridWritePane does nothing', async () =>
 
   assert.deepEqual(classNamesAfter, classNamesBefore, 'ArrowDown inside hybridWritePane must not navigate');
   assert.ok(!preventDefaultCalled, 'ArrowDown inside hybridWritePane must not call preventDefault()');
+});
+
+// ── #23-C: Toast UI Preview pane focus exemption for ArrowUp/ArrowDown ──────
+//
+// When the user is in Preview mode and clicks into the rendered preview pane,
+// ArrowUp/ArrowDown should fall through to the preview's native scroll
+// behavior, not switch notes via the document-level note-nav handler. The
+// existing inTextSurface predicate at index.html:3214-3216 exempts only
+// titleInput, searchInput, and hybridWritePane.contains(focused); the preview
+// pane (toastPreviewMount and its descendants) is not exempted, so ArrowDown
+// inside Preview switches notes — the bug.
+
+test('#23-C: ArrowDown while focus is on the Toast UI Preview scroller does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('previewModeButton').fire('click');
+  doc.activeElement = elements.get('toastPreviewMount')._previewScrollEl;
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore,
+    'ArrowDown on the Preview scroller must not navigate the note list');
+  assert.ok(!preventDefaultCalled,
+    'ArrowDown on the Preview scroller must not call preventDefault()');
+});
+
+test('#23-C: ArrowDown while focus is on the nested Toast UI Preview contents does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  elements.get('previewModeButton').fire('click');
+  doc.activeElement = elements.get('toastPreviewMount')._previewScrollEl._previewContentsEl;
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore,
+    'ArrowDown on the nested Preview contents must not navigate the note list');
+  assert.ok(!preventDefaultCalled,
+    'ArrowDown on the nested Preview contents must not call preventDefault()');
+});
+
+test('#23-C: ArrowUp while focus is on the Toast UI Preview scroller does nothing', async () => {
+  const { elements, documentHandlers, document: doc } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Move to second note so ArrowUp would otherwise navigate back to the first.
+  elements.get('noteList').children[1].fire('click');
+  elements.get('previewModeButton').fire('click');
+  doc.activeElement = elements.get('toastPreviewMount')._previewScrollEl;
+
+  const classNamesBefore = elements.get('noteList').children.map((c) => c.className);
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, 'ArrowUp');
+  const classNamesAfter = elements.get('noteList').children.map((c) => c.className);
+
+  assert.deepEqual(classNamesAfter, classNamesBefore,
+    'ArrowUp on the Preview scroller must not navigate the note list');
+  assert.ok(!preventDefaultCalled,
+    'ArrowUp on the Preview scroller must not call preventDefault()');
 });
 
 // ── Negative: modified arrows must not trigger note navigation ────────────────
