@@ -651,6 +651,16 @@
         padding-bottom: 50vh;
       }
 
+      /* Stage 12.2: hide CM6 line-number gutter and active-line background.
+         CSS-only — extensions stay registered, so .cm-activeLine still drives
+         the marker-reveal rules above used by ?writeEngine=hybrid-cm6. */
+      #hybridWritePane .cm-gutters {
+        display: none;
+      }
+      #hybridWritePane .cm-activeLine {
+        background: transparent !important;
+      }
+
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
          when Preview mode is active via .is-visible. The Toast UI toolbar and
          mode-switch are inert here (HybridWriteView is the active write
