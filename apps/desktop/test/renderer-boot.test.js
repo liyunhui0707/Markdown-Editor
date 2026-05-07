@@ -6029,6 +6029,58 @@ test('Stage 12.1: index.html scopes #hybridWritePane .cm-content padding-bottom:
     'must contain "#hybridWritePane .cm-content { … padding-bottom: 50vh; … }"');
 });
 
+// ── Stage 12.2: hide CM6 line-number gutter and active-line background ──────
+//
+// Two scoped CSS-only overrides on the Write pane:
+//   - #hybridWritePane .cm-gutters    { display: none; }
+//   - #hybridWritePane .cm-activeLine { background: transparent !important; }
+//
+// CSS-only on purpose. The CM6 chrome (lineNumbers, highlightActiveLine,
+// highlightActiveLineGutter) stays registered in lib/cm6-entry.js so the
+// .cm-activeLine class continues to be applied to the cursor's line. That
+// class is the trigger for the Stage 11.4 / 11.5 marker-reveal rules
+// (.cm-activeLine .cm-md-heading-mark, .cm-activeLine .cm-md-syntax) — those
+// must keep working in ?writeEngine=hybrid-cm6.
+//
+// Block-bound regex assertions (same convention as Stage 12.1) bind the
+// scoped selector and the expected property in a single match.
+
+test('Stage 12.2: index.html scopes #hybridWritePane .cm-gutters display: none', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* cannot cross a closing brace, so the property must
+  // appear inside this exact rule's body — not in some later rule (e.g.,
+  // .toast-preview-mount also sets display: none).
+  const re = /#hybridWritePane\s+\.cm-gutters\s*\{[^}]*display\s*:\s*none\s*;?[^}]*\}/;
+  assert.ok(re.test(html),
+    'must contain "#hybridWritePane .cm-gutters { … display: none; … }"');
+});
+
+test('Stage 12.2: index.html scopes #hybridWritePane .cm-activeLine background: transparent !important', () => {
+  const html = readIndexHtml();
+  // Block-bound: the scoped selector and the full `background: transparent
+  // !important` declaration (or the -color shorthand) must appear together
+  // inside this rule's body. !important is load-bearing here — without it,
+  // CM6's injected theme selector wins and the line-wide background remains
+  // visible. [^}]* prevents the match from leaking into a later CSS rule.
+  const re = /#hybridWritePane\s+\.cm-activeLine\s*\{[^}]*background(?:-color)?\s*:\s*transparent\s*!important[^}]*\}/;
+  assert.ok(re.test(html),
+    'must contain "#hybridWritePane .cm-activeLine { … background: transparent !important … }"');
+});
+
+test('Stage 12.2: marker-reveal CSS contract intact (.cm-activeLine .cm-md-heading-mark / .cm-md-syntax keep display: inline)', () => {
+  const html = readIndexHtml();
+  // Load-bearing regression: the Stage 12.2 active-line background override
+  // must NOT disturb the existing marker-reveal rules. Bind selector AND
+  // `display: inline` inside each rule's body using [^}]* so the match
+  // cannot escape into a later CSS block.
+  const headingRe = /\.cm-activeLine\s+\.cm-md-heading-mark\s*\{[^}]*display\s*:\s*inline[^}]*\}/;
+  const syntaxRe  = /\.cm-activeLine\s+\.cm-md-syntax\s*\{[^}]*display\s*:\s*inline[^}]*\}/;
+  assert.ok(headingRe.test(html),
+    '.cm-activeLine .cm-md-heading-mark must still set display: inline (Stage 11.4 marker reveal)');
+  assert.ok(syntaxRe.test(html),
+    '.cm-activeLine .cm-md-syntax must still set display: inline (Stage 11.5 marker reveal)');
+});
+
 // ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────
 //
 // These tests exercise host-level wiring (save payload, dirty state, close
