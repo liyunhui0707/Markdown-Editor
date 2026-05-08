@@ -642,6 +642,18 @@
       .cm-md-list-mark  { color: var(--text-muted); }
       .cm-md-quote-mark { color: var(--text-muted); }
 
+      /* CM6 hybrid live-styling — horizontal rules (Stage 14.1). Source
+         characters (---, ***, ___) stay in the document; this rule only
+         changes their visual presentation. Mark-decoration scoped — no
+         widget, no replacement, no document mutation. Property order
+         (color → opacity → letter-spacing) matches the Stage 14.1
+         block-bound contract test in renderer-boot.test.js. */
+      .cm-md-hr {
+        color:          var(--text-muted);
+        opacity:        0.5;
+        letter-spacing: 0.3em;
+      }
+
       /* CM6 hybrid live-styling — fenced code block markers (Stage 11.9).
          Fence delimiters (``` and ~~~) and the optional language info
          string are dimmed but stay visible. Code content is left untouched

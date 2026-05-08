@@ -678,3 +678,70 @@ test('56. fence inside list composes list mark + fenced code mark', () => {
   assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-mark').length, 2,
     'fence delimiters dimmed by Stage 11.9');
 });
+
+// ── Stage 14.1: HorizontalRule live styling ────────────────────────────────
+//
+// CommonMark thematic breaks (---, ***, ___ on a standalone line) are parsed
+// as HorizontalRule nodes. The hybrid-cm6 engine emits Decoration.mark with
+// class cm-md-hr for the source range; CSS dims and letter-spaces the chars.
+// Source text is never modified.
+//
+// Setext H2 underlines (--- directly under non-blank text) are parsed as
+// SetextHeading2 underlines, NOT as HorizontalRule. The negative test below
+// pins that disambiguation.
+
+test('Stage 14.1: standalone "---" emits a cm-md-hr mark', () => {
+  const doc = '\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1, 'exactly one cm-md-hr mark expected for standalone ---');
+  // The mark range must cover the --- characters (positions of the substring).
+  const start = doc.indexOf('---');
+  assert.equal(hr[0].from, start, 'cm-md-hr mark starts at the first dash');
+  assert.equal(hr[0].to, start + 3, 'cm-md-hr mark ends at the last dash');
+});
+
+test('Stage 14.1: standalone "***" emits a cm-md-hr mark', () => {
+  const doc = '\n***\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1, 'exactly one cm-md-hr mark expected for standalone ***');
+  const start = doc.indexOf('***');
+  assert.equal(hr[0].from, start);
+  assert.equal(hr[0].to, start + 3);
+});
+
+test('Stage 14.1: standalone "___" emits a cm-md-hr mark', () => {
+  const doc = '\n___\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1, 'exactly one cm-md-hr mark expected for standalone ___');
+  const start = doc.indexOf('___');
+  assert.equal(hr[0].from, start);
+  assert.equal(hr[0].to, start + 3);
+});
+
+test('Stage 14.1: Setext H2 underline ("---" after text) is NOT styled as cm-md-hr', () => {
+  // Load-bearing regression: pins parser disambiguation. The --- here is the
+  // SetextHeading2 underline, not a HorizontalRule. If our matcher ever
+  // (incorrectly) styles SetextHeading2 underlines as cm-md-hr, this test
+  // catches it.
+  const doc = 'Heading text\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 0,
+    'Setext H2 underline must not be styled as cm-md-hr — the parser already disambiguates');
+});
+
+test('Stage 14.1: multiple HRs in one document each get their own cm-md-hr mark', () => {
+  const doc = '\n---\n\n***\n\n___\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 3, 'three cm-md-hr marks, one per HR');
+  // Sorted by from-offset; each pair must be non-overlapping.
+  hr.sort((a, b) => a.from - b.from);
+  for (let i = 1; i < hr.length; i++) {
+    assert.ok(hr[i].from >= hr[i - 1].to,
+      `cm-md-hr mark ${i} must not overlap with mark ${i - 1}`);
+  }
+});

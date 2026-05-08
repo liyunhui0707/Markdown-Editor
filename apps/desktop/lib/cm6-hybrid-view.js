@@ -189,6 +189,17 @@
                 cm6.Decoration.mark({ class: 'cm-md-quote-mark' })
                   .range(node.from, node.to)
               );
+            } else if (name === 'HorizontalRule') {
+              // Stage 14.1: dim CommonMark thematic breaks (---, ***, ___).
+              // The parser disambiguates Setext H2 underlines (--- after
+              // non-blank text) as SetextHeading2 and never emits them as
+              // HorizontalRule, so no parent guard is needed. Source chars
+              // stay in the document — only their visual presentation
+              // changes via the cm-md-hr CSS rule.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-hr' })
+                  .range(node.from, node.to)
+              );
             }
           },
         });

@@ -6295,6 +6295,18 @@ test('Stage 11.5: index.html reveals inline syntax markers on the active line', 
     'must have .cm-activeLine .cm-md-syntax rule for active-line marker visibility');
 });
 
+test('Stage 14.1: index.html contains scoped .cm-md-hr rule with dimmed muted color, opacity 0.5, and em letter-spacing', () => {
+  const html = readIndexHtml();
+  // Block-bound: locate the .cm-md-hr rule body and assert all three
+  // expected declarations appear inside that block. [^}]* prevents the
+  // match from leaking across rule boundaries (Stage 12.x convention).
+  // Property order must match the production CSS (color → opacity →
+  // letter-spacing) so the contract is reviewable at a glance.
+  const re = /\.cm-md-hr\s*\{[^}]*color\s*:\s*var\(\s*--text-muted[^}]*opacity\s*:\s*0\.5[^}]*letter-spacing\s*:\s*[\d.]+em[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-hr must declare color: var(--text-muted), opacity: 0.5, and a letter-spacing: <number>em — all inside the same rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),
