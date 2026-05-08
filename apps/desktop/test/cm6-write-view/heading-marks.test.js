@@ -16,6 +16,7 @@ const { EditorState }       = require('@codemirror/state');
 const { Decoration }        = require('@codemirror/view');
 const { syntaxTree }        = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
+const { Strikethrough }              = require('@lezer/markdown');
 
 const { buildHeadingDecorations } = require('../../lib/cm6-hybrid-view');
 
@@ -25,7 +26,11 @@ const cm6 = { Decoration, syntaxTree };
 function makeState(doc) {
   return EditorState.create({
     doc,
-    extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
+    extensions: [markdown({
+      base: markdownLanguage,
+      codeLanguages: [],
+      extensions: [Strikethrough],
+    })],
   });
 }
 
@@ -744,4 +749,79 @@ test('Stage 14.1: multiple HRs in one document each get their own cm-md-hr mark'
     assert.ok(hr[i].from >= hr[i - 1].to,
       `cm-md-hr mark ${i} must not overlap with mark ${i - 1}`);
   }
+});
+
+// ── Stage 14.2: Strikethrough live styling ─────────────────────────────────
+//
+// GFM-style strikethrough uses ~~...~~. Lezer's @lezer/markdown ships a
+// Strikethrough extension that emits a Strikethrough container node and
+// two StrikethroughMark delimiter nodes. The hybrid-cm6 walker decorates
+// the container with cm-md-strikethrough and each delimiter with
+// "cm-md-strikethrough-mark cm-md-syntax" so the shared hide/reveal CSS
+// applies to the ~~ runs.
+//
+// Single tildes (~one~) and spaced delimiters (~~ spaced ~~) must NOT
+// emit any decorations — those are not strikethrough per the parser.
+
+test('Stage 14.2-1: "~~done~~" emits exactly one cm-md-strikethrough mark over [0,8]', () => {
+  const doc = '~~done~~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const strike = marks.filter((m) => m.class === 'cm-md-strikethrough');
+  assert.equal(strike.length, 1, 'exactly one cm-md-strikethrough mark');
+  assert.equal(strike[0].from, 0);
+  assert.equal(strike[0].to,   8);
+});
+
+test('Stage 14.2-2: "~~done~~" emits two cm-md-strikethrough-mark + cm-md-syntax markers', () => {
+  const doc = '~~done~~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const strikeMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-strikethrough-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(strikeMarks.length, 2, 'two strikethrough markers — opening and closing ~~');
+  assert.deepEqual(strikeMarks.map((m) => m.to - m.from), [2, 2],
+    'each marker covers "~~"');
+});
+
+test('Stage 14.2-3: "~one~" (single tilde) is NOT strikethrough', () => {
+  const doc = '~one~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-strikethrough').length, 0,
+    'single-tilde delimiters must not produce cm-md-strikethrough');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-strikethrough-mark')).length, 0,
+    'single-tilde delimiters must not produce cm-md-strikethrough-mark');
+});
+
+test('Stage 14.2-4: plain text emits no strikethrough decorations', () => {
+  const marks = collectMarks(buildHeadingDecorations(makeState('plain text'), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-strikethrough').length, 0);
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-strikethrough-mark')).length, 0);
+});
+
+test('Stage 14.2-5: "# heading with ~~strike~~" composes heading + strikethrough', () => {
+  const doc = '# heading with ~~strike~~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-h1'),
+    'cm-md-h1 covers the heading line');
+  assert.ok(marks.some((m) => m.class === 'cm-md-strikethrough'),
+    'cm-md-strikethrough composes inside the heading');
+});
+
+test('Stage 14.2-6: "~~**bold strike**~~" composes strikethrough + bold', () => {
+  const doc = '~~**bold strike**~~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-strikethrough'),
+    'cm-md-strikethrough wraps the outer ~~...~~');
+  assert.ok(marks.some((m) => m.class === 'cm-md-bold'),
+    'cm-md-bold composes inside the strikethrough');
+});
+
+test('Stage 14.2-7: "~~ spaced ~~" (internal spaces at delimiter) is NOT strikethrough', () => {
+  // CommonMark/GFM emphasis rules reject delimiter runs that have whitespace
+  // immediately inside the delimiter. Pins manual QA item 4.
+  const doc = '~~ spaced ~~';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-strikethrough').length, 0,
+    'spaced delimiters must not produce cm-md-strikethrough');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-strikethrough-mark')).length, 0,
+    'spaced delimiters must not produce cm-md-strikethrough-mark');
 });

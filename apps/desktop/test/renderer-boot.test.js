@@ -6307,6 +6307,15 @@ test('Stage 14.1: index.html contains scoped .cm-md-hr rule with dimmed muted co
     '.cm-md-hr must declare color: var(--text-muted), opacity: 0.5, and a letter-spacing: <number>em — all inside the same rule body');
 });
 
+test('Stage 14.2: index.html contains scoped .cm-md-strikethrough rule with text-decoration: line-through', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* prevents the match from leaking across rule
+  // boundaries (Stage 12.x convention, mirrors the .cm-md-hr contract).
+  const re = /\.cm-md-strikethrough\s*\{[^}]*text-decoration\s*:\s*line-through[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-strikethrough must declare text-decoration: line-through inside its rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),

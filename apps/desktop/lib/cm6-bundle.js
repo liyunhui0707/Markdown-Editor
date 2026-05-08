@@ -26738,7 +26738,11 @@
     RangeSetBuilder,
     syntaxTree,
     history,
-    markdown: () => markdown({ base: markdownLanguage, codeLanguages: [] }),
+    markdown: () => markdown({
+      base: markdownLanguage,
+      codeLanguages: [],
+      extensions: [Strikethrough]
+    }),
     chrome: chrome2
   };
 })();

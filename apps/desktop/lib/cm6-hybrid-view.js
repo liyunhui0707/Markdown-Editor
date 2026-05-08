@@ -200,6 +200,24 @@
                 cm6.Decoration.mark({ class: 'cm-md-hr' })
                   .range(node.from, node.to)
               );
+            } else if (name === 'Strikethrough') {
+              // Stage 14.2: GFM ~~strike~~. The Strikethrough node only
+              // exists when @lezer/markdown's Strikethrough extension is
+              // registered in the markdown() call (see lib/cm6-entry.js).
+              // Descend into the node so StrikethroughMark children reach
+              // their own enter() branch below.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-strikethrough' })
+                  .range(node.from, node.to)
+              );
+            } else if (name === 'StrikethroughMark') {
+              // Stage 14.2: hide the "~~" delimiters via the shared
+              // cm-md-syntax hide/reveal class. Active-line CSS reveals
+              // them when the caret is on the line.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-strikethrough-mark' })
+                  .range(node.from, node.to)
+              );
             }
           },
         });

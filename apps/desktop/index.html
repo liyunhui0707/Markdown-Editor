@@ -654,6 +654,12 @@
         letter-spacing: 0.3em;
       }
 
+      /* CM6 hybrid live-styling — strikethrough (Stage 14.2). GFM ~~strike~~
+         renders with a line-through; the "~~" delimiters share the
+         cm-md-syntax hide/reveal mechanism so they disappear off the
+         active line and reveal dimmed when the caret enters. */
+      .cm-md-strikethrough { text-decoration: line-through; }
+
       /* CM6 hybrid live-styling — fenced code block markers (Stage 11.9).
          Fence delimiters (``` and ~~~) and the optional language info
          string are dimmed but stay visible. Code content is left untouched
