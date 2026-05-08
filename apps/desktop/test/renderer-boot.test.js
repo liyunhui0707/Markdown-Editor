@@ -6325,6 +6325,17 @@ test('Stage 14.3: index.html contains scoped .cm-md-task-marker rule with var(--
     '.cm-md-task-marker must declare color: var(--text-muted) inside its rule body');
 });
 
+test('Stage 14.4: index.html contains scoped .cm-md-autolink-url rule with text-decoration: underline', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* prevents the match from leaking across rule
+  // boundaries (Stage 12.x convention). The marker class cm-md-autolink-mark
+  // intentionally has NO standalone CSS rule — it relies on the shared
+  // .cm-md-syntax hide/reveal mechanism.
+  const re = /\.cm-md-autolink-url\s*\{[^}]*text-decoration\s*:\s*underline[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-autolink-url must declare text-decoration: underline inside its rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),

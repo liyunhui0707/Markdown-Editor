@@ -443,20 +443,48 @@ test('30. "[OpenAI][1]" reference-style link is not styled (no URL child)', () =
     'reference-style link must not get cm-md-link-mark');
 });
 
-test('31. "<https://openai.com>" autolink gets no cm-md-link-mark', () => {
+test('31. "<https://openai.com>" autolink emits cm-md-autolink-url + cm-md-autolink-mark (Stage 14.4 supersedes 11.7 deferral)', () => {
+  // Stage 11.7 deferred autolink styling; Stage 14.4 enables it. The
+  // inline-link classes (cm-md-link-text / cm-md-link-mark) still must
+  // NOT fire on autolinks — that load-bearing 11.7 invariant remains.
   const doc = '<https://openai.com>';
   const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
-  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0);
+  // Stage 11.7 invariant — inline-link classes never apply to autolinks.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
+    'autolink must not be styled with the inline-link cm-md-link-text class');
   assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
-    'autolink must not be styled as Markdown link');
+    'autolink must not be styled with the inline-link cm-md-link-mark class');
+  // Stage 14.4 — autolink-specific styling now applied.
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 1, 'one cm-md-autolink-url over the URL inside the angle brackets');
+  assert.equal(urls[0].from, 1, 'URL starts after the opening "<"');
+  assert.equal(urls[0].to,  19, 'URL ends before the closing ">"');
+  const autolinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-autolink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(autolinkMarks.length, 2, 'two cm-md-autolink-mark for "<" and ">"');
+  assert.deepEqual(autolinkMarks.map((m) => m.to - m.from), [1, 1],
+    'each marker covers exactly one "<" or ">"');
 });
 
-test('32. bare "https://openai.com" gets no cm-md-link-mark', () => {
+test('32. bare "https://openai.com" emits cm-md-autolink-url only (Stage 14.4 supersedes 11.7 deferral)', () => {
+  // Stage 11.7 deferred bare-URL styling; Stage 14.4 enables it. The
+  // inline-link classes still must NOT fire on bare URLs (load-bearing
+  // 11.7 invariant). Bare URLs have no <…> markers to dim, so only
+  // cm-md-autolink-url fires.
   const doc = 'go to https://openai.com today';
   const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
-  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0);
+  // Stage 11.7 invariant.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
+    'bare URL must not be styled with cm-md-link-text');
   assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-link-mark')).length, 0,
-    'bare URL must not be styled');
+    'bare URL must not be styled with cm-md-link-mark');
+  // Stage 14.4 — bare URL gets autolink-url styling but no markers.
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 1, 'one cm-md-autolink-url over the bare URL');
+  assert.equal(urls[0].from, 6,  'URL starts after "go to "');
+  assert.equal(urls[0].to,  24,  'URL covers "https://openai.com" (18 chars) only, not the trailing " today"');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-autolink-mark')).length, 0,
+    'bare URL has no markers to dim');
 });
 
 test('33. "# See [OpenAI](https://openai.com)" composes heading and link marks', () => {
@@ -899,4 +927,154 @@ test('Stage 14.3-5: "- [ ] todo" item text range carries no cm-md-task-marker', 
     m.class === 'cm-md-task-marker' && m.from >= 6 && m.to <= 10);
   assert.equal(textRangeTaskMarks.length, 0,
     'item text must carry no cm-md-task-marker decoration');
+});
+
+// ── Stage 14.4: Autolink live styling ──────────────────────────────────────
+//
+// The current CodeMirror config — markdown({ base: markdownLanguage,
+// codeLanguages: [], extensions: [Strikethrough] }) — already exposes
+// Autolink containers, LinkMark "<" / ">" delimiters, and bare URL nodes
+// (parented by Paragraph / ATXHeading* / etc.). No @lezer/markdown Autolink
+// extension is required. The hybrid-cm6 walker decorates:
+//   - Autolink-parented LinkMark    → "cm-md-syntax cm-md-autolink-mark"
+//   - Autolink-parented URL         → "cm-md-autolink-url"
+//   - Bare URL (parent ≠ inline Link, ≠ Image, ≠ LinkReference) → "cm-md-autolink-url"
+// Image and LinkReference URLs are explicitly excluded — they are non-goals
+// (no images, no reference-style links). The Stage 11.7 inline-link branch
+// remains the sole owner of [text](url) styling. NO clicks, NO <a>, NO href.
+
+test('Stage 14.4-1: "<https://example.com>" emits one cm-md-autolink-url over [1,20] and two cm-md-autolink-mark', () => {
+  const doc = '<https://example.com>';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0].from, 1);
+  assert.equal(urls[0].to,  20);
+  const autolinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-autolink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(autolinkMarks.length, 2, 'two markers — opening "<" and closing ">"');
+  assert.deepEqual(autolinkMarks.map((m) => m.to - m.from), [1, 1],
+    'each marker covers exactly one bracket character');
+});
+
+test('Stage 14.4-2: "<mailto:name@example.com>" emits cm-md-autolink-url + two markers', () => {
+  const doc = '<mailto:name@example.com>';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 1, 'one cm-md-autolink-url over the mailto URL');
+  assert.equal(urls[0].from, 1);
+  assert.equal(urls[0].to,  24, 'covers "mailto:name@example.com"');
+  const autolinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-autolink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(autolinkMarks.length, 2);
+});
+
+test('Stage 14.4-3: "<a@b.com>" raw email autolink emits cm-md-autolink-url + two markers', () => {
+  // Parser detects raw <email@host> as an Autolink. Pins general parser
+  // coverage — any node the parser reports as Autolink gets styled.
+  const doc = '<a@b.com>';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0].from, 1);
+  assert.equal(urls[0].to,  8, 'covers "a@b.com"');
+  const autolinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-autolink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(autolinkMarks.length, 2);
+});
+
+test('Stage 14.4-4: "# See https://example.com" composes heading + autolink-url', () => {
+  const doc = '# See https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-h1'),
+    'cm-md-h1 covers the heading line');
+  assert.ok(marks.some((m) => m.class === 'cm-md-autolink-url'),
+    'cm-md-autolink-url composes inside the heading');
+});
+
+test('Stage 14.4-5: "> see https://example.com" composes blockquote + autolink-url', () => {
+  const doc = '> see https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-quote-mark'),
+    'cm-md-quote-mark for the ">"');
+  assert.ok(marks.some((m) => m.class === 'cm-md-autolink-url'),
+    'cm-md-autolink-url composes inside the blockquote');
+});
+
+test('Stage 14.4-6: "- has https://example.com" composes list + autolink-url', () => {
+  const doc = '- has https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-list-mark'),
+    'cm-md-list-mark for the "-"');
+  assert.ok(marks.some((m) => m.class === 'cm-md-autolink-url'),
+    'cm-md-autolink-url composes inside the list item');
+});
+
+test('Stage 14.4-7: "[text](https://example.com)" inline-link URL is NOT autolink-styled (Stage 11.7 invariant)', () => {
+  // Regression — the URL inside an inline [text](url) Link must remain
+  // owned by the Stage 11.7 branch (cm-md-link-text on the label,
+  // cm-md-syntax cm-md-link-mark on brackets/parens/URL). It must NOT
+  // also acquire cm-md-autolink-url.
+  const doc = '[text](https://example.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-link-text'),
+    'cm-md-link-text present (Stage 11.7 invariant)');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'inline-link URL must not also be styled as autolink');
+});
+
+test('Stage 14.4-8: "`https://example.com`" URL inside inline code is NOT autolink-styled', () => {
+  // Parser-level guarantee — InlineCode does not emit a URL child node.
+  // This test pins that the walker also emits zero autolink decorations.
+  const doc = '`https://example.com`';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-inline-code'),
+    'cm-md-inline-code present (Stage 11.5 invariant)');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'URL text inside inline code must not be styled as autolink');
+});
+
+test('Stage 14.4-9: URL inside fenced code is NOT autolink-styled', () => {
+  const doc = '```\nhttps://example.com\n```';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-fenced-code-mark').length, 2,
+    'fence delimiters dimmed by Stage 11.9');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'URL text inside fenced code must not be styled as autolink');
+});
+
+test('Stage 14.4-10: "<https://a.com> and <https://b.com>" emits two cm-md-autolink-url and four markers, non-overlapping', () => {
+  const doc = '<https://a.com> and <https://b.com>';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const urls = marks.filter((m) => m.class === 'cm-md-autolink-url');
+  assert.equal(urls.length, 2, 'two cm-md-autolink-url, one per autolink');
+  const autolinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-autolink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(autolinkMarks.length, 4, 'four markers — two pairs of "<" / ">"');
+  // Non-overlapping URL ranges, sorted by from-offset.
+  urls.sort((a, b) => a.from - b.from);
+  assert.ok(urls[1].from >= urls[0].to, 'second cm-md-autolink-url must not overlap with first');
+});
+
+test('Stage 14.4-11: "![alt](https://example.com)" image URL is NOT styled as autolink', () => {
+  // Non-goal: no images. The image URL has Image as its parent; the
+  // implementation guard must exclude it from cm-md-autolink-url.
+  const doc = '![alt](https://example.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'image URL must not be styled with cm-md-autolink-url');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-autolink-mark')).length, 0,
+    'image syntax must not be styled with cm-md-autolink-mark');
+});
+
+test('Stage 14.4-12: "[OpenAI]: https://example.com" reference-definition URL is NOT styled as autolink', () => {
+  // Non-goal: no reference-style links. The URL inside a LinkReference
+  // definition has LinkReference as its parent; the implementation guard
+  // must exclude it from cm-md-autolink-url.
+  const doc = '[OpenAI]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'link-reference URL must not be styled with cm-md-autolink-url');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-autolink-mark')).length, 0,
+    'link-reference syntax must not be styled with cm-md-autolink-mark');
 });

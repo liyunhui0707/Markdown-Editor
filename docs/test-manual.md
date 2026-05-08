@@ -144,6 +144,21 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `- [ ] todo` — editor does not throw; no `cm-md-task-marker` decoration; no jarring visual regression. Default syntax coloring is acceptable.
 - [ ] Save a note containing task items, reload — file bytes on disk unchanged; the marker character sequence (brackets, spaces, `x`/`X`) preserved exactly
 
+## Autolink live styling (Stage 14.4)
+
+Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says otherwise.
+
+- [ ] `<https://example.com>` — URL underlined; `<` and `>` hidden when caret is on a different line; reveal dimmed when caret enters the line
+- [ ] `<mailto:name@example.com>` — same hide/reveal; mailto URL rendered as link-text
+- [ ] `Visit https://example.com today` — bare URL underlined in place; no brackets to hide; surrounding text at natural style
+- [ ] **Inline link regression:** `[OpenAI](https://openai.com)` still renders with `OpenAI` as the visible underlined label and the URL hidden when caret elsewhere (Stage 11.7 unchanged)
+- [ ] **Image regression:** `![alt](https://example.com)` — the image URL is **not** underlined; no autolink-marker reveal/hide on the brackets
+- [ ] **Reference-definition regression:** `[OpenAI]: https://example.com` (typically at the bottom of a doc) — URL is **not** underlined
+- [ ] `# See https://example.com` — heading-level styling AND URL underline both render
+- [ ] **No clicks:** clicking on any underlined autolink/bare URL does **not** open a browser, does **not** navigate, does **not** toggle anything; document text unchanged
+- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `<https://example.com>` and a bare URL — editor doesn't crash; no `cm-md-autolink-url` / `cm-md-autolink-mark` decorations applied. Default syntax coloring is acceptable.
+- [ ] Save a note with autolinks and bare URLs, reload — file bytes on disk preserved exactly (angle brackets, `mailto:`, etc.)
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

@@ -162,12 +162,39 @@
                 }
               }
             } else if (name === 'LinkMark' || name === 'URL' || name === 'LinkTitle') {
-              // Hide brackets, parens, URL, and title — but only when they
-              // belong to an inline Link (excludes Image, Autolink, bare URL,
-              // LinkReference, and reference-style Link nodes without URL).
-              if (isInlineLinkNode(node.node.parent)) {
+              const parent = node.node.parent;
+              // Stage 11.7 — hide brackets, parens, URL, and title for
+              // inline [text](url) links. Excludes Image, Autolink, bare
+              // URL, LinkReference, and reference-style Link nodes without
+              // URL (those are handled below or intentionally left raw).
+              if (isInlineLinkNode(parent)) {
                 decorations.push(
                   cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-link-mark' })
+                    .range(node.from, node.to)
+                );
+              // Stage 14.4 — angle autolink "<" / ">" delimiters. Hidden
+              // via the shared cm-md-syntax class; revealed dimmed on the
+              // active line.
+              } else if (name === 'LinkMark' && parent && parent.name === 'Autolink') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-autolink-mark' })
+                    .range(node.from, node.to)
+                );
+              // Stage 14.4 — URL inside an Autolink, OR a bare URL detected
+              // by the base parser (parent = Paragraph / ATXHeading* / etc.).
+              // URLs inside an inline Link are handled above. URLs inside
+              // Image and LinkReference are explicitly excluded — those are
+              // non-goals for Stage 14.4 (no images, no reference-style
+              // links). URLs do not appear inside InlineCode or fenced
+              // CodeText per the parser, so no extra exclusion is needed.
+              } else if (
+                name === 'URL'
+                && parent
+                && parent.name !== 'Image'
+                && parent.name !== 'LinkReference'
+              ) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-autolink-url' })
                     .range(node.from, node.to)
                 );
               }
