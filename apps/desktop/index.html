@@ -635,6 +635,20 @@
         text-underline-offset:     2px;
       }
 
+      /* CM6 hybrid live-styling — autolinks (Stage 14.4). The URL of
+         <https://...>, <mailto:...>, raw email autolinks, AND bare URLs
+         detected by the base parser all render as underlined link-like
+         text. The "<" and ">" brackets share the cm-md-syntax hide/reveal
+         mechanism above. NO <a>, NO href, NO click behavior — purely
+         Decoration.mark styling. Image and LinkReference URLs are
+         explicitly excluded by the walker (non-goals for Stage 14.4). */
+      .cm-md-autolink-url {
+        text-decoration:           underline;
+        text-decoration-color:     var(--text-muted);
+        text-decoration-thickness: 1px;
+        text-underline-offset:     2px;
+      }
+
       /* CM6 hybrid live-styling — list and blockquote markers (Stage 11.8).
          Markers stay visible at all times so list/quote structure remains
          scannable; just dim them so the content reads as the focus. No
