@@ -56,6 +56,37 @@
     return { from: openBracket.to, to: closeBracket.from };
   }
 
+  // Stage 14.5: an inline image is an Image node with a URL child (the
+  // image source). Reference-style images "![alt][1]" have a LinkLabel
+  // child instead and are intentionally NOT styled (non-goal).
+  function isInlineImageNode(imageNode) {
+    if (!imageNode || imageNode.name !== 'Image') return false;
+    for (let child = imageNode.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') return true;
+    }
+    return false;
+  }
+
+  // Stage 14.5: alt-text range = between the closing of the first LinkMark
+  // ("![") and the start of the second LinkMark ("]"). Mirrors
+  // inlineLinkLabelRange. The range can be empty (e.g., "![](url)") and
+  // callers should guard with from < to before emitting a decoration.
+  function inlineImageAltRange(imageNode) {
+    let first = null;
+    let second = null;
+    for (let child = imageNode.firstChild; child; child = child.nextSibling) {
+      if (child.name !== 'LinkMark') continue;
+      if (!first) {
+        first = child;
+      } else if (!second) {
+        second = child;
+        break;
+      }
+    }
+    if (!first || !second) return null;
+    return { from: first.to, to: second.from };
+  }
+
   // Walk the Markdown syntax tree and emit Decoration.mark ranges for live
   // styling: ATX headings (h1–h6), inline emphasis / inline code, and
   // inline Markdown links. Returns a DecorationSet (or an equivalent shape
@@ -161,6 +192,22 @@
                   );
                 }
               }
+            } else if (name === 'Image') {
+              // Stage 14.5: visual styling for inline images "![alt](url)".
+              // Reference-style images "![alt][1]" (no URL child) are NOT
+              // styled — non-goal. NO <img>, NO src, NO clicks, NO fetch —
+              // purely Decoration.mark styling. The walker descends so
+              // nested emphasis inside alt text and the LinkMark / URL /
+              // LinkTitle children all reach their own enter() branches.
+              if (isInlineImageNode(node.node)) {
+                const altRange = inlineImageAltRange(node.node);
+                if (altRange && altRange.from < altRange.to) {
+                  decorations.push(
+                    cm6.Decoration.mark({ class: 'cm-md-image-alt' })
+                      .range(altRange.from, altRange.to)
+                  );
+                }
+              }
             } else if (name === 'LinkMark' || name === 'URL' || name === 'LinkTitle') {
               const parent = node.node.parent;
               // Stage 11.7 — hide brackets, parens, URL, and title for
@@ -195,6 +242,19 @@
               ) {
                 decorations.push(
                   cm6.Decoration.mark({ class: 'cm-md-autolink-url' })
+                    .range(node.from, node.to)
+                );
+              // Stage 14.5 — image syntax markers ("![", "]", "(", URL,
+              // optional LinkTitle, ")") parented by an inline Image.
+              // Reference-style images (no URL child) are excluded by
+              // isInlineImageNode. Hidden via the shared cm-md-syntax class.
+              } else if (
+                parent
+                && parent.name === 'Image'
+                && isInlineImageNode(parent)
+              ) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-image-mark' })
                     .range(node.from, node.to)
                 );
               }

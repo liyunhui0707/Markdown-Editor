@@ -1078,3 +1078,150 @@ test('Stage 14.4-12: "[OpenAI]: https://example.com" reference-definition URL is
   assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-autolink-mark')).length, 0,
     'link-reference syntax must not be styled with cm-md-autolink-mark');
 });
+
+// ── Stage 14.5: Image Markdown marker styling ──────────────────────────────
+//
+// The current CodeMirror config (markdownLanguage + Strikethrough) already
+// exposes Image containers and their LinkMark / URL / LinkTitle children.
+// The hybrid-cm6 walker decorates inline images:
+//   - Image (with URL child)         → alt-text range gets "cm-md-image-alt"
+//   - LinkMark / URL / LinkTitle parented by an inline Image
+//                                     → "cm-md-syntax cm-md-image-mark"
+// Reference-style images (![alt][1], no URL child) are intentionally NOT
+// styled. Visual-only — NO <img>, NO src, NO clicks, NO fetch, NO widgets,
+// NO Decoration.replace, NO document mutation.
+//
+// Parser quirk: the "!" and "[" are combined into ONE LinkMark of length 2,
+// e.g., LinkMark[0,2]="![". The walker hides both together via cm-md-syntax.
+
+test('Stage 14.5-1: "![alt text](image.png)" emits cm-md-image-alt over [2,10] and 5 image-mark with exact ranges', () => {
+  const doc = '![alt text](image.png)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Alt text range: between "![" (LinkMark[0,2]) and "]" (LinkMark[10,11]).
+  const alts = marks.filter((m) => m.class === 'cm-md-image-alt');
+  assert.equal(alts.length, 1, 'one cm-md-image-alt over the alt text');
+  assert.equal(alts[0].from, 2);
+  assert.equal(alts[0].to,  10);
+  // All five image-mark ranges, sorted by from-offset.
+  const imageMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-image-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(imageMarks.length, 5, 'five image-mark: "![", "]", "(", URL, ")"');
+  imageMarks.sort((a, b) => a.from - b.from);
+  assert.deepEqual(
+    imageMarks.map((m) => [m.from, m.to]),
+    [[0, 2], [10, 11], [11, 12], [12, 21], [21, 22]],
+    'sorted ranges cover "![", "]", "(", URL, ")"'
+  );
+});
+
+test('Stage 14.5-2: image with title emits cm-md-image-alt and 6 image-mark with exact ranges', () => {
+  const doc = '![alt](image.png "caption")';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Alt text range: between "![" (LinkMark[0,2]) and "]" (LinkMark[5,6]).
+  const alts = marks.filter((m) => m.class === 'cm-md-image-alt');
+  assert.equal(alts.length, 1);
+  assert.equal(alts[0].from, 2);
+  assert.equal(alts[0].to,  5);
+  // Six image-mark ranges including the optional LinkTitle.
+  const imageMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-image-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(imageMarks.length, 6,
+    'six image-mark: "![", "]", "(", URL, LinkTitle, ")"');
+  imageMarks.sort((a, b) => a.from - b.from);
+  assert.deepEqual(
+    imageMarks.map((m) => [m.from, m.to]),
+    [[0, 2], [5, 6], [6, 7], [7, 16], [17, 26], [26, 27]],
+    'sorted ranges cover "![", "]", "(", URL, LinkTitle, ")"'
+  );
+});
+
+test('Stage 14.5-3: "![](image.png)" empty alt emits 5 image-mark and ZERO cm-md-image-alt', () => {
+  // Alt range is zero-length [2,2]; the implementation must skip emitting
+  // a zero-length decoration. Markers still fire normally.
+  const doc = '![](image.png)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-image-alt').length, 0,
+    'no cm-md-image-alt when alt is empty');
+  const imageMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-image-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(imageMarks.length, 5, 'five image-mark even with empty alt');
+});
+
+test('Stage 14.5-4: "![alt **text**](./pic.jpg)" composes image-alt + bold + emphasis-mark', () => {
+  // Nested emphasis inside alt text is parsed as StrongEmphasis directly
+  // under the Image container; existing emphasis branches fire on descent.
+  const doc = '![alt **text**](./pic.jpg)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-image-alt'),
+    'cm-md-image-alt covers the whole alt range including the inline bold');
+  assert.ok(marks.some((m) => m.class === 'cm-md-bold'),
+    'cm-md-bold composes for **text**');
+  const emMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-emphasis-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(emMarks.length, 2, 'two emphasis markers around **text**');
+});
+
+test('Stage 14.5-5: "# Look ![alt](pic.png) here" composes heading + image styling', () => {
+  const doc = '# Look ![alt](pic.png) here';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-h1'),
+    'cm-md-h1 covers the heading line');
+  assert.ok(marks.some((m) => m.class === 'cm-md-image-alt'),
+    'cm-md-image-alt composes inside the heading');
+  const imageMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-image-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.ok(imageMarks.length >= 4,
+    'at least four image-mark inside the heading: "![", "]", "(", ")", URL');
+});
+
+test('Stage 14.5-6: "- See ![alt](pic.png)" composes list + image styling', () => {
+  const doc = '- See ![alt](pic.png)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-list-mark'),
+    'cm-md-list-mark for the "-"');
+  assert.ok(marks.some((m) => m.class === 'cm-md-image-alt'),
+    'cm-md-image-alt composes inside the list item');
+});
+
+test('Stage 14.5-7: "![alt][1]" reference-style image is NOT styled', () => {
+  // Non-goal: reference-style images. The Image container has a LinkLabel
+  // child instead of URL; isInlineImageNode must return false and the
+  // walker must emit no image decorations.
+  const doc = '![alt][1]\n\n[1]: pic.png';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-image-alt').length, 0,
+    'reference-style image must not get cm-md-image-alt');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-image-mark')).length, 0,
+    'reference-style image must not get cm-md-image-mark');
+});
+
+test('Stage 14.5-8: "`![alt](pic.png)`" image inside inline code is NOT styled', () => {
+  // Parser-level guarantee — InlineCode does not emit Image children.
+  // This test pins that the walker emits zero image decorations.
+  const doc = '`![alt](pic.png)`';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-inline-code'),
+    'cm-md-inline-code present (Stage 11.5 invariant)');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-image-alt').length, 0,
+    'image inside inline code must not get cm-md-image-alt');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-image-mark')).length, 0,
+    'image inside inline code must not get cm-md-image-mark');
+});
+
+test('Stage 14.5-9: "![alt](https://example.com/pic.png)" — image classes fire; autolink/link classes do NOT', () => {
+  // Stage 14.4 invariant — image URLs do NOT acquire cm-md-autolink-url,
+  // even when they are absolute URLs. Stage 11.7 invariant — the inline-
+  // link cm-md-link-text class also does not fire on images.
+  const doc = '![alt](https://example.com/pic.png)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Stage 14.5 — image classes fire.
+  assert.ok(marks.some((m) => m.class === 'cm-md-image-alt'),
+    'cm-md-image-alt fires on absolute-URL images');
+  assert.ok(marks.some((m) => hasClassToken(m.class, 'cm-md-image-mark')),
+    'cm-md-image-mark fires on absolute-URL images');
+  // Stage 14.4 + Stage 11.7 invariants preserved.
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'image URL must not be styled as autolink (Stage 14.4 invariant)');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
+    'image must not be styled as inline link (Stage 11.7 invariant)');
+});
