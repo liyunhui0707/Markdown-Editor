@@ -20,6 +20,7 @@ Concise record of completed stages, their key deliverables, and known deferred i
 | Bug #4 | Initial multi-display window movement issue | Fixed | Window position normalized correctly on multi-display setups at launch |
 | 7.1 | Remaining color token cleanup | Done | All hardcoded color literals outside `:root` replaced with design tokens; `--danger-bg` added |
 | 7.2 | Documentation and consolidation | Done | README, test-manual, and stage-history updated to reflect current behavior |
+| 14.2 | Strikethrough live styling | Done | `~~strike~~` parser activation in `cm6-entry.js` via `@lezer/markdown` Strikethrough; hybrid-cm6 decorations (`cm-md-strikethrough`, `cm-md-strikethrough-mark`) and `.cm-md-strikethrough` CSS |
 
 ## Deferred items
 

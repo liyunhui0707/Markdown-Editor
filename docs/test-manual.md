@@ -113,6 +113,25 @@ Use this checklist before sharing the app with another person.
 - [ ] Preview headings, body text, links, inline code, code blocks, blockquotes, and horizontal rules all use design tokens, not hardcoded colors
 - [ ] Destructive button (e.g. Delete Note) hover shows a warm red tint, not bright pink
 
+## Strikethrough live styling (Stage 14.2)
+
+Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says otherwise.
+
+- [ ] `~~done~~` — line-through visible; the `~~` delimiters are hidden when the caret is on another line
+- [ ] Caret on the `~~done~~` line — both `~~` delimiters reveal (dimmed)
+- [ ] `~one~` (single tilde) — no styling, raw text
+- [ ] `~~ spaced ~~` (internal spaces at delimiter) — no strikethrough styling
+- [ ] `# heading with ~~strike~~` — composes correctly with the heading
+- [ ] `~~**bold strike**~~` — both line-through and bold render
+- [ ] `- list item with ~~strike~~` — composes with the list marker
+- [ ] `> quote with ~~strike~~` — composes with the quote marker
+- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `~~x~~` — editor does not throw; no `cm-md-strikethrough` decoration; no `~~` hide/reveal. Default syntax highlighting may color the tokens — that is acceptable. The invariant is: no hybrid live-decoration behavior and no jarring visual regression.
+- [ ] Long doc with mixed strikethrough / bold / inline-code — no perceptible perf regression while typing or scrolling
+- [ ] Chinese IME composing `~~中文~~` — no premature commit; composition adjacent to `~~` stays stable
+- [ ] Single Cmd+Z after typing `~~strike~~` reverts the whole token; history boundaries unchanged
+- [ ] Toast UI Preview rendering of strikethrough is unchanged (Toast UI already supports `~~`)
+- [ ] Cursor navigation across a hidden `~~` boundary — Arrow keys behave identically to existing emphasis markers
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

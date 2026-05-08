@@ -23,6 +23,7 @@ import {
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { Strikethrough }              from '@lezer/markdown';
 import {
   syntaxHighlighting,
   defaultHighlightStyle,
@@ -60,6 +61,10 @@ window.CM6Production = {
   RangeSetBuilder,
   syntaxTree,
   history,
-  markdown: () => markdown({ base: markdownLanguage, codeLanguages: [] }),
+  markdown: () => markdown({
+    base: markdownLanguage,
+    codeLanguages: [],
+    extensions: [Strikethrough],
+  }),
   chrome,
 };
