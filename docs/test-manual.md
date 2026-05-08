@@ -132,6 +132,18 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] Toast UI Preview rendering of strikethrough is unchanged (Toast UI already supports `~~`)
 - [ ] Cursor navigation across a hidden `~~` boundary — Arrow keys behave identically to existing emphasis markers
 
+## Task list visual styling (Stage 14.3)
+
+Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says otherwise.
+
+- [ ] `- [ ] todo` — bullet `-` dimmed; `[ ]` dimmed; `todo` at normal weight/color
+- [ ] **Cursor behavior:** caret moves through the visible `[ ]` marker as 3 normal cursor positions (no skip, no widget jump); Shift+Arrow selection across the marker behaves like normal text
+- [ ] `- [x] done` and `- [X] DONE` — same dimming pattern; lowercase and uppercase both render dimmed; clicking the marker does **not** toggle it; document text unchanged
+- [ ] `- one` (plain bullet, no task marker) — bullet dimmed; `one` normal; no `[ ]`-like artifact appears
+- [ ] Mixed list with task and non-task items intermixed — each renders correctly; no decoration leak between items
+- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `- [ ] todo` — editor does not throw; no `cm-md-task-marker` decoration; no jarring visual regression. Default syntax coloring is acceptable.
+- [ ] Save a note containing task items, reload — file bytes on disk unchanged; the marker character sequence (brackets, spaces, `x`/`X`) preserved exactly
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

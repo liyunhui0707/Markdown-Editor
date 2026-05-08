@@ -6316,6 +6316,15 @@ test('Stage 14.2: index.html contains scoped .cm-md-strikethrough rule with text
     '.cm-md-strikethrough must declare text-decoration: line-through inside its rule body');
 });
 
+test('Stage 14.3: index.html contains scoped .cm-md-task-marker rule with var(--text-muted) color', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* prevents the match from leaking across rule
+  // boundaries (Stage 12.x convention, mirrors .cm-md-hr / .cm-md-strikethrough).
+  const re = /\.cm-md-task-marker\s*\{[^}]*color\s*:\s*var\(\s*--text-muted[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-task-marker must declare color: var(--text-muted) inside its rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),

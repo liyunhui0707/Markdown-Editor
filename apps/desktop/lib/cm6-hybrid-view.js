@@ -218,6 +218,18 @@
                 cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-strikethrough-mark' })
                   .range(node.from, node.to)
               );
+            } else if (name === 'TaskMarker') {
+              // Stage 14.3: dim the "[ ]", "[x]", "[X]" task markers.
+              // TaskMarker appears only inside a Task node (which itself
+              // only appears inside a ListItem) per the parser, so no
+              // parent guard is needed. Like ListMark and QuoteMark, the
+              // marker stays visible (not hidden) so task list structure
+              // remains scannable. NOT clickable — purely Decoration.mark
+              // styling, no document mutation, no widget.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-task-marker' })
+                  .range(node.from, node.to)
+              );
             }
           },
         });

@@ -21,6 +21,7 @@ Concise record of completed stages, their key deliverables, and known deferred i
 | 7.1 | Remaining color token cleanup | Done | All hardcoded color literals outside `:root` replaced with design tokens; `--danger-bg` added |
 | 7.2 | Documentation and consolidation | Done | README, test-manual, and stage-history updated to reflect current behavior |
 | 14.2 | Strikethrough live styling | Done | `~~strike~~` parser activation in `cm6-entry.js` via `@lezer/markdown` Strikethrough; hybrid-cm6 decorations (`cm-md-strikethrough`, `cm-md-strikethrough-mark`) and `.cm-md-strikethrough` CSS |
+| 14.3 | Task list visual styling | Done | Hybrid-cm6 decorates `[ ]` / `[x]` / `[X]` task markers with `cm-md-task-marker` (bullet keeps `cm-md-list-mark`); dimmed via `.cm-md-task-marker` CSS. No interactivity, no parser change (existing config already exposes TaskMarker) |
 
 ## Deferred items
 
