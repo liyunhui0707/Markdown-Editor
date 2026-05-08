@@ -582,17 +582,22 @@ test('46. "> see [OpenAI](url)" emits both cm-md-quote-mark and cm-md-link-text'
   assert.ok(marks.some((m) => m.class === 'cm-md-link-text'),  'cm-md-link-text present (nested inline link)');
 });
 
-test('47. "- [ ] todo" emits cm-md-list-mark only — task checkbox stays raw', () => {
-  // Stage 11.8 dims the bullet "-" but does NOT style the TaskMarker "[ ]".
-  // Interactive checkboxes are explicitly deferred.
+test('47. "- [ ] todo" emits cm-md-list-mark AND cm-md-task-marker (Stage 14.3 supersedes 11.8 deferral)', () => {
+  // Stage 11.8 deferred TaskMarker styling; Stage 14.3 enables it. The
+  // dash still carries cm-md-list-mark (load-bearing 11.8 invariant), and
+  // the "[ ]" now also carries cm-md-task-marker. No interactivity, no
+  // document mutation — purely Decoration.mark styling.
   const marks = collectMarks(buildHeadingDecorations(makeState('- [ ] todo'), cm6));
-  assert.equal(marks.filter((m) => m.class === 'cm-md-list-mark').length, 1,
-    'list mark for the dash');
-  // Verify no class names ending with "-task" / containing "task" exist.
-  for (const m of marks) {
-    assert.ok(typeof m.class !== 'string' || !/task/i.test(m.class),
-      'no task-checkbox class should be emitted');
-  }
+  // Stage 11.8 invariant — list mark still present, exact range preserved.
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(listMarks.length, 1, 'list mark for the dash');
+  assert.equal(listMarks[0].from, 0);
+  assert.equal(listMarks[0].to,   1);
+  // Stage 14.3 — task marker now styled.
+  const taskMarks = marks.filter((m) => m.class === 'cm-md-task-marker');
+  assert.equal(taskMarks.length, 1, 'one cm-md-task-marker for "[ ]"');
+  assert.equal(taskMarks[0].from, 2, 'after the dash + space');
+  assert.equal(taskMarks[0].to,   5, 'covers the 3 chars "[ ]"');
 });
 
 // ── Stage 11.9: fenced code block marker dimming ────────────────────────────
@@ -824,4 +829,74 @@ test('Stage 14.2-7: "~~ spaced ~~" (internal spaces at delimiter) is NOT striket
     'spaced delimiters must not produce cm-md-strikethrough');
   assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-strikethrough-mark')).length, 0,
     'spaced delimiters must not produce cm-md-strikethrough-mark');
+});
+
+// ── Stage 14.3: Task list visual styling ───────────────────────────────────
+//
+// The current CodeMirror config — markdown({ base: markdownLanguage,
+// codeLanguages: [], extensions: [Strikethrough] }) — already exposes
+// Task and TaskMarker nodes for "- [ ] todo" / "- [x] done" / "- [X] DONE";
+// no @lezer/markdown TaskList extension is required. The hybrid-cm6 walker
+// decorates TaskMarker with cm-md-task-marker; the dash continues to carry
+// cm-md-list-mark from the existing Stage 11.8 ListMark branch. Item text
+// after the marker carries no Stage-14.3 decoration. NO interactivity — the
+// marker is purely Decoration.mark styling, no widget, no Decoration.replace,
+// no document mutation. Stage 11.8 deferral is superseded by this stage
+// (see rewritten test #47 above).
+
+test('Stage 14.3-1: "- [x] done" emits exactly one cm-md-task-marker over [2,5]', () => {
+  const doc = '- [x] done';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const taskMarks = marks.filter((m) => m.class === 'cm-md-task-marker');
+  assert.equal(taskMarks.length, 1, 'one cm-md-task-marker for "[x]"');
+  assert.equal(taskMarks[0].from, 2);
+  assert.equal(taskMarks[0].to,   5, 'covers the 3 chars "[x]"');
+});
+
+test('Stage 14.3-2: "- [X] DONE" emits exactly one cm-md-task-marker over [2,5]', () => {
+  // Uppercase "X" must also be styled — parser treats [X] the same as [x].
+  const doc = '- [X] DONE';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const taskMarks = marks.filter((m) => m.class === 'cm-md-task-marker');
+  assert.equal(taskMarks.length, 1, 'one cm-md-task-marker for "[X]"');
+  assert.equal(taskMarks[0].from, 2);
+  assert.equal(taskMarks[0].to,   5, 'covers the 3 chars "[X]"');
+});
+
+test('Stage 14.3-3: "- one" (plain bullet, no checkbox) emits cm-md-list-mark and zero cm-md-task-marker', () => {
+  // Negative — protects against over-emission. A plain bullet must keep its
+  // Stage 11.8 list mark and must NOT acquire any task-marker decoration.
+  const doc = '- one';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-list-mark').length, 1,
+    'list mark for the dash');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-task-marker').length, 0,
+    'no cm-md-task-marker on a plain bullet');
+});
+
+test('Stage 14.3-4: three task items emit three cm-md-task-marker and three cm-md-list-mark, non-overlapping', () => {
+  const doc = '- [ ] todo\n- [x] done\n- [X] DONE';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const taskMarks = marks.filter((m) => m.class === 'cm-md-task-marker');
+  const listMarks = marks.filter((m) => m.class === 'cm-md-list-mark');
+  assert.equal(taskMarks.length, 3, 'one cm-md-task-marker per task item');
+  assert.equal(listMarks.length, 3, 'one cm-md-list-mark per task item');
+  // Non-overlapping task markers, sorted by from-offset.
+  taskMarks.sort((a, b) => a.from - b.from);
+  for (let i = 1; i < taskMarks.length; i++) {
+    assert.ok(taskMarks[i].from >= taskMarks[i - 1].to,
+      `cm-md-task-marker ${i} must not overlap with marker ${i - 1}`);
+  }
+});
+
+test('Stage 14.3-5: "- [ ] todo" item text range carries no cm-md-task-marker', () => {
+  // The "todo" text after the marker must remain at natural style — Stage
+  // 14.3 styles only the marker, not the item content. Pins the MVP scope.
+  const doc = '- [ ] todo';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // "todo" lives at [6, 10] (after "- [ ] ").
+  const textRangeTaskMarks = marks.filter((m) =>
+    m.class === 'cm-md-task-marker' && m.from >= 6 && m.to <= 10);
+  assert.equal(textRangeTaskMarks.length, 0,
+    'item text must carry no cm-md-task-marker decoration');
 });

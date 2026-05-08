@@ -642,6 +642,13 @@
       .cm-md-list-mark  { color: var(--text-muted); }
       .cm-md-quote-mark { color: var(--text-muted); }
 
+      /* CM6 hybrid live-styling — task list markers (Stage 14.3). The
+         "[ ]", "[x]", "[X]" markers stay visible (like ListMark) so task
+         structure remains scannable; just dim them so the item text reads
+         as the focus. Marker is NOT interactive — purely Decoration.mark
+         styling, no <input>, no click handler, no document mutation. */
+      .cm-md-task-marker { color: var(--text-muted); }
+
       /* CM6 hybrid live-styling — horizontal rules (Stage 14.1). Source
          characters (---, ***, ___) stay in the document; this rule only
          changes their visual presentation. Mark-decoration scoped — no
