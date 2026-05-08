@@ -649,6 +649,20 @@
         text-underline-offset:     2px;
       }
 
+      /* CM6 hybrid live-styling — image alt text (Stage 14.5). The visible
+         alt text inside ![alt](url) is rendered italic + muted to mark it
+         as image syntax distinct from inline link labels (which use
+         underline). The "![", "]", "(", URL, optional title, and ")"
+         delimiters share the cm-md-syntax hide/reveal mechanism above.
+         NO <img>, NO src, NO click behavior — purely Decoration.mark
+         styling. Reference-style images ![alt][1] are intentionally not
+         styled. Property order (font-style → color) matches the Stage
+         14.5 block-bound contract test in renderer-boot.test.js. */
+      .cm-md-image-alt {
+        font-style: italic;
+        color:      var(--text-muted);
+      }
+
       /* CM6 hybrid live-styling — list and blockquote markers (Stage 11.8).
          Markers stay visible at all times so list/quote structure remains
          scannable; just dim them so the content reads as the focus. No

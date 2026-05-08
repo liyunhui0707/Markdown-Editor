@@ -23,6 +23,7 @@ Concise record of completed stages, their key deliverables, and known deferred i
 | 14.2 | Strikethrough live styling | Done | `~~strike~~` parser activation in `cm6-entry.js` via `@lezer/markdown` Strikethrough; hybrid-cm6 decorations (`cm-md-strikethrough`, `cm-md-strikethrough-mark`) and `.cm-md-strikethrough` CSS |
 | 14.3 | Task list visual styling | Done | Hybrid-cm6 decorates `[ ]` / `[x]` / `[X]` task markers with `cm-md-task-marker` (bullet keeps `cm-md-list-mark`); dimmed via `.cm-md-task-marker` CSS. No interactivity, no parser change (existing config already exposes TaskMarker) |
 | 14.4 | Autolink live styling | Done | Hybrid-cm6 decorates `<https://...>`, `<mailto:...>`, raw email autolinks, and bare URLs with `cm-md-autolink-url` (link-text underline) plus `cm-md-syntax cm-md-autolink-mark` for the `<` / `>` brackets. Walker guards exclude Image and LinkReference URLs. No clicks, no `<a>`, no parser change |
+| 14.5 | Image Markdown marker styling | Done | Hybrid-cm6 decorates inline images `![alt](url)` and `![alt](url "title")`: alt-text range gets `cm-md-image-alt` (italic + muted); the `![` / `]` / `(` / URL / LinkTitle / `)` markers share `cm-md-syntax cm-md-image-mark` for hide/reveal. Reference-style images excluded. No `<img>`, no rendering, no clicks, no parser change |
 
 ## Deferred items
 

@@ -6336,6 +6336,20 @@ test('Stage 14.4: index.html contains scoped .cm-md-autolink-url rule with text-
     '.cm-md-autolink-url must declare text-decoration: underline inside its rule body');
 });
 
+test('Stage 14.5: index.html contains scoped .cm-md-image-alt rule with font-style: italic AND color: var(--text-muted)', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* prevents the match from leaking across rule
+  // boundaries (Stage 12.x convention). Both declarations are required —
+  // italic alone or muted alone fails. Property order in the contract
+  // (font-style → color) matches the production CSS so the rule is
+  // reviewable at a glance, mirroring the Stage 14.1 .cm-md-hr pattern.
+  // The marker class cm-md-image-mark intentionally has NO standalone
+  // CSS rule; it relies on the shared .cm-md-syntax hide/reveal mechanism.
+  const re = /\.cm-md-image-alt\s*\{[^}]*font-style\s*:\s*italic[^}]*color\s*:\s*var\(\s*--text-muted\s*\)[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-image-alt must declare BOTH font-style: italic AND color: var(--text-muted) inside its rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),
