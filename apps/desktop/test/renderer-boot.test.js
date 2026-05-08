@@ -61,6 +61,28 @@ function makeClassList(element) {
   };
 }
 
+function makeStyle() {
+  // Stage 13: real-DOM CSSStyleDeclaration supports both direct property
+  // access (`el.style.fontSize = 'x'`) AND method access
+  // (`el.style.setProperty('--editor-font-size', 'x')` /
+  // `.getPropertyValue('--editor-font-size')`). The fake style mirrors both
+  // by keeping the values on the same backing object, so production code can
+  // use whichever form it prefers.
+  const style = {};
+  Object.defineProperty(style, 'setProperty', {
+    enumerable: false,
+    value(name, value) { this[name] = value; },
+  });
+  Object.defineProperty(style, 'getPropertyValue', {
+    enumerable: false,
+    value(name) {
+      const v = this[name];
+      return v == null ? '' : String(v);
+    },
+  });
+  return style;
+}
+
 function makeElement(tag = 'div', id = '') {
   const el = {
     tagName: tag.toUpperCase(),
@@ -69,7 +91,7 @@ function makeElement(tag = 'div', id = '') {
     _innerHTML: '',
     textContent: '',
     value: '',
-    style: {},
+    style: makeStyle(),
     children: [],
     attributes: {},
     handlers: {},
@@ -148,6 +170,11 @@ function makeElement(tag = 'div', id = '') {
 function makeRendererHarness({
   search = '',
   storageValue = null,
+  // Stage 13: arbitrary localStorage key seeding. `storageValue` remains the
+  // shorthand for `markdownVault.writeEngine` (existing tests). When both are
+  // provided, an explicit `storageEntries` entry for the same key OVERRIDES
+  // the shorthand seeded value.
+  storageEntries = null,
   vaultNotes = [],
   // Stage 6.2: when true, the harness's VaultActions.chooseVaultFolder
   // simulates the user dismissing the OS folder picker — it leaves the
@@ -247,8 +274,14 @@ function makeRendererHarness({
   _hybridWritePane.clientHeight = 0;
 
   const documentHandlers = {};
+  // Stage 13: production code calls
+  // `document.documentElement.style.setProperty('--editor-font-size', ...)`
+  // to set the CSS variable on `:root`. Tests inspect via
+  // `harness.document.documentElement.style.getPropertyValue('--editor-font-size')`.
+  const _documentElement = makeElement('html', 'documentElement');
   const document = {
     activeElement: null,
+    documentElement: _documentElement,
     getElementById(id) {
       assert.ok(elements.has(id), `unexpected document.getElementById(${id})`);
       return elements.get(id);
@@ -340,10 +373,33 @@ function makeRendererHarness({
     saveAllRequestHandler: null,
   };
 
+  // Stage 13: multi-key localStorage shim with setItem recording.
+  //   - Seed `markdownVault.writeEngine` from `storageValue` shorthand first.
+  //   - Then apply explicit `storageEntries` so they OVERRIDE the shorthand
+  //     for the same key.
+  //   - `getItem` returns the seeded value or null (no key-name assertion;
+  //     production now reads multiple keys: writeEngine, editorFontSize, ...).
+  //   - `setItem` mutates the map AND pushes [key, value] to `setItemCalls`
+  //     so tests can assert persistence behavior.
+  const _storageMap = {};
+  if (storageValue != null) {
+    _storageMap[WriteEngine.STORAGE_KEY] = storageValue;
+  }
+  if (storageEntries && typeof storageEntries === 'object') {
+    for (const k of Object.keys(storageEntries)) {
+      _storageMap[k] = storageEntries[k];
+    }
+  }
+  const setItemCalls = [];
   const storage = {
     getItem(key) {
-      assert.equal(key, WriteEngine.STORAGE_KEY);
-      return storageValue;
+      return Object.prototype.hasOwnProperty.call(_storageMap, key)
+        ? _storageMap[key]
+        : null;
+    },
+    setItem(key, value) {
+      _storageMap[key] = String(value);
+      setItemCalls.push([key, String(value)]);
     },
   };
 
@@ -840,7 +896,7 @@ function makeRendererHarness({
     }
   }
 
-  return { calls, elements, window, documentHandlers, flushRaf, flushTimers, document };
+  return { calls, elements, window, documentHandlers, flushRaf, flushTimers, document, setItemCalls };
 }
 
 test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
@@ -5075,6 +5131,188 @@ test('Ctrl+Alt+S does not trigger save', async () => {
   assert.ok(!preventDefaultCalled, 'Ctrl+Alt+S must not call preventDefault()');
 });
 
+// ── Stage 13: editor text-size adjust (zoom in / out / reset) ──────────────
+//
+// CSS-only, renderer-local. A single :root CSS variable --editor-font-size
+// (default 15px) is consumed by the Write pane root (.hybrid-write-pane) and
+// the Toast UI Preview body selectors. Three keyboard shortcuts adjust the
+// variable: Cmd/Ctrl+= grows by one step, Cmd/Ctrl+- shrinks, Cmd/Ctrl+0
+// resets. Persisted to localStorage under markdownVault.editorFontSize.
+//
+// Strict numeric parsing on read: Number(raw) + Number.isInteger +
+// FONT_SIZE_STEPS.includes; fallback to default for missing / non-numeric /
+// partial-numeric / non-integer / out-of-range / off-step values.
+//
+// Boot APPLIES the restored size without writing localStorage; only keyboard
+// actions persist.
+
+function readEditorFontSizeVar(harness) {
+  return harness.document.documentElement.style.getPropertyValue('--editor-font-size');
+}
+
+function setItemForEditorFontSize(setItemCalls) {
+  return setItemCalls.filter((entry) => entry[0] === 'markdownVault.editorFontSize');
+}
+
+test('Stage 13: Cmd+= grows editor font size by one step and persists', async () => {
+  const harness = makeRendererHarness();
+  const { documentHandlers, setItemCalls } = harness;
+
+  // Boot at default 15px.
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'boot should apply default --editor-font-size: 15px');
+  assert.equal(setItemForEditorFontSize(setItemCalls).length, 0,
+    'boot must NOT persist (apply only, no setItem)');
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, '=', { metaKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '16px',
+    'Cmd+= should grow one step (15 → 16)');
+  assert.ok(preventDefaultCalled, 'Cmd+= must call preventDefault()');
+  const editorPersists = setItemForEditorFontSize(setItemCalls);
+  assert.equal(editorPersists.length, 1, 'Cmd+= must persist exactly once');
+  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '16'],
+    'Cmd+= must persist new step value as decimal string');
+});
+
+test('Stage 13: Cmd+Shift+= also grows editor font size by one step', async () => {
+  const harness = makeRendererHarness();
+  // On a US keyboard, Cmd+Shift+= produces e.key === '+' (the shifted form).
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '+', { metaKey: true, shiftKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '16px',
+    'Cmd+Shift+= (e.key === "+") should grow one step');
+  assert.ok(preventDefaultCalled, 'Cmd+Shift+= must call preventDefault()');
+});
+
+test('Stage 13: Ctrl+= grows editor font size by one step (Linux/Windows shortcut)', async () => {
+  const harness = makeRendererHarness();
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { ctrlKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '16px',
+    'Ctrl+= must work the same as Cmd+= for Linux/Windows users');
+  assert.ok(preventDefaultCalled, 'Ctrl+= must call preventDefault()');
+});
+
+test('Stage 13: Cmd+- shrinks editor font size by one step and persists', async () => {
+  const harness = makeRendererHarness();
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '-', { metaKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '14px',
+    'Cmd+- should shrink one step (15 → 14)');
+  assert.ok(preventDefaultCalled, 'Cmd+- must call preventDefault()');
+  const editorPersists = setItemForEditorFontSize(harness.setItemCalls);
+  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '14']);
+});
+
+test('Stage 13: Cmd+0 resets editor font size to default and persists', async () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '24' } });
+  // Confirm boot landed at 24px.
+  assert.equal(readEditorFontSizeVar(harness), '24px', 'boot should restore 24px');
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '0', { metaKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '15px', 'Cmd+0 must reset to default 15');
+  assert.ok(preventDefaultCalled, 'Cmd+0 must call preventDefault()');
+  const editorPersists = setItemForEditorFontSize(harness.setItemCalls);
+  assert.deepEqual(editorPersists[editorPersists.length - 1], ['markdownVault.editorFontSize', '15']);
+});
+
+test('Stage 13: Cmd+= at maximum step is a no-op (clamped) but still consumes the key', async () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '36' } });
+  assert.equal(readEditorFontSizeVar(harness), '36px', 'boot at max');
+  const persistsBefore = setItemForEditorFontSize(harness.setItemCalls).length;
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '36px', 'Cmd+= at max must clamp');
+  assert.ok(preventDefaultCalled, 'Cmd+= still calls preventDefault even when clamped');
+  const persistsAfter = setItemForEditorFontSize(harness.setItemCalls).length;
+  assert.equal(persistsAfter, persistsBefore,
+    'no-op Cmd+= must NOT write a redundant persistence entry');
+});
+
+test('Stage 13: Cmd+- at minimum step is a no-op (clamped) but still consumes the key', async () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '12' } });
+  assert.equal(readEditorFontSizeVar(harness), '12px', 'boot at min');
+  const persistsBefore = setItemForEditorFontSize(harness.setItemCalls).length;
+
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '-', { metaKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '12px', 'Cmd+- at min must clamp');
+  assert.ok(preventDefaultCalled, 'Cmd+- still calls preventDefault even when clamped');
+  const persistsAfter = setItemForEditorFontSize(harness.setItemCalls).length;
+  assert.equal(persistsAfter, persistsBefore,
+    'no-op Cmd+- must NOT write a redundant persistence entry');
+});
+
+test('Stage 13: Cmd+Alt+= does NOT zoom and does NOT call preventDefault', async () => {
+  const harness = makeRendererHarness();
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true, altKey: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'Cmd+Alt+= must not change the font-size variable');
+  assert.ok(!preventDefaultCalled,
+    'Cmd+Alt+= must not call preventDefault — handler must not consume the key');
+});
+
+test('Stage 13: IME composition suppresses zoom shortcut', async () => {
+  const harness = makeRendererHarness();
+  const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true, isComposing: true });
+
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'composition (e.isComposing) must suppress zoom');
+  assert.ok(!preventDefaultCalled,
+    'composition path returns early; preventDefault must not be called');
+});
+
+test('Stage 13: boot restores valid persisted size WITHOUT writing localStorage', () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '20' } });
+
+  assert.equal(readEditorFontSizeVar(harness), '20px',
+    'boot must apply restored size to --editor-font-size');
+  assert.equal(setItemForEditorFontSize(harness.setItemCalls).length, 0,
+    'boot apply must NOT trigger setItem (apply with persist:false)');
+});
+
+test('Stage 13: boot falls back to default when persisted value is missing', () => {
+  const harness = makeRendererHarness();
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'no persisted value → default 15px');
+});
+
+test('Stage 13: boot falls back to default for non-numeric persisted value "banana"', () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': 'banana' } });
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'Number("banana") is NaN → default');
+});
+
+test('Stage 13: boot falls back to default for partial-numeric "14px"', () => {
+  // parseInt('14px') is 14 — insufficient. Number('14px') is NaN — strict.
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '14px' } });
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'Number("14px") is NaN; strict parsing must fall back');
+});
+
+test('Stage 13: boot falls back to default for non-integer "14.5"', () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '14.5' } });
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'Number.isInteger(14.5) is false → default');
+});
+
+test('Stage 13: boot falls back to default for in-range but off-step "17"', () => {
+  // 17 is between 16 and 18 in the step list — not a valid step.
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '17' } });
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'FONT_SIZE_STEPS.includes(17) is false → default');
+});
+
+test('Stage 13: boot falls back to default for out-of-range "999"', () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '999' } });
+  assert.equal(readEditorFontSizeVar(harness), '15px',
+    'value outside step list → default');
+});
+
 // ── Stage A (Issue #12 R1a + R3): title sync + per-note save latch ────────
 // R1a: titleInput listens to 'input', not 'change'. A keystroke that fires
 // 'keydown' before 'input' leaves selectedNote.title stale. saveCurrentNote
@@ -6166,6 +6404,163 @@ test('Stage 12.2: marker-reveal CSS contract intact (.cm-activeLine .cm-md-headi
     '.cm-activeLine .cm-md-heading-mark must still set display: inline (Stage 11.4 marker reveal)');
   assert.ok(syntaxRe.test(html),
     '.cm-activeLine .cm-md-syntax must still set display: inline (Stage 11.5 marker reveal)');
+});
+
+// ── Stage 13: editor text-size CSS contract ─────────────────────────────────
+//
+// Source-regex assertions that the production CSS exposes the
+// --editor-font-size variable on :root and consumes it from the live
+// surfaces (.hybrid-write-pane root for Write; Toast UI preview body for
+// Preview). Block-bound [^}]* prevents the property match from leaking
+// outside its CSS rule.
+
+test('Stage 13: :root declares --editor-font-size: 15px', () => {
+  const html = readIndexHtml();
+  const re = /:root\s*\{[^}]*--editor-font-size\s*:\s*15px\s*;?[^}]*\}/;
+  assert.ok(re.test(html),
+    'must contain ":root { … --editor-font-size: 15px; … }"');
+});
+
+test('Stage 13: .hybrid-write-pane consumes var(--editor-font-size, …) for font-size', () => {
+  const html = readIndexHtml();
+  // Match the .hybrid-write-pane base block (not .hybrid-write-pane.is-hidden);
+  // the bare class selector is followed by `{` after optional whitespace.
+  const re = /\.hybrid-write-pane\s*\{[^}]*font-size\s*:\s*var\(\s*--editor-font-size[^}]*\}/;
+  assert.ok(re.test(html),
+    '.hybrid-write-pane must declare font-size: var(--editor-font-size, …) so CM6/.cm-content and legacy hybrid .hybrid-active-textarea (font: inherit) both scale');
+});
+
+test('Stage 13: Toast UI Preview body consumes var(--editor-font-size, …)', () => {
+  const html = readIndexHtml();
+  // The rule must reference both Toast UI preview surface selectors AND set
+  // font-size: var(--editor-font-size, …) inside the SAME block. Allow either
+  // a comma-separated grouped selector or two adjacent rules; this regex
+  // accepts the grouped form.
+  const re = /\.toast-preview-mount\s+\.toastui-editor-md-preview\s*,\s*\.toast-preview-mount\s+\.toastui-editor-contents\s*\{[^}]*font-size\s*:\s*var\(\s*--editor-font-size[^}]*\}/;
+  assert.ok(re.test(html),
+    'Toast UI preview must consume var(--editor-font-size, …) on both .toastui-editor-md-preview and .toastui-editor-contents');
+});
+
+test('Stage 13: Toast UI Preview headings h1–h6 use em-relative font-size so they scale with --editor-font-size', () => {
+  const html = readIndexHtml();
+  // Toast UI ships fixed-px heading sizes on .toastui-editor-contents h1…h6
+  // that would otherwise override container inheritance. The Stage 13 rules
+  // must re-declare them with em-based sizes scoped under .toast-preview-mount
+  // so headings scale alongside body text when the editor font-size changes.
+  // For each level, bind selector + em-form font-size in one block-bound regex.
+  for (let n = 1; n <= 6; n++) {
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+h${n}\\s*\\{[^}]*font-size\\s*:\\s*[\\d.]+em[^}]*\\}`
+    );
+    assert.ok(re.test(html),
+      `.toast-preview-mount .toastui-editor-contents h${n} must declare an em-relative font-size so it scales with --editor-font-size`);
+  }
+});
+
+test('Stage 13: Toast UI Preview headings h1–h6 use a unitless line-height so the line box scales with heading font-size', () => {
+  const html = readIndexHtml();
+  // Toast UI ships fixed-px line-height on .toastui-editor-contents h1…h6
+  // (e.g., h1: 28px). At larger zoom levels, scaled heading text inside a
+  // frozen line-height box gets cramped/clipped. The Stage 13 rules must
+  // override line-height with a unitless value (no px / em / rem) for each
+  // level, scoped under .toast-preview-mount.
+  //
+  // Match strategy: locate every CSS rule that targets the level (either
+  // alone or grouped) inside the .toast-preview-mount .toastui-editor-contents
+  // h<N> namespace; require at least one such rule whose body declares
+  // line-height with a plain numeric value (no px / em / rem suffix).
+  for (let n = 1; n <= 6; n++) {
+    // Block-bound regex: a rule whose selector list contains the scoped h<N>
+    // selector AND whose body declares line-height: <number> (no unit).
+    // The `[^{};]*` guards keep the line-height value tight (no semicolon,
+    // no nested rule); the `(?:em|px|rem|%|pt|ex|ch|vh|vw)` exclusion ensures
+    // a unitless value, not a frozen-px one.
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+h${n}\\b[^{}]*\\{[^}]*line-height\\s*:\\s*[\\d.]+\\s*(?:;|\\})`
+    );
+    assert.ok(re.test(html),
+      `.toast-preview-mount .toastui-editor-contents h${n} must declare a unitless line-height (e.g., 1.2) so the line box scales with heading font-size`);
+  }
+});
+
+// ── Stage 13.1: Preview heading spacing fix at max editor zoom ─────────────
+//
+// Stage 13 made Preview heading font-size and line-height em-relative, but
+// Toast UI's bundled heading margins and H1/H2 padding-bottom remained in
+// fixed px. At max --editor-font-size, scaled headings overrun their own
+// underline (H1/H2) and visually touch each other (stacked H1–H6). Stage 13.1
+// adds em-relative margin-top, margin-bottom, and (for H1/H2) padding-bottom
+// scoped under .toast-preview-mount .toastui-editor-contents.
+//
+// Toast UI's bundled border-bottom values (H1: 3px double #999, H2: 1px solid
+// #dbdbdb) are intentionally NOT redeclared — duplicating them would force us
+// to pick the color and would diverge from any future theme update. Test D
+// below defends that decision by asserting the new scoped rules do not
+// contain a border-bottom declaration.
+//
+// Regex shape: value-tight terminator `\s*(?:;|\})` requires the em value to
+// end with a property semicolon or the rule's closing brace, so malformed
+// values like `1empx` cannot match.
+
+test('Stage 13.1: Preview headings h1–h6 declare em-relative margin-top', () => {
+  const html = readIndexHtml();
+  for (let n = 1; n <= 6; n++) {
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+h${n}\\b[^{}]*\\{[^}]*margin-top\\s*:\\s*[\\d.]+em\\s*(?:;|\\})`
+    );
+    assert.ok(re.test(html),
+      `.toast-preview-mount .toastui-editor-contents h${n} must declare an em-relative margin-top so the gap above scales with --editor-font-size`);
+  }
+});
+
+test('Stage 13.1: Preview headings h1–h6 declare em-relative margin-bottom', () => {
+  const html = readIndexHtml();
+  for (let n = 1; n <= 6; n++) {
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+h${n}\\b[^{}]*\\{[^}]*margin-bottom\\s*:\\s*[\\d.]+em\\s*(?:;|\\})`
+    );
+    assert.ok(re.test(html),
+      `.toast-preview-mount .toastui-editor-contents h${n} must declare an em-relative margin-bottom so the gap below scales with --editor-font-size`);
+  }
+});
+
+test('Stage 13.1: Preview headings h1 and h2 declare em-relative padding-bottom (underline gap)', () => {
+  const html = readIndexHtml();
+  for (const n of [1, 2]) {
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+h${n}\\b[^{}]*\\{[^}]*padding-bottom\\s*:\\s*[\\d.]+em\\s*(?:;|\\})`
+    );
+    assert.ok(re.test(html),
+      `.toast-preview-mount .toastui-editor-contents h${n} must declare an em-relative padding-bottom so the gap to its underline scales with --editor-font-size`);
+  }
+});
+
+test('Stage 13.1: scoped Preview h1/h2 rules MUST NOT redeclare border-bottom (Toast UI defaults travel through unchanged)', () => {
+  const html = readIndexHtml();
+  // Toast UI bundles h1 { border-bottom: 3px double #999 } and
+  // h2 { border-bottom: 1px solid #dbdbdb }. Re-declaring would duplicate
+  // the color/style and would diverge from any future theme update. Walk
+  // every scoped rule whose selector list contains the level and assert
+  // the rule body does not declare border-bottom. Global flag so multiple
+  // matching blocks are all checked.
+  for (const level of ['h1', 'h2']) {
+    const re = new RegExp(
+      `\\.toast-preview-mount\\s+\\.toastui-editor-contents\\s+${level}\\b[^{}]*\\{([^}]*)\\}`,
+      'g'
+    );
+    let match;
+    while ((match = re.exec(html)) !== null) {
+      const body = match[1];
+      assert.ok(!/border-bottom\s*:/.test(body),
+        `Stage 13.1 must not declare border-bottom in any scoped Preview ${level} rule; Toast UI's bundled value must travel through unchanged`);
+    }
+  }
+});
+
+test('Stage 13: source contains literal storage key "markdownVault.editorFontSize"', () => {
+  const html = readIndexHtml();
+  assert.ok(html.includes("'markdownVault.editorFontSize'") || html.includes('"markdownVault.editorFontSize"'),
+    'source must reference the literal storage-key string for the font-size preference');
 });
 
 // ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────
