@@ -40,6 +40,11 @@
         --font-prose:  "iA Writer Quattro V", "Iowan Old Style", Charter, Georgia, ui-serif, serif;
         --font-mono:   "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
         --font-editor: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+        /* Stage 13: editor body text size. User-adjustable via Cmd/Ctrl+=,
+           Cmd/Ctrl+-, Cmd/Ctrl+0; persisted to localStorage under
+           markdownVault.editorFontSize. Consumed by .hybrid-write-pane (Write
+           pane root) and the Toast UI Preview body. */
+        --editor-font-size: 15px;
 
         /* Radius */
         --radius-sm: 6px;
@@ -527,6 +532,10 @@
         flex: 1;
         min-height: 0;
         overflow: auto;
+        /* Stage 13: editor body text size. CM6 .cm-content inherits from
+           this root; legacy hybrid .hybrid-active-textarea also inherits
+           via its `font: inherit` declaration below. */
+        font-size: var(--editor-font-size, 15px);
       }
 
       .hybrid-write-pane.is-hidden {
@@ -683,6 +692,72 @@
       .toast-preview-mount .toastui-editor-mode-switch,
       .toast-preview-mount .toastui-editor-md-tab-container {
         display: none !important;
+      }
+
+      /* Stage 13: Toast UI Preview body consumes the same editor font-size
+         variable as the Write pane, so Cmd/Ctrl+= / +- / +0 affects both
+         surfaces in lockstep. Toast UI nests .toastui-editor-contents inside
+         .toastui-editor-md-preview; both get the variable so whichever ends
+         up rendering text picks it up. */
+      .toast-preview-mount .toastui-editor-md-preview,
+      .toast-preview-mount .toastui-editor-contents {
+        font-size: var(--editor-font-size, 15px);
+      }
+      /* Stage 13: Toast UI bundles fixed-px heading sizes on
+         .toastui-editor-contents h1…h6 that would override inherited
+         container sizing, so Preview headings would freeze while body text
+         zooms. Re-declare them with em ratios scoped under
+         .toast-preview-mount so they scale with --editor-font-size. Ratios
+         match the CM6 hybrid live-styling rules above so Write-mode and
+         Preview-mode headings stay visually consistent. */
+      .toast-preview-mount .toastui-editor-contents h1 { font-size: 1.75em; }
+      .toast-preview-mount .toastui-editor-contents h2 { font-size: 1.40em; }
+      .toast-preview-mount .toastui-editor-contents h3 { font-size: 1.15em; }
+      .toast-preview-mount .toastui-editor-contents h4 { font-size: 1.00em; }
+      .toast-preview-mount .toastui-editor-contents h5 { font-size: 0.90em; }
+      .toast-preview-mount .toastui-editor-contents h6 { font-size: 0.85em; }
+      /* Stage 13: Toast UI also pins heading line-height in fixed px (h1=28px,
+         h2=23px, h3/h4=18px, h5/h6=17px). Override with a unitless value so
+         the line box scales with the (now em-driven) heading font-size and
+         large-zoom headings don't end up cramped or clipped. */
+      .toast-preview-mount .toastui-editor-contents h1,
+      .toast-preview-mount .toastui-editor-contents h2,
+      .toast-preview-mount .toastui-editor-contents h3,
+      .toast-preview-mount .toastui-editor-contents h4,
+      .toast-preview-mount .toastui-editor-contents h5,
+      .toast-preview-mount .toastui-editor-contents h6 {
+        line-height: 1.2;
+      }
+      /* Stage 13.1: Toast UI ships fixed-px margins on h1–h6 and fixed-px
+         padding-bottom on h1/h2 (the underline gap). At max --editor-font-size,
+         scaled heading text overruns those frozen gaps, causing H1/H2 text to
+         crash into their own underline and stacked H1–H6 to visually touch.
+         Make those metrics em-relative so they scale with each heading's
+         (now em-driven) font-size.
+
+         Toast UI's bundled border-bottom declarations stay UNTOUCHED:
+           h1: 3px double #999
+           h2: 1px solid  #dbdbdb
+         Re-declaring would force us to duplicate the color/style and would
+         diverge from any future theme update. Our scoped rules add only
+         padding-bottom (the gap to the underline), margin-top, and
+         margin-bottom. */
+      .toast-preview-mount .toastui-editor-contents h1 {
+        margin-top:     1.0em;
+        margin-bottom:  0.5em;
+        padding-bottom: 0.3em;
+      }
+      .toast-preview-mount .toastui-editor-contents h2 {
+        margin-top:     0.9em;
+        margin-bottom:  0.45em;
+        padding-bottom: 0.25em;
+      }
+      .toast-preview-mount .toastui-editor-contents h3,
+      .toast-preview-mount .toastui-editor-contents h4,
+      .toast-preview-mount .toastui-editor-contents h5,
+      .toast-preview-mount .toastui-editor-contents h6 {
+        margin-top:    0.8em;
+        margin-bottom: 0.4em;
       }
 
       /* Active textarea — fills the full editor area */
@@ -1346,6 +1421,49 @@
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
       let hasLoadedVaultNotes     = false;
+
+      // Stage 13: editor text-size adjust. Renderer-local, CSS-only:
+      //   - FONT_SIZE_STEPS is the discrete px ladder.
+      //   - FONT_SIZE_DEFAULT is the boot fallback and Cmd+0 reset target;
+      //     it MUST be a member of FONT_SIZE_STEPS.
+      //   - currentFontSizePx tracks the live value so keyboard handlers
+      //     can find the current step in O(N).
+      //   - applyEditorFontSize(px, { persist }) sets the CSS variable on
+      //     :root; defaults to persisting; boot calls with persist:false.
+      //   - readPersistedFontSize() uses STRICT parsing — Number(raw) +
+      //     Number.isInteger + FONT_SIZE_STEPS.includes — and falls back
+      //     to default for any invalid value.
+      const FONT_SIZE_STEPS       = [12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 36];
+      const FONT_SIZE_DEFAULT     = 15;
+      const FONT_SIZE_STORAGE_KEY = 'markdownVault.editorFontSize';
+      let   currentFontSizePx     = FONT_SIZE_DEFAULT;
+
+      function readPersistedFontSize() {
+        try {
+          const raw = window.localStorage && window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+          if (raw == null) return FONT_SIZE_DEFAULT;
+          const n = Number(raw);
+          if (!Number.isInteger(n)) return FONT_SIZE_DEFAULT;
+          if (!FONT_SIZE_STEPS.includes(n)) return FONT_SIZE_DEFAULT;
+          return n;
+        } catch (_e) {
+          return FONT_SIZE_DEFAULT;
+        }
+      }
+
+      function applyEditorFontSize(px, options) {
+        const persist = !options || options.persist !== false;
+        currentFontSizePx = px;
+        document.documentElement.style.setProperty('--editor-font-size', px + 'px');
+        if (persist) {
+          try { window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(px)); } catch (_e) { /* ignore */ }
+        }
+      }
+
+      // Boot: apply the persisted (or default) size BEFORE any user interaction.
+      // persist:false ensures the boot apply itself doesn't write localStorage —
+      // only explicit Cmd/Ctrl+= / +- / +0 actions do.
+      applyEditorFontSize(readPersistedFontSize(), { persist: false });
       // Stage 6.3B: while saveAllDirtyNotes is iterating, the watcher
       // refresh callback bails out so its loadVaultNotes calls don't
       // race in-flight saves. Save-all does its OWN single refresh
@@ -3206,6 +3324,32 @@
         const mod = e.metaKey || e.ctrlKey;
         const plain = !e.shiftKey && !e.altKey;
         const key = String(e.key || '').toLowerCase();
+        // Stage 13: editor text-size adjust. Three branches use the original
+        // (unlowercased) e.key so Cmd+Shift+= (which produces e.key === '+')
+        // is accepted alongside Cmd+= and Ctrl+=. Alt is excluded so
+        // Cmd+Alt+= falls through. Each branch returns to avoid fall-through
+        // into Cmd+N / Cmd+S below.
+        if (mod && !e.altKey && (e.key === '=' || e.key === '+')) {
+          e.preventDefault();
+          const idx = FONT_SIZE_STEPS.indexOf(currentFontSizePx);
+          const nextIdx = Math.min((idx < 0 ? FONT_SIZE_STEPS.indexOf(FONT_SIZE_DEFAULT) : idx) + 1, FONT_SIZE_STEPS.length - 1);
+          const nextPx = FONT_SIZE_STEPS[nextIdx];
+          if (nextPx !== currentFontSizePx) applyEditorFontSize(nextPx);
+          return;
+        }
+        if (mod && !e.altKey && e.key === '-') {
+          e.preventDefault();
+          const idx = FONT_SIZE_STEPS.indexOf(currentFontSizePx);
+          const prevIdx = Math.max((idx < 0 ? FONT_SIZE_STEPS.indexOf(FONT_SIZE_DEFAULT) : idx) - 1, 0);
+          const prevPx = FONT_SIZE_STEPS[prevIdx];
+          if (prevPx !== currentFontSizePx) applyEditorFontSize(prevPx);
+          return;
+        }
+        if (mod && !e.altKey && e.key === '0') {
+          e.preventDefault();
+          applyEditorFontSize(FONT_SIZE_DEFAULT);
+          return;
+        }
         if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
         if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
