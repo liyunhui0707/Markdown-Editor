@@ -663,6 +663,31 @@
         color:      var(--text-muted);
       }
 
+      /* CM6 hybrid live-styling — reference-style link text (Stage 14.6).
+         Visible label of full "[text][ref]" and collapsed "[text][]"
+         reference links. Visually mirrors the inline-link cm-md-link-text
+         underline pattern. Reference markers ("[", "]", LinkLabel) share
+         the cm-md-syntax hide/reveal mechanism above. NO <a>, NO href,
+         NO click behavior — purely Decoration.mark styling. Shortcut
+         references "[shortcut]" are intentionally NOT styled — the
+         parser cannot distinguish them from plain bracketed text without
+         a document-wide scan. */
+      .cm-md-reflink-text {
+        text-decoration:           underline;
+        text-decoration-color:     var(--text-muted);
+        text-decoration-thickness: 1px;
+        text-underline-offset:     2px;
+      }
+
+      /* CM6 hybrid live-styling — link definitions (Stage 14.6). Dim the
+         entire "[ref]: url \"title\"" definition line with a single mark
+         on the LinkReference container so it reads as secondary metadata
+         distinct from body text. Children (LinkLabel, LinkMark ":", URL,
+         optional LinkTitle) get no separate decoration. */
+      .cm-md-link-def {
+        color: var(--text-muted);
+      }
+
       /* CM6 hybrid live-styling — list and blockquote markers (Stage 11.8).
          Markers stay visible at all times so list/quote structure remains
          scannable; just dim them so the content reads as the focus. No

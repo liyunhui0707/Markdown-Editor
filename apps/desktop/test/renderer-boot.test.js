@@ -6350,6 +6350,28 @@ test('Stage 14.5: index.html contains scoped .cm-md-image-alt rule with font-sty
     '.cm-md-image-alt must declare BOTH font-style: italic AND color: var(--text-muted) inside its rule body');
 });
 
+test('Stage 14.6: index.html contains scoped .cm-md-reflink-text rule with text-decoration: underline', () => {
+  const html = readIndexHtml();
+  // Block-bound: [^}]* prevents leakage. Mirrors the Stage 11.7
+  // cm-md-link-text underline pattern. The marker class cm-md-reflink-mark
+  // intentionally has NO standalone CSS rule — it relies on the shared
+  // .cm-md-syntax hide/reveal mechanism.
+  const re = /\.cm-md-reflink-text\s*\{[^}]*text-decoration\s*:\s*underline[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-reflink-text must declare text-decoration: underline inside its rule body');
+});
+
+test('Stage 14.6: index.html contains scoped .cm-md-link-def rule with color: var(--text-muted)', () => {
+  const html = readIndexHtml();
+  // Block-bound: dims the entire definition line. Single rule on the
+  // LinkReference container covers all child nodes (LinkLabel,
+  // LinkMark ":", URL, optional LinkTitle), so individual children get
+  // no separate decoration.
+  const re = /\.cm-md-link-def\s*\{[^}]*color\s*:\s*var\(\s*--text-muted\s*\)[^}]*\}/;
+  assert.ok(re.test(html),
+    '.cm-md-link-def must declare color: var(--text-muted) inside its rule body');
+});
+
 test('Stage 11.7: index.html contains .cm-md-link-text rule', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('.cm-md-link-text'),
