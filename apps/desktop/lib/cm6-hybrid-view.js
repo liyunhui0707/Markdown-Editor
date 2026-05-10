@@ -147,6 +147,44 @@
               return;
             }
 
+            // Stage 14.7 — Setext headings. Lezer Markdown emits
+            // SetextHeading1 / SetextHeading2 container nodes whose text
+            // spans the first line and whose HeaderMark child spans the
+            // "=====" or "-----" underline run on the next line. Reuse the
+            // existing .cm-md-h1 / .cm-md-h2 / .cm-md-heading-mark CSS so
+            // Setext H1/H2 visually align with their ATX counterparts. The
+            // text mark MUST exclude the trailing newline before the
+            // underline so cm-md-h{1,2} typography does not bleed into the
+            // underline line. The walker descends so inline emphasis /
+            // inline-code / strikethrough inside the heading text still
+            // reach their own enter() branches (mirrors the ATX comment).
+            if (name === 'SetextHeading1' || name === 'SetextHeading2') {
+              const level = name === 'SetextHeading1' ? '1' : '2';
+              let headerMark = null;
+              for (let child = node.node.firstChild; child; child = child.nextSibling) {
+                if (child.name === 'HeaderMark') { headerMark = child; break; }
+              }
+              let textTo = headerMark ? headerMark.from : node.to;
+              if (
+                textTo > node.from
+                && state.doc.sliceString(textTo - 1, textTo) === '\n'
+              ) {
+                textTo -= 1;
+              }
+              if (node.from < textTo) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-h' + level }).range(node.from, textTo)
+                );
+              }
+              if (headerMark) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-heading-mark' })
+                    .range(headerMark.from, headerMark.to)
+                );
+              }
+              return;
+            }
+
             // Inline live styling. Descend into these so nested children
             // (e.g., Emphasis inside StrongEmphasis, EmphasisMark/CodeMark)
             // are reached on their own enter() calls.

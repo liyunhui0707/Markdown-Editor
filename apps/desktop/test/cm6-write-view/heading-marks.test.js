@@ -299,14 +299,20 @@ test('19. heading with bold + italic + inline code emits all expected marks', ()
   assert.equal(codeMarks.length, 2, 'two code markers');
 });
 
-test('20. setext heading underline is not decorated as ATX heading marker', () => {
-  // Lezer Markdown emits SetextHeading1/2 with a HeaderMark child for the
-  // "=====" / "-----" underline. Our manual children loop is scoped to
-  // ATXHeading parents, so setext underlines must remain raw.
+test('20. Stage 14.7: setext heading underline IS decorated as cm-md-heading-mark', () => {
+  // Stage 14.7 reverses the prior negative assertion. Lezer Markdown emits
+  // SetextHeading1/2 with a HeaderMark child for the "=====" / "-----"
+  // underline. The Stage 14.7 walker now decorates that child with
+  // cm-md-heading-mark so the existing .cm-activeLine .cm-md-heading-mark
+  // CSS hides it off the underline line and reveals it dimmed when the
+  // caret is on that line. The title-text cm-md-h1 mark is asserted by
+  // the new Stage 14.7 test 1 below.
   const doc = 'Title\n=====\n';
   const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
-  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
-    'no cm-md-heading-mark for setext underline');
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'one cm-md-heading-mark over the Setext underline');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
 });
 
 test('21. fenced code delimiters do NOT get cm-md-code-mark / cm-md-syntax', () => {
@@ -1386,4 +1392,123 @@ test('Stage 14.6-10: inline link "[OpenAI](https://openai.com)" is NOT reflink-s
     'inline link must not also be styled as reference link');
   assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-reflink-mark')).length, 0,
     'inline link must not get cm-md-reflink-mark');
+});
+
+// ── Stage 14.7: Setext heading live styling ────────────────────────────────
+//
+// Lezer Markdown emits SetextHeading1 / SetextHeading2 container nodes whose
+// text spans the first line and whose HeaderMark child spans the "=====" or
+// "-----" underline run. The hybrid-cm6 walker decorates the title text with
+// cm-md-h{1,2} (excluding the trailing newline before the underline) and the
+// HeaderMark child with cm-md-heading-mark, reusing the existing CSS rules
+// from Stage 11.4 (.cm-md-h1 / .cm-md-h2 / .cm-md-heading-mark). No new CSS
+// is shipped in this stage. Source bytes are never modified.
+
+test('Stage 14.7-1: "Title\\n=====\\n" produces cm-md-h1 over [0, 5] (excludes newline)', () => {
+  // Container spans "Title" + "\n" + "=====". Text mark must stop before
+  // the newline at index 5 so cm-md-h1 typography does NOT bleed into the
+  // underline line.
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1 mark');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   5);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0,
+    'Setext H1 must not also produce cm-md-h2');
+});
+
+test('Stage 14.7-2: "Title\\n=====\\n" produces cm-md-heading-mark over [6, 11]', () => {
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+});
+
+test('Stage 14.7-3: "Title\\n-----\\n" produces cm-md-h2 over [0, 5] (excludes newline)', () => {
+  const doc = 'Title\n-----\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h2 = marks.filter((m) => m.class === 'cm-md-h2');
+  assert.equal(h2.length, 1, 'exactly one cm-md-h2 mark');
+  assert.equal(h2[0].from, 0);
+  assert.equal(h2[0].to,   5);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length, 0,
+    'Setext H2 must not also produce cm-md-h1');
+});
+
+test('Stage 14.7-4: "Title\\n-----\\n" produces cm-md-heading-mark over [6, 11] and zero cm-md-hr', () => {
+  // Stage 14.1 disambiguation pinned at the new stage: the parser emits
+  // SetextHeading2 (with HeaderMark) for "---" following text — it is not
+  // a HorizontalRule. The hybrid-cm6 HR branch must remain untouched.
+  const doc = 'Title\n-----\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0,
+    'Setext H2 underline must not be styled as cm-md-hr');
+});
+
+test('Stage 14.7-5: "**bold** title\\n=====\\n" emits cm-md-h1 [0, 14] and cm-md-heading-mark [15, 20] with inline marks descending', () => {
+  // Container: "**bold** title" (14 chars) + "\n" + "=====" + "\n".
+  // Text mark must exclude the newline at index 14. The walker must descend
+  // into the SetextHeading container so the inline StrongEmphasis branch
+  // (and its EmphasisMark children) still fire.
+  const doc = '**bold** title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1 mark');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   14);
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 15);
+  assert.equal(headerMarks[0].to,   20);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length, 1,
+    'descend invariant: cm-md-bold inside Setext heading text');
+  assert.equal(
+    marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark')).length, 2,
+    'descend invariant: two emphasis-mark ranges for ** **');
+});
+
+test('Stage 14.7-6: ATX heading regression — "# Hello" still emits cm-md-h1 [0, 7] and cm-md-heading-mark [0, 1]', () => {
+  // Sanity check that the new Setext branch does not regress the ATX path.
+  const doc = '# Hello';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   7);
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 0);
+  assert.equal(headerMarks[0].to,   1);
+});
+
+test('Stage 14.7-7: HorizontalRule regression — "\\n---\\n" still emits cm-md-hr and zero heading marks', () => {
+  // Sanity check that the new Setext branch does not poach standalone HRs.
+  const doc = '\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 1,
+    'standalone "---" stays a HorizontalRule');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
+    'standalone HR must not get cm-md-heading-mark');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length, 0,
+    'standalone HR must not get cm-md-h1');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0,
+    'standalone HR must not get cm-md-h2');
+});
+
+test('Stage 14.7-8: getText is unchanged for all Setext fixtures', () => {
+  // Round-trip invariant: building decorations must never mutate the
+  // document. Marks are visual-only.
+  for (const input of ['Title\n=====\n', 'Title\n-----\n', '**bold** title\n=====\n']) {
+    const state = makeState(input);
+    buildHeadingDecorations(state, cm6);
+    assert.equal(state.doc.toString(), input,
+      'state.doc must equal the input verbatim after buildHeadingDecorations');
+  }
 });
