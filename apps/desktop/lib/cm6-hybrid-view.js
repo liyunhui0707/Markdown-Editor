@@ -101,6 +101,36 @@
     return false;
   }
 
+  // Stage 14.9: detect a top-of-file YAML frontmatter region. Returns
+  // { from: 0, to: <end-of-closing-line> } when the doc begins with a
+  // strict "---" line and a later strict "---" line exists, otherwise
+  // null. The CommonMark parser does not recognize frontmatter as a
+  // structural construct: the leading "---" is parsed as HorizontalRule,
+  // and the closing "---" (when it follows a non-blank metadata line)
+  // is parsed as SetextHeading2's HeaderMark. Without intervention the
+  // metadata region picks up cm-md-hr, cm-md-h2, cm-md-heading-mark,
+  // AND any inline classes (cm-md-bold, cm-md-autolink-url, etc.) of
+  // constructs nested inside the metadata text. buildHeadingDecorations
+  // uses this region to suppress ALL decoration emission inside it, so
+  // frontmatter renders as plain text. Strict equality on "---" matches
+  // typical YAML conventions and avoids false positives on lines like
+  // "--- " (HR with trailing whitespace) or "----" (longer rule).
+  function detectFrontmatter(state) {
+    const doc = state.doc;
+    // Tolerate the minimal fake-doc backend used by adapter-contract tests,
+    // which exposes only toString() / length and never reaches the
+    // syntaxTree branch — return null so suppression is a no-op there.
+    if (!doc || typeof doc.line !== 'function') return null;
+    if (doc.lines < 2) return null;
+    if (doc.line(1).text !== '---') return null;
+    for (let i = 2; i <= doc.lines; i++) {
+      if (doc.line(i).text === '---') {
+        return { from: 0, to: doc.line(i).to };
+      }
+    }
+    return null;
+  }
+
   // Walk the Markdown syntax tree and emit Decoration.mark ranges for live
   // styling: ATX headings (h1–h6), inline emphasis / inline code, and
   // inline Markdown links. Returns a DecorationSet (or an equivalent shape
@@ -115,12 +145,23 @@
   // preserved verbatim.
   function buildHeadingDecorations(state, cm6) {
     const decorations = [];
+    const frontmatter = detectFrontmatter(state);
 
     if (cm6 && typeof cm6.syntaxTree === 'function') {
       const tree = cm6.syntaxTree(state);
       if (tree && typeof tree.iterate === 'function') {
         tree.iterate({
           enter(node) {
+            // Stage 14.9: suppress all decoration emission inside top-of-file
+            // YAML frontmatter so metadata renders as plain text. Returning
+            // here still lets the iterator descend into child nodes — each
+            // child also satisfies node.from < frontmatter.to and is therefore
+            // suppressed by the same check, which is how this single guard
+            // catches HR, Setext, AND every inline construct nested inside
+            // the metadata text (bold, autolinks, etc.).
+            if (frontmatter && node.from < frontmatter.to) {
+              return;
+            }
             const name = node.name;
             if (!name) return;
 

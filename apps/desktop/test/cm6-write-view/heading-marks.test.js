@@ -1512,3 +1512,182 @@ test('Stage 14.7-8: getText is unchanged for all Setext fixtures', () => {
       'state.doc must equal the input verbatim after buildHeadingDecorations');
   }
 });
+
+// ── Stage 14.9: frontmatter visual fix ──────────────────────────────────────
+//
+// The CommonMark parser does not recognize YAML frontmatter as a structural
+// construct. The leading "---" of "---\nKEY: VAL\n---" is parsed as a
+// HorizontalRule, and the closing "---" (directly after the metadata
+// paragraph) is parsed as SetextHeading2's HeaderMark — so without
+// intervention the metadata region picks up cm-md-hr, cm-md-h2,
+// cm-md-heading-mark, AND any inline classes (cm-md-bold, cm-md-italic,
+// cm-md-emphasis-mark, cm-md-autolink-url, etc.) of constructs nested inside
+// the metadata text. Stage 14.9 detects the frontmatter region from
+// state.doc and suppresses ALL decoration emission inside it. The contract
+// is "frontmatter plain": no styling at all on or between the strict "---"
+// fences.
+
+test('Stage 14.9-1: standard frontmatter "---\\ntitle: x\\n---\\nbody\\n" emits zero cm-md-hr', () => {
+  // Pre-impl: leading "---" is HorizontalRule [0,3] → cm-md-hr fires.
+  // Post-impl: detection finds frontmatter [0, 16]; HR is inside → suppressed.
+  const doc = '---\ntitle: x\n---\nbody\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0,
+    'leading "---" of frontmatter must not be styled as a horizontal rule');
+});
+
+test('Stage 14.9-2: standard frontmatter emits zero heading classes (h1/h2/heading-mark)', () => {
+  // Pre-impl: closing "---" is parsed as SetextHeading2 underline of
+  // "title: x", so cm-md-h2 + cm-md-heading-mark fire.
+  // Post-impl: SetextHeading2 [4,16] is inside frontmatter → suppressed.
+  const doc = '---\ntitle: x\n---\nbody\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0,
+    'metadata text must not pick up Setext H2 typography');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
+    'closing "---" of frontmatter must not be styled as a heading mark');
+});
+
+test('Stage 14.9-3: empty frontmatter "---\\n---\\n" emits zero cm-md-hr', () => {
+  // Parser emits two HorizontalRule nodes; both must be suppressed.
+  const doc = '---\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0,
+    'both fences of empty frontmatter must be suppressed');
+});
+
+test('Stage 14.9-4: multi-paragraph frontmatter emits zero cm-md-h2 and zero cm-md-heading-mark', () => {
+  // Closing "---" is Setext underline of the second metadata paragraph
+  // ("more: y"). Detection range [0, 25] covers the SetextHeading2 [14,25].
+  const doc = '---\ntitle: x\n\nmore: y\n---\nbody\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0);
+});
+
+test('Stage 14.9-5: frontmatter then real HR — exactly one cm-md-hr at [14, 17]', () => {
+  // Three HR-like positions in the parser: leading "---" (frontmatter),
+  // closing "---" (parsed as SetextHeading2.HeaderMark, not HR), and the
+  // standalone "---" at [14,17] which is a real thematic break.
+  // Post-impl: frontmatter [0, 12] suppresses leading + Setext; the real
+  // HR survives.
+  const doc = '---\nt: x\n---\n\n---\nbody\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1, 'exactly one cm-md-hr — the real HR after frontmatter');
+  assert.equal(hr[0].from, 14);
+  assert.equal(hr[0].to,   17);
+});
+
+test('Stage 14.9-6: frontmatter containing an autolink emits zero autolink classes (and zero hr/heading)', () => {
+  // The bare URL inside the metadata line would normally pick up
+  // cm-md-autolink-url (Stage 14.4 invariant). Inside frontmatter every
+  // decoration is suppressed.
+  const doc = '---\nurl: https://example.com\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-autolink-url').length, 0,
+    'bare URL inside frontmatter must not be underlined');
+  assert.equal(
+    marks.filter((m) => hasClassToken(m.class, 'cm-md-autolink-mark')).length, 0,
+    'no autolink-mark token must fire inside frontmatter');
+});
+
+test('Stage 14.9-7: frontmatter containing **bold** — body bold survives, frontmatter bold does NOT', () => {
+  // Total bold across the whole document: pre-impl 2 (metadata + body),
+  // post-impl 1 (body only). Total emphasis-mark token: pre-impl 4
+  // (two ** pairs), post-impl 2 (body pair only).
+  const doc = '---\ntitle: **bold**\n---\nbody **bold**\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length, 1,
+    'body **bold** still produces one cm-md-bold (Stage 11.5 invariant)');
+  assert.equal(
+    marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark')).length, 2,
+    'body ** pair still produces two emphasis-mark ranges');
+});
+
+test('Stage 14.9-8: "---\\nno closing\\n" — exactly one cm-md-hr [0, 3] (frontmatter NOT detected)', () => {
+  // Detection requires a later strict "---" line; this fixture has none,
+  // so the leading "---" remains a real HorizontalRule.
+  const doc = '---\nno closing\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1, 'exactly one cm-md-hr — leading "---" stays an HR');
+  assert.equal(hr[0].from, 0);
+  assert.equal(hr[0].to,   3);
+});
+
+test('Stage 14.9-9: doc not starting with "---" — standalone HR after blank still styled (Stage 14.1 invariant)', () => {
+  // Detection short-circuits at line 1 because line(1).text !== "---".
+  const doc = 'body\n\n---\n\nmore\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const hr = marks.filter((m) => m.class === 'cm-md-hr');
+  assert.equal(hr.length, 1);
+  assert.equal(hr[0].from, 6);
+  assert.equal(hr[0].to,   9);
+});
+
+test('Stage 14.9-10: ATX regression — "# Hello" still emits cm-md-h1 [0, 7] and cm-md-heading-mark [0, 1]', () => {
+  const doc = '# Hello';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(h1.length, 1);
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   7);
+  assert.equal(headerMarks.length, 1);
+  assert.equal(headerMarks[0].from, 0);
+  assert.equal(headerMarks[0].to,   1);
+});
+
+test('Stage 14.9-11: Setext H1 regression — "Title\\n=====\\n" still emits one cm-md-h1 [0, 5] and cm-md-heading-mark [6, 11]', () => {
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(h1.length, 1);
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   5);
+  assert.equal(headerMarks.length, 1);
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0);
+});
+
+test('Stage 14.9-12: Setext H2 regression — "Title\\n-----\\n" still emits one cm-md-h2 [0, 5] and cm-md-heading-mark [6, 11]', () => {
+  const doc = 'Title\n-----\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h2 = marks.filter((m) => m.class === 'cm-md-h2');
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(h2.length, 1);
+  assert.equal(h2[0].from, 0);
+  assert.equal(h2[0].to,   5);
+  assert.equal(headerMarks.length, 1);
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0);
+});
+
+test('Stage 14.9-13: getText is unchanged for all frontmatter fixtures', () => {
+  // Round-trip invariant: detection + suppression must not mutate state.doc.
+  const fixtures = [
+    '---\ntitle: x\n---\nbody\n',
+    '---\n---\n',
+    '---\ntitle: x\n\nmore: y\n---\nbody\n',
+    '---\nt: x\n---\n\n---\nbody\n',
+    '---\nurl: https://example.com\n---\n',
+    '---\ntitle: **bold**\n---\nbody **bold**\n',
+  ];
+  for (const input of fixtures) {
+    const state = makeState(input);
+    buildHeadingDecorations(state, cm6);
+    assert.equal(state.doc.toString(), input,
+      'state.doc must equal the input verbatim after buildHeadingDecorations');
+  }
+});
