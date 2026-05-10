@@ -87,6 +87,20 @@
     return { from: first.to, to: second.from };
   }
 
+  // Stage 14.6: a reference link is a Link node with a LinkLabel child
+  // (full "[text][ref]" or collapsed "[text][]" forms). Inline links
+  // (with URL child) and shortcut links "[shortcut]" (no LinkLabel,
+  // no URL — same parser shape as plain bracketed text) both return
+  // false. Shortcut references are deferred because the parser cannot
+  // distinguish them from plain text without a document-wide scan.
+  function isReferenceLinkNode(linkNode) {
+    if (!linkNode || linkNode.name !== 'Link') return false;
+    for (let child = linkNode.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'LinkLabel') return true;
+    }
+    return false;
+  }
+
   // Walk the Markdown syntax tree and emit Decoration.mark ranges for live
   // styling: ATX headings (h1–h6), inline emphasis / inline code, and
   // inline Markdown links. Returns a DecorationSet (or an equivalent shape
@@ -130,6 +144,44 @@
               // enter() branch below. The HeaderMark child has no inline
               // branch that matches, so it silently falls through and is
               // not double-emitted.
+              return;
+            }
+
+            // Stage 14.7 — Setext headings. Lezer Markdown emits
+            // SetextHeading1 / SetextHeading2 container nodes whose text
+            // spans the first line and whose HeaderMark child spans the
+            // "=====" or "-----" underline run on the next line. Reuse the
+            // existing .cm-md-h1 / .cm-md-h2 / .cm-md-heading-mark CSS so
+            // Setext H1/H2 visually align with their ATX counterparts. The
+            // text mark MUST exclude the trailing newline before the
+            // underline so cm-md-h{1,2} typography does not bleed into the
+            // underline line. The walker descends so inline emphasis /
+            // inline-code / strikethrough inside the heading text still
+            // reach their own enter() branches (mirrors the ATX comment).
+            if (name === 'SetextHeading1' || name === 'SetextHeading2') {
+              const level = name === 'SetextHeading1' ? '1' : '2';
+              let headerMark = null;
+              for (let child = node.node.firstChild; child; child = child.nextSibling) {
+                if (child.name === 'HeaderMark') { headerMark = child; break; }
+              }
+              let textTo = headerMark ? headerMark.from : node.to;
+              if (
+                textTo > node.from
+                && state.doc.sliceString(textTo - 1, textTo) === '\n'
+              ) {
+                textTo -= 1;
+              }
+              if (node.from < textTo) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-h' + level }).range(node.from, textTo)
+                );
+              }
+              if (headerMark) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-heading-mark' })
+                    .range(headerMark.from, headerMark.to)
+                );
+              }
               return;
             }
 
@@ -179,15 +231,36 @@
                   .range(node.from, node.to)
               );
             } else if (name === 'Link') {
-              // Stage 11.7: inline [text](url) only. Reference-style links
-              // (no URL child) are deferred. Style the label range with
-              // cm-md-link-text; the iterator descends to handle LinkMark/
-              // URL/LinkTitle children plus any nested emphasis in the label.
+              // Two shapes are styled here:
+              //   - Stage 11.7: inline "[text](url)" — Link with URL child.
+              //     Label gets cm-md-link-text.
+              //   - Stage 14.6: full "[text][ref]" or collapsed "[text][]"
+              //     reference link — Link with LinkLabel child. Label gets
+              //     cm-md-reflink-text. The same label-range helper applies
+              //     because both shapes have "[" and "]" as the first two
+              //     LinkMark children.
+              // Shortcut references "[shortcut]" remain deferred because the
+              // parser cannot distinguish them from plain bracketed text
+              // without a document-wide cross-reference scan.
+              // The iterator descends in either case so LinkMark / LinkLabel
+              // / URL / LinkTitle children and nested emphasis reach their
+              // own enter() branches.
               if (isInlineLinkNode(node.node)) {
                 const labelRange = inlineLinkLabelRange(node.node);
                 if (labelRange && labelRange.from < labelRange.to) {
                   decorations.push(
                     cm6.Decoration.mark({ class: 'cm-md-link-text' })
+                      .range(labelRange.from, labelRange.to)
+                  );
+                }
+              } else if (isReferenceLinkNode(node.node)) {
+                // Reuse inlineLinkLabelRange — full and collapsed reference
+                // links have the same "[" / "]" first-two-LinkMark structure
+                // as inline links.
+                const labelRange = inlineLinkLabelRange(node.node);
+                if (labelRange && labelRange.from < labelRange.to) {
+                  decorations.push(
+                    cm6.Decoration.mark({ class: 'cm-md-reflink-text' })
                       .range(labelRange.from, labelRange.to)
                   );
                 }
@@ -257,7 +330,52 @@
                   cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-image-mark' })
                     .range(node.from, node.to)
                 );
+              // Stage 14.6 — "[" and "]" markers of full and collapsed
+              // reference links. Shortcut links have no LinkLabel child
+              // and are excluded by isReferenceLinkNode. LinkMark inside
+              // a LinkReference definition is excluded because the parent
+              // there is LinkReference, not Link.
+              } else if (
+                name === 'LinkMark'
+                && parent
+                && parent.name === 'Link'
+                && isReferenceLinkNode(parent)
+              ) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-reflink-mark' })
+                    .range(node.from, node.to)
+                );
               }
+            } else if (name === 'LinkLabel') {
+              // Stage 14.6 — LinkLabel "[ref]" or "[]" inside a reference
+              // Link gets reflink-mark (hidden via cm-md-syntax). LinkLabel
+              // inside an Image (image reference) is intentionally not
+              // styled. LinkLabel inside a LinkReference (the definition
+              // itself) is covered by the parent's cm-md-link-def — no
+              // separate decoration emitted here.
+              const labelParent = node.node.parent;
+              if (
+                labelParent
+                && labelParent.name === 'Link'
+                && isReferenceLinkNode(labelParent)
+              ) {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-syntax cm-md-reflink-mark' })
+                    .range(node.from, node.to)
+                );
+              }
+            } else if (name === 'LinkReference') {
+              // Stage 14.6 — entire link definition line "[ref]: url"
+              // (with optional title) is dimmed via cm-md-link-def. The
+              // single mark on the LinkReference container covers all
+              // child nodes (LinkLabel, LinkMark ":", URL, optional
+              // LinkTitle), so individual children get no separate
+              // decoration. URL inside LinkReference is already excluded
+              // from cm-md-autolink-url by the Stage 14.4 guard.
+              decorations.push(
+                cm6.Decoration.mark({ class: 'cm-md-link-def' })
+                  .range(node.from, node.to)
+              );
             } else if (name === 'ListMark') {
               // Stage 11.8: dim "-", "*", "+", "1.", "1)" markers. ListMark
               // appears only inside ListItem per the parser, so no parent

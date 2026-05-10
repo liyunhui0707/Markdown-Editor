@@ -299,14 +299,20 @@ test('19. heading with bold + italic + inline code emits all expected marks', ()
   assert.equal(codeMarks.length, 2, 'two code markers');
 });
 
-test('20. setext heading underline is not decorated as ATX heading marker', () => {
-  // Lezer Markdown emits SetextHeading1/2 with a HeaderMark child for the
-  // "=====" / "-----" underline. Our manual children loop is scoped to
-  // ATXHeading parents, so setext underlines must remain raw.
+test('20. Stage 14.7: setext heading underline IS decorated as cm-md-heading-mark', () => {
+  // Stage 14.7 reverses the prior negative assertion. Lezer Markdown emits
+  // SetextHeading1/2 with a HeaderMark child for the "=====" / "-----"
+  // underline. The Stage 14.7 walker now decorates that child with
+  // cm-md-heading-mark so the existing .cm-activeLine .cm-md-heading-mark
+  // CSS hides it off the underline line and reveals it dimmed when the
+  // caret is on that line. The title-text cm-md-h1 mark is asserted by
+  // the new Stage 14.7 test 1 below.
   const doc = 'Title\n=====\n';
   const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
-  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
-    'no cm-md-heading-mark for setext underline');
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'one cm-md-heading-mark over the Setext underline');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
 });
 
 test('21. fenced code delimiters do NOT get cm-md-code-mark / cm-md-syntax', () => {
@@ -434,7 +440,11 @@ test('29. "![alt](image.png)" gets no cm-md-link-text and no cm-md-link-mark', (
     'image syntax must not be styled as link syntax');
 });
 
-test('30. "[OpenAI][1]" reference-style link is not styled (no URL child)', () => {
+test('30. "[OpenAI][1]" reference-style link does not get the Stage 11.7 inline-link classes (cm-md-link-text / cm-md-link-mark)', () => {
+  // Stage 11.7 invariant — reference-style links must not be styled with
+  // the inline-link classes. (Stage 14.6 styles them with the distinct
+  // cm-md-reflink-* classes; Stage 14.6-1 / 14.6-2 cover that positive
+  // behavior.)
   const doc = '[OpenAI][1]\n\n[1]: https://openai.com';
   const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
   assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
@@ -1224,4 +1234,281 @@ test('Stage 14.5-9: "![alt](https://example.com/pic.png)" — image classes fire
     'image URL must not be styled as autolink (Stage 14.4 invariant)');
   assert.equal(marks.filter((m) => m.class === 'cm-md-link-text').length, 0,
     'image must not be styled as inline link (Stage 11.7 invariant)');
+});
+
+// ── Stage 14.6: Reference-style link marker styling ────────────────────────
+//
+// The current parser already exposes:
+//   - Full reference link "[text][ref]"        → Link with LinkLabel child
+//   - Collapsed reference link "[text][]"      → Link with LinkLabel child "[]"
+//   - Link definition "[ref]: url"             → top-level LinkReference container
+//   - Image reference "![alt][1]"              → Image (NOT Link), with LinkLabel
+//
+// The walker styles ONLY full and collapsed reference links via
+// cm-md-reflink-text on the visible label and cm-md-syntax cm-md-reflink-mark
+// on the brackets and LinkLabel. Definitions get cm-md-link-def over the
+// entire LinkReference container.
+//
+// Shortcut references "[shortcut]" are NOT styled because the parser cannot
+// distinguish them from plain bracketed text "[just plain text]" without a
+// document-wide cross-reference scan — both produce identical Link + 2
+// LinkMark shape with no LinkLabel and no URL. Tests 14.6-4 and 14.6-5
+// pin this deferral.
+
+test('Stage 14.6-1: full reference link "[text][ref]" emits cm-md-reflink-text over [1,5]', () => {
+  const doc = '[text][ref]\n\n[ref]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const labels = marks.filter((m) => m.class === 'cm-md-reflink-text');
+  assert.equal(labels.length, 1, 'one cm-md-reflink-text over the visible label');
+  assert.equal(labels[0].from, 1);
+  assert.equal(labels[0].to,   5);
+});
+
+test('Stage 14.6-2: full reference link emits EXACTLY 3 cm-md-reflink-mark across the whole document with exact ranges', () => {
+  // Three marks total: "[" [0,1], "]" [5,6], LinkLabel "[ref]" [6,11].
+  // Asserting "exactly 3 across the whole doc" (NOT just within the first
+  // paragraph) catches any accidental decoration of the LinkReference
+  // definition's children — those must be covered by cm-md-link-def only.
+  const doc = '[text][ref]\n\n[ref]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const reflinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-reflink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(reflinkMarks.length, 3,
+    'exactly 3 reflink-mark in the whole doc; definition children must NOT get reflink-mark');
+  reflinkMarks.sort((a, b) => a.from - b.from);
+  assert.deepEqual(
+    reflinkMarks.map((m) => [m.from, m.to]),
+    [[0, 1], [5, 6], [6, 11]],
+    'sorted ranges cover "[", "]", LinkLabel "[ref]"'
+  );
+});
+
+test('Stage 14.6-3: collapsed reference link "[text][]" emits cm-md-reflink-text + EXACTLY 3 cm-md-reflink-mark across the whole document', () => {
+  // Doc: "[text][]\n\n[text]: https://example.com"
+  // Three marks total: "[" [0,1], "]" [5,6], LinkLabel "[]" [6,8].
+  // Whole-doc assertion guards against LinkReference definition children.
+  const doc = '[text][]\n\n[text]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const labels = marks.filter((m) => m.class === 'cm-md-reflink-text');
+  assert.equal(labels.length, 1, 'one cm-md-reflink-text over the visible label');
+  assert.equal(labels[0].from, 1);
+  assert.equal(labels[0].to,   5);
+  const reflinkMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-reflink-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(reflinkMarks.length, 3,
+    'exactly 3 reflink-mark in the whole doc; definition children must NOT get reflink-mark');
+  reflinkMarks.sort((a, b) => a.from - b.from);
+  assert.deepEqual(
+    reflinkMarks.map((m) => [m.from, m.to]),
+    [[0, 1], [5, 6], [6, 8]],
+    'sorted ranges cover "[", "]", LinkLabel "[]"'
+  );
+});
+
+test('Stage 14.6-4: shortcut reference "[shortcut]" with definition is NOT styled (parser cannot distinguish from plain text)', () => {
+  // Non-goal: shortcut references. The parser produces Link + two LinkMark
+  // children with no LinkLabel and no URL — identical to plain bracketed
+  // text. Distinguishing requires a document-wide cross-reference scan,
+  // deferred to a future stage. Tests 14.6-4 and 14.6-5 together pin this.
+  const doc = '[shortcut]\n\n[shortcut]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // Restrict the assertion to the first paragraph [0,10] so the definition
+  // line is excluded; plain-text "[shortcut]" must get no reflink decoration.
+  const para = marks.filter((m) => m.from < 11);
+  assert.equal(para.filter((m) => m.class === 'cm-md-reflink-text').length, 0,
+    'shortcut reference must not get cm-md-reflink-text');
+  assert.equal(para.filter((m) => hasClassToken(m.class, 'cm-md-reflink-mark')).length, 0,
+    'shortcut reference must not get cm-md-reflink-mark');
+});
+
+test('Stage 14.6-5: plain bracketed text "[just plain text]" (no definition) is NOT styled', () => {
+  // Symmetric to 14.6-4 — same parser shape as a shortcut reference.
+  // Together these two tests pin the load-bearing shortcut deferral.
+  const doc = '[just plain text]';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-reflink-text').length, 0,
+    'plain bracketed text must not get cm-md-reflink-text');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-reflink-mark')).length, 0,
+    'plain bracketed text must not get cm-md-reflink-mark');
+});
+
+test('Stage 14.6-6: link definition "[ref]: url" emits one cm-md-link-def over the full range', () => {
+  const doc = '[ref]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const defs = marks.filter((m) => m.class === 'cm-md-link-def');
+  assert.equal(defs.length, 1);
+  assert.equal(defs[0].from, 0);
+  assert.equal(defs[0].to,  26);
+});
+
+test('Stage 14.6-7: link definition with title "[ref]: url \\"title\\"" emits one cm-md-link-def over the full range', () => {
+  const doc = '[ref]: https://example.com "the title"';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const defs = marks.filter((m) => m.class === 'cm-md-link-def');
+  assert.equal(defs.length, 1, 'one cm-md-link-def covers label, URL, and title');
+  assert.equal(defs[0].from, 0);
+  assert.equal(defs[0].to,  38);
+});
+
+test('Stage 14.6-8: "[**bold**][ref]" composes cm-md-reflink-text + cm-md-bold + emphasis-mark', () => {
+  const doc = '[**bold**][ref]\n\n[ref]: https://example.com';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-reflink-text'),
+    'cm-md-reflink-text covers the visible label including the bold');
+  assert.ok(marks.some((m) => m.class === 'cm-md-bold'),
+    'cm-md-bold composes inside the reference label');
+  const emMarks = marks.filter((m) =>
+    hasClassToken(m.class, 'cm-md-emphasis-mark') && hasClassToken(m.class, 'cm-md-syntax'));
+  assert.equal(emMarks.length, 2, 'two emphasis markers around **bold**');
+});
+
+test('Stage 14.6-9: image reference "![alt][1]" is NOT reflink-styled; its definition gets cm-md-link-def', () => {
+  // Image references are Image-parented, not Link-parented — isReferenceLinkNode
+  // returns false for them. The definition line "[1]: pic.png" is still a
+  // top-level LinkReference and gets cm-md-link-def correctly.
+  const doc = '![alt][1]\n\n[1]: pic.png';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  // First paragraph (image reference) — no reflink decorations.
+  const para = marks.filter((m) => m.from < 10);
+  assert.equal(para.filter((m) => m.class === 'cm-md-reflink-text').length, 0,
+    'image reference must not get cm-md-reflink-text');
+  assert.equal(para.filter((m) => hasClassToken(m.class, 'cm-md-reflink-mark')).length, 0,
+    'image reference must not get cm-md-reflink-mark');
+  // Definition line — gets cm-md-link-def.
+  const defs = marks.filter((m) => m.class === 'cm-md-link-def');
+  assert.equal(defs.length, 1, 'definition still dimmed even for image references');
+  assert.equal(defs[0].from, 11);
+  assert.equal(defs[0].to,  23);
+});
+
+test('Stage 14.6-10: inline link "[OpenAI](https://openai.com)" is NOT reflink-styled (Stage 11.7 invariant)', () => {
+  // Inline links have a URL child; isReferenceLinkNode returns false.
+  // Stage 11.7 cm-md-link-text continues to fire.
+  const doc = '[OpenAI](https://openai.com)';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.ok(marks.some((m) => m.class === 'cm-md-link-text'),
+    'cm-md-link-text present (Stage 11.7 invariant)');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-reflink-text').length, 0,
+    'inline link must not also be styled as reference link');
+  assert.equal(marks.filter((m) => hasClassToken(m.class, 'cm-md-reflink-mark')).length, 0,
+    'inline link must not get cm-md-reflink-mark');
+});
+
+// ── Stage 14.7: Setext heading live styling ────────────────────────────────
+//
+// Lezer Markdown emits SetextHeading1 / SetextHeading2 container nodes whose
+// text spans the first line and whose HeaderMark child spans the "=====" or
+// "-----" underline run. The hybrid-cm6 walker decorates the title text with
+// cm-md-h{1,2} (excluding the trailing newline before the underline) and the
+// HeaderMark child with cm-md-heading-mark, reusing the existing CSS rules
+// from Stage 11.4 (.cm-md-h1 / .cm-md-h2 / .cm-md-heading-mark). No new CSS
+// is shipped in this stage. Source bytes are never modified.
+
+test('Stage 14.7-1: "Title\\n=====\\n" produces cm-md-h1 over [0, 5] (excludes newline)', () => {
+  // Container spans "Title" + "\n" + "=====". Text mark must stop before
+  // the newline at index 5 so cm-md-h1 typography does NOT bleed into the
+  // underline line.
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1 mark');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   5);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0,
+    'Setext H1 must not also produce cm-md-h2');
+});
+
+test('Stage 14.7-2: "Title\\n=====\\n" produces cm-md-heading-mark over [6, 11]', () => {
+  const doc = 'Title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+});
+
+test('Stage 14.7-3: "Title\\n-----\\n" produces cm-md-h2 over [0, 5] (excludes newline)', () => {
+  const doc = 'Title\n-----\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h2 = marks.filter((m) => m.class === 'cm-md-h2');
+  assert.equal(h2.length, 1, 'exactly one cm-md-h2 mark');
+  assert.equal(h2[0].from, 0);
+  assert.equal(h2[0].to,   5);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length, 0,
+    'Setext H2 must not also produce cm-md-h1');
+});
+
+test('Stage 14.7-4: "Title\\n-----\\n" produces cm-md-heading-mark over [6, 11] and zero cm-md-hr', () => {
+  // Stage 14.1 disambiguation pinned at the new stage: the parser emits
+  // SetextHeading2 (with HeaderMark) for "---" following text — it is not
+  // a HorizontalRule. The hybrid-cm6 HR branch must remain untouched.
+  const doc = 'Title\n-----\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 6);
+  assert.equal(headerMarks[0].to,   11);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 0,
+    'Setext H2 underline must not be styled as cm-md-hr');
+});
+
+test('Stage 14.7-5: "**bold** title\\n=====\\n" emits cm-md-h1 [0, 14] and cm-md-heading-mark [15, 20] with inline marks descending', () => {
+  // Container: "**bold** title" (14 chars) + "\n" + "=====" + "\n".
+  // Text mark must exclude the newline at index 14. The walker must descend
+  // into the SetextHeading container so the inline StrongEmphasis branch
+  // (and its EmphasisMark children) still fire.
+  const doc = '**bold** title\n=====\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1 mark');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   14);
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 15);
+  assert.equal(headerMarks[0].to,   20);
+  assert.equal(marks.filter((m) => m.class === 'cm-md-bold').length, 1,
+    'descend invariant: cm-md-bold inside Setext heading text');
+  assert.equal(
+    marks.filter((m) => hasClassToken(m.class, 'cm-md-emphasis-mark')).length, 2,
+    'descend invariant: two emphasis-mark ranges for ** **');
+});
+
+test('Stage 14.7-6: ATX heading regression — "# Hello" still emits cm-md-h1 [0, 7] and cm-md-heading-mark [0, 1]', () => {
+  // Sanity check that the new Setext branch does not regress the ATX path.
+  const doc = '# Hello';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  const h1 = marks.filter((m) => m.class === 'cm-md-h1');
+  assert.equal(h1.length, 1, 'exactly one cm-md-h1');
+  assert.equal(h1[0].from, 0);
+  assert.equal(h1[0].to,   7);
+  const headerMarks = marks.filter((m) => m.class === 'cm-md-heading-mark');
+  assert.equal(headerMarks.length, 1, 'exactly one cm-md-heading-mark');
+  assert.equal(headerMarks[0].from, 0);
+  assert.equal(headerMarks[0].to,   1);
+});
+
+test('Stage 14.7-7: HorizontalRule regression — "\\n---\\n" still emits cm-md-hr and zero heading marks', () => {
+  // Sanity check that the new Setext branch does not poach standalone HRs.
+  const doc = '\n---\n';
+  const marks = collectMarks(buildHeadingDecorations(makeState(doc), cm6));
+  assert.equal(marks.filter((m) => m.class === 'cm-md-hr').length, 1,
+    'standalone "---" stays a HorizontalRule');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-heading-mark').length, 0,
+    'standalone HR must not get cm-md-heading-mark');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h1').length, 0,
+    'standalone HR must not get cm-md-h1');
+  assert.equal(marks.filter((m) => m.class === 'cm-md-h2').length, 0,
+    'standalone HR must not get cm-md-h2');
+});
+
+test('Stage 14.7-8: getText is unchanged for all Setext fixtures', () => {
+  // Round-trip invariant: building decorations must never mutate the
+  // document. Marks are visual-only.
+  for (const input of ['Title\n=====\n', 'Title\n-----\n', '**bold** title\n=====\n']) {
+    const state = makeState(input);
+    buildHeadingDecorations(state, cm6);
+    assert.equal(state.doc.toString(), input,
+      'state.doc must equal the input verbatim after buildHeadingDecorations');
+  }
 });
