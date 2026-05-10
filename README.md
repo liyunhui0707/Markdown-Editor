@@ -56,18 +56,23 @@ Three Write engines exist in the codebase. The engine is resolved on load by `ap
 
 ### Live styling in `hybrid-cm6` (experimental)
 
-The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Currently styled:
+The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Raw Markdown is the source of truth; `getText()` returns the raw Markdown source text without rendered HTML or decoration artifacts. (CodeMirror normalizes line endings internally, so source-text round-trip is at the LF / character level, not the exact on-disk byte level for CRLF files.) Currently styled:
 
 - ATX headings `#` … `######`
+- Setext headings (`Heading\n=====` and `Heading\n-----`) — reuse the same H1 / H2 typography as ATX; the `===` / `---` underline hides off the active line and reveals dimmed when the caret enters the underline line
 - Bold `**…**` and italic `*…*` / `_…_`
 - Inline code `` `…` ``
-- Inline links `[text](url)` — rendered as underlined link-text, **non-clickable** (no `<a>`, no `href`, no navigation)
-- List markers (`-`, `*`, `+`, `1.`) and blockquote markers (`>`) — dimmed, always visible
+- Inline links `[text](url)` — underlined link-text, **non-clickable** (no `<a>`, no `href`, no navigation)
+- Reference-style links `[text][ref]` and collapsed `[text][]` — same underline as inline links; shortcut references `[shortcut]` are intentionally not styled
+- Link definitions `[ref]: url "title"` — entire definition line dimmed
+- Inline images `![alt](url)` (with optional title) — alt text rendered italic and muted; `![`, `]`, `(`, URL, optional title, `)` hide off the active line. **No `<img>`, no fetch, no clicks.** Reference-style images `![alt][1]` are intentionally not styled
+- List markers (`-`, `*`, `+`, `1.`, `1)`) and blockquote markers (`>`) — dimmed, always visible
 - Fenced code fences (```` ``` ```` / `~~~`) and the optional language info string — dimmed
-- Horizontal rules (`---`, `***`, `___`)
-- Strikethrough `~~…~~` (line-through; `~~` delimiters hide off the active line and reveal dimmed when the caret enters)
-- Task list markers `[ ]`, `[x]`, `[X]` — dimmed; **not interactive**
+- Horizontal rules (`---`, `***`, `___`) — dimmed and letter-spaced
+- Strikethrough `~~…~~` — line-through; `~~` delimiters hide off the active line and reveal dimmed when the caret enters
+- Task list markers `[ ]`, `[x]`, `[X]` — dimmed; **not interactive** (clicking does not toggle)
 - Autolinks `<https://…>`, `<mailto:…>`, raw `<email@host>`, and bare URLs (`https://example.com`) — underlined; angle brackets share the same hide/reveal mechanism. **Not clickable.**
+- YAML frontmatter — when a note begins with a strict `---` fence and has a later strict `---` closing fence, the entire region (both fences and the metadata lines between them) renders as plain text. The leading `---` is not styled as a horizontal rule and the closing `---` is not styled as a Setext heading. Detection requires exact `---` on each fence (no `+++`, no trailing whitespace). See Stage 14.9 for details.
 
 Image URLs and link-reference definition URLs are intentionally not autolink-styled.
 
@@ -82,7 +87,7 @@ Before publishing or sharing the repository, do not commit personal vault conten
 - Electron (desktop shell)
 - Node.js (renderer + main + tests)
 - CodeMirror 6 (`@codemirror/*`) — default Write engine
-- `@lezer/markdown` — Markdown parser; the `Strikethrough` extension is enabled in `lib/cm6-entry.js`
+- `@lezer/markdown` — Markdown parser. The `lib/cm6-entry.js` configuration uses `markdownLanguage` as the base, which already enables the GFM extension set (tables, task lists, strikethrough, autolinks) plus subscript / superscript / emoji transitively. Only a subset of the parser's nodes is currently styled by the hybrid-cm6 walker — see "Live styling in `hybrid-cm6`" above
 - Toast UI Editor (`@toast-ui/editor`) — Preview renderer; also powers the `hybrid` legacy Write engine
 - `marked` — Markdown utility
 - Node.js built-in test runner
@@ -202,7 +207,15 @@ See `docs/mcp-ingest-setup.md` for setup details.
 - No built-in sync across devices.
 - No account system or hosted backend.
 - No plugin system, graph view, or backlinks UI.
-- Live styling in `hybrid-cm6` is visual-only — no clickable links, no interactive checkboxes, no images, no tables.
+- Not a WYSIWYG editor. Write mode always edits Markdown source — `hybrid-cm6` adds visual decorations on top, it does not replace the source with a rendered view.
+- Write mode does not currently support:
+  - Full table rendering (the GFM `Table` parser nodes exist but are not styled by hybrid-cm6 — pipes stay raw; switch to Preview for table rendering).
+  - Math syntax (`$x$`, `$$…$$`) — no parser or renderer.
+  - Footnotes (`[^1]` and `[^1]: …`) — no parser support.
+  - Real image preview (`![alt](url)` shows alt text styled but does not load the image).
+  - Clickable links / autolinks (text is underlined but never navigates).
+  - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
+- The `hybrid-cm6` engine is experimental and is not the default. Performance benchmarking on long documents and a bundle-parity test are open work before it can become the default Write engine.
 - The app is intended for local testing and early feedback, not production distribution.
 
 ### Deferred items
@@ -215,11 +228,14 @@ See `docs/mcp-ingest-setup.md` for setup details.
 
 ## Roadmap / future work
 
+Not committed to dates. Items listed roughly in priority order:
+
+- **Hybrid-cm6 default-readiness sequence** — performance baseline (typing-latency + long-document benchmarks), bundle ↔ entry parity test, cross-engine smoke evidence, then evaluate flipping `hybrid-cm6` to the default Write engine.
 - Add screenshots and a polished release checklist.
 - Broaden automated coverage for vault file operations.
-- Improve metadata editing and frontmatter handling.
+- Improve metadata editing UX (current frontmatter handling is read-only beyond tags / source).
 - Expand packaging and signing guidance.
-- Continue incremental hybrid-cm6 live-styling coverage.
+- Optional further hybrid-cm6 live-styling coverage: hard line breaks (two-space EOL / `\`), HTML block / tag dimming, GFM table delimiter dimming. None are blockers for current usage.
 
 ## Architecture overview
 
@@ -257,7 +273,7 @@ docs/                     Install, MCP, demo, roadmap, and test-manual docs
 - `docs/demo-script.md` — demo walkthrough
 - `docs/test-manual.md` — manual release checklist (includes per-stage QA sections)
 - `docs/roadmap.md` — roadmap notes
-- `docs/stage-history.md` — completed stages and deferred items (partial; not all sub-stages are tracked)
+- `docs/stage-history.md` — completed stages and deferred items
 
 ## Contributing
 
