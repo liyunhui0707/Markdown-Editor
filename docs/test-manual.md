@@ -113,6 +113,57 @@ Use this checklist before sharing the app with another person.
 - [ ] Preview headings, body text, links, inline code, code blocks, blockquotes, and horizontal rules all use design tokens, not hardcoded colors
 - [ ] Destructive button (e.g. Delete Note) hover shows a warm red tint, not bright pink
 
+## Hybrid-cm6 consolidated smoke checklist
+
+A 5-minute pre-merge pass that covers every Markdown family the hybrid-cm6 engine styles today. Run in `?writeEngine=hybrid-cm6` unless an item says otherwise. **Source-of-truth invariant** for every section below: after each interaction, save the note and reopen — the raw Markdown source text should be preserved without rendered HTML or decoration artifacts; for LF fixtures, text should round-trip character-for-character. (CodeMirror normalizes line endings internally, so exact on-disk byte equality is not promised for CRLF files.) Per-stage sections further down provide more detailed coverage when you need it.
+
+**Headings (ATX & Setext)**
+- [ ] `#` through `######` headings render with matching typography; the `#` markers hide off the active line and reveal dimmed when the caret is on the heading line
+- [ ] Setext H1 (`Title\n=====`) and Setext H2 (`Title\n-----`) render with H1 / H2 typography; the `=====` / `-----` hides off the underline line and reveals dimmed only when the caret is on that line
+
+**Inline emphasis & code**
+- [ ] `**bold**`, `*italic*`, `_italic_`, `` `code` `` — content styled; the `**` / `*` / `_` / `` ` `` markers hide off the active line and reveal dimmed on it
+- [ ] `***both***` renders italic AND bold (composition)
+- [ ] `` `**not bold**` `` — inline code wins; no bold styling inside the backticks
+
+**Links (inline, reference, definitions)**
+- [ ] `[text](url)` — text underlined; URL and brackets hide off the line, reveal on it. Click does NOT navigate
+- [ ] `[text][ref]` plus `[ref]: url` — text underlined; brackets and `[ref]` label hide off the line; the definition line is dimmed end-to-end
+- [ ] `[text][]` collapsed reference — same hide/reveal; empty `[]` is hidden as syntax
+- [ ] `[shortcut]` alone with definition — intentionally NOT styled (documented deferral)
+
+**Images (markers only)**
+- [ ] `![alt](image.png)` — alt text italic + muted; `![`, `]`, `(`, URL, `)` hide off the line and reveal on it. No `<img>` is rendered, no file is fetched
+- [ ] `![alt][1]` reference-style image — NOT styled (intentional)
+
+**Lists, task lists, blockquotes**
+- [ ] Bullet markers `-`, `*`, `+` and ordered `1.`, `1)` — dimmed but always visible
+- [ ] `- [ ]`, `- [x]`, `- [X]` task markers — dimmed; clicking does NOT toggle the checkbox
+- [ ] `>` blockquote markers — dimmed but always visible; nested `> >` keeps each level dimmed
+
+**Fenced code & horizontal rules**
+- [ ] ` ```lang ` … ``` ``` ` — fences dimmed, language info dimmed, code body untouched (no inline marks fire inside)
+- [ ] Standalone `---`, `***`, `___` — rendered as dimmed letter-spaced rule. Setext underlines following non-blank text are NOT styled as HR
+
+**Strikethrough & autolinks**
+- [ ] `~~done~~` — line-through; `~~` markers hide/reveal on the active line. `~one~` (single tilde) is NOT struck
+- [ ] `<https://example.com>`, `<mailto:a@b.com>`, raw email `<a@b.com>`, and bare `https://example.com` in prose — all underlined; angle brackets hide/reveal where present. Click does NOT navigate
+
+**YAML frontmatter**
+- [ ] Note starting with `---\nKEY: VAL\n---\n\nbody` — the entire frontmatter region (both fences and the metadata lines) renders as plain text. No `cm-md-hr`, no `cm-md-h2`, no inline styling on any token inside the region. Body renders normally
+- [ ] Frontmatter without a closing `---` — leading `---` is rendered as a thematic break (frontmatter NOT detected)
+
+**Cross-engine regressions**
+- [ ] **Default CM6** (`?writeEngine=cm6`): open every fixture above — editor doesn't crash; no `cm-md-*` decoration classes; default CM6 syntax coloring is acceptable
+- [ ] **Legacy hybrid** (`?writeEngine=hybrid`): open the same notes — textarea-swap view loads; Toast UI Preview remains unchanged
+- [ ] **Toast UI Preview tab**: switch to Preview on every fixture — rendering is identical to the previous build (no hybrid-cm6 decoration leaks into Preview)
+
+**Long-document smoke**
+- [ ] Open or paste a note with ~5k lines of mixed Markdown (headings, lists, fenced code, links). Scroll top-to-bottom — no flicker, no decoration drift, typing remains responsive
+
+**IME smoke (Chinese / Japanese)**
+- [ ] Type `中文标题` after `#`, after `**`, inside a list item, inside `~~`, and inside frontmatter `---` fences — composition is not interrupted; the first character is not dropped
+
 ## Strikethrough live styling (Stage 14.2)
 
 Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says otherwise.
