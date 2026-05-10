@@ -284,6 +284,20 @@ Detection rule: the leading and closing fences must be **exactly** `---` — no 
 - [ ] **IME:** type `---`, Enter, `中文标题`, Enter, `---` — IME composition is not interfered with.
 - [ ] **Edit-into-non-frontmatter:** delete the closing `---` of frontmatter — the leading `---` flips to a thematic break (parser sees no closing fence; detection returns null; HR styling reappears). Source changed, decoration follows source.
 
+## Long-document performance smoke (Stage 15)
+
+Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) against a developer-machine release build. The automated baseline lives in `apps/desktop/test/cm6-write-view/hybrid-cm6-perf.test.js`: three light 10k-line tests run in every `npm test`; two heavy tests (50k-line build + 100-edit typing loop) are opt-in via `npm run test:perf` (sets `PERF_BENCH=1`). When the automated thresholds trip on a healthy developer machine, do NOT raise the thresholds — escalate as a Stage 16 finding.
+
+- [ ] Open a real ~10 000-line Markdown note (mix of headings, lists, fenced code, links, frontmatter). Editor opens in under ~2 seconds; no visual freeze.
+- [ ] Scroll top-to-bottom of the same note; no frame stutter or visible flicker around decoration transitions.
+- [ ] Place the caret mid-document and hold a character key for ~5 seconds; input remains responsive.
+- [ ] Type into a heading line; the `#` marker hide/reveal stays in sync with the caret line.
+- [ ] Switch Write → Preview → Write on the long note; no perceptible delay.
+- [ ] Open a note with ~50 000 lines (if available). Editor opens within ~10 seconds; typing remains usable. If unusable, file as a Stage 16 trigger.
+- [ ] Open a note that starts with `---` but has no closing `---` (e.g. a paragraph using `---` as a thematic break). Editor opens within ~2 seconds; the `---` renders as a horizontal rule. (Confirms `detectFrontmatter` worst case is not user-visible.)
+- [ ] **Default CM6** (`?writeEngine=cm6`) on the same long notes — rule out a parser-level regression also visible in default CM6.
+- [ ] Run `npm run test:perf` locally; record the five reported numbers (`build_after_full_parse_ms` for 15-1 / 15-2 / 15-4 / 15-5, and `typing_loop_incremental_p95_ms` for 15-3) in the PR description so reviewers see the developer-machine baseline.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  
