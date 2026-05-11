@@ -3,14 +3,14 @@
 /* Write-mode editor engine resolver.
 
    Three engines exist in this codebase:
-     - 'hybrid'    — Stage 2 HybridWriteView (per-block textarea swap)
-     - 'cm6'       — Stage 3 CodeMirror 6 production adapter (single document)
-     - 'hybrid-cm6'— Stage 11.2 experimental CM6 hybrid with heading widgets
+     - 'hybrid'    — Stage 2 HybridWriteView (per-block textarea swap, legacy fallback)
+     - 'cm6'       — Stage 3 CodeMirror 6 single-document adapter (fallback)
+     - 'hybrid-cm6'— Stage 11.2 / Stage 17 default CM6 hybrid with live Markdown styling
 
    Selection priority (highest first):
-     1. URL query param  ?writeEngine=hybrid
-     2. localStorage     markdownVault.writeEngine = 'hybrid'
-     3. default          'cm6'
+     1. URL query param  ?writeEngine=<value>
+     2. localStorage     markdownVault.writeEngine = <value>
+     3. default          'hybrid-cm6'  (Stage 17; previously 'cm6')
 
    Invalid values at any layer are treated as absent and fall through to
    the next layer. Pure function; takes injected dependencies so it is
@@ -26,7 +26,7 @@
 
   const STORAGE_KEY = 'markdownVault.writeEngine';
   const QUERY_KEY   = 'writeEngine';
-  const DEFAULT     = 'cm6';
+  const DEFAULT     = 'hybrid-cm6';
   const VALID       = new Set(['hybrid', 'cm6', 'hybrid-cm6']);
 
   function readQuery(search) {
