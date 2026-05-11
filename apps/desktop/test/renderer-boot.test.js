@@ -2,10 +2,14 @@
    Run: node --test test/renderer-boot.test.js
 
    These tests execute the real inline boot script against a small fake
-   renderer environment. They pin Step 4 behavior: the production CM6 adapter
-   is the default Write-mode engine, while HybridWriteView is reachable only
-   when the write engine resolver explicitly selects 'hybrid' (via
-   ?writeEngine=hybrid or localStorage markdownVault.writeEngine='hybrid'). */
+   renderer environment. After Stage 17, the hybrid-cm6 adapter (Cm6HybridView,
+   live-styled Markdown) is the default Write-mode engine; the plain cm6
+   adapter (Cm6WriteView) and the legacy hybrid (HybridWriteView) remain
+   selectable as fallbacks via ?writeEngine=cm6 / ?writeEngine=hybrid or via
+   localStorage markdownVault.writeEngine=<value>. Most tests in this file
+   exercise CM6-specific behavior and explicitly pass search:'?writeEngine=cm6'
+   to remain CM6 regression coverage; tests that pin default-engine selection
+   itself boot without a search field and exercise the new hybrid-cm6 default. */
 'use strict';
 
 const { test } = require('node:test');
@@ -1020,14 +1024,19 @@ test('Stage 10.2: saving a titled draft still succeeds', async () => {
   assert.equal(calls.saveNotePayloads.length, 1, 'titled draft must be saved successfully');
 });
 
-test('default renderer boot resolves cm6, constructs CM6 adapter, and does not construct HybridWriteView', () => {
+test('Stage 17: default renderer boot resolves hybrid-cm6, constructs Cm6HybridView, and does not construct Cm6WriteView or HybridWriteView', () => {
+  // Stage 17 flip: this test was previously the "cm6 is default" pin.
+  // After the default-engine flip, it pins the opposite invariant — that
+  // hybrid-cm6 is the default. Cm6WriteView remains constructible via
+  // explicit ?writeEngine=cm6 (see the Stage 17 fallback regression below).
   const { calls } = makeRendererHarness();
 
-  assert.deepEqual(calls.resolvedEngines, ['cm6']);
-  assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'cm6']]);
+  assert.deepEqual(calls.resolvedEngines, ['hybrid-cm6']);
+  assert.deepEqual(calls.consoleDebug, [['[write-engine]', 'hybrid-cm6']]);
   assert.equal(calls.toastConstructed, 1);
   assert.equal(calls.hybridConstructed, 0);
-  assert.equal(calls.cm6Constructed, 1);
+  assert.equal(calls.cm6Constructed, 0);
+  assert.equal(calls.cm6HybridConstructed, 1);
 });
 
 test('renderer boot with ?writeEngine=hybrid constructs HybridWriteView and not CM6', () => {
@@ -3519,7 +3528,11 @@ function expectedReadout(text, kind) {
 }
 
 test('Stage 5.2: initial CM6 boot — engine label is "CM6" and readouts reflect the seeded note text', () => {
-  const { calls, elements } = makeRendererHarness();
+  // Stage 17: explicitly route to ?writeEngine=cm6 — this test exercises
+  // CM6-specific mocks (calls.cm6SetText) and asserts the "CM6" engine label,
+  // so after the default flip to hybrid-cm6 it must explicitly select cm6 to
+  // remain a CM6 regression test.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
   assert.equal(elements.get('docEngine').textContent, 'CM6');
 
@@ -3533,7 +3546,10 @@ test('Stage 5.2: initial CM6 boot — engine label is "CM6" and readouts reflect
 });
 
 test('Stage 5.2: blank doc (CM6 onChange with "") shows 0 / 0 / 0 readouts', () => {
-  const { calls, elements } = makeRendererHarness();
+  // Stage 17: explicit ?writeEngine=cm6 routing — this test consumes
+  // calls.cm6OnChange, which only exists when the default-cm6 adapter is
+  // constructed.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
   calls.cm6OnChange('');
 
@@ -3543,7 +3559,8 @@ test('Stage 5.2: blank doc (CM6 onChange with "") shows 0 / 0 / 0 readouts', () 
 });
 
 test('Stage 5.2: typing via CM6 onChange updates words / chars / lines readouts', () => {
-  const { calls, elements } = makeRendererHarness();
+  // Stage 17: explicit ?writeEngine=cm6 routing — consumes calls.cm6OnChange.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
   // Stage 6.2: cm6OnChange in the no-selection state is a no-op; create a
   // draft first so handleWriteChange can attach the text to a real note.
   elements.get('newNoteButton').fire('click');
@@ -3562,7 +3579,8 @@ test('Stage 5.2: typing via CM6 onChange updates words / chars / lines readouts'
 });
 
 test('Stage 5.2: New Note (note switch to a blank-body draft) resets readouts to 0 / 0 / 0', () => {
-  const { calls, elements } = makeRendererHarness();
+  // Stage 17: explicit ?writeEngine=cm6 routing — consumes calls.cm6OnChange.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
 
   // Stage 6.2: empty initial state. Create a draft with content first so
   // we can prove the switch resets to 0.
@@ -6239,11 +6257,58 @@ test('Stage 11.2: engine label shows "CM6 Hybrid" for hybrid-cm6', () => {
   );
 });
 
-test('Stage 11.2: default boot still uses CM6, not Cm6HybridView', () => {
+test('Stage 17: default boot now uses Cm6HybridView, not Cm6WriteView (Stage 11.2 invariant flipped)', () => {
+  // Stage 17 flip: this test was previously the "default boot still uses CM6
+  // (not hybrid-cm6)" pin. After Stage 17, hybrid-cm6 is the default; this
+  // test now pins the opposite invariant.
   const { calls } = makeRendererHarness();
+  assert.deepEqual(calls.resolvedEngines, ['hybrid-cm6']);
+  assert.equal(calls.cm6HybridConstructed, 1, 'default engine must be hybrid-cm6');
+  assert.equal(calls.cm6Constructed,       0, 'Cm6WriteView must not be constructed by default after Stage 17');
+});
+
+// ── Stage 17: hybrid-cm6 default-flip renderer anchors ─────────────────────
+
+test('Stage 17: default renderer boot (no query, no storage) shows engine label "CM6 Hybrid"', () => {
+  // Pins the user-visible engine label, not just the constructor count, so a
+  // future refactor that swaps the label without changing the resolver also
+  // trips this test.
+  const { elements } = makeRendererHarness();
+  assert.equal(
+    elements.get('docEngine').textContent,
+    'CM6 Hybrid',
+    'after Stage 17, the default-boot status-bar engine label must be "CM6 Hybrid"'
+  );
+});
+
+test('Stage 17: ?writeEngine=cm6 default-flip regression — Cm6WriteView (not Cm6HybridView) is constructed', () => {
+  // cm6 must remain selectable as a fallback via URL query after the flip.
+  const { calls, elements } = makeRendererHarness({ search: '?writeEngine=cm6' });
   assert.deepEqual(calls.resolvedEngines, ['cm6']);
-  assert.equal(calls.cm6Constructed,    1, 'default engine must be CM6');
-  assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed by default');
+  assert.equal(calls.cm6Constructed,       1, 'explicit ?writeEngine=cm6 must construct Cm6WriteView');
+  assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed under ?writeEngine=cm6');
+  assert.equal(calls.hybridConstructed,    0, 'legacy HybridWriteView must not be constructed under ?writeEngine=cm6');
+  assert.equal(elements.get('docEngine').textContent, 'CM6');
+});
+
+test('Stage 17: ?writeEngine=hybrid default-flip regression — HybridWriteView is constructed', () => {
+  // Legacy hybrid must remain selectable as a fallback via URL query after the flip.
+  const { calls } = makeRendererHarness({ search: '?writeEngine=hybrid' });
+  assert.deepEqual(calls.resolvedEngines, ['hybrid']);
+  assert.equal(calls.hybridConstructed,    1, 'explicit ?writeEngine=hybrid must construct HybridWriteView');
+  assert.equal(calls.cm6Constructed,       0, 'Cm6WriteView must not be constructed under ?writeEngine=hybrid');
+  assert.equal(calls.cm6HybridConstructed, 0, 'Cm6HybridView must not be constructed under ?writeEngine=hybrid');
+});
+
+test('Stage 17: ?writeEngine=garbage falls back to Cm6HybridView (the new default)', () => {
+  // Invalid query values fall back to the default at the resolver level.
+  // After Stage 17 that default is hybrid-cm6, so the renderer constructs
+  // Cm6HybridView for unrecognized engine values.
+  const { calls } = makeRendererHarness({ search: '?writeEngine=garbage' });
+  assert.deepEqual(calls.resolvedEngines, ['hybrid-cm6']);
+  assert.equal(calls.cm6HybridConstructed, 1, 'invalid query must fall back to Cm6HybridView (new default)');
+  assert.equal(calls.cm6Constructed,       0);
+  assert.equal(calls.hybridConstructed,    0);
 });
 
 test('Stage 11.4: index.html contains .cm-md-heading-mark CSS rule', () => {

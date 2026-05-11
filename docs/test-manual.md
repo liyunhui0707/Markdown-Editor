@@ -36,7 +36,8 @@ Use this checklist before sharing the app with another person.
 
 ## Editor mode (CM6 / Hybrid)
 
-- [ ] Default write surface is CodeMirror 6 (styled-source Markdown)
+- [ ] Default write surface is hybrid-cm6 (live-styled Markdown) — Stage 17 flip
+- [ ] `?writeEngine=cm6` fallback engine still loads CodeMirror 6 styled-source mode
 - [ ] Undo and redo work correctly in CM6 mode
 - [ ] Chinese IME composition does not drop the first character in CM6 mode
 - [ ] Append `?writeEngine=hybrid` to the dev URL → Hybrid write view loads instead
@@ -154,7 +155,7 @@ A 5-minute pre-merge pass that covers every Markdown family the hybrid-cm6 engin
 - [ ] Frontmatter without a closing `---` — leading `---` is rendered as a thematic break (frontmatter NOT detected)
 
 **Cross-engine regressions**
-- [ ] **Default CM6** (`?writeEngine=cm6`): open every fixture above — editor doesn't crash; no `cm-md-*` decoration classes; default CM6 syntax coloring is acceptable
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17): open every fixture above — editor doesn't crash; no `cm-md-*` decoration classes; default `cm6` engine syntax coloring is acceptable
 - [ ] **Legacy hybrid** (`?writeEngine=hybrid`): open the same notes — textarea-swap view loads; Toast UI Preview remains unchanged
 - [ ] **Toast UI Preview tab**: switch to Preview on every fixture — rendering is identical to the previous build (no hybrid-cm6 decoration leaks into Preview)
 
@@ -176,7 +177,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] `~~**bold strike**~~` — both line-through and bold render
 - [ ] `- list item with ~~strike~~` — composes with the list marker
 - [ ] `> quote with ~~strike~~` — composes with the quote marker
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `~~x~~` — editor does not throw; no `cm-md-strikethrough` decoration; no `~~` hide/reveal. Default syntax highlighting may color the tokens — that is acceptable. The invariant is: no hybrid live-decoration behavior and no jarring visual regression.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note containing `~~x~~` — editor does not throw; no `cm-md-strikethrough` decoration; no `~~` hide/reveal. Default syntax highlighting may color the tokens — that is acceptable. The invariant is: no hybrid live-decoration behavior and no jarring visual regression.
 - [ ] Long doc with mixed strikethrough / bold / inline-code — no perceptible perf regression while typing or scrolling
 - [ ] Chinese IME composing `~~中文~~` — no premature commit; composition adjacent to `~~` stays stable
 - [ ] Single Cmd+Z after typing `~~strike~~` reverts the whole token; history boundaries unchanged
@@ -192,7 +193,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] `- [x] done` and `- [X] DONE` — same dimming pattern; lowercase and uppercase both render dimmed; clicking the marker does **not** toggle it; document text unchanged
 - [ ] `- one` (plain bullet, no task marker) — bullet dimmed; `one` normal; no `[ ]`-like artifact appears
 - [ ] Mixed list with task and non-task items intermixed — each renders correctly; no decoration leak between items
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `- [ ] todo` — editor does not throw; no `cm-md-task-marker` decoration; no jarring visual regression. Default syntax coloring is acceptable.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note containing `- [ ] todo` — editor does not throw; no `cm-md-task-marker` decoration; no jarring visual regression. Default syntax coloring is acceptable.
 - [ ] Save a note containing task items, reload — file bytes on disk unchanged; the marker character sequence (brackets, spaces, `x`/`X`) preserved exactly
 
 ## Autolink live styling (Stage 14.4)
@@ -207,7 +208,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] **Reference-definition regression:** `[OpenAI]: https://example.com` (typically at the bottom of a doc) — URL is **not** underlined
 - [ ] `# See https://example.com` — heading-level styling AND URL underline both render
 - [ ] **No clicks:** clicking on any underlined autolink/bare URL does **not** open a browser, does **not** navigate, does **not** toggle anything; document text unchanged
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `<https://example.com>` and a bare URL — editor doesn't crash; no `cm-md-autolink-url` / `cm-md-autolink-mark` decorations applied. Default syntax coloring is acceptable.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note containing `<https://example.com>` and a bare URL — editor doesn't crash; no `cm-md-autolink-url` / `cm-md-autolink-mark` decorations applied. Default syntax coloring is acceptable.
 - [ ] Save a note with autolinks and bare URLs, reload — file bytes on disk preserved exactly (angle brackets, `mailto:`, etc.)
 
 ## Image Markdown marker styling (Stage 14.5)
@@ -222,7 +223,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] **Inline link regression:** `[text](image.png)` (URL with image-like extension but inline LINK syntax) still renders as a normal inline link (`text` underlined; URL hidden)
 - [ ] **Reference-style image regression:** `![alt][1]` followed by `[1]: pic.png` definition — neither line gets image-alt or image-mark styling
 - [ ] **No clicks, no rendering:** no `<img>` appears in the editor; clicking any image syntax does **not** open a file picker, does **not** navigate, does **not** fetch anything
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `![alt](pic.png)` — editor doesn't crash; no `cm-md-image-alt` / `cm-md-image-mark` decoration applied. Default syntax coloring is acceptable.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note containing `![alt](pic.png)` — editor doesn't crash; no `cm-md-image-alt` / `cm-md-image-mark` decoration applied. Default syntax coloring is acceptable.
 - [ ] Save a note with images, reload — file bytes preserved exactly (alt text, URL, title, all whitespace)
 - [ ] **Toast UI Preview** mode unchanged — Toast UI's existing image rendering is untouched
 
@@ -239,7 +240,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] **Image reference regression:** `![alt][1]` followed by `[1]: pic.png` — image reference itself is NOT underlined or styled (Stage 14.5 invariant). The `[1]: pic.png` definition line IS dimmed (correct — definitions are definitions regardless of what they refer to).
 - [ ] **Inline link regression:** `[OpenAI](https://openai.com)` still renders as a normal underlined inline link (Stage 11.7 invariant).
 - [ ] **No clicks, no resolution:** clicking a reference link does not navigate; the editor does NOT validate whether `[ref]` has a matching definition; broken references are NOT highlighted. Source bytes never modified.
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note containing `[text][ref]` and `[ref]: url` — editor doesn't crash; no `cm-md-reflink-text` / `cm-md-reflink-mark` / `cm-md-link-def` decoration applied.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note containing `[text][ref]` and `[ref]: url` — editor doesn't crash; no `cm-md-reflink-text` / `cm-md-reflink-mark` / `cm-md-link-def` decoration applied.
 - [ ] Save a note with reference links and definitions, reload — file bytes preserved exactly (label, URL, title, all whitespace).
 - [ ] **Toast UI Preview** mode unchanged — Toast UI's existing reference-link rendering is untouched.
 
@@ -258,7 +259,7 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) unless an item says oth
 - [ ] **No widgets, no clicks:** the underline characters are real characters; caret traverses them; clicking the underline line places the caret normally.
 - [ ] **IME / Chinese input:** type `中文标题`, press Enter, type `===` — IME composition is not interfered with; no decoration causes caret jump.
 - [ ] **Long document:** scroll a doc containing many Setext H1/H2 headings — no flicker, no decoration drift across viewport changes.
-- [ ] **Default CM6 engine** (`?writeEngine=cm6`) opening a note with Setext headings — editor doesn't crash; default CM6 syntax coloring acceptable; no `cm-md-h1` / `cm-md-h2` / `cm-md-heading-mark` decoration applied by hybrid-cm6.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) opening a note with Setext headings — editor doesn't crash; default `cm6` engine syntax coloring acceptable; no `cm-md-h1` / `cm-md-h2` / `cm-md-heading-mark` decoration applied by hybrid-cm6.
 - [ ] Save a note with Setext headings, reload — file bytes preserved exactly (title text, newline, `=====` or `-----`, newline).
 - [ ] **Toast UI Preview** mode unchanged — Toast UI's existing Setext rendering is untouched.
 
@@ -280,7 +281,7 @@ Detection rule: the leading and closing fences must be **exactly** `---` — no 
 - [ ] **Strict fence:** `--- ` (with trailing space) on the leading line is NOT detected as frontmatter — known limitation; matches strict YAML conventions.
 - [ ] **Save/reload:** save a frontmatter-bearing note; reopen — file bytes preserved exactly (the `---` lines, indentation, blank lines all unchanged).
 - [ ] **Toast UI Preview:** Preview rendering on a frontmatter-bearing note is unchanged from the previous build.
-- [ ] **Default CM6** (`?writeEngine=cm6`): same notes open without crashing; no `cm-md-*` decoration applied (default CM6 doesn't use the hybrid walker).
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17): same notes open without crashing; no `cm-md-*` decoration applied (the `cm6` fallback engine doesn't use the hybrid walker).
 - [ ] **IME:** type `---`, Enter, `中文标题`, Enter, `---` — IME composition is not interfered with.
 - [ ] **Edit-into-non-frontmatter:** delete the closing `---` of frontmatter — the leading `---` flips to a thematic break (parser sees no closing fence; detection returns null; HR styling reappears). Source changed, decoration follows source.
 
@@ -295,8 +296,60 @@ Run in the hybrid-cm6 engine (`?writeEngine=hybrid-cm6`) against a developer-mac
 - [ ] Switch Write → Preview → Write on the long note; no perceptible delay.
 - [ ] Open a note with ~50 000 lines (if available). Editor opens within ~10 seconds; typing remains usable. If unusable, file as a Stage 16 trigger.
 - [ ] Open a note that starts with `---` but has no closing `---` (e.g. a paragraph using `---` as a thematic break). Editor opens within ~2 seconds; the `---` renders as a horizontal rule. (Confirms `detectFrontmatter` worst case is not user-visible.)
-- [ ] **Default CM6** (`?writeEngine=cm6`) on the same long notes — rule out a parser-level regression also visible in default CM6.
+- [ ] **`?writeEngine=cm6` fallback engine** (post-Stage-17) on the same long notes — rule out a parser-level regression also visible in the `cm6` fallback engine.
 - [ ] Run `npm run test:perf` locally; record the five reported numbers (`build_after_full_parse_ms` for 15-1 / 15-2 / 15-4 / 15-5, and `typing_loop_incremental_p95_ms` for 15-3) in the PR description so reviewers see the developer-machine baseline.
+
+## Bundle parity + cross-engine smoke (Stage 16)
+
+Automated safeguards before any future Stage 17 default-engine flip. The tests live in `apps/desktop/test/cm6-write-view/cm6-bundle-parity.test.js` (5 tests) and `cross-engine-smoke.test.js` (7 tests). Both run as part of the default `npm test` suite.
+
+- [ ] Run `cd apps/desktop && node --test test/cm6-write-view/cm6-bundle-parity.test.js`. Expected: `tests 5, pass 5, skipped 0, fail 0`.
+- [ ] Run `cd apps/desktop && node --test test/cm6-write-view/cross-engine-smoke.test.js`. Expected: `tests 7, pass 7, skipped 0, fail 0`.
+- [ ] Run `cd apps/desktop && npm test`. Expected: approximately `tests 898, pass 896, skipped 2, fail 0` (the 2 skipped are the Stage 15 opt-in perf benchmarks).
+- [ ] **Parity-reactivity sanity check (one-time, not committed):** edit `cm6-entry.js`'s `extensions: [Strikethrough]` to `extensions: [Strikethrough, FakeExt]` (plain identifiers — no `/* ... */` comment, because `parseExtensionsArray` is regex-based and does not strip comments). Do NOT rebuild the bundle. Re-run the parity test; confirm Stage 16-3 fails with a clear `[Strikethrough]` vs `[FakeExt, Strikethrough]` diff. Revert. Confirm `git status` is clean before continuing.
+- [ ] **`npm run build:cm6` is manual QA only:** optionally run it once to verify the bundle is in sync. If `git diff lib/cm6-bundle.js` shows no diff → bundle in sync (expected). **If non-empty → STOP.** Discard the rebuild from the working tree. Propose the bundle rebuild as a **separate, reviewed patch** containing only `lib/cm6-bundle.js` and a one-line stage-history note. The Stage 16 patch must never include a rebuilt bundle.
+- [ ] In `?writeEngine=cm6` (default), open a real note containing the full Stage 14 surface (frontmatter, ATX + Setext headings, bold, italic, inline code, inline link, reference link + definition, image, list, task list, blockquote, fenced code, HR, strikethrough, autolink). Save and reopen. Confirm byte-identical round trip.
+- [ ] Repeat in `?writeEngine=hybrid-cm6`. Confirm visual decoration is correct AND saved bytes are identical to the cm6 round trip.
+- [ ] In `?writeEngine=hybrid` (legacy), open the same note. Confirm it loads, edits work, save round-trips bytes identically. (Legacy hybrid is not in automated Stage 16 coverage — it requires DOM. Its boot-path coverage lives in renderer-boot.test.js Stage 11.2 + Save All & Quit tests.)
+- [ ] Switch between engines via the URL query and confirm note content survives in every direction.
+- [ ] Switch a note from Write → Preview → Write in each engine. Preview rendering is identical across engines.
+
+### Pre-Stage-17 readiness checklist
+
+- [ ] All Stage 16 automated tests pass on the developer machine.
+- [ ] Parity-reactivity sanity check performed and confirmed (Stage 16-3 catches a fake entry edit).
+- [ ] `npm run build:cm6` produced no bundle diff during manual QA.
+- [ ] Manual cross-engine QA completed on a real-note fixture.
+- [ ] Stage 15 `npm run test:perf` ran and developer-machine numbers recorded in the Stage 17 PR description.
+- [ ] No outstanding hybrid-cm6 bug reports.
+- [ ] Fallback-engine policy decided (does `cm6` remain as a documented fallback when `hybrid-cm6` becomes default?).
+
+## Default-engine flip (Stage 17)
+
+Stage 17 promoted `hybrid-cm6` to the default Write engine. `cm6` and legacy `hybrid` remain selectable as fallbacks via the `?writeEngine=` URL query or the `markdownVault.writeEngine` localStorage key. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before the flip continue to get `cm6`.
+
+- [ ] Clear the `markdownVault.writeEngine` localStorage key in DevTools (`localStorage.removeItem('markdownVault.writeEngine')`). Reload with no `?writeEngine=` query. Confirm: status-bar engine label shows **"CM6 Hybrid"**; live-styled decorations render on a Stage-14-rich note.
+- [ ] Reload with `?writeEngine=cm6`. Confirm: engine label shows "CM6"; raw-source coloring; no `cm-md-*` decorations applied.
+- [ ] Reload with `?writeEngine=hybrid`. Confirm: legacy hybrid view loads; Toast UI Preview works.
+- [ ] Set the `markdownVault.writeEngine` localStorage key to `'cm6'` in DevTools (`localStorage.setItem('markdownVault.writeEngine', 'cm6')`). Reload with no query. Confirm: `cm6` is selected (existing user preference preserved).
+- [ ] Set the `markdownVault.writeEngine` localStorage key to `'hybrid'` (`localStorage.setItem('markdownVault.writeEngine', 'hybrid')`). Reload. Confirm: `hybrid` is selected.
+- [ ] Open `?writeEngine=garbage` (invalid query). Confirm: falls back to `hybrid-cm6` (the new default).
+- [ ] Open `?writeEngine=CM6` (case-sensitive invalid). Confirm: falls back to `hybrid-cm6`.
+- [ ] Open the same Stage-14-rich note in each of the three engines via URL query. Save in each. Confirm file bytes are byte-identical across all three saves.
+- [ ] Switch between engines via URL change + reload. Confirm note content survives in every direction.
+- [ ] Switch Write → Preview → Write in each engine. Preview rendering is identical across engines (Toast UI is the same renderer regardless of Write engine).
+- [ ] Verify the Stage 14.10 consolidated hybrid-cm6 smoke checklist still passes on the new default (since hybrid-cm6 is now the most common code path users will exercise).
+- [ ] Run `cd apps/desktop && npm test`. Expected: `tests 907, pass 905, skipped 2, fail 0`.
+- [ ] Run `cd apps/desktop && npm run test:perf`. Expected: `tests 5, pass 5, skipped 0, fail 0`.
+
+### Stage 17 rollback (if needed)
+
+Three paths to revert:
+1. `git revert <Stage-17-commit-sha>` — single command, complete reversion.
+2. Manual revert: change `DEFAULT = 'hybrid-cm6'` back to `'cm6'` in `apps/desktop/lib/write-engine.js`; flip Stage 17 test assertions back; revert doc edits.
+3. User-side override (no code change needed): users can force `cm6` via `localStorage.setItem('markdownVault.writeEngine', 'cm6')` or `?writeEngine=cm6`.
+
+All three paths preserve `hybrid-cm6` availability via explicit `?writeEngine=hybrid-cm6`.
 
 ## Final share check  
   

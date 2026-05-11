@@ -46,15 +46,15 @@ Three Write engines exist in the codebase. The engine is resolved on load by `ap
 
 1. URL query parameter: `?writeEngine=<name>`
 2. `localStorage` key: `markdownVault.writeEngine = "<name>"`
-3. Default: `cm6`
+3. Default: `hybrid-cm6`  (Stage 17; previously `cm6`)
 
 | Engine | Status | Description |
 |---|---|---|
-| `cm6` | **Default** | CodeMirror 6 production adapter — single-document Markdown editing with syntax highlighting, real undo/redo, real selection, Chinese IME support. |
-| `hybrid-cm6` | Experimental | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). |
-| `hybrid` | Legacy fallback | Stage 2 HybridWriteView (per-block textarea swap) plus Toast UI Preview. Retained while CM6 stabilizes; removal is deferred. |
+| `hybrid-cm6` | **Default** | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). Promoted from experimental to default in Stage 17. |
+| `cm6` | Fallback | CodeMirror 6 single-document adapter — Markdown editing with syntax highlighting, real undo/redo, real selection, Chinese IME support. Reachable via `?writeEngine=cm6` or by setting the `markdownVault.writeEngine` localStorage key to `cm6`. |
+| `hybrid` | Legacy fallback | Stage 2 HybridWriteView (per-block textarea swap) plus Toast UI Preview. Retained as a fallback; removal is deferred. |
 
-### Live styling in `hybrid-cm6` (experimental)
+### Live styling in `hybrid-cm6` (default)
 
 The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Raw Markdown is the source of truth; `getText()` returns the raw Markdown source text without rendered HTML or decoration artifacts. (CodeMirror normalizes line endings internally, so source-text round-trip is at the LF / character level, not the exact on-disk byte level for CRLF files.) Currently styled:
 
@@ -86,7 +86,7 @@ Before publishing or sharing the repository, do not commit personal vault conten
 
 - Electron (desktop shell)
 - Node.js (renderer + main + tests)
-- CodeMirror 6 (`@codemirror/*`) — default Write engine
+- CodeMirror 6 (`@codemirror/*`) — Write-mode runtime for the default `hybrid-cm6` engine and the `cm6` fallback engine
 - `@lezer/markdown` — Markdown parser. The `lib/cm6-entry.js` configuration uses `markdownLanguage` as the base, which already enables the GFM extension set (tables, task lists, strikethrough, autolinks) plus subscript / superscript / emoji transitively. Only a subset of the parser's nodes is currently styled by the hybrid-cm6 walker — see "Live styling in `hybrid-cm6`" above
 - Toast UI Editor (`@toast-ui/editor`) — Preview renderer; also powers the `hybrid` legacy Write engine
 - `marked` — Markdown utility
@@ -115,7 +115,7 @@ cd apps/desktop
 npm run dev
 ```
 
-Opens the Electron window in development mode. To select a non-default Write engine, set `markdownVault.writeEngine` to `hybrid-cm6` or `hybrid` in DevTools localStorage (Electron has no normal address bar). The same value is also accepted as a `?writeEngine=hybrid-cm6` query string when the window is loaded with one.
+Opens the Electron window in development mode. The default Write engine is `hybrid-cm6` (Stage 17). To select a fallback engine, set the `markdownVault.writeEngine` localStorage key to `cm6` or `hybrid` in DevTools (`localStorage.setItem('markdownVault.writeEngine', 'cm6')` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid')` — Electron has no normal address bar). The same fallback can also be selected by loading the window with `?writeEngine=cm6` or `?writeEngine=hybrid` in its URL.
 
 ### Build a local macOS app
 
@@ -198,7 +198,6 @@ See `docs/mcp-ingest-setup.md` for setup details.
 
 ## Experimental features
 
-- **`hybrid-cm6` Write engine** — see "Editor modes" above. Live styling layer; not the default. Behavior may change.
 - **CM6 spike artifacts** — `apps/desktop/spike/` and `apps/desktop/lib/spike-cm6-*` remain in the tree for spike reproducibility (`npm run spike:cm6`, `npm run test:spike-cm6`). They are not consumed by the production app at runtime. Cleanup is deferred.
 
 ## Known limitations
@@ -215,12 +214,12 @@ See `docs/mcp-ingest-setup.md` for setup details.
   - Real image preview (`![alt](url)` shows alt text styled but does not load the image).
   - Clickable links / autolinks (text is underlined but never navigates).
   - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
-- The `hybrid-cm6` engine is experimental and is not the default. Performance benchmarking on long documents and a bundle-parity test are open work before it can become the default Write engine.
+- The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
 
 ### Deferred items
 
-- Hybrid editor removal (CM6 is the default; Hybrid remains as a fallback).
+- Hybrid editor removal (`hybrid-cm6` is the default; both `cm6` and legacy `hybrid` remain as fallbacks).
 - CodeMirror 6 spike code cleanup.
 - Claude Design prototype.
 - Auto-save.
@@ -230,7 +229,7 @@ See `docs/mcp-ingest-setup.md` for setup details.
 
 Not committed to dates. Items listed roughly in priority order:
 
-- **Hybrid-cm6 default-readiness sequence** — performance baseline (typing-latency + long-document benchmarks), bundle ↔ entry parity test, cross-engine smoke evidence, then evaluate flipping `hybrid-cm6` to the default Write engine.
+- ~~Hybrid-cm6 default-readiness sequence~~ — completed in Stage 17. `hybrid-cm6` is now the default Write engine; `cm6` and legacy `hybrid` remain selectable fallbacks.
 - Add screenshots and a polished release checklist.
 - Broaden automated coverage for vault file operations.
 - Improve metadata editing UX (current frontmatter handling is read-only beyond tags / source).
