@@ -234,8 +234,11 @@ Candidate answers (non-exhaustive):
 - Hybrid: keyboard always; click toggles only when the caret is already
   on that line.
 
-**Status: unresolved.** No task-toggle spike may begin until this is
-answered.
+**Status: answered (Stage 21.1).** Primary click on the marker text
+only (`[ ]` / `[x]` / `[X]`) toggles that marker; clicks elsewhere are
+normal caret moves. The click handler is suppressed while
+`view.composing === true`. A keyboard command is required; the exact
+binding is chosen in the Stage 22 spike.
 
 ### Q2 — External link interaction style
 
@@ -248,8 +251,12 @@ Candidate answers (non-exhaustive):
 - Confirm first: a small confirmation prompt appears before opening.
 - Command-palette only: no click affordance; opening is keyboard-driven.
 
-**Status: unresolved.** No link-click spike may begin until this is
-answered.
+**Status: answered (Stage 21.1).** Cmd-click on macOS opens the link
+via preload/main IPC `shell.openExternal`. Platform equivalents (e.g.,
+Ctrl-click on Linux / Windows) may be defined by a future cross-platform
+stage. Plain click remains a normal caret move. The click handler is
+suppressed while `view.composing === true`. Keyboard parity is required;
+the exact binding is chosen in the Stage 24 spike.
 
 ### Q3 — URL allowlist scope
 
@@ -266,8 +273,11 @@ The strictness of scheme matching (case-insensitive, percent-encoding
 defense, relative-URL rejection) is governed by gate 5 regardless of
 which answer is chosen.
 
-**Status: unresolved.** Any link spike must propose a concrete allowlist
-before the spike concludes.
+**Status: answered (Stage 21.1).** Allowed schemes are exactly
+`https:` and `mailto:` (case-insensitive). All other schemes — including
+`http:`, `file:`, `javascript:`, `data:`, `vbscript:` — any
+percent-encoded variant of those, any input containing whitespace or
+control characters, and any relative URL are rejected.
 
 ## Accessibility requirements
 
