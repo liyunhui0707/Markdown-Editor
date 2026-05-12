@@ -210,16 +210,16 @@ existing CodeMirror surface must be preserved.
 
 ### 7. Product gate
 
-The corresponding open product question (Q1, Q2, or Q3 below) must be
-answered by the user before the spike begins. The spike must align with
-the answered question; if the question is later revised, the spike must
-be re-evaluated.
+The corresponding product decision (Q1, Q2, or Q3 below) governs the
+spike. The spike must align with the recorded decision; if a decision
+is later revised by a future stage, any in-flight or completed spike
+must be re-evaluated.
 
-## Open product questions
+## Product decisions
 
-These three questions are **unresolved**. The user must decide each one
-before the corresponding Option B spike begins. Each question's recorded
-answer becomes binding policy until amended.
+These questions were answered in Stage 21.1. Their recorded answers are
+binding policy until amended by a future stage that explicitly revises
+them. Any Option B spike must align with the answers recorded below.
 
 ### Q1 — Task-checkbox interaction style
 
