@@ -2,13 +2,41 @@
 
 A local-first desktop Markdown editor for macOS, built with Electron. Notes are stored as plain `.md` files on disk in a folder you choose — no cloud, no accounts, no hosted backend.
 
+Aimed at developers and tech-savvy note-takers who want their notes as plain `.md` files on disk, edited under their full control.
+
 The repository also ships an optional local MCP server (`tools/mcp-note-ingest/`) that lets AI tools write chat notes directly into the same vault.
 
 > Status: usable for local development and early feedback. Not production-distributed. Inspired by simplified local-first Markdown editor workflows; not an Obsidian replacement.
 
+## Headline guarantees
+
+- **Raw Markdown is the source of truth.** The editor stores notes as plain `.md` files; `getText()` returns the raw Markdown text. The live-styling layer in Write mode is visual decoration only — no HTML is injected, no document is rewritten. Round-trip is at the LF / character level (CodeMirror normalizes line endings internally; exact on-disk byte equality is not promised for CRLF files).
+- **Local-first.** Notes live in a folder you choose. No cloud, no accounts, no hosted backend.
+
 ## Screenshots
 
-Not yet included. Add screenshots before any wider public release.
+Screenshots will be captured before any wider public release and committed under `docs/assets/screenshots/`. No placeholder image binaries are checked in.
+
+Planned shots:
+
+```
+docs/assets/screenshots/main-editor-write.png       — main window with sidebar and a note open in Write mode under the default hybrid-cm6 engine; engine label "CM6 Hybrid" visible
+docs/assets/screenshots/main-editor-preview.png     — same note switched to Preview mode (Toast UI rendering)
+docs/assets/screenshots/hybrid-cm6-live-styling.png — close-up of the editor pane showing several styled constructs (Setext heading, strikethrough, task list, link, horizontal rule)
+docs/assets/screenshots/frontmatter-plain.png       — note that begins with YAML frontmatter showing the leading "---" rendered plain (Stage 14.9 contract)
+docs/assets/screenshots/vault-picker.png            — empty-state / vault picker screen
+docs/assets/screenshots/save-all-quit.png           — close-guard dialog (Cancel / Discard & Quit / Save All & Quit)
+```
+
+## Quick start
+
+```bash
+cd apps/desktop
+npm install
+npm run dev
+```
+
+See [Getting Started](#getting-started) below for build, test, and engine-selection details.
 
 ## Features
 
@@ -196,9 +224,43 @@ Inbox/AI Chats/YYYY/MM/
 
 See `docs/mcp-ingest-setup.md` for setup details.
 
-## Experimental features
+## Developer notes
 
 - **CM6 spike artifacts** — `apps/desktop/spike/` and `apps/desktop/lib/spike-cm6-*` remain in the tree for spike reproducibility (`npm run spike:cm6`, `npm run test:spike-cm6`). They are not consumed by the production app at runtime. Cleanup is deferred.
+
+## Project status & maturity
+
+**What works**
+
+- Local vault workflow: choose any folder, load `.md` files recursively, create / edit / save / delete notes.
+- Save / load round-trip preserves raw Markdown source.
+- Dirty-state tracking and close-guard dialog (Cancel / Discard & Quit / Save All & Quit) protect unsaved work.
+- Live-styled Write mode under the default `hybrid-cm6` engine; Preview mode via Toast UI Editor.
+- All three engines (`hybrid-cm6`, `cm6`, `hybrid`) selectable via URL query or `markdownVault.writeEngine` localStorage key.
+- MCP ingest writes AI-chat notes into `Inbox/AI Chats/YYYY/MM/`.
+- Stage 18 stabilization QA passed — clean Branch A closure (see `docs/test-manual.md` Stage 18 section).
+- Automated test suite at `tests 907, pass 905, skipped 2, fail 0` (`npm test`); perf opt-in suite at `5 / 5 / 0 / 0` (`npm run test:perf`).
+
+**What's still evolving**
+
+- Screenshots not yet captured (planned paths listed above under "Screenshots").
+- Packaging is currently macOS-only.
+- No code-signing guidance yet.
+- Broader release polish (issue-reporting pointer, additional `docs/assets/` artifacts).
+
+**What's not supported**
+
+- No clickable links / autolinks in Write mode (they render as visual underline only).
+- No real image preview in Write mode (`![alt](url)` shows styled alt text; no image is fetched).
+- No interactive task checkboxes (`[ ]` / `[x]` are dimmed but not clickable).
+- No full table rendering in Write mode — tables work in Preview only.
+- No math syntax (`$x$`, `$$…$$`).
+- No footnote support.
+- No cross-platform packaging.
+- No sync, no accounts, no hosted backend.
+- Not a WYSIWYG editor.
+
+**How to run tests** — see the [Testing](#testing) section.
 
 ## Known limitations
 
