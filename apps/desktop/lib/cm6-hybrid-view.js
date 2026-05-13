@@ -536,6 +536,19 @@
         headingMarkPlugin,
         Array.isArray(cm6.chrome) ? cm6.chrome : null,
       ].filter(function (e) { return e != null; });
+      // Stage 23: optional task-toggle extension hook. The toggle module
+      // (cm6-task-toggle.js) loads via a separate script tag in
+      // index.html and exposes itself as globalThis.Cm6TaskToggle. When
+      // present, append the extension array it returns; when absent, the
+      // walker behaves exactly as before. This hook adds zero Section H
+      // tokens; the named, narrow event-surface exception lives entirely
+      // inside cm6-task-toggle.js (see cm6-task-toggle-invariants.test.js).
+      const taskToggle =
+        (typeof globalThis !== 'undefined') ? globalThis.Cm6TaskToggle : null;
+      if (taskToggle && typeof taskToggle.createTaskToggleExtension === 'function') {
+        const ext = taskToggle.createTaskToggleExtension(cm6);
+        if (ext != null) extensions.push(ext);
+      }
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
     }
 
