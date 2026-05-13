@@ -118,3 +118,39 @@ test('Stage 16-5: cm6-bundle.js exposes a Strikethrough definition', () => {
     + '(Stage 14.2 extension; pins that the most recent parser-config '
     + 'addition is actually present in the runtime artifact)');
 });
+
+// ── Stage 22.5 — bundle export augmentation ────────────────────────────────
+// Three new exports surface CodeMirror APIs that Stage 23's task-toggle
+// keyboard binding needs. cm6-bundle.js is an IIFE that writes to
+// window.CM6Production; the window shim lets us inspect it under Node.
+
+function loadCm6Bundle() {
+  if (!global.window) global.window = {};
+  if (!global.window.CM6Production) {
+    require('../../lib/cm6-bundle.js');
+  }
+  return global.window.CM6Production;
+}
+
+test('Stage 22.5-1: cm6-bundle.js exports cm6.keymap.of as a function', () => {
+  const cm6 = loadCm6Bundle();
+  assert.equal(typeof cm6.keymap, 'object',
+    'cm6.keymap must be present (the @codemirror/view keymap facet)');
+  assert.equal(typeof cm6.keymap.of, 'function',
+    'cm6.keymap.of must be a function — Stage 23 uses it to register the '
+    + 'task-toggle keyboard binding via the standard CM6 keymap path');
+});
+
+test('Stage 22.5-2: cm6-bundle.js exports cm6.undo as a function', () => {
+  const cm6 = loadCm6Bundle();
+  assert.equal(typeof cm6.undo, 'function',
+    'cm6.undo must be exported (from @codemirror/commands); enables '
+    + 'programmatic undo invocation in future Stage 23+ tests');
+});
+
+test('Stage 22.5-3: cm6-bundle.js exports cm6.redo as a function', () => {
+  const cm6 = loadCm6Bundle();
+  assert.equal(typeof cm6.redo, 'function',
+    'cm6.redo must be exported (from @codemirror/commands); enables '
+    + 'programmatic redo invocation in future Stage 23+ tests');
+});

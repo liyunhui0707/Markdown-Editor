@@ -26743,6 +26743,9 @@
       codeLanguages: [],
       extensions: [Strikethrough]
     }),
-    chrome: chrome2
+    chrome: chrome2,
+    keymap,
+    undo,
+    redo
   };
 })();

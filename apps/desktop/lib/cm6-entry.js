@@ -21,7 +21,7 @@ import {
   highlightActiveLineGutter,
   lineNumbers,
 } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Strikethrough }              from '@lezer/markdown';
 import {
@@ -67,4 +67,7 @@ window.CM6Production = {
     extensions: [Strikethrough],
   }),
   chrome,
+  keymap,
+  undo,
+  redo,
 };
