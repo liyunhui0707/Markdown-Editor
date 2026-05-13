@@ -43,6 +43,33 @@ Use this checklist before sharing the app with another person.
 - [ ] Append `?writeEngine=hybrid` to the dev URL → Hybrid write view loads instead
 - [ ] Hybrid Preview renders Markdown correctly
 
+## Task-toggle behavior (Stage 23, hybrid-cm6 only)
+
+Default engine is `hybrid-cm6`. Open a note containing
+`- [ ] one\n- [x] two\n- [X] three\n`.
+
+- [x] Primary-click the `[ ]` marker → toggles to `[x]`; click again → back to `[ ]`
+- [x] Primary-click the `[X]` marker → toggles to `[ ]`
+- [x] Primary-click on the label text (not the marker) → only caret movement; no toggle
+- [x] Primary-click on the bullet `-` → only caret movement; no toggle
+- [x] Right-click on the marker → no toggle
+- [x] Middle-click on the marker → no toggle (skip if no middle-click affordance)
+- [x] `Cmd-click`, `Ctrl-click`, `Alt-click`, `Shift-click` on the marker → no toggle (modifier keys are reserved)
+- [x] Place caret on a task line, press `Cmd-Shift-X` (macOS) → toggles that line's marker
+- [x] Place caret on a non-task line, press `Cmd-Shift-X` → no change, no error
+- [x] **Dirty badge appears** in the title bar after any toggle. Stop and investigate if the badge does not update
+- [x] Active selection across multiple lines including a task line → press `Cmd-Shift-X` → toggles only the line containing the primary caret; selection preserved
+- [x] Begin Chinese / Japanese / Korean IME composition on a task-line label; click another task marker mid-composition → no toggle; composition completes normally on commit
+- [x] `Cmd-Z` undoes the last toggle in one step; `Cmd-Shift-Z` redoes
+- [x] Save the note, close it, reopen → marker state is **character-identical after LF normalization** with what the editor showed before save
+- [x] Long-document responsiveness: open a note with 200+ task markers, click any one → toggle feels instant (< 100 ms perceptually)
+- [x] Preview pane (Toast UI) reflects the toggled state after the existing Write→Preview sync
+- [x] Switch to `?writeEngine=cm6` fallback → task markers are NOT clickable; no error
+- [x] Switch to `?writeEngine=hybrid` legacy fallback → no toggle behavior; no error
+- [x] No new console warnings or errors during any of the above
+
+Tester: liyunhui  Date: 2026-05-14  OS: macOS
+
 ## Search  
   
 - [ ] Search finds matches in title  
