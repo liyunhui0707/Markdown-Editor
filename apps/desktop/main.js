@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
+const { processOpenExternalLink } = require('./lib/external-url');
 
 let mainWindow = null;
 let currentVaultWatcher = null;
@@ -706,6 +707,16 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
       error: error.message
     };
   }
+});
+
+// Stage 24.5: open-external-link IPC. The renderer (Stage 25+) calls
+// `window.vaultApi.openExternalLink(url)` for Cmd-click and Mod-Shift-o on
+// inline Markdown links. The handler re-validates the URL server-side via
+// the shared validateExternalUrl algorithm (apps/desktop/lib/external-url.js)
+// before invoking shell.openExternal. Return shape is documented in the
+// helper module's top-of-file comment.
+ipcMain.handle('open-external-link', async (_event, payload) => {
+  return processOpenExternalLink(payload, shell);
 });
 
 app.whenReady().then(() => {

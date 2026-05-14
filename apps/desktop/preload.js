@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('vaultApi', {
   saveNote: (payload) => ipcRenderer.invoke('save-note', payload),
   deleteNoteFile: (payload) => ipcRenderer.invoke('delete-note-file', payload),
   loadVaultNotes: (payload) => ipcRenderer.invoke('load-vault-notes', payload),
+  openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
   onVaultChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('vault-changed', listener);
