@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodexRunResult",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Generic Codex run output. Free-form text response carried in `text`.",
+  "required": ["text"],
+  "properties": {
+    "text": {"type": "string"}
+  }
+}
