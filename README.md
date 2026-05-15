@@ -90,7 +90,7 @@ The hybrid-cm6 engine emits CSS-class decorations over the existing source text 
 - Setext headings (`Heading\n=====` and `Heading\n-----`) — reuse the same H1 / H2 typography as ATX; the `===` / `---` underline hides off the active line and reveals dimmed when the caret enters the underline line
 - Bold `**…**` and italic `*…*` / `_…_`
 - Inline code `` `…` ``
-- Inline links `[text](url)` — underlined link-text, **non-clickable** (no `<a>`, no `href`, no navigation)
+- Inline links `[text](url)` — underlined link-text. **Clickable in hybrid-cm6**: on macOS, `Cmd-click` on the link text opens the URL via the system default handler (browser for `https:`, mail client for `mailto:`). Place the caret inside the link and press `Cmd-Shift-O` to open from the keyboard. URLs are validated against an allowlist — only `https:` and `mailto:` schemes (case-insensitive) open; everything else, including degenerate forms like `https:` or `mailto:` with no rest, silently no-ops. `Cmd-Shift-click`, `Cmd-Alt-click`, `Cmd-Ctrl-click`, and plain (no-modifier) click do not open and remain normal caret moves. IME composition is never interrupted. Links inside YAML frontmatter do not open. Cross-platform Ctrl-click is deferred. No `<a>` is rendered and no `href` attribute is emitted — the click is routed via preload + main IPC to `shell.openExternal`
 - Reference-style links `[text][ref]` and collapsed `[text][]` — same underline as inline links; shortcut references `[shortcut]` are intentionally not styled
 - Link definitions `[ref]: url "title"` — entire definition line dimmed
 - Inline images `![alt](url)` (with optional title) — alt text rendered italic and muted; `![`, `]`, `(`, URL, optional title, `)` hide off the active line. **No `<img>`, no fetch, no clicks.** Reference-style images `![alt][1]` are intentionally not styled
@@ -99,7 +99,7 @@ The hybrid-cm6 engine emits CSS-class decorations over the existing source text 
 - Horizontal rules (`---`, `***`, `___`) — dimmed and letter-spaced
 - Strikethrough `~~…~~` — line-through; `~~` delimiters hide off the active line and reveal dimmed when the caret enters
 - Task list markers `[ ]`, `[x]`, `[X]` — dimmed and **interactive in hybrid-cm6**: primary-click on the marker toggles `[ ]` ↔ `[x]` (and `[X]` → `[ ]`). On macOS you can also place the caret on a task line and press **`Cmd-Shift-X`** to toggle (CodeMirror registers this as `Mod-Shift-x`). Toggles are real Markdown edits — they flow through `onChange`, update the dirty badge, participate in undo/redo, and round-trip character-identically after LF normalization on save/reload. Modifier-held clicks and non-primary buttons are no-ops; IME composition is never interrupted
-- Autolinks `<https://…>`, `<mailto:…>`, raw `<email@host>`, and bare URLs (`https://example.com`) — underlined; angle brackets share the same hide/reveal mechanism. **Not clickable.**
+- Autolinks `<https://…>`, `<mailto:…>`, raw `<email@host>`, and bare URLs (`https://example.com`) — underlined; angle brackets share the same hide/reveal mechanism. **Scheme-bearing autolinks `<https://…>` and `<mailto:…>` are clickable on Cmd-click** (same rules as inline links). Raw email autolinks `<foo@example.com>` and bare URLs (not wrapped in `<>` or `[]()`) remain non-clickable — raw email autolinks no-op because the parser exposes the address without a `mailto:` scheme and the URL allowlist rejects schemeless URLs; conversion to `mailto:` is deferred. Reference-style links `[text][ref]` and collapsed `[text][]` are also non-clickable (deferred).
 - YAML frontmatter — when a note begins with a strict `---` fence and has a later strict `---` closing fence, the entire region (both fences and the metadata lines between them) renders as plain text. The leading `---` is not styled as a horizontal rule and the closing `---` is not styled as a Setext heading. Detection requires exact `---` on each fence (no `+++`, no trailing whitespace). See Stage 14.9 for details.
 
 Image URLs and link-reference definition URLs are intentionally not autolink-styled.
@@ -202,6 +202,7 @@ npm run smoke
 | `Cmd/Ctrl + -` | Decrease editor text size |
 | `Cmd/Ctrl + 0` | Reset editor text size to default (15px) |
 | `Cmd/Ctrl + Z` / `Cmd/Ctrl + Shift + Z` | Undo / redo in CM6 Write mode |
+| `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
