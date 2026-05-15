@@ -549,6 +549,19 @@
         const ext = taskToggle.createTaskToggleExtension(cm6);
         if (ext != null) extensions.push(ext);
       }
+      // Stage 25: optional link-click extension hook. Same shape as the
+      // Stage 23 task-toggle hook above. The link-click module
+      // (cm6-link-click.js) loads via its own script tag in index.html and
+      // exposes itself as globalThis.Cm6LinkClick. The peer contract test
+      // (cm6-link-click-invariants.test.js) pins the narrow event-surface
+      // exception inside the link-click module; this hook adds zero
+      // Section H tokens.
+      const linkClick =
+        (typeof globalThis !== 'undefined') ? globalThis.Cm6LinkClick : null;
+      if (linkClick && typeof linkClick.createLinkClickExtension === 'function') {
+        const ext = linkClick.createLinkClickExtension(cm6);
+        if (ext != null) extensions.push(ext);
+      }
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
     }
 
