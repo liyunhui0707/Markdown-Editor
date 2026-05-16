@@ -32,6 +32,9 @@ vault-demo/
 .mcp.json
 !plugins/workflow-orchestrator/.mcp.json
 
+# Workflow orchestrator runtime state (ephemeral; not committed)
+.workflow/
+
 # Local vault/user content
 Inbox/
 
