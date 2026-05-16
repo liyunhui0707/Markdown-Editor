@@ -7,6 +7,10 @@ from codex_bridge.errors import (
 )
 from codex_bridge.payload import load_payload
 
+# Build the AWS-key-shaped payload from non-secret fragments so the source
+# itself stays redaction-clean. See test_redaction.py header comment.
+aws_real = "AKIA" + "0" * 16
+
 
 def test_path_outside_repo(tmp_path):
     repo = tmp_path / "repo"
@@ -30,14 +34,14 @@ def test_path_secret_scanned(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     bad = repo / "p.txt"
-    bad.write_text("AKIA0123456789ABCDEF")
+    bad.write_text(aws_real)
     with pytest.raises(SecretInPayloadError):
         load_payload(path=bad, repo_root=repo)
 
 
 def test_text_secret_scanned(tmp_path):
     with pytest.raises(SecretInPayloadError):
-        load_payload(text="token=AKIA0123456789ABCDEF", repo_root=tmp_path)
+        load_payload(text=f"token={aws_real}", repo_root=tmp_path)
 
 
 def test_text_too_large(tmp_path):
