@@ -59,7 +59,7 @@ If `acquire-lock` returns non-zero, another orchestrator run is already active i
 For each selected step in order:
 
 1. Look up its owner in `skill-routing.md`.
-2. If Claude-owned: invoke the corresponding skill directly using its standard `/<skill-name>` invocation.
+2. If Claude-owned: invoke the corresponding skill directly using its standard `/<skill-name>` invocation. In runtime contexts where direct slash-command invocation is unavailable (e.g., when this orchestrator skill is already active and is the one initiating the next step), use the Skill tool instead.
 3. If Codex-owned: call the corresponding typed MCP tool. See `mcp-contract.md` for the routing table. Use only typed tools for review skills.
 4. Write the produced artifact to `<cwd>/.workflow/artifacts/NN-<skill-id>.md` (create the directory if needed).
 5. Mark the step as done:

@@ -76,7 +76,21 @@ def cmd_set(args):
     parts = args.field.split(".")
     target = state
     for part in parts[:-1]:
+        if not isinstance(target, dict):
+            print(
+                f"cannot traverse field {args.field!r}: intermediate at "
+                f"{part!r} is {type(target).__name__}, not dict",
+                file=sys.stderr,
+            )
+            return 2
         target = target.setdefault(part, {})
+    if not isinstance(target, dict):
+        print(
+            f"cannot assign into field {args.field!r}: parent is "
+            f"{type(target).__name__}, not dict",
+            file=sys.stderr,
+        )
+        return 2
     target[parts[-1]] = parsed
     state["updated_at"] = now()
     atomic_write(state_file(repo), state)
