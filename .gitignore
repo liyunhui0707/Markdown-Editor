@@ -31,5 +31,8 @@ vault-demo/
 .codex/config.toml
 .mcp.json
 
+# Workflow orchestrator runtime state (ephemeral; not committed)
+.workflow/
+
 # Local vault/user content
 Inbox/
