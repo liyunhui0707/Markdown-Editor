@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "codex-bridge": {
+    "codex-bridge-lab": {
       "type": "stdio",
       "command": "uv",
       "args": [

@@ -30,6 +30,16 @@ vault-demo/
 .claude/
 .codex/config.toml
 .mcp.json
+!plugins/workflow-orchestrator/.mcp.json
 
 # Local vault/user content
 Inbox/
+
+# Workflow orchestrator runtime state (per-repo)
+.workflow/
+
+# Python build/cache artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
