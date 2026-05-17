@@ -94,3 +94,69 @@ def test_invariant_gate_steps_present(capsys, task, task_type):
         assert step in data["selected_steps"], (
             f"task_type={task_type}: step {step} missing from default profile"
         )
+
+
+def test_size_trivial_minimal_step_set(capsys):
+    """trivial size: just write → diff-review → readiness → push."""
+    rc, data = _run(["preview", "--task", "rename a constant", "--size", "trivial"], capsys)
+    assert rc == 0
+    assert data["size"] == "trivial"
+    assert data["selected_steps"] == [6, 7, 11, 12]
+
+
+def test_size_small(capsys):
+    rc, data = _run(["preview", "--task", "tighten one helper", "--size", "small"], capsys)
+    assert rc == 0
+    assert data["size"] == "small"
+    assert data["selected_steps"] == [1, 6, 7, 8, 11, 12]
+
+
+def test_size_medium(capsys):
+    rc, data = _run(["preview", "--task", "add a focused feature", "--size", "medium"], capsys)
+    assert rc == 0
+    assert data["size"] == "medium"
+    assert data["selected_steps"] == [1, 4, 5, 6, 7, 8, 11, 12, 14]
+
+
+def test_size_large_falls_through_to_task_type(capsys):
+    """large: behave exactly as if --size were omitted."""
+    rc_with, data_with = _run(["preview", "--task", "add feature for users", "--size", "large"], capsys)
+    rc_no, data_no = _run(["preview", "--task", "add feature for users"], capsys)
+    assert rc_with == 0 and rc_no == 0
+    assert data_with["selected_steps"] == data_no["selected_steps"]
+    assert data_with["size"] == "large"
+    assert data_no["size"] is None
+
+
+def test_size_preserves_step_11_in_every_preset(capsys):
+    """Step 11 (commit readiness) must survive every size preset (Codex correction)."""
+    for size in ("trivial", "small", "medium", "large"):
+        _, data = _run(["preview", "--task", "x", "--size", size], capsys)
+        assert 11 in data["selected_steps"], (
+            f"size={size}: step 11 (commit-readiness) must always survive"
+        )
+
+
+def test_size_overrides_task_type_step_count(capsys):
+    """A 'feature' task with --size trivial gets the trivial set, not the feature set."""
+    _, feature_default = _run(["preview", "--task", "add a new feature"], capsys)
+    _, feature_trivial = _run(["preview", "--task", "add a new feature", "--size", "trivial"], capsys)
+    assert len(feature_trivial["selected_steps"]) < len(feature_default["selected_steps"])
+    assert feature_trivial["selected_steps"] == [6, 7, 11, 12]
+
+
+def test_size_skip_and_force_still_work(capsys):
+    """--skip / --force compose with --size."""
+    _, data = _run([
+        "preview", "--task", "x", "--size", "medium",
+        "--skip", "14", "--force", "9",
+    ], capsys)
+    assert 14 not in data["selected_steps"]
+    assert 9 in data["selected_steps"]
+
+
+def test_size_trivial_warns_about_skipped_plan_gate(capsys):
+    """trivial drops step 5 (plan review) by design; the workflow should surface that."""
+    _, data = _run(["preview", "--task", "x", "--size", "trivial"], capsys)
+    # Step 5 is in MANDATORY_GATE_STEPS; trivial omits it intentionally.
+    assert any("5" in w for w in data["warnings"]), data["warnings"]

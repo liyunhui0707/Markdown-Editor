@@ -24,7 +24,20 @@ Logic of record lives in `bin/workflow_select.py`. This doc describes the rules 
 
 All profiles include the mandatory gate-bearing steps 5, 7, 11, and the pre-12 push gate.
 
-## Overrides
+## Size override
+
+`--size {trivial|small|medium|large}` REPLACES the task-type-derived set with a size-tuned set. Use it when the task-type default is too heavy (e.g. a 50-LOC CSS change classified as `feature`). Step 11 (commit-readiness) is preserved in every size — it is the last cheap check before code leaves the local machine.
+
+| Size       | Steps                            | Notes                                                  |
+|------------|----------------------------------|--------------------------------------------------------|
+| `trivial`  | 6, 7, 11, 12                     | write → diff-review → readiness → push. Skips plan, QA, wrap-up. |
+| `small`    | 1, 6, 7, 8, 11, 12               | +clarify, +review-fix.                                 |
+| `medium`   | 1, 4, 5, 6, 7, 8, 11, 12, 14     | +plan, +plan-review, +continuity-summary.              |
+| `large`    | (task-type default)              | Use the full task-type-derived set. Same as omitting `--size`. |
+
+Skipping steps 5 / 7 / 12 still triggers a mandatory-gate warning. Trivial drops step 5; that warning is expected — it's the workflow telling you "you opted out of plan review."
+
+## Other overrides
 
 - `--skip CSV` — remove listed steps
 - `--force CSV` — add listed steps that the default profile excluded
