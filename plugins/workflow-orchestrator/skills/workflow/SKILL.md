@@ -10,10 +10,22 @@ You are the orchestrator for the 15-skill engineering workflow. Walk the user th
 ## How to invoke
 
 ```
-/workflow-orchestrator:workflow "<task description>" [--size {trivial|small|medium|large}] [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--resume] [--issue REF]
+/workflow-orchestrator:workflow "<task description>" [--size {trivial|small|medium|large}] [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--resume] [--issue REF] [--run-context "<scope statement>"]
 ```
 
 Per-repo state is stored at `<repo>/.workflow/state.json` and is managed exclusively by `bin/workflow_state.py`. Step selection is computed by `bin/workflow_select.py`. Do not write or modify state files by hand.
+
+## Run-context (project-scope hint for Codex)
+
+`--run-context "..."` writes a free-form scope string into `state.codex_run_context`. From that point on, every typed Codex review tool (`codex_review_plan`, `codex_review_diff`, `codex_review_text`) auto-prepends a "## Project scope" block to its prompt — so Codex frames every review under the same lens without you having to re-explain.
+
+Use it when the project has a stance that's not obvious from the diff:
+
+- "Renderer is intentionally a minimal subset of CommonMark; input comes only from controlled importers."
+- "Library is internal-only; defensive checks for adversarial input are out of scope."
+- "Security-sensitive — be strict about all input boundaries."
+
+Set it once at init via `--run-context`, or update mid-run with `workflow_state.py set --field codex_run_context --value '"..."'`. Leave it unset (default) for fully strict, scope-naive Codex review.
 
 ## Resume detection (run first)
 
@@ -52,10 +64,13 @@ Only after the user confirms may you initialize state and begin the run.
 ```
 python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py acquire-lock --repo "<cwd>"
 python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py init \
-  --repo "<cwd>" --task-type "<detected>" --selected "<CSV>" --title "<task>"
+  --repo "<cwd>" --task-type "<detected>" --selected "<CSV>" --title "<task>" \
+  [--run-context "<scope statement>"]
 ```
 
 Acquire the lock FIRST. If `acquire-lock` returns non-zero, another orchestrator run is already active in this repo; surface that to the user and stop without touching state. (Running `init` first would clobber any in-flight `state.json` from a parallel invocation before this run discovered the conflict.)
+
+If `--run-context` was passed at invocation, pass it through to `init`. The resulting `codex_run_context` field is auto-read by every typed Codex tool for this run.
 
 ## Run loop
 

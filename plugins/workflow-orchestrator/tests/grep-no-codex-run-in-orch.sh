@@ -4,7 +4,10 @@
 set -euo pipefail
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-OFFENDERS=$(grep -RlE 'codex_run' "$PLUGIN_DIR/skills" 2>/dev/null \
+# Word-boundary match so legitimate identifiers like `codex_run_context`
+# (a P3 state field) don't trip the guard. The intent is to catch the
+# fallback tool name `codex_run` specifically.
+OFFENDERS=$(grep -RlE '\bcodex_run\b' "$PLUGIN_DIR/skills" 2>/dev/null \
             | grep -v 'mcp-contract.md' || true)
 if [ -n "$OFFENDERS" ]; then
   echo "FAIL: codex_run mentioned in orchestrator skill files outside mcp-contract.md:" >&2

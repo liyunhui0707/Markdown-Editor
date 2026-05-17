@@ -25,6 +25,41 @@ def test_init_creates_state(tmp_path):
     assert data["selected_steps"] == [1, 4, 5, 6, 7, 8, 11, 12]
     assert data["current_step"] is None
     assert data["pending_gate"] is None
+    # P3: codex_run_context defaults to null when --run-context is omitted.
+    assert data["codex_run_context"] is None
+
+
+def test_init_with_run_context_persists(tmp_path):
+    """P3: --run-context "..." writes the string to state.codex_run_context."""
+    ctx = (
+        "Markdown renderer is intentionally a minimal subset, not CommonMark-strict. "
+        "Input comes only from tools/import-claude.js and tools/import-codex.js."
+    )
+    rc = workflow_state.main([
+        "init", "--repo", str(tmp_path),
+        "--task-type", "feature",
+        "--selected", "1,4,5",
+        "--run-context", ctx,
+    ])
+    assert rc == 0
+    data = json.loads(_state_path(tmp_path).read_text())
+    assert data["codex_run_context"] == ctx
+
+
+def test_set_run_context_field(tmp_path):
+    """P3: codex_run_context is settable via the generic `set` subcommand too."""
+    workflow_state.main([
+        "init", "--repo", str(tmp_path),
+        "--task-type", "bug", "--selected", "1,4,5",
+    ])
+    rc = workflow_state.main([
+        "set", "--repo", str(tmp_path),
+        "--field", "codex_run_context",
+        "--value", '"controlled input only; defensive checks out of scope"',
+    ])
+    assert rc == 0
+    data = json.loads(_state_path(tmp_path).read_text())
+    assert data["codex_run_context"] == "controlled input only; defensive checks out of scope"
 
 
 def test_set_field_atomically_replaces(tmp_path):

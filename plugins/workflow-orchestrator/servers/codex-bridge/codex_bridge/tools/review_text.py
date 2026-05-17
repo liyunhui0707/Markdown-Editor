@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Callable
 
 from codex_bridge.payload import load_payload
+from codex_bridge.run_context import format_scope_block
 from codex_bridge.tools._invoke import invoke_review
 
 _SCHEMA = (
@@ -44,9 +45,11 @@ def review_text(
 
 def _compose_prompt(body: str, skill_id: str, context: dict) -> str:
     summary = context.get("task_summary", "")
+    scope = format_scope_block(context["repo_root"])
     return (
         f"You are running the {skill_id} review skill. "
         "Respond ONLY with JSON conforming to the provided output schema.\n\n"
+        f"{scope}"
         f"## Task summary\n{summary}\n\n"
         f"## Content to review\n{body}\n"
     )
