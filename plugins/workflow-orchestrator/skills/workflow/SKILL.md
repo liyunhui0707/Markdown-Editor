@@ -78,7 +78,18 @@ For each selected step in order:
 
 1. Look up its owner in `skill-routing.md`.
 2. If Claude-owned: invoke the corresponding skill directly using its standard `/<skill-name>` invocation. In runtime contexts where direct slash-command invocation is unavailable (e.g., when this orchestrator skill is already active and is the one initiating the next step), use the Skill tool instead.
-3. If Codex-owned: call the corresponding typed MCP tool. See `mcp-contract.md` for the routing table. Use only typed tools for review skills.
+3. If Codex-owned: BEFORE dispatching, check the review-round cap (P2):
+   ```
+   python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py should-escalate \
+     --repo "<cwd>" --skill <mcp_tool_name>
+   ```
+   - If the response has `"escalate": true`, do NOT dispatch another round. Set the escalation gate instead (see "Escalation gate" below) and end your turn.
+   - Otherwise, dispatch the typed MCP tool (see `mcp-contract.md` for routing), then bump the counter:
+     ```
+     python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py bump-review \
+       --repo "<cwd>" --skill <mcp_tool_name>
+     ```
+   Use only typed tools for review skills.
 4. Write the produced artifact to `<cwd>/.workflow/artifacts/NN-<skill-id>.md` (create the directory if needed).
 5. Mark the step as done:
    ```
@@ -99,6 +110,24 @@ For each selected step in order:
    | 12         | `push`, `cancel`                         |
 
    For any non-canonical, ad-hoc gate (e.g., after a `revise` round), pass `--options` explicitly. Read the resulting `pending_gate.options` from state and present them verbatim. Emit the prompt + option list as a single user-facing message, then **end your turn**. The next user message is the gate reply; clear the gate with `clear-gate` before advancing.
+
+## Escalation gate (P2 — review-round cap)
+
+When `should-escalate` returns `"escalate": true`, the per-skill review count has reached `state.max_review_rounds` (default 3, set at init via `init --max-review-rounds N`). Set an escalation gate instead of dispatching:
+
+```
+workflow_state.py set-gate --repo "<cwd>" --after-step <current_step> \
+  --prompt "Step <N> reviewed <round> times. Latest verdict: <verdict>. Continue reviewing?" \
+  --options "dispatch-another,accept-as-is,abort"
+```
+
+User options:
+
+- `dispatch-another` — bump the cap inline (`set --field max_review_rounds --value <round+N>`) or pass `--max` to the next `should-escalate` to allow one more round, then dispatch as usual.
+- `accept-as-is` — skip further review; treat the most recent verdict as final and proceed.
+- `abort` — stop the run; release the lock.
+
+Recommend `accept-as-is` in the gate prompt when the last 2 rounds had verdicts in {`approve`, `revise`} with no blockers/majors — that's the signature of a converging review where remaining findings are defensive scope-expansion, not real bugs.
 
 ## Final merge
 

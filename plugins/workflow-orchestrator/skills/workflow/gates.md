@@ -12,6 +12,20 @@ The orchestrator pauses for explicit user approval at four mandatory points and 
 | Before step 12 | confirm push/PR   | `push`, `cancel`              |
 | End of run   | final merge         | (no option — user merges)     |
 
+## Conditional gates
+
+### Escalation gate (P2 — review-round cap)
+
+Fires when a Codex-owned skill's dispatch counter reaches `state.max_review_rounds` (default 3). Triggered by `should-escalate` returning `"escalate": true` BEFORE the next dispatch.
+
+| When                                              | Options                                       |
+|---------------------------------------------------|-----------------------------------------------|
+| Per-skill review count reached `max_review_rounds` | `dispatch-another`, `accept-as-is`, `abort`   |
+
+This gate is non-canonical (not keyed on `--after-step`), so set it with explicit `--options "dispatch-another,accept-as-is,abort"`. The `--after-step` argument should be the current step number for context (e.g., 5 for plan review).
+
+**Recommend `accept-as-is`** in the gate prompt when the last 2 rounds had verdicts ∈ {`approve`, `revise`} with no blockers/majors — that's the signature of a converging review where remaining findings are defensive scope-expansion. **Recommend `dispatch-another`** when the last round had real blockers/majors that haven't been addressed.
+
 ## Pause protocol
 
 1. Write the gate via `workflow_state.py set-gate --after-step N --prompt "…" --options "…"`.
