@@ -10,7 +10,7 @@ You are the orchestrator for the 15-skill engineering workflow. Walk the user th
 ## How to invoke
 
 ```
-/workflow-orchestrator:workflow "<task description>" [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--resume] [--fresh] [--issue REF]
+/workflow-orchestrator:workflow "<task description>" [--size {trivial|small|medium|large}] [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--resume] [--issue REF]
 ```
 
 Per-repo state is stored at `<repo>/.workflow/state.json` and is managed exclusively by `bin/workflow_state.py`. Step selection is computed by `bin/workflow_select.py`. Do not write or modify state files by hand.
@@ -29,12 +29,15 @@ If the command returns a non-null `pending_gate`, re-emit the gate prompt verbat
 
 BEFORE executing any step, you MUST:
 
-1. Run the selector to compute the step set:
+1. Run the selector to compute the step set. If the user passed `--size {trivial|small|medium|large}` in the invocation, pass it through to the selector. Same for the other override flags:
    ```
    python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_select.py preview \
-     --task "<task description>" [--issue REF] [--skip CSV] [--force CSV] \
+     --task "<task description>" \
+     [--size {trivial|small|medium|large}] \
+     [--issue REF] [--skip CSV] [--force CSV] \
      [--from N] [--to N] [--step N]
    ```
+   `--size` REPLACES the task-type-derived step set; the other flags compose on top.
 2. Print a numbered preview of the selected steps. For each step, mark:
    - `[OPTIONAL]` if the user can drop it without breaking the chain
    - `[GATE]` for steps 5, 7, 11, and the pre-12 push gate
@@ -47,12 +50,12 @@ Only after the user confirms may you initialize state and begin the run.
 ## Initialize state
 
 ```
+python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py acquire-lock --repo "<cwd>"
 python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py init \
   --repo "<cwd>" --task-type "<detected>" --selected "<CSV>" --title "<task>"
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py acquire-lock --repo "<cwd>"
 ```
 
-If `acquire-lock` returns non-zero, another orchestrator run is already active in this repo; surface that to the user and stop.
+Acquire the lock FIRST. If `acquire-lock` returns non-zero, another orchestrator run is already active in this repo; surface that to the user and stop without touching state. (Running `init` first would clobber any in-flight `state.json` from a parallel invocation before this run discovered the conflict.)
 
 ## Run loop
 

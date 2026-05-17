@@ -38,4 +38,4 @@ Every mutation writes `state.json.tmp` exclusively (`O_EXCL`), `fsync`s it, then
 
 ## Locking
 
-`acquire-lock` creates `state.lock` with `O_EXCL`. If it exists and the recorded pid is not running, the lock is reclaimed once. Otherwise the second `acquire-lock` exits non-zero.
+`acquire-lock` creates `state.lock` with `O_EXCL`. The lock file records `acquired_at` and `host` — it is NOT keyed on the helper-process pid and is NOT auto-reclaimed when the original process exits. If `state.lock` exists, the next `acquire-lock` exits non-zero with the held-since timestamp. Use `acquire-lock --force` to override an existing lock (e.g. after an aborted run leaves a stale `state.lock`); `release-lock` removes the lock cleanly.

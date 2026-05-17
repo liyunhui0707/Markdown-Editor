@@ -20,6 +20,17 @@ DEFAULT_STEPS: dict[str, list[int]] = {
     "freeform":       [1,       4, 5, 6, 7, 8,    11, 12, 13, 14],
 }
 
+# When --size is given, it OVERRIDES the task-type-derived default set.
+# Step 11 (commit readiness review) is preserved in every size — it's the
+# last cheap-to-run check before code leaves the local machine. Other
+# steps drop by size to match the actual ceremony a task needs.
+SIZE_STEPS: dict[str, list[int]] = {
+    "trivial":  [6, 7, 11, 12],                       # write → diff-review → readiness → push
+    "small":    [1, 6, 7, 8, 11, 12],                 # +clarify, +review-fix
+    "medium":   [1, 4, 5, 6, 7, 8, 11, 12, 14],       # +plan, +plan-review, +wrap-up
+    # "large" intentionally absent — falls through to task-type defaults.
+}
+
 MANDATORY_GATE_STEPS = (5, 7, 11, 12)
 
 
@@ -48,8 +59,14 @@ def cmd_preview(args):
     task_type = _detect_task_type(args.task, args.issue, args.task_type)
     if args.step is not None:
         steps = [args.step]
+        source = "single-step"
     else:
-        steps = list(DEFAULT_STEPS[task_type])
+        if args.size and args.size in SIZE_STEPS:
+            steps = list(SIZE_STEPS[args.size])
+            source = f"size={args.size}"
+        else:
+            steps = list(DEFAULT_STEPS[task_type])
+            source = f"task_type={task_type}"
         for s in _parse_csv(args.force):
             if s not in steps:
                 steps.append(s)
@@ -71,13 +88,15 @@ def cmd_preview(args):
             )
 
     rationale = (
-        f"task_type={task_type!r}; defaults applied; "
+        f"task_type={task_type!r}; source={source}; "
+        f"size={args.size or 'none'}; "
         f"skip={args.skip or 'none'}; force={args.force or 'none'}; "
         f"from={args.from_step}; to={args.to_step}; step={args.step}."
     )
     print(json.dumps(
         {
             "task_type": task_type,
+            "size": args.size,
             "selected_steps": steps,
             "rationale": rationale,
             "warnings": warnings,
@@ -95,6 +114,16 @@ def _build_parser():
     pv.add_argument("--task", required=True)
     pv.add_argument("--issue", default=None)
     pv.add_argument("--task-type", choices=list(DEFAULT_STEPS), default=None)
+    pv.add_argument(
+        "--size",
+        choices=["trivial", "small", "medium", "large"],
+        default=None,
+        help=(
+            "task size; overrides the task-type-derived step set. "
+            "trivial=6,7,11,12  small=+1,8  medium=+4,5,14  "
+            "large=use task-type defaults (current behavior)"
+        ),
+    )
     pv.add_argument("--skip", default=None, help="CSV of step numbers to remove")
     pv.add_argument("--force", default=None, help="CSV of step numbers to add")
     pv.add_argument("--from", dest="from_step", type=int, default=None)
