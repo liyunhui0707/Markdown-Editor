@@ -8,7 +8,7 @@ The orchestrator pauses for explicit user approval at four mandatory points and 
 |--------------|---------------------|-------------------------------|
 | After step 5 | plan reviewed       | `proceed`, `revise`, `abort`  |
 | After step 7 | diff reviewed       | `apply-fixes`, `accept-as-is`, `abort` |
-| After step 11| commit readiness    | `commit`, `fix-more`, `abort` |
+| After step 11| commit readiness    | `commit`, `fix-more`, `partial-commit-and-continue`, `abort` |
 | Before step 12 | confirm push/PR   | `push`, `cancel`              |
 | End of run   | final merge         | (no option — user merges)     |
 
