@@ -33,7 +33,10 @@ def review_plan(
 
 def _compose_prompt(plan: str, context: dict) -> str:
     summary = context.get("task_summary", "")
-    scope = format_scope_block(context["repo_root"])
+    # Tolerant lookup: format_scope_block returns "" for missing repo_root,
+    # so a partial context dict (no repo_root) produces the pre-P3 prompt
+    # bytes-for-bytes instead of crashing with KeyError.
+    scope = format_scope_block(context.get("repo_root"))
     return (
         "You are reviewing an engineering implementation plan. "
         "Respond ONLY with JSON conforming to the provided output schema.\n\n"
