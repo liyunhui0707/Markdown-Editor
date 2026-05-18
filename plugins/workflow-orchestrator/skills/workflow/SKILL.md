@@ -96,20 +96,49 @@ For each selected step in order:
    workflow_state.py set --repo "<cwd>" --field step_status.N.state --value '"done"'
    workflow_state.py advance --repo "<cwd>" --to-step <next>
    ```
-6. If the step is a gate trigger (5, 7, 11, or just before 12), set the gate and pause:
+6. If the step is a gate trigger (5, **6 when `state.ui` is true**, 7, 11, or just before 12), set the gate and pause:
    ```
    workflow_state.py set-gate --repo "<cwd>" --after-step N --prompt "<one-line summary>"
    ```
-   **Omit `--options` for canonical gates** (after steps 5, 7, 11, and 12) — the helper fills in the gate-specific options from `GATE_OPTIONS` (see `docs/gate-policy.md`). The canonical options are:
+   **Omit `--options` for canonical gates** (after steps 5, 6, 7, 11, and 12) — the helper fills in the gate-specific options from `GATE_OPTIONS` (see `docs/gate-policy.md`). The canonical options are:
 
-   | After step | Options                                  |
-   |------------|------------------------------------------|
-   | 5          | `proceed`, `revise`, `abort`             |
-   | 7          | `apply-fixes`, `accept-as-is`, `abort`   |
-   | 11         | `commit`, `fix-more`, `abort`            |
-   | 12         | `push`, `cancel`                         |
+   | After step | Options                                  | Fires when |
+   |------------|------------------------------------------|------------|
+   | 5          | `proceed`, `revise`, `abort`             | always (plan review) |
+   | 6          | `pass`, `fail`, `skip-and-document`      | **P1.c — only when `state.ui` is true** (manual QA before Codex diff review) |
+   | 7          | `apply-fixes`, `accept-as-is`, `abort`   | always (diff review) |
+   | 11         | `commit`, `fix-more`, `abort`            | always (commit readiness) |
+   | 12         | `push`, `cancel`                         | always (pre-push) |
 
    For any non-canonical, ad-hoc gate (e.g., after a `revise` round), pass `--options` explicitly. Read the resulting `pending_gate.options` from state and present them verbatim. Emit the prompt + option list as a single user-facing message, then **end your turn**. The next user message is the gate reply; clear the gate with `clear-gate` before advancing.
+
+## Manual-QA gate (P1.b/c — UI runs only)
+
+When `state.ui` is true, the manual-QA gate fires AFTER step 6 and BEFORE step 7 (Codex diff review). The whole point is to put eyeballs on the UI output before paying for a Codex round. Skipping QA on UI-touching runs is what caused the prior session's 9-round review spiral — manual QA at gate-11 caught a bug that lived in the first commit and would have been visible to a human in one minute.
+
+After step 6 finishes, if `state.ui` is true:
+
+```
+workflow_state.py set-gate --repo "<cwd>" --after-step 6 \
+  --prompt "Manual QA: load the changed UI in a browser; does it render correctly?"
+```
+
+User reply parsing:
+
+- `pass` — proceed to step 7.
+- `fail` — loop back to step 6 with the reason as input for the next iteration. Do NOT advance to step 7.
+- `skip-and-document` — write a stub artifact at `<cwd>/.workflow/artifacts/06-manual-qa-skipped.md` recording the user's reason (one paragraph), then proceed to step 7. Future audits can grep for these to find runs that consciously skipped QA.
+
+When `state.ui` is false, step 6 → step 7 transition is unchanged (no manual-QA gate).
+
+## Step-11 fix-more routing (P1.d)
+
+When the user picks `fix-more` at the after-step-11 gate, route based on `step_status[9].state`:
+
+- If step 9 is not `done` (missing or in_progress): clear the gate, advance to step 9, fire the manual-QA gate again so the user can verify the latest output before continuing. Then return to whatever step was in flight.
+- If step 9 is `done`: clear the gate, advance to the appropriate fix step (usually 8 for Codex-flagged issues, or 6 for new implementation).
+
+This prevents the case where `fix-more` silently loops back to step 6 (implementation) without surfacing the UI for human inspection — exactly the failure mode P1.b/c is designed to prevent.
 
 ## Escalation gate (P2 — review-round cap)
 

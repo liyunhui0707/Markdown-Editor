@@ -37,6 +37,18 @@ All profiles include the mandatory gate-bearing steps 5, 7, 11, and the pre-12 p
 
 Skipping steps 5 / 7 / 12 still triggers a mandatory-gate warning. Trivial drops step 5; that warning is expected — it's the workflow telling you "you opted out of plan review."
 
+## UI flag (P1.b)
+
+`--ui` / `--no-ui` controls whether the manual-QA gate fires after step 6. The selector also force-includes steps 9 (manual-QA checklist) and 10 (docs sync) in any size preset when `--ui` is set.
+
+| Flag       | Effect                                                                                              |
+|------------|-----------------------------------------------------------------------------------------------------|
+| `--ui`     | Forces `ui=true`. Always adds 9 + 10 to the selected set.                                            |
+| `--no-ui`  | Forces `ui=false`. No auto-detect; trusts the user.                                                  |
+| (omitted)  | Auto-detect from task text. Triggers `ui=true` if any of these whole-words appears (case-insensitive): `render`, `rendering`, `view`, `panel`, `UI`, `visual`, `display`, `browser`, `frontend`, `component`. |
+
+The selector emits `"ui": <bool>` in its preview JSON. The orchestrator passes that value through to `workflow_state.py init --ui` so the run-loop knows whether to fire the manual-QA gate after step 6.
+
 ## Other overrides
 
 - `--skip CSV` — remove listed steps

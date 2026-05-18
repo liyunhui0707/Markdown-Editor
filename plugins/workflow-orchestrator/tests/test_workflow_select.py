@@ -160,3 +160,79 @@ def test_size_trivial_warns_about_skipped_plan_gate(capsys):
     _, data = _run(["preview", "--task", "x", "--size", "trivial"], capsys)
     # Step 5 is in MANDATORY_GATE_STEPS; trivial omits it intentionally.
     assert any("5" in w for w in data["warnings"]), data["warnings"]
+
+
+# ---------------------------------------------------------------------------
+# P1.b — UI detection + --ui / --no-ui flags
+#
+# For UI-touching tasks, manual QA (step 9) and docs-sync (step 10) are too
+# often skipped under trivial/small. The --ui flag forces them in; auto-detect
+# does it from common task-text keywords.
+# ---------------------------------------------------------------------------
+
+def test_ui_auto_detected_from_keywords(capsys):
+    """Task text containing render / view / panel / etc. → ui=true → 9,10 in."""
+    _, data = _run(["preview", "--task", "fix bold rendering in the markdown view"], capsys)
+    assert data["ui"] is True
+    assert 9 in data["selected_steps"]
+    assert 10 in data["selected_steps"]
+
+
+def test_ui_auto_detect_negative_for_pure_backend(capsys):
+    """Non-UI tasks: ui=false; step 10 stays out per task-type default."""
+    _, data = _run(["preview", "--task", "fix a bug in the parser"], capsys)
+    assert data["ui"] is False
+
+
+def test_ui_flag_explicit_true_overrides_autodetect(capsys):
+    """--ui forces ui=true and adds 9,10 even on tasks that didn't match keywords."""
+    _, data = _run(["preview", "--task", "fix the parser", "--ui"], capsys)
+    assert data["ui"] is True
+    assert 9 in data["selected_steps"]
+    assert 10 in data["selected_steps"]
+
+
+def test_ui_flag_explicit_false_overrides_autodetect(capsys):
+    """--no-ui forces ui=false even on UI-keyword tasks; step 10 stays out per defaults."""
+    _, data = _run(["preview", "--task", "fix bold rendering", "--no-ui"], capsys)
+    assert data["ui"] is False
+    # Task type is freeform here, default doesn't include 10.
+    assert 10 not in data["selected_steps"]
+
+
+def test_ui_forces_9_and_10_under_size_trivial(capsys):
+    """The whole point of P1.b: small-size UI changes still get manual QA + docs."""
+    _, data = _run([
+        "preview", "--task", "rename a CSS class",
+        "--size", "trivial", "--ui",
+    ], capsys)
+    assert data["ui"] is True
+    assert 9 in data["selected_steps"]
+    assert 10 in data["selected_steps"]
+    # Trivial base set: 6,7,11,12. With --ui: also 9,10. Sorted.
+    assert data["selected_steps"] == [6, 7, 9, 10, 11, 12]
+
+
+def test_ui_forces_9_and_10_under_size_small(capsys):
+    _, data = _run([
+        "preview", "--task", "tweak a panel label",
+        "--size", "small", "--ui",
+    ], capsys)
+    assert data["selected_steps"] == [1, 6, 7, 8, 9, 10, 11, 12]
+
+
+def test_ui_idempotent_when_default_already_has_9_10(capsys):
+    """For 'feature' task type, the default already has 9 and 10. --ui is a no-op."""
+    _, default = _run(["preview", "--task", "add feature for users"], capsys)
+    _, with_ui = _run(["preview", "--task", "add feature for users", "--ui"], capsys)
+    assert default["selected_steps"] == with_ui["selected_steps"]
+    assert with_ui["ui"] is True
+
+
+@pytest.mark.parametrize("keyword", [
+    "render", "rendering", "view", "panel", "UI", "visual",
+    "display", "browser", "frontend", "component",
+])
+def test_ui_keyword_triggers_autodetect(capsys, keyword):
+    _, data = _run(["preview", "--task", f"work on the {keyword} layer"], capsys)
+    assert data["ui"] is True, f"keyword {keyword!r} should auto-detect ui=True"
