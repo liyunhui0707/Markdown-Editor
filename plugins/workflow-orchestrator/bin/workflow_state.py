@@ -27,6 +27,7 @@ from _state_lib import (  # noqa: E402
     read_state,
     state_file,
 )
+from _review_cmds import register_subparsers as _register_review_subparsers  # noqa: E402
 
 
 def cmd_init(args):
@@ -47,10 +48,10 @@ def cmd_init(args):
         "current_step": None,
         "pending_gate": None,
         "lock": None,
-        # P3: persistent project-scope string injected into every typed
-        # Codex review. None = no scope hint; codex-bridge omits the
-        # "Project scope" block entirely.
+        # P3: codex_run_context for typed reviews. P2: per-skill review cap.
         "codex_run_context": args.run_context or None,
+        "review_rounds": {},
+        "max_review_rounds": args.max_review_rounds,
     }
     atomic_write(state_file(repo), state)
     print(json.dumps(state, indent=2))
@@ -210,14 +211,13 @@ def _build_parser():
     init.add_argument("--title", default="")
     init.add_argument("--issue", default=None)
     init.add_argument(
-        "--run-context",
-        dest="run_context",
-        default=None,
-        help=(
-            "Project-scope hint injected into every typed Codex review call "
-            "for this run (e.g. 'controlled input only; not CommonMark-strict'). "
-            "Helps Codex avoid scope-expanding defensive findings."
-        ),
+        "--run-context", dest="run_context", default=None,
+        help="P3: project-scope hint injected into every typed Codex review.",
+    )
+    init.add_argument(
+        "--max-review-rounds", dest="max_review_rounds", type=int, default=3,
+        help="P2: soft cap on per-skill Codex review rounds; sets the "
+             "escalation gate when a skill reaches this count.",
     )
     init.set_defaults(func=cmd_init)
 
@@ -261,6 +261,8 @@ def _build_parser():
     rl = sub.add_parser("release-lock")
     rl.add_argument("--repo", required=True)
     rl.set_defaults(func=cmd_release_lock)
+
+    _register_review_subparsers(sub)
 
     rs = sub.add_parser("resume")
     rs.add_argument("--repo", required=True)
