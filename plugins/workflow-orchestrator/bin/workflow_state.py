@@ -17,18 +17,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _state_lib import (  # noqa: E402
-    GATE_OPTIONS,
-    SCHEMA_VERSION,
-    atomic_write,
-    empty_step_status,
-    lock_file,
-    now,
-    parse_value,
-    read_state,
-    state_file,
+    GATE_OPTIONS, SCHEMA_VERSION, atomic_write, empty_step_status,
+    lock_file, now, parse_value, read_state, state_file,
 )
-from _review_cmds import register_subparsers as _register_review_subparsers  # noqa: E402
-from _partial_commit_cmd import register_subparsers as _register_partial_commit_subparsers  # noqa: E402
+import _review_cmds  # noqa: E402
+import _partial_commit_cmd  # noqa: E402
+import _pivot_cmd  # noqa: E402
 
 
 def cmd_init(args):
@@ -54,6 +48,8 @@ def cmd_init(args):
         "max_review_rounds": args.max_review_rounds,
         "ui": bool(args.ui),
         "partial_commits": [],
+        "iteration": 1,
+        "pivot_log": [],
     }
     atomic_write(state_file(repo), state)
     print(json.dumps(state, indent=2))
@@ -261,8 +257,8 @@ def _build_parser():
     rl.add_argument("--repo", required=True)
     rl.set_defaults(func=cmd_release_lock)
 
-    _register_review_subparsers(sub)
-    _register_partial_commit_subparsers(sub)
+    for _mod in (_review_cmds, _partial_commit_cmd, _pivot_cmd):
+        _mod.register_subparsers(sub)
 
     rs = sub.add_parser("resume")
     rs.add_argument("--repo", required=True)
