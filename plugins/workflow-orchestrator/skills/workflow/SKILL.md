@@ -107,7 +107,7 @@ For each selected step in order:
    | 5          | `proceed`, `revise`, `abort`             | always (plan review) |
    | 6          | `pass`, `fail`, `skip-and-document`      | **P1.c — only when `state.ui` is true** (manual QA before Codex diff review) |
    | 7          | `apply-fixes`, `accept-as-is`, `abort`   | always (diff review) |
-   | 11         | `commit`, `fix-more`, `abort`            | always (commit readiness) |
+   | 11         | `commit`, `fix-more`, `partial-commit-and-continue`, `abort` | always (commit readiness) |
    | 12         | `push`, `cancel`                         | always (pre-push) |
 
    For any non-canonical, ad-hoc gate (e.g., after a `revise` round), pass `--options` explicitly. Read the resulting `pending_gate.options` from state and present them verbatim. Emit the prompt + option list as a single user-facing message, then **end your turn**. The next user message is the gate reply; clear the gate with `clear-gate` before advancing.
@@ -130,6 +130,27 @@ User reply parsing:
 - `skip-and-document` — write a stub artifact at `<cwd>/.workflow/artifacts/06-manual-qa-skipped.md` recording the user's reason (one paragraph), then proceed to step 7. Future audits can grep for these to find runs that consciously skipped QA.
 
 When `state.ui` is false, step 6 → step 7 transition is unchanged (no manual-QA gate).
+
+## Step-11 partial-commit-and-continue (P5)
+
+When the user picks `partial-commit-and-continue` at the after-step-11 gate, ship the Codex-approved subset now and keep iterating on the rest. The state helper just records the partial commit for audit; the orchestrator drives the actual git operations via Bash so the user can review the staged diff first.
+
+Sequence:
+
+1. Show the user `git status --short` so they can see what's in the working tree.
+2. Ask which files they want to commit now (default: the files Codex already approved this round; the user can adjust).
+3. `git add <selected_files>` (specific paths only — NEVER `git add -A`, per the project rule).
+4. `git diff --cached` so the user can confirm before committing.
+5. `git commit -m "<message>"` — message scoped to the committed subset, ending with a short note like "(partial commit; rest still in working tree)".
+6. Record the audit entry:
+   ```
+   workflow_state.py record-partial-commit --repo "<cwd>" \
+     --files "<csv>" --reason "<one-line summary>"
+   ```
+7. Clear the gate (`clear-gate`).
+8. Continue iteration on the remaining working-tree changes — typically loop back to step 8 (`minimal-review-fix`) or step 6 (`minimal-tdd-implementation`) depending on what's contested.
+
+State carries `state.partial_commits: list[{at, files, reason}]` so a future audit can see what shipped piecemeal and why. Never auto-push: pushing the partial commit is still a separate gate (the pre-step-12 push gate).
 
 ## Step-11 fix-more routing (P1.d)
 

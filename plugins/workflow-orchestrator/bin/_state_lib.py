@@ -21,7 +21,9 @@ GATE_OPTIONS: dict[int, list[str]] = {
     # P1.c: post-step-6 manual-QA gate, fired only when state.ui is true.
     6: ["pass", "fail", "skip-and-document"],
     7: ["apply-fixes", "accept-as-is", "abort"],
-    11: ["commit", "fix-more", "abort"],
+    # P5: 'partial-commit-and-continue' lets the user ship a Codex-approved
+    # subset and keep iterating on the contested rest.
+    11: ["commit", "fix-more", "partial-commit-and-continue", "abort"],
     12: ["push", "cancel"],
 }
 

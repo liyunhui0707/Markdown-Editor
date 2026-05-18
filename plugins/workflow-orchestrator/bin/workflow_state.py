@@ -28,6 +28,7 @@ from _state_lib import (  # noqa: E402
     state_file,
 )
 from _review_cmds import register_subparsers as _register_review_subparsers  # noqa: E402
+from _partial_commit_cmd import register_subparsers as _register_partial_commit_subparsers  # noqa: E402
 
 
 def cmd_init(args):
@@ -48,11 +49,11 @@ def cmd_init(args):
         "current_step": None,
         "pending_gate": None,
         "lock": None,
-        # P3 codex_run_context; P2 review cap; P1.b ui flag.
         "codex_run_context": args.run_context or None,
         "review_rounds": {},
         "max_review_rounds": args.max_review_rounds,
         "ui": bool(args.ui),
+        "partial_commits": [],
     }
     atomic_write(state_file(repo), state)
     print(json.dumps(state, indent=2))
@@ -214,10 +215,9 @@ def _build_parser():
     init.add_argument("--run-context", dest="run_context", default=None,
                       help="P3: project-scope hint for typed Codex review.")
     init.add_argument("--max-review-rounds", dest="max_review_rounds",
-                      type=int, default=3,
-                      help="P2: soft cap on per-skill Codex review rounds.")
+                      type=int, default=3, help="P2: per-skill review cap.")
     init.add_argument("--ui", action="store_true",
-                      help="P1.b: this run touches UI (manual-QA gate fires after step 6).")
+                      help="P1.b: this run touches UI; manual-QA gate fires after step 6.")
     init.set_defaults(func=cmd_init)
 
     g = sub.add_parser("get")
@@ -262,6 +262,7 @@ def _build_parser():
     rl.set_defaults(func=cmd_release_lock)
 
     _register_review_subparsers(sub)
+    _register_partial_commit_subparsers(sub)
 
     rs = sub.add_parser("resume")
     rs.add_argument("--repo", required=True)

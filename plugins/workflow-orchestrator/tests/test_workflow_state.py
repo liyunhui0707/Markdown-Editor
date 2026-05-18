@@ -184,7 +184,7 @@ def test_resume_returns_pending_gate(tmp_path, capsys):
 @pytest.mark.parametrize("after_step,expected", [
     (5, ["proceed", "revise", "abort"]),
     (7, ["apply-fixes", "accept-as-is", "abort"]),
-    (11, ["commit", "fix-more", "abort"]),
+    (11, ["commit", "fix-more", "partial-commit-and-continue", "abort"]),
     (12, ["push", "cancel"]),
 ])
 def test_gate_options_per_gate_when_unspecified(tmp_path, after_step, expected):
