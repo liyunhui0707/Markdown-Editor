@@ -100,3 +100,10 @@ def test_format_scope_block_wraps_context(tmp_path):
     # Block must end with a blank-line separator so it slots cleanly before
     # the next "##" section.
     assert block.endswith("\n\n")
+
+
+def test_format_scope_block_returns_empty_for_none():
+    """Defensive: a None repo_root (from `context.get("repo_root")` on a
+    partial context dict) must produce "" rather than crash.
+    """
+    assert format_scope_block(None) == ""

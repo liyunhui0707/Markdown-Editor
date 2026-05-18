@@ -42,14 +42,17 @@ def load_run_context(repo_root: str | Path) -> str | None:
 _SCOPE_HEADER = "## Project scope (applies to all reviews in this run)"
 
 
-def format_scope_block(repo_root: str | Path) -> str:
+def format_scope_block(repo_root: str | Path | None) -> str:
     """Return the prompt block for the current run's codex_run_context.
 
-    Returns "" when no context is set, so callers can unconditionally
-    prepend it without changing prompt bytes for non-opted-in runs. The
-    block always ends with a blank-line separator so it slots cleanly
-    in front of the next "##" section.
+    Returns "" when no context is set OR when `repo_root` is None — so
+    callers can unconditionally prepend it without changing prompt bytes
+    for non-opted-in runs and without crashing on a partial context dict
+    that omits `repo_root`. The block always ends with a blank-line
+    separator so it slots cleanly in front of the next "##" section.
     """
+    if repo_root is None:
+        return ""
     ctx = load_run_context(repo_root)
     if not ctx:
         return ""

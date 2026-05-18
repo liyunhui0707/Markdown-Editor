@@ -45,7 +45,8 @@ def review_text(
 
 def _compose_prompt(body: str, skill_id: str, context: dict) -> str:
     summary = context.get("task_summary", "")
-    scope = format_scope_block(context["repo_root"])
+    # Tolerant lookup: see review_plan._compose_prompt for rationale.
+    scope = format_scope_block(context.get("repo_root"))
     return (
         f"You are running the {skill_id} review skill. "
         "Respond ONLY with JSON conforming to the provided output schema.\n\n"
