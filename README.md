@@ -84,7 +84,9 @@ Three Write engines exist in the codebase. The engine is resolved on load by `ap
 
 ### Live styling in `hybrid-cm6` (default)
 
-The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Raw Markdown is the source of truth; `getText()` returns the raw Markdown source text without rendered HTML or decoration artifacts. (CodeMirror normalizes line endings internally, so source-text round-trip is at the LF / character level, not the exact on-disk byte level for CRLF files.) Currently styled:
+The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Raw Markdown is the source of truth; `getText()` returns the raw Markdown source text without rendered HTML or decoration artifacts. (CodeMirror normalizes line endings internally, so source-text round-trip is at the LF / character level, not the exact on-disk byte level for CRLF files.)
+
+Since Stage 26 the "hide off the active line / reveal on the active line" reveal mechanism that appears in the bullets below actually follows the FULL selection: every line touched by the current selection or any cursor reveals its syntax markers. Single-caret behavior is unchanged. Multi-line drag selections and multi-cursor selections (Alt-click) now show raw markers on every touched line, not just the line containing the primary caret. Currently styled:
 
 - ATX headings `#` … `######`
 - Setext headings (`Heading\n=====` and `Heading\n-----`) — reuse the same H1 / H2 typography as ATX; the `===` / `---` underline hides off the active line and reveals dimmed when the caret enters the underline line

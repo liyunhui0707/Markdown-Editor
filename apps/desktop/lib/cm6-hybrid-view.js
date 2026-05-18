@@ -562,6 +562,18 @@
         const ext = linkClick.createLinkClickExtension(cm6);
         if (ext != null) extensions.push(ext);
       }
+      // Stage 26: optional active-range extension hook. Same shape as the
+      // Stage 25 link-click hook above. The active-range module
+      // (cm6-active-range.js) loads via its own script tag in index.html
+      // and exposes itself as globalThis.Cm6ActiveRange. The peer contract
+      // test (cm6-active-range-invariants.test.js) pins the source-file
+      // invariants. This hook adds zero Section H tokens.
+      const activeRange =
+        (typeof globalThis !== 'undefined') ? globalThis.Cm6ActiveRange : null;
+      if (activeRange && typeof activeRange.createActiveRangeExtension === 'function') {
+        const ext = activeRange.createActiveRangeExtension(cm6);
+        if (ext != null) extensions.push(ext);
+      }
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
     }
 
