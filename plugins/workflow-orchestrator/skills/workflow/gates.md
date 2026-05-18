@@ -14,6 +14,23 @@ The orchestrator pauses for explicit user approval at four mandatory points and 
 
 ## Conditional gates
 
+### Manual-QA gate (P1.b/c — UI-touching runs)
+
+Fires AFTER step 6 (implementation) and BEFORE step 7 (Codex diff review) when `state.ui` is true. `state.ui` is set at init from the selector's `--ui` flag (explicit or auto-detected from task-text keywords like `render`, `view`, `panel`, `UI`, `visual`, `display`, `browser`, `frontend`, `component`).
+
+| When                              | Options                                       |
+|-----------------------------------|-----------------------------------------------|
+| Step 6 done, `state.ui` is true   | `pass`, `fail`, `skip-and-document`           |
+
+Canonical via `GATE_OPTIONS[6]`, so the orchestrator calls `set-gate --after-step 6` without `--options`.
+
+User reply routing:
+- `pass` → clear gate, advance to step 7.
+- `fail` → clear gate, loop back to step 6 with the fail reason as input.
+- `skip-and-document` → clear gate, write a stub `<cwd>/.workflow/artifacts/06-manual-qa-skipped.md` with the user's reason, then advance to step 7.
+
+The whole point: catch UI regressions with a one-minute human look BEFORE paying for a Codex round. Skipping this on UI-touching runs was the root cause of the prior session's 9-round review spiral.
+
 ### Escalation gate (P2 — review-round cap)
 
 Fires when a Codex-owned skill's dispatch counter reaches `state.max_review_rounds` (default 3). Triggered by `should-escalate` returning `"escalate": true` BEFORE the next dispatch.

@@ -18,6 +18,8 @@ SCHEMA_VERSION = 1
 # Mirrored in `skills/workflow/docs/gate-policy.md`.
 GATE_OPTIONS: dict[int, list[str]] = {
     5: ["proceed", "revise", "abort"],
+    # P1.c: post-step-6 manual-QA gate, fired only when state.ui is true.
+    6: ["pass", "fail", "skip-and-document"],
     7: ["apply-fixes", "accept-as-is", "abort"],
     11: ["commit", "fix-more", "abort"],
     12: ["push", "cancel"],

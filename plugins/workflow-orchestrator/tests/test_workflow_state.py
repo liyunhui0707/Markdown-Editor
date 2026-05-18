@@ -241,3 +241,5 @@ def test_cli_via_subprocess(tmp_path, plugin_root):
     )
     assert result.returncode == 0, result.stderr
     assert _state_path(tmp_path).is_file()
+
+

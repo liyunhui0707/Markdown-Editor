@@ -33,6 +33,20 @@ SIZE_STEPS: dict[str, list[int]] = {
 
 MANDATORY_GATE_STEPS = (5, 7, 11, 12)
 
+# P1.b: UI auto-detection keywords. Match as whole-word, case-insensitive.
+# Triggers --ui=true when present in the task text and --ui/--no-ui not given.
+_UI_KEYWORDS = re.compile(
+    r"\b(render|rendering|view|panel|ui|visual|display|browser|frontend|component)\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_ui(task: str, explicit: bool | None) -> bool:
+    """--ui / --no-ui take precedence; otherwise keyword auto-detect."""
+    if explicit is not None:
+        return explicit
+    return bool(_UI_KEYWORDS.search(task or ""))
+
 
 def _detect_task_type(task: str, issue: str | None, override: str | None) -> str:
     if override:
@@ -57,6 +71,7 @@ def _parse_csv(s: str | None) -> list[int]:
 
 def cmd_preview(args):
     task_type = _detect_task_type(args.task, args.issue, args.task_type)
+    ui = _detect_ui(args.task, args.ui)
     if args.step is not None:
         steps = [args.step]
         source = "single-step"
@@ -67,6 +82,12 @@ def cmd_preview(args):
         else:
             steps = list(DEFAULT_STEPS[task_type])
             source = f"task_type={task_type}"
+        # P1.b: --ui force-includes manual QA (step 9) and docs-sync (step 10)
+        # in any size preset. Idempotent for size sets that already include them.
+        if ui:
+            for s in (9, 10):
+                if s not in steps:
+                    steps.append(s)
         for s in _parse_csv(args.force):
             if s not in steps:
                 steps.append(s)
@@ -88,7 +109,7 @@ def cmd_preview(args):
             )
 
     rationale = (
-        f"task_type={task_type!r}; source={source}; "
+        f"task_type={task_type!r}; source={source}; ui={ui}; "
         f"size={args.size or 'none'}; "
         f"skip={args.skip or 'none'}; force={args.force or 'none'}; "
         f"from={args.from_step}; to={args.to_step}; step={args.step}."
@@ -97,6 +118,7 @@ def cmd_preview(args):
         {
             "task_type": task_type,
             "size": args.size,
+            "ui": ui,
             "selected_steps": steps,
             "rationale": rationale,
             "warnings": warnings,
@@ -123,6 +145,17 @@ def _build_parser():
             "trivial=6,7,11,12  small=+1,8  medium=+4,5,14  "
             "large=use task-type defaults (current behavior)"
         ),
+    )
+    # P1.b: tri-state UI flag — explicit on (--ui), explicit off (--no-ui),
+    # or auto-detect from task keywords (default None).
+    ui_group = pv.add_mutually_exclusive_group()
+    ui_group.add_argument(
+        "--ui", dest="ui", action="store_const", const=True, default=None,
+        help="P1.b: force ui=true; adds steps 9 (manual QA) + 10 (docs sync).",
+    )
+    ui_group.add_argument(
+        "--no-ui", dest="ui", action="store_const", const=False,
+        help="P1.b: force ui=false; skip the UI auto-detect.",
     )
     pv.add_argument("--skip", default=None, help="CSV of step numbers to remove")
     pv.add_argument("--force", default=None, help="CSV of step numbers to add")
