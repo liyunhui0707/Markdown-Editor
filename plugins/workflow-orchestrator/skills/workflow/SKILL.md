@@ -37,6 +37,38 @@ python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py resume --repo "<cwd>"
 
 If the command returns a non-null `pending_gate`, re-emit the gate prompt verbatim and **end your turn**. Do not re-run prior steps. Otherwise, continue with the preview.
 
+## Mid-flight pivot (P4)
+
+If `resume` returns a non-null `run_id` AND the task description in this invocation doesn't match `state.task.title`, surface this to the user before initializing anything:
+
+> "There's an active workflow run titled '<old>'. This invocation asked for '<new>'. Pivot, extend, or abort-and-restart?"
+
+| Option              | Effect                                                                                                  |
+|---------------------|---------------------------------------------------------------------------------------------------------|
+| `pivot`             | Archive the in-progress state.json + artifacts, reset the run for the new task, preserve the `run_id`. |
+| `extend`            | Treat the new invocation as supplementary work on the existing task. Continue with current state.       |
+| `abort-and-restart` | Release the lock, archive, start a fresh `init` from scratch.                                            |
+
+On `pivot`, run:
+
+```
+python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py pivot --repo "<cwd>" \
+  --new-task "<new title>" \
+  --new-selected "<CSV from a fresh `workflow_select.py preview`>" \
+  [--new-task-type <type>] \
+  --reason "<one-line summary of why the pivot>"
+```
+
+The helper archives `state.json` → `.workflow/state.history/<ts>-<run_id>.json`, moves `.workflow/artifacts/` → `.workflow/artifacts.v<N>/`, resets `step_status` / `current_step` / `pending_gate` / `review_rounds` / `partial_commits`, increments `state.iteration`, and appends a `state.pivot_log` entry. The `run_id` is preserved so the entire arc (across pivots) shares one identifier.
+
+To inspect the pivot history mid-run or post-run:
+
+```
+python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py history --repo "<cwd>"
+```
+
+After a pivot, restart the run from "Preview" with the new task description.
+
 ## Preview
 
 BEFORE executing any step, you MUST:
