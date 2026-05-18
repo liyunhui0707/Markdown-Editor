@@ -47,6 +47,10 @@ def cmd_init(args):
         "current_step": None,
         "pending_gate": None,
         "lock": None,
+        # P3: persistent project-scope string injected into every typed
+        # Codex review. None = no scope hint; codex-bridge omits the
+        # "Project scope" block entirely.
+        "codex_run_context": args.run_context or None,
     }
     atomic_write(state_file(repo), state)
     print(json.dumps(state, indent=2))
@@ -205,6 +209,16 @@ def _build_parser():
     init.add_argument("--selected", required=True, help="CSV of step numbers")
     init.add_argument("--title", default="")
     init.add_argument("--issue", default=None)
+    init.add_argument(
+        "--run-context",
+        dest="run_context",
+        default=None,
+        help=(
+            "Project-scope hint injected into every typed Codex review call "
+            "for this run (e.g. 'controlled input only; not CommonMark-strict'). "
+            "Helps Codex avoid scope-expanding defensive findings."
+        ),
+    )
     init.set_defaults(func=cmd_init)
 
     g = sub.add_parser("get")
