@@ -746,13 +746,31 @@
          active line and reveal dimmed when the caret enters. */
       .cm-md-strikethrough { text-decoration: line-through; }
 
-      /* CM6 hybrid live-styling — fenced code block markers (Stage 11.9).
+      /* CM6 hybrid live-styling — fenced code block markers
+         (Stage 11.9 dim + Stage 28 construct-level hide/reveal).
          Fence delimiters (``` and ~~~) and the optional language info
-         string are dimmed but stay visible. Code content is left untouched
-         — the parser doesn't recurse into it, so existing inline branches
-         can't accidentally style Markdown-looking text inside a fence. */
+         string remain dimmed when revealed. Stage 28 LIFTS Stage 11.9's
+         always-visible promise: these markers now hide off-construct-
+         active and reveal on-construct-active. Code content stays
+         untouched. */
       .cm-md-fenced-code-mark { color: var(--text-muted); }
       .cm-md-fenced-code-info { color: var(--text-muted); }
+      /* Stage 28 — construct expansion. When the active range touches
+         ANY line inside a multi-line construct, the cm6-construct-
+         reveal plugin emits cm-md-construct-active on every line of
+         the construct. Fence delimiters + language info hide off the
+         construct-active class; blockquote > markers gain a third
+         reveal path so non-touched sibling lines of the same blockquote
+         also reveal. TaskMarker (D1 in Stage 27) and ListMark stay
+         exempt from any new hide rule here. */
+      .cm-md-fenced-code-mark,
+      .cm-md-fenced-code-info { display: none; }
+      .cm-md-construct-active .cm-md-fenced-code-mark,
+      .cm-md-construct-active .cm-md-fenced-code-info,
+      .cm-md-construct-active .cm-md-quote-mark {
+        display: inline;
+        opacity: 0.5;
+      }
 
       /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
          of a long document be manually scrolled up to roughly the middle of
@@ -1287,6 +1305,7 @@
     <script src="./lib/cm6-task-toggle.js"></script>
     <script src="./lib/cm6-link-click.js"></script>
     <script src="./lib/cm6-active-range.js"></script>
+    <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>

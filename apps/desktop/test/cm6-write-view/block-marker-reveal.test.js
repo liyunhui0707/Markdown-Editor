@@ -179,14 +179,19 @@ test('Stage 27-4b: .cm-md-active-range .cm-md-quote-mark reveals with display: i
 // Group C — exempt markers never appear in any display:none rule
 // (rev-3 F2 tightening: scan EVERY display:none rule and reject any
 //  selector item matching an exempt class — catches combined selector lists)
+//
+// Stage 28 amendment: D2 from Stage 27 (FencedCode exempt) has been LIFTED.
+// Stage 28's construct-reveal mechanism hides .cm-md-fenced-code-mark and
+// .cm-md-fenced-code-info via display:none and reveals them on the
+// construct-active class. Therefore those classes are NO LONGER exempt
+// from display:none rules. Only TaskMarker (Stage 27 D1) remains exempt
+// because hiding [ ] would break Stage 23's task-toggle click target.
 // ─────────────────────────────────────────────────────────────────────────
 
-test('Stage 27-5: no display:none rule targets exempt classes (TaskMarker, FencedCode-mark, FencedCode-info) — D1, D2', () => {
+test('Stage 27-5: no display:none rule targets exempt class (TaskMarker only) — D1 preserved; Stage 28 lifts D2', () => {
   const rules = loadRules();
   const exemptClasses = [
     '.cm-md-task-marker',
-    '.cm-md-fenced-code-mark',
-    '.cm-md-fenced-code-info',
   ];
   const violations = [];
   for (const r of rules) {
@@ -202,7 +207,7 @@ test('Stage 27-5: no display:none rule targets exempt classes (TaskMarker, Fence
       }
     }
   }
-  assert.equal(violations.length, 0, 'exempt classes must never appear in any display:none rule\'s selector list (D1/D2): ' + JSON.stringify(violations));
+  assert.equal(violations.length, 0, 'TaskMarker must never appear in any display:none rule\'s selector list (Stage 27 D1 preserves the click target): ' + JSON.stringify(violations));
 });
 
 // ─────────────────────────────────────────────────────────────────────────
