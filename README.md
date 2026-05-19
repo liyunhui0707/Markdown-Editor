@@ -96,7 +96,7 @@ Since Stage 26 the "hide off the active line / reveal on the active line" reveal
 - Reference-style links `[text][ref]` and collapsed `[text][]` — same underline as inline links; shortcut references `[shortcut]` are intentionally not styled
 - Link definitions `[ref]: url "title"` — entire definition line dimmed
 - Inline images `![alt](url)` (with optional title) — alt text rendered italic and muted; `![`, `]`, `(`, URL, optional title, `)` hide off the active line. **No `<img>`, no fetch, no clicks.** Reference-style images `![alt][1]` are intentionally not styled
-- List markers (`-`, `*`, `+`, `1.`, `1)`) and blockquote markers (`>`) — dimmed, always visible
+- List markers (`-`, `*`, `+`, `1.`, `1)`) and blockquote markers (`>`) — dimmed when revealed; **as of Stage 27, hidden off the active line / active range and revealed dimmed when the caret or any selection range touches the line** (the reveal follows Stage 26's selection-aware mechanism). Task-list `[ ]` markers stay dimmed-but-always-visible so the Stage 23 primary-click toggle target is preserved. Fenced-code delimiters and language info also stay always visible
 - Fenced code fences (```` ``` ```` / `~~~`) and the optional language info string — dimmed
 - Horizontal rules (`---`, `***`, `___`) — dimmed and letter-spaced
 - Strikethrough `~~…~~` — line-through; `~~` delimiters hide off the active line and reveal dimmed when the caret enters
