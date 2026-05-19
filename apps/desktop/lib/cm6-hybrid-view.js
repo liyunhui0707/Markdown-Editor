@@ -418,19 +418,26 @@
                   .range(node.from, node.to)
               );
             } else if (name === 'ListMark') {
-              // Stage 11.8: dim "-", "*", "+", "1.", "1)" markers. ListMark
-              // appears only inside ListItem per the parser, so no parent
-              // guard is needed. Markers stay visible (not hidden) so the
-              // visual structure of lists is preserved.
+              // Stage 11.8 dimming + Stage 27 hide/reveal. Emits the dim
+              // `cm-md-list-mark` class as before; the Stage 27 CSS block
+              // in index.html adds `display: none` for this class plus
+              // reveal rules keyed off `.cm-activeLine` and Stage 26's
+              // `.cm-md-active-range`. Class string emission is unchanged
+              // so existing exact-match tests (heading-marks.test.js,
+              // hybrid-cm6-readiness.test.js, hybrid-cm6-perf.test.js)
+              // continue to pass. ListMark appears only inside ListItem
+              // per the parser, so no parent guard is needed.
               decorations.push(
                 cm6.Decoration.mark({ class: 'cm-md-list-mark' })
                   .range(node.from, node.to)
               );
             } else if (name === 'QuoteMark') {
-              // Stage 11.8: dim ">" markers. QuoteMark appears only inside
-              // Blockquote (or its spanning Paragraph for multi-line cases),
-              // so no parent guard is needed. Like ListMark, the marker stays
-              // visible so the quoted-block character remains scannable.
+              // Stage 11.8 dimming + Stage 27 hide/reveal. Same mechanism
+              // as ListMark above: class string `cm-md-quote-mark` emitted
+              // unchanged; the Stage 27 CSS block governs visibility.
+              // QuoteMark appears only inside Blockquote (or its spanning
+              // Paragraph for multi-line cases), so no parent guard is
+              // needed.
               decorations.push(
                 cm6.Decoration.mark({ class: 'cm-md-quote-mark' })
                   .range(node.from, node.to)

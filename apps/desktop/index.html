@@ -699,12 +699,27 @@
         color: var(--text-muted);
       }
 
-      /* CM6 hybrid live-styling — list and blockquote markers (Stage 11.8).
-         Markers stay visible at all times so list/quote structure remains
-         scannable; just dim them so the content reads as the focus. No
-         active-line reveal needed because nothing is hidden. */
+      /* CM6 hybrid live-styling — list and blockquote markers
+         (Stage 11.8 dim + Stage 27 hide/reveal). The dim color rule
+         remains; Stage 27 adds direct hide/reveal via the cascade,
+         keyed off the existing `.cm-activeLine` and Stage 26's
+         `.cm-md-active-range` parent classes. */
       .cm-md-list-mark  { color: var(--text-muted); }
       .cm-md-quote-mark { color: var(--text-muted); }
+      /* Stage 27 — hide ListMark + QuoteMark off-active-range; reveal
+         them on the active line or anywhere the active range touches.
+         TaskMarker (D1 exempt) and FencedCode delimiters/info (D2
+         exempt) intentionally keep their dim-but-visible behavior and
+         do NOT receive a hide rule. */
+      .cm-md-list-mark,
+      .cm-md-quote-mark { display: none; }
+      .cm-activeLine .cm-md-list-mark,
+      .cm-activeLine .cm-md-quote-mark,
+      .cm-md-active-range .cm-md-list-mark,
+      .cm-md-active-range .cm-md-quote-mark {
+        display: inline;
+        opacity: 0.5;
+      }
 
       /* CM6 hybrid live-styling — task list markers (Stage 14.3). The
          "[ ]", "[x]", "[X]" markers stay visible (like ListMark) so task
