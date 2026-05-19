@@ -250,7 +250,9 @@
               // Lezer reuses CodeMark for InlineCode delimiters AND for
               // FencedCode block delimiters. They get different decorations:
               //   - InlineCode  → hidden via cm-md-syntax (revealed on active line)
-              //   - FencedCode  → dimmed but always visible (Stage 11.9)
+              //   - FencedCode  → dimmed; Stage 28 CSS hides them off-construct-
+              //                   active and reveals them when the active range
+              //                   touches any line of the fence
               const parent = node.node.parent;
               if (parent && parent.name === 'InlineCode') {
                 decorations.push(
@@ -264,8 +266,10 @@
                 );
               }
             } else if (name === 'CodeInfo') {
-              // Stage 11.9: dim the language info string after an opening
-              // fence (e.g., "js" in "```js"). CodeInfo only appears inside
+              // Stage 11.9 dim + Stage 28 hide/reveal: the language info
+              // string after an opening fence (e.g., "js" in "```js")
+              // dims when revealed and now hides off-construct-active
+              // per the Stage 28 CSS. CodeInfo only appears inside
               // FencedCode per the parser, so no parent guard is needed.
               decorations.push(
                 cm6.Decoration.mark({ class: 'cm-md-fenced-code-info' })
@@ -579,6 +583,19 @@
         (typeof globalThis !== 'undefined') ? globalThis.Cm6ActiveRange : null;
       if (activeRange && typeof activeRange.createActiveRangeExtension === 'function') {
         const ext = activeRange.createActiveRangeExtension(cm6);
+        if (ext != null) extensions.push(ext);
+      }
+      // Stage 28: optional construct-reveal extension hook. Same shape
+      // as the Stage 26 active-range hook above. The construct-reveal
+      // module (cm6-construct-reveal.js) loads via its own script tag
+      // in index.html and exposes itself as globalThis.Cm6ConstructReveal.
+      // The peer contract test (cm6-construct-reveal-invariants.test.js)
+      // pins the source-file invariants. This hook adds zero Section H
+      // tokens.
+      const constructReveal =
+        (typeof globalThis !== 'undefined') ? globalThis.Cm6ConstructReveal : null;
+      if (constructReveal && typeof constructReveal.createConstructRevealExtension === 'function') {
+        const ext = constructReveal.createConstructRevealExtension(cm6);
         if (ext != null) extensions.push(ext);
       }
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
