@@ -12,8 +12,11 @@
    active construct — not just the line the caret/selection actually
    touches.
 
-   Scope: FencedCode + Blockquote only (initial Stage 28 scope).
-   Defer: list-item continuation, tables, Setext cross-line reveal.
+   Scope: FencedCode + Blockquote (Stage 28) + SetextHeading1 +
+   SetextHeading2 (Stage 29 — Setext lines additionally carry the
+   cm-md-setext-active class so the Setext-scoped heading-mark CSS
+   reveal does not leak to ATX `#` marks nested inside blockquotes).
+   Defer: list-item continuation, tables.
 
    D1 — lifts Stage 11.9 / Stage 27 D2 exemption for fenced-code
    markers (the new CSS hides them off-construct-active and reveals
@@ -26,10 +29,15 @@
    change naturally; viewport-driven parse advance is covered by the
    viewportChanged branch (per Codex rev-2 finding F4).
 
-   D5 — resolveTouchedLines is an INTENTIONAL local duplicate of the
-   helper at apps/desktop/lib/cm6-active-range.js. Two helpers MUST
-   stay logically identical. Stop Condition S10 in the plan flags
-   drift; a future stage may extract to a shared module.
+   D5 — resolveTouchedLines was extracted to a shared UMD module
+   apps/desktop/lib/cm6-line-utils.js in Stage 29 (precedent: the
+   Stage 28 amendment to Stage 27's test 27-5 — internal-only
+   refactor of a frozen file). This file's resolveTouchedLines is
+   now a THIN DELEGATOR that reads globalThis.Cm6LineUtils.resolve-
+   TouchedLines at call time. The same delegator pattern lives in
+   apps/desktop/lib/cm6-active-range.js. Drift between two
+   in-tree copies is therefore no longer possible; Stop Condition
+   S10 from the Stage 28 plan is retired by tests 29-8 + 29-9 + 29-10.
 
    D8 — defensive frontmatter guard. A local frontmatterEnd(doc)
    helper mirrors the walker's detectFrontmatter at
@@ -39,7 +47,7 @@
    this is belt-and-suspenders for the construct-reveal plugin).
 
    Public exports:
-     resolveTouchedLines               — pure helper (mirror of Stage 26).
+     resolveTouchedLines               — thin delegator to cm6-line-utils.js (Stage 29 D5).
      findActiveConstructs              — pure; (tree, doc, touched) → [].
      buildConstructActiveDecorations   — pure; (state, cm6, tree) → RangeSet|null.
      createConstructRevealExtension    — factory; (cm6) → Extension|null.
@@ -51,6 +59,10 @@
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
+    // Stage 29 — ensure the shared line-utils helper is loaded for
+    // the CommonJS path (Node tests). Browser path relies on the
+    // script-tag ordering invariant pinned by test 29-11.
+    require('./cm6-line-utils.js');
     module.exports = factory();
   } else {
     root.Cm6ConstructReveal = factory();
@@ -58,20 +70,13 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
   // ── resolveTouchedLines(selection, doc) ─────────────────────────────
-  // D5 — local duplicate of cm6-active-range.js. KEEP IDENTICAL.
+  // Stage 29 delegation refactor — the line-set logic moved to
+  // apps/desktop/lib/cm6-line-utils.js to retire Stop Condition S10
+  // (manual drift check between this file and cm6-active-range.js).
+  // Reads globalThis.Cm6LineUtils at call time; throws explicitly if
+  // the shared module isn't loaded. Test 29-9 pins this delegation.
   function resolveTouchedLines(selection, doc) {
-    if (!selection || !doc) return [];
-    const ranges = selection.ranges || [];
-    if (ranges.length === 0) return [];
-    const lineSet = new Set();
-    for (let i = 0; i < ranges.length; i++) {
-      const r = ranges[i];
-      if (!r) continue;
-      const fromLine = doc.lineAt(r.from).number;
-      const toLine   = doc.lineAt(r.to).number;
-      for (let n = fromLine; n <= toLine; n++) lineSet.add(n);
-    }
-    return Array.from(lineSet).sort(function (a, b) { return a - b; });
+    return globalThis.Cm6LineUtils.resolveTouchedLines(selection, doc);
   }
 
   // ── frontmatterEnd(doc) — D8 defensive guard ─────────────────────────
@@ -108,7 +113,15 @@
     if (touchedLineSet.size === 0) return [];
 
     const fmEnd = frontmatterEnd(doc);
-    const TARGET_TYPES = { FencedCode: true, Blockquote: true };
+    // Stage 29 — SetextHeading1 / SetextHeading2 added so the construct
+    // expansion covers Setext title + ===/--- underline lines together
+    // (touching either reveals both via cm-md-construct-active CSS).
+    const TARGET_TYPES = {
+      FencedCode:     true,
+      Blockquote:     true,
+      SetextHeading1: true,
+      SetextHeading2: true,
+    };
     const constructs = [];
 
     syntaxTree.iterate({
@@ -166,16 +179,31 @@
     const constructs = findActiveConstructs(tree, state.doc, touchedSet);
     if (constructs.length === 0) return cm6.Decoration.set([], true);
 
-    // Dedup line numbers across overlapping constructs.
+    // Dedup line numbers across overlapping constructs. Track Setext
+    // lines separately so the per-line class can include cm-md-setext-
+    // active only for Setext constructs — Stage 29 rev-4 fix: this
+    // scopes the heading-mark reveal CSS to Setext lines only, so a
+    // blockquote containing an ATX heading does NOT silently reveal the
+    // ATX # when the caret is on a non-heading blockquote line. The
+    // generic cm-md-construct-active class still appears on every
+    // touched-construct line to preserve the Stage 28 contract.
     const allLineSet = new Set();
+    const setextLineSet = new Set();
     for (let i = 0; i < constructs.length; i++) {
       const c = constructs[i];
-      for (let n = c.fromLine; n <= c.toLine; n++) allLineSet.add(n);
+      const isSetext = c.type === 'SetextHeading1' || c.type === 'SetextHeading2';
+      for (let n = c.fromLine; n <= c.toLine; n++) {
+        allLineSet.add(n);
+        if (isSetext) setextLineSet.add(n);
+      }
     }
     const sortedLines = Array.from(allLineSet).sort(function (a, b) { return a - b; });
     const ranges = sortedLines.map(function (n) {
+      const cls = setextLineSet.has(n)
+        ? 'cm-md-construct-active cm-md-setext-active'
+        : 'cm-md-construct-active';
       return cm6.Decoration
-        .line({ class: 'cm-md-construct-active' })
+        .line({ class: cls })
         .range(state.doc.line(n).from);
     });
     return cm6.Decoration.set(ranges, true);
