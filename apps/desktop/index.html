@@ -786,6 +786,22 @@
         opacity: 0.5;
       }
 
+      /* CM6 hybrid live-styling — list-item continuation expansion
+         (Stage 30). When the active range touches any line of a
+         multi-line ListItem, the cm6-construct-reveal plugin emits
+         cm-md-list-item-active on every line of that item; this rule
+         reveals the first-line ListMark (`-`, `*`, `+`, `1.`, `1)`)
+         on every line of the active item — including the continuation
+         line. The class is INTENTIONALLY scoped (NOT the generic
+         cm-md-construct-active) so the Stage 28 quote/fence reveal
+         selectors do not leak onto nested constructs inside an active
+         list item. The direct `display: none` rule at lines 728-729
+         still wins off-active. TaskMarker remains exempt. */
+      .cm-md-list-item-active .cm-md-list-mark {
+        display: inline;
+        opacity: 0.5;
+      }
+
       /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
          of a long document be manually scrolled up to roughly the middle of
          the viewport, leaving ~half a viewport of empty space below. Pure

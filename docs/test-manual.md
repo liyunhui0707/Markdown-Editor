@@ -165,9 +165,10 @@ A 5-minute pre-merge pass that covers every Markdown family the hybrid-cm6 engin
 - [ ] `![alt][1]` reference-style image — NOT styled (intentional)
 
 **Lists, task lists, blockquotes**
-- [ ] Bullet markers `-`, `*`, `+` and ordered `1.`, `1)` — dimmed but always visible
-- [ ] `- [ ]`, `- [x]`, `- [X]` task markers — dimmed; clicking does NOT toggle the checkbox
-- [ ] `>` blockquote markers — dimmed but always visible; nested `> >` keeps each level dimmed
+- [ ] Bullet markers `-`, `*`, `+` and ordered `1.`, `1)` — dimmed; hidden when the caret is off the list item, revealed (dimmed) when the caret is anywhere inside the list item (including a continuation line — Stage 30)
+- [ ] `>` blockquote markers — dimmed; hidden off the blockquote, revealed (dimmed) when the caret is anywhere inside the blockquote (including a continuation line with no leading `>` — Stage 28)
+- [ ] `- [ ]`, `- [x]`, `- [X]` task markers — dimmed but always visible (intentional, Stage 27 D1 click-target exemption); clicking the bullet `-` does NOT toggle the checkbox
+- [ ] Cascade smoke (Risk-2 manual gate from Issue #83): DevTools → Elements → `.cm-md-list-mark`. With caret OUTSIDE any list, computed style shows `display: none`. With caret INSIDE a multi-line list item ON the continuation line, computed style on the first-line `.cm-md-list-mark` element shows `display: inline; opacity: 0.5`.
 
 **Fenced code & horizontal rules**
 - [ ] ` ```lang ` … ``` ``` ` — fences dimmed, language info dimmed, code body untouched (no inline marks fire inside)
