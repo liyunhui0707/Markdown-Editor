@@ -15,8 +15,12 @@
    Scope: FencedCode + Blockquote (Stage 28) + SetextHeading1 +
    SetextHeading2 (Stage 29 — Setext lines additionally carry the
    cm-md-setext-active class so the Setext-scoped heading-mark CSS
-   reveal does not leak to ATX `#` marks nested inside blockquotes).
-   Defer: list-item continuation, tables.
+   reveal does not leak to ATX `#` marks nested inside blockquotes) +
+   ListItem (Stage 30 — list-item lines carry ONLY cm-md-list-item-
+   active, NOT the generic cm-md-construct-active, so the Stage 28
+   quote/fence reveal selectors do not leak onto nested constructs
+   inside an active list item).
+   Defer: tables.
 
    D1 — lifts Stage 11.9 / Stage 27 D2 exemption for fenced-code
    markers (the new CSS hides them off-construct-active and reveals
@@ -100,9 +104,10 @@
   }
 
   // ── findActiveConstructs(syntaxTree, doc, touchedLineSet) ────────────
-  // Walks the syntax tree for FencedCode and Blockquote nodes; returns
-  // those that intersect touchedLineSet AND lie outside the frontmatter
-  // region.
+  // Walks the syntax tree for the construct types in TARGET_TYPES below
+  // — currently FencedCode, Blockquote, SetextHeading1, SetextHeading2,
+  // and ListItem — and returns those that intersect touchedLineSet AND
+  // lie outside the frontmatter region.
   //
   // F3 — endPos is Math.max(node.from, node.to - 1) because Lezer node
   // ranges are half-open: doc.lineAt(node.to).number would resolve to
@@ -116,11 +121,17 @@
     // Stage 29 — SetextHeading1 / SetextHeading2 added so the construct
     // expansion covers Setext title + ===/--- underline lines together
     // (touching either reveals both via cm-md-construct-active CSS).
+    // Stage 30 — ListItem added so a caret on a continuation line keeps
+    // the first-line ListMark visible. ListItem lines are emitted with
+    // the SCOPED cm-md-list-item-active class only (NOT the generic
+    // cm-md-construct-active) to prevent cross-construct leakage; see
+    // the per-line emit block below for the dedup logic.
     const TARGET_TYPES = {
       FencedCode:     true,
       Blockquote:     true,
       SetextHeading1: true,
       SetextHeading2: true,
+      ListItem:       true,
     };
     const constructs = [];
 
@@ -179,31 +190,44 @@
     const constructs = findActiveConstructs(tree, state.doc, touchedSet);
     if (constructs.length === 0) return cm6.Decoration.set([], true);
 
-    // Dedup line numbers across overlapping constructs. Track Setext
-    // lines separately so the per-line class can include cm-md-setext-
-    // active only for Setext constructs — Stage 29 rev-4 fix: this
-    // scopes the heading-mark reveal CSS to Setext lines only, so a
-    // blockquote containing an ATX heading does NOT silently reveal the
-    // ATX # when the caret is on a non-heading blockquote line. The
-    // generic cm-md-construct-active class still appears on every
-    // touched-construct line to preserve the Stage 28 contract.
+    // Dedup line numbers across overlapping constructs. Three line sets:
+    //   - constructActiveLineSet — lines that get cm-md-construct-active
+    //     (Stage 28 contract: every touched FencedCode / Blockquote /
+    //     Setext line). Stage 30: ListItem-only lines do NOT join this
+    //     set, because emitting the generic class on ListItem lines
+    //     would let Stage 28's `.cm-md-construct-active .cm-md-quote-
+    //     mark` / `.cm-md-fenced-code-mark` reveal selectors fire on
+    //     nested constructs that are not themselves active (e.g., a
+    //     Blockquote nested inside an active ListItem).
+    //   - setextLineSet — lines that ALSO get cm-md-setext-active
+    //     (Stage 29 rev-4: scopes the heading-mark reveal CSS to Setext
+    //     lines only).
+    //   - listItemLineSet — lines that get cm-md-list-item-active
+    //     (Stage 30: scopes the new ListMark reveal CSS to list-item
+    //     lines only).
     const allLineSet = new Set();
+    const constructActiveLineSet = new Set();
     const setextLineSet = new Set();
+    const listItemLineSet = new Set();
     for (let i = 0; i < constructs.length; i++) {
       const c = constructs[i];
-      const isSetext = c.type === 'SetextHeading1' || c.type === 'SetextHeading2';
+      const isSetext   = c.type === 'SetextHeading1' || c.type === 'SetextHeading2';
+      const isListItem = c.type === 'ListItem';
       for (let n = c.fromLine; n <= c.toLine; n++) {
         allLineSet.add(n);
-        if (isSetext) setextLineSet.add(n);
+        if (!isListItem) constructActiveLineSet.add(n);
+        if (isSetext)    setextLineSet.add(n);
+        if (isListItem)  listItemLineSet.add(n);
       }
     }
     const sortedLines = Array.from(allLineSet).sort(function (a, b) { return a - b; });
     const ranges = sortedLines.map(function (n) {
-      const cls = setextLineSet.has(n)
-        ? 'cm-md-construct-active cm-md-setext-active'
-        : 'cm-md-construct-active';
+      const tokens = [];
+      if (constructActiveLineSet.has(n)) tokens.push('cm-md-construct-active');
+      if (setextLineSet.has(n))          tokens.push('cm-md-setext-active');
+      if (listItemLineSet.has(n))        tokens.push('cm-md-list-item-active');
       return cm6.Decoration
-        .line({ class: cls })
+        .line({ class: tokens.join(' ') })
         .range(state.doc.line(n).from);
     });
     return cm6.Decoration.set(ranges, true);
