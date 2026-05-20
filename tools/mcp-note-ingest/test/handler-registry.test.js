@@ -21,16 +21,12 @@ const PING_SCHEMA = {
 const INGEST_SCHEMA = {
   name: 'ingest_chat_markdown',
   description:
-    'Write AI chat content into the vault as a Markdown file under Inbox/AI Chats/YYYY/MM/.',
+    'Write AI chat content as a Markdown file into the fixed local Inbox folder.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
-    required: ['vault_path', 'title', 'body', 'source'],
+    required: ['title', 'body', 'source'],
     properties: {
-      vault_path: {
-        type: 'string',
-        description: 'Absolute path to the vault root folder.'
-      },
       title: {
         type: 'string',
         description: 'Note title used for the Markdown heading and filename base.'
