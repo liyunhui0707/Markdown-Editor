@@ -16,13 +16,13 @@ The main tool is:
 ingest_chat_markdown
 ```
 
-That tool writes a Markdown file into:
+That tool writes a Markdown file directly into a fixed local Inbox folder. By default:
 
 ```
-Inbox/AI Chats/YYYY/MM/
+/Users/liyunhui/Liyunhui/Inbox/
 ```
 
-inside your vault.
+The destination can be overridden at server-launch time with the `MCP_INGEST_TARGET_DIR` environment variable. The tool no longer accepts a `vault_path` argument.
 
 ---
 
@@ -109,17 +109,16 @@ codex mcp list
 Use this inside Claude Code:
 
 ```
-Please call the MCP tool `ingest_chat_markdown`.  
-  
+Please call the MCP tool `ingest_chat_markdown`.
+
 Arguments:
-- vault_path: /absolute/path/to/your/vault  *(replace with your actual path, e.g. /Users/yourname/notes)*
 - title: Claude MCP Test
-- body: This note was created through the local MCP server.  
-- source: claude  
-- model: sonnet  
-- tags: chat, imported, test  
-  
-After calling the tool, tell me the returned relative_path and full_path.
+- body: This note was created through the local MCP server.
+- source: claude
+- model: sonnet
+- tags: chat, imported, test
+
+After calling the tool, tell me the returned full_path.
 ```
 
 ---
@@ -129,29 +128,40 @@ After calling the tool, tell me the returned relative_path and full_path.
 Use this inside Codex:
 
 ```
-Use the MCP tool `ingest_chat_markdown`.  
-  
+Use the MCP tool `ingest_chat_markdown`.
+
 Arguments:
-- vault_path: /absolute/path/to/your/vault  *(replace with your actual path, e.g. /Users/yourname/notes)*
 - title: Codex MCP Test
-- body: This note was created through the local MCP server from Codex CLI.  
-- source: codex  
-- model: gpt-5.1-codex  
-- tags: chat, imported, test  
-  
-After calling the tool, tell me the returned relative_path and full_path.
+- body: This note was created through the local MCP server from Codex CLI.
+- source: codex
+- model: gpt-5.1-codex
+- tags: chat, imported, test
+
+After calling the tool, tell me the returned full_path.
 ```
 
 ---
 
-## 6. Important rule: use an absolute vault path
+## 6. Overriding the destination
 
-Do not pass a relative vault path.
+By default, files land in `/Users/liyunhui/Liyunhui/Inbox/`. To redirect the tool to a different folder, set the `MCP_INGEST_TARGET_DIR` environment variable at server-launch time, for example by editing the `env` field of your `.mcp.json`:
 
-Correct:
-
+```json
+{
+  "mcpServers": {
+    "mcp-note-ingest": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/tools/mcp-note-ingest/server.js"],
+      "env": { "MCP_INGEST_TARGET_DIR": "/Users/your-name/path/to/your/inbox" }
+    }
+  }
+}
 ```
-/Users/your-name/path/to/vault
+
+The target directory is created automatically if it does not exist.
+
+Legacy absolute-vault-path rule (kept for reference):
 ```
 
 Incorrect:
@@ -167,10 +177,9 @@ my-vault
 A successful MCP ingest means:
 
 - the tool call succeeds
-- a real Markdown file is written into:
-    - `Inbox/AI Chats/YYYY/MM/`
-- the app detects the new file
-- the app shows it under **AI Imports**
+- a real Markdown file is written into the configured target directory (default `/Users/liyunhui/Liyunhui/Inbox/`)
+- the response includes the `full_path` of the new file
+- if the target directory is inside your editor's vault, the app picks up the new file and shows it under **AI Imports** (the editor classifies AI imports by frontmatter `source`, so notes ingested with `source: claude` etc. are recognized regardless of folder layout)
 
 ---
 
@@ -200,9 +209,9 @@ Check:
 
 Check:
 
-- the app is using the same vault
+- the target directory is inside the vault the app is currently using (the response's `full_path` tells you where the file landed)
 - the app is open
-- the note was written under `Inbox/AI Chats/...`
+- the note's `full_path` (returned by the tool) points at the expected target directory
 - the app watcher is active
 - the **AI Imports** filter is selected
 

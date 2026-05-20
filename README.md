@@ -50,7 +50,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Lightweight frontmatter parsing for `tags` and `source`.
 - Seed a demo vault for local testing and demos.
 - Watch the selected vault and refresh when Markdown files change on disk.
-- Detect MCP-ingested notes under `Inbox/AI Chats/YYYY/MM/`.
+- Detect MCP-ingested notes by frontmatter `source` (claude/codex/chatgpt/gemini/ai). Older notes under `Inbox/AI Chats/YYYY/MM/` are still recognized by path for backward compatibility.
 - Package a local macOS Electron build for testing.
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
 
@@ -219,13 +219,13 @@ The main tool is:
 ingest_chat_markdown
 ```
 
-It writes Markdown files into the selected vault under:
+It writes Markdown files directly into a fixed local Inbox folder, by default:
 
 ```text
-Inbox/AI Chats/YYYY/MM/
+/Users/liyunhui/Liyunhui/Inbox/
 ```
 
-See `docs/mcp-ingest-setup.md` for setup details.
+The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DIR` environment variable. See `docs/mcp-ingest-setup.md` for setup details.
 
 ## Developer notes
 
@@ -240,7 +240,7 @@ See `docs/mcp-ingest-setup.md` for setup details.
 - Dirty-state tracking and close-guard dialog (Cancel / Discard & Quit / Save All & Quit) protect unsaved work.
 - Live-styled Write mode under the default `hybrid-cm6` engine; Preview mode via Toast UI Editor.
 - All three engines (`hybrid-cm6`, `cm6`, `hybrid`) selectable via URL query or `markdownVault.writeEngine` localStorage key.
-- MCP ingest writes AI-chat notes into `Inbox/AI Chats/YYYY/MM/`.
+- MCP ingest writes AI-chat notes into a fixed local Inbox folder (default `/Users/liyunhui/Liyunhui/Inbox/`; overridable via `MCP_INGEST_TARGET_DIR`).
 - Stage 18 stabilization QA passed — clean Branch A closure (see `docs/test-manual.md` Stage 18 section).
 - Automated test suite at `tests 907, pass 905, skipped 2, fail 0` (`npm test`); perf opt-in suite at `5 / 5 / 0 / 0` (`npm run test:perf`).
 

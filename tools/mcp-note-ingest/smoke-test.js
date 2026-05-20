@@ -4,8 +4,13 @@ const fs = require('fs');
 const os = require('os');
 
 const serverPath = path.join(__dirname, 'server.js');
+
+// Force the ingest tool to write into a disposable temp dir instead of the user's
+// real Inbox folder for the duration of the smoke test.
+const tempTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-note-ingest-smoke-'));
 const child = spawn(process.execPath, [serverPath], {
-  stdio: ['pipe', 'pipe', 'inherit']
+  stdio: ['pipe', 'pipe', 'inherit'],
+  env: { ...process.env, MCP_INGEST_TARGET_DIR: tempTarget }
 });
 
 let inputBuffer = Buffer.alloc(0);
@@ -86,10 +91,8 @@ function request(method, params = {}) {
 }
 
 async function run() {
-  const tempVault = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-note-ingest-'));
-
   console.log('Starting MCP smoke test...\n');
-  console.log(`Temporary vault: ${tempVault}\n`);
+  console.log(`Temporary ingest target: ${tempTarget}\n`);
 
   const initializeResponse = await request('initialize', {
     protocolVersion: '2024-11-05',
@@ -125,7 +128,6 @@ async function run() {
   const ingestResponse = await request('tools/call', {
     name: 'ingest_chat_markdown',
     arguments: {
-      vault_path: tempVault,
       title: 'Smoke Test Chat',
       body: 'This file was written by the MCP smoke test.',
       source: 'claude',
@@ -137,14 +139,18 @@ async function run() {
   console.log('ingest_chat_markdown response:');
   console.log(JSON.stringify(ingestResponse, null, 2), '\n');
 
-  const relativePath =
-    ingestResponse?.result?.structuredContent?.relative_path || '';
+  const writtenFilePath =
+    ingestResponse?.result?.structuredContent?.full_path || '';
 
-  if (!relativePath) {
-    throw new Error('Smoke test failed: no relative_path returned.');
+  if (!writtenFilePath) {
+    throw new Error('Smoke test failed: no full_path returned.');
   }
 
-  const writtenFilePath = path.join(tempVault, relativePath);
+  if (path.dirname(writtenFilePath) !== tempTarget) {
+    throw new Error(
+      `Smoke test failed: file written to ${path.dirname(writtenFilePath)}, expected ${tempTarget}`
+    );
+  }
 
   if (!fs.existsSync(writtenFilePath)) {
     throw new Error(`Smoke test failed: file not found at ${writtenFilePath}`);
