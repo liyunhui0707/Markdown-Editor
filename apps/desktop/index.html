@@ -596,6 +596,20 @@
         color:   var(--text-muted);
         opacity: 0.5;
       }
+      /* Stage 29 — Setext cross-line reveal (scoped to Setext only).
+         The construct-reveal plugin tags Setext title + === / ---
+         underline lines with BOTH cm-md-construct-active AND a Setext-
+         specific cm-md-setext-active class. This rule keys off the
+         Setext-specific class so heading-mark reveal does NOT leak to
+         ATX heading marks (`#`) that may sit inside a blockquote whose
+         non-heading lines are construct-active. Styling mirrors
+         Stage 14.7's active-line reveal; display: inline is REQUIRED
+         to override cm-md-heading-mark's display: none above. */
+      .cm-md-setext-active .cm-md-heading-mark {
+        display: inline;
+        color:   var(--text-muted);
+        opacity: 0.5;
+      }
       .cm-md-h1 { font-size: 1.75em; font-weight: 700; line-height: 1.2; }
       .cm-md-h2 { font-size: 1.40em; font-weight: 700; }
       .cm-md-h3 { font-size: 1.15em; font-weight: 600; }
@@ -1304,6 +1318,7 @@
     <script src="./lib/cm6-write-view.js"></script>
     <script src="./lib/cm6-task-toggle.js"></script>
     <script src="./lib/cm6-link-click.js"></script>
+    <script src="./lib/cm6-line-utils.js"></script>
     <script src="./lib/cm6-active-range.js"></script>
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>

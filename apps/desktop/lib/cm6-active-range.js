@@ -53,6 +53,10 @@
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
+    // Stage 29 — ensure the shared line-utils helper is loaded for
+    // the CommonJS path (Node tests). Browser path relies on the
+    // script-tag ordering invariant pinned by test 29-11.
+    require('./cm6-line-utils.js');
     module.exports = factory();
   } else {
     root.Cm6ActiveRange = factory();
@@ -60,30 +64,15 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
   // ── resolveTouchedLines(selection, doc) ───────────────────────────────
-  // Pure. Iterates selection.ranges; for each range, resolves the line
-  // number of range.from and range.to via doc.lineAt(pos).number, then
-  // unions every line number in that closed interval into a set. Returns
-  // the set as a sorted, ascending array.
-  //
-  // Inclusive of range.to even when range.to is at column 0 of the next
-  // line — doc.lineAt(pos) semantics treat that position as belonging to
-  // the next line (Stage 26 edge-case spec §9 case 6).
+  // Stage 29 delegation refactor — the line-set logic moved to
+  // apps/desktop/lib/cm6-line-utils.js to retire the manual drift
+  // check (Stage 28 Stop Condition S10) between this file and
+  // cm6-construct-reveal.js. Reads globalThis.Cm6LineUtils at call
+  // time; throws explicitly if the shared module isn't loaded
+  // (surfaces script-tag-order bugs immediately rather than silently
+  // running a stale local copy). Test 29-8 pins this delegation.
   function resolveTouchedLines(selection, doc) {
-    if (!selection || !doc) return [];
-    const ranges = selection.ranges || [];
-    if (ranges.length === 0) return [];
-
-    const lineSet = new Set();
-    for (let i = 0; i < ranges.length; i++) {
-      const r = ranges[i];
-      if (!r) continue;
-      const fromLine = doc.lineAt(r.from).number;
-      const toLine   = doc.lineAt(r.to).number;
-      for (let n = fromLine; n <= toLine; n++) {
-        lineSet.add(n);
-      }
-    }
-    return Array.from(lineSet).sort(function (a, b) { return a - b; });
+    return globalThis.Cm6LineUtils.resolveTouchedLines(selection, doc);
   }
 
   // ── buildActiveRangeDecorations(state, cm6) ───────────────────────────
