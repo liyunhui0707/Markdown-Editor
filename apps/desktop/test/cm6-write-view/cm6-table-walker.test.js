@@ -237,22 +237,61 @@ test('Stage 31-8 (NEG): TableDelimiter parented by Paragraph emits NO table deco
     'no table-class decoration emitted for Paragraph-parented TableDelimiter');
 });
 
-// ── Group CSS-no-leak (31-9) ────────────────────────────────────────────────
+// ── Group CSS-no-leak (31-9) — Stage 32 amendment ─────────────────────────────
+//
+// Stage 31 originally asserted that index.html contained NO CSS rule for
+// either cm-md-table-pipe or cm-md-table-delimiter-row (walker-only stage;
+// "Stage 32 adds the first reveal/hide rule"). Stage 32 has shipped those
+// rules per its plan, so this test is now a documented contract amendment
+// (precedent: Stage 28's amendment of Stage 27 test 27-5; Stage 29 and
+// Stage 30 internal-amendments of frozen files). The Stage 32 CSS shape
+// (hide off-active + reveal scoped to .cm-md-table-active) is pinned by
+// cm6-table-reveal.test.js test 32-CSS-1; this test now serves as a
+// regression guard that Stage 32's rules do NOT leak the reveal selector
+// outside the scoped .cm-md-table-active context (i.e., no future stage
+// silently widens hide/reveal to unscoped or other-construct-scoped CSS).
 
-test('Stage 31-9 (CSS-no-leak): apps/desktop/index.html contains NO rule for cm-md-table-pipe or cm-md-table-delimiter-row', () => {
+test('Stage 31-9 (CSS-no-leak, Stage 32 amendment): index.html cm-md-table-pipe / cm-md-table-delimiter-row rules ONLY appear via the Stage 32 hide rules and the .cm-md-table-active reveal scope', () => {
   const html = fs.readFileSync(
     path.join(__dirname, '..', '..', 'index.html'),
     'utf8'
   );
-  // Match a CSS selector token that ends with the class name and is followed
-  // by either whitespace, a "{", a "," or "," before whitespace+"{". Stage 31
-  // is walker-only — Stage 32 adds the first reveal/hide rule.
-  const pipeRule = /\.cm-md-table-pipe[\s,{]/.test(html);
-  const rowRule  = /\.cm-md-table-delimiter-row[\s,{]/.test(html);
-  assert.ok(!pipeRule,
-    'index.html must NOT contain a CSS rule for .cm-md-table-pipe yet (Stage 31 is walker-only; Stage 32 adds CSS)');
-  assert.ok(!rowRule,
-    'index.html must NOT contain a CSS rule for .cm-md-table-delimiter-row yet');
+  // Extract CSS between <style>...</style> for selector-shape inspection.
+  const cssMatch = /<style[^>]*>([\s\S]*?)<\/style>/i.exec(html);
+  const css = cssMatch ? cssMatch[1] : '';
+  // Strip /* ... */ comments to avoid false matches inside policy comments.
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Find every selector that mentions cm-md-table-pipe or
+  // cm-md-table-delimiter-row; assert each one is either the bare hide
+  // selector or the .cm-md-table-active descendant reveal selector.
+  const selectorBlocks = [];
+  let i = 0;
+  while (i < stripped.length) {
+    const brace = stripped.indexOf('{', i);
+    if (brace < 0) break;
+    const closeBrace = stripped.indexOf('}', brace);
+    if (closeBrace < 0) break;
+    const selectorText = stripped.slice(i, brace).trim();
+    if (selectorText) {
+      for (const sel of selectorText.split(',').map((s) => s.trim()).filter(Boolean)) {
+        if (sel.includes('cm-md-table-pipe') || sel.includes('cm-md-table-delimiter-row')) {
+          selectorBlocks.push(sel);
+        }
+      }
+    }
+    i = closeBrace + 1;
+  }
+  const allowed = new Set([
+    '.cm-md-table-pipe',
+    '.cm-md-table-delimiter-row',
+    '.cm-md-table-active .cm-md-table-pipe',
+    '.cm-md-table-active .cm-md-table-delimiter-row',
+  ]);
+  for (const sel of selectorBlocks) {
+    assert.ok(allowed.has(sel),
+      'unexpected selector mentioning cm-md-table-* classes: "' + sel
+      + '" (only ' + Array.from(allowed).sort().join(' / ') + ' are allowed per the Stage 32 contract)');
+  }
 });
 
 // ── Group FROZEN (31-10) ────────────────────────────────────────────────────

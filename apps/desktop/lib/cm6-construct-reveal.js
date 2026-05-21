@@ -19,8 +19,12 @@
    ListItem (Stage 30 — list-item lines carry ONLY cm-md-list-item-
    active, NOT the generic cm-md-construct-active, so the Stage 28
    quote/fence reveal selectors do not leak onto nested constructs
-   inside an active list item).
-   Defer: tables.
+   inside an active list item) + Table (Stage 32 — table lines carry
+   ONLY cm-md-table-active, NOT the generic cm-md-construct-active,
+   following the Stage 30 leakage-prevention precedent. Reveals the
+   walker-emitted cm-md-table-pipe / cm-md-table-delimiter-row classes
+   added by Stage 31).
+   Defer: list continuation paragraphs nested inside other constructs.
 
    D1 — lifts Stage 11.9 / Stage 27 D2 exemption for fenced-code
    markers (the new CSS hides them off-construct-active and reveals
@@ -126,12 +130,21 @@
     // the SCOPED cm-md-list-item-active class only (NOT the generic
     // cm-md-construct-active) to prevent cross-construct leakage; see
     // the per-line emit block below for the dedup logic.
+    // Stage 32 — Table added so a caret anywhere in the table reveals
+    // all cm-md-table-pipe + cm-md-table-delimiter-row marks across the
+    // whole construct. Table lines, like ListItem lines, are emitted
+    // with ONLY the SCOPED cm-md-table-active class (NOT the generic
+    // cm-md-construct-active) to prevent cross-construct leakage in the
+    // other direction (e.g., a Table nested inside a Blockquote must
+    // not let Stage 28's .cm-md-construct-active .cm-md-quote-mark
+    // selector fire on the table's interior).
     const TARGET_TYPES = {
       FencedCode:     true,
       Blockquote:     true,
       SetextHeading1: true,
       SetextHeading2: true,
       ListItem:       true,
+      Table:          true,
     };
     const constructs = [];
 
@@ -205,19 +218,29 @@
     //   - listItemLineSet — lines that get cm-md-list-item-active
     //     (Stage 30: scopes the new ListMark reveal CSS to list-item
     //     lines only).
+    //   - tableLineSet — lines that get cm-md-table-active (Stage 32:
+    //     scopes the table-pipe / delimiter-row reveal CSS to table
+    //     lines only, matching the Stage 30 ListItem pattern).
     const allLineSet = new Set();
     const constructActiveLineSet = new Set();
     const setextLineSet = new Set();
     const listItemLineSet = new Set();
+    const tableLineSet = new Set();
     for (let i = 0; i < constructs.length; i++) {
       const c = constructs[i];
       const isSetext   = c.type === 'SetextHeading1' || c.type === 'SetextHeading2';
       const isListItem = c.type === 'ListItem';
+      const isTable    = c.type === 'Table';
       for (let n = c.fromLine; n <= c.toLine; n++) {
         allLineSet.add(n);
-        if (!isListItem) constructActiveLineSet.add(n);
-        if (isSetext)    setextLineSet.add(n);
-        if (isListItem)  listItemLineSet.add(n);
+        // Stage 30 + 32 leakage-prevention guard: ListItem-only and
+        // Table-only lines do NOT carry the generic class so Stage 28's
+        // quote/fence reveal selectors stay confined to their own
+        // constructs.
+        if (!isListItem && !isTable) constructActiveLineSet.add(n);
+        if (isSetext)   setextLineSet.add(n);
+        if (isListItem) listItemLineSet.add(n);
+        if (isTable)    tableLineSet.add(n);
       }
     }
     const sortedLines = Array.from(allLineSet).sort(function (a, b) { return a - b; });
@@ -226,6 +249,7 @@
       if (constructActiveLineSet.has(n)) tokens.push('cm-md-construct-active');
       if (setextLineSet.has(n))          tokens.push('cm-md-setext-active');
       if (listItemLineSet.has(n))        tokens.push('cm-md-list-item-active');
+      if (tableLineSet.has(n))           tokens.push('cm-md-table-active');
       return cm6.Decoration
         .line({ class: tokens.join(' ') })
         .range(state.doc.line(n).from);

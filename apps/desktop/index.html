@@ -802,6 +802,29 @@
         opacity: 0.5;
       }
 
+      /* CM6 hybrid live-styling — GFM table reveal (Stage 32). The
+         walker (Stage 31) emits cm-md-table-pipe on the "|" between
+         cells and cm-md-table-delimiter-row on the "|---|---|"
+         separator line. The construct-reveal plugin (Stage 32) emits
+         cm-md-table-active on every line of a Table construct when the
+         active range touches any cell. Hide both classes off-active;
+         reveal them dimmed on-active. The cm-md-table-active class is
+         INTENTIONALLY scoped (NOT the generic cm-md-construct-active)
+         so Stage 28's quote/fence selectors do not leak into table
+         interiors and vice versa — matches the Stage 30 ListItem
+         pattern. The table header text retains its default highlight
+         (bold + underline via CodeMirror defaultHighlightStyle on
+         tags.heading from @lezer/markdown's Table extension). */
+      .cm-md-table-pipe,
+      .cm-md-table-delimiter-row {
+        display: none;
+      }
+      .cm-md-table-active .cm-md-table-pipe,
+      .cm-md-table-active .cm-md-table-delimiter-row {
+        display: inline;
+        opacity: 0.5;
+      }
+
       /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
          of a long document be manually scrolled up to roughly the middle of
          the viewport, leaving ~half a viewport of empty space below. Pure
