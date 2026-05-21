@@ -154,3 +154,31 @@ test('Stage 22.5-3: cm6-bundle.js exports cm6.redo as a function', () => {
     'cm6.redo must be exported (from @codemirror/commands); enables '
     + 'programmatic redo invocation in future Stage 23+ tests');
 });
+
+// ── Stage 31 — bundle's markdown() must actually register GFM Table parsing ─
+// The Stage 16-5 source-level test only proves Table's parser DEFINITION
+// exists in the bundle (which it did even before Stage 31 because @lezer/
+// markdown ships Table unconditionally). Stage 31 needs a RUNTIME check
+// that calling CM6Production.markdown() and parsing a GFM table fixture
+// actually produces Table* nodes in the syntax tree — i.e., Table was
+// added to the extensions array AND the bundle was rebuilt.
+
+const STAGE_31_TABLE_FIXTURE = '| a | b |\n|---|---|\n| c | d |\n';
+
+test('Stage 31: bundle.markdown() actually parses GFM tables — runtime registration', () => {
+  const cm6 = loadCm6Bundle();
+  const state = cm6.EditorState.create({
+    doc: STAGE_31_TABLE_FIXTURE,
+    extensions: [cm6.markdown()],
+  });
+  const names = new Set();
+  cm6.syntaxTree(state).iterate({
+    enter: (node) => { names.add(node.name); },
+  });
+  const required = ['Table', 'TableHeader', 'TableRow', 'TableCell', 'TableDelimiter'];
+  const missing = required.filter((n) => !names.has(n));
+  assert.equal(missing.length, 0,
+    'cm6-bundle.js markdown() must register Table for runtime parsing — '
+    + 'missing node names: [' + missing.join(',') + ']. '
+    + 'If only some are missing, the bundle may be stale — run `npm run build:cm6`.');
+});

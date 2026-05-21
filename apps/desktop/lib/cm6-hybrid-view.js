@@ -487,6 +487,38 @@
                 cm6.Decoration.mark({ class: 'cm-md-task-marker' })
                   .range(node.from, node.to)
               );
+            } else if (name === 'Table' || name === 'TableHeader' || name === 'TableRow' || name === 'TableCell') {
+              // Stage 31 — container nodes around the table grid. The walker
+              // descends so child TableDelimiter nodes reach their own
+              // branch below. No decoration emitted at the container level
+              // (Stage 32 may add cell/row container classes if needed).
+            } else if (name === 'TableDelimiter') {
+              // Stage 31 - GFM Markdown table walker emissions.
+              // Lezer @lezer/markdown emits TableDelimiter for TWO distinct
+              // shapes:
+              //   - the "|" pipe character separating cells inside
+              //     TableRow / TableHeader.
+              //   - the entire "|---|---|" separator line inside the Table
+              //     container (between the header row and the body rows).
+              // Parent inspection disambiguates so Stage 32+ reveal CSS can
+              // target each independently. No emission for any other parent
+              // (defensive; the Lezer GFM grammar should never produce a
+              // TableDelimiter outside one of the three parents above).
+              // Walker descends naturally — no return — so any inline child
+              // (none expected) would still reach its own enter() branch.
+              const tdParent = node.node.parent;
+              const pName = tdParent && tdParent.name;
+              if (pName === 'TableRow' || pName === 'TableHeader') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-table-pipe' })
+                    .range(node.from, node.to)
+                );
+              } else if (pName === 'Table') {
+                decorations.push(
+                  cm6.Decoration.mark({ class: 'cm-md-table-delimiter-row' })
+                    .range(node.from, node.to)
+                );
+              }
             }
           },
         });

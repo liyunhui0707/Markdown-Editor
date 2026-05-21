@@ -11,6 +11,14 @@
        extensions array literal must NOT pull in GFM, Table, TaskList,
        or Autolink — Stage 14.2 is "Strikethrough only" by design.
 
+   Stage 31 note: GFM Table parsing IS available at runtime because
+   markdownLanguage (the base passed to markdown({base, ...})) already
+   includes Table. So Stage 31 emits walker classes for TableDelimiter
+   nodes without needing to add Table to the import or extensions array
+   here. The negative ban below stays load-bearing — it pins that the
+   ENTRY does not pull in further @lezer/markdown extensions beyond
+   Strikethrough.
+
    Negative checks deliberately inspect ONLY the import specifier and the
    inner extensions array — not the whole file — to avoid false failures
    from incidental occurrences in comments or string literals. */
