@@ -57,3 +57,7 @@ The selector emits `"ui": <bool>` in its preview JSON. The orchestrator passes t
 - `--to N` — drop steps with number > N
 - `--step N` — run only this single step
 - `--task-type TYPE` — bypass detection
+- `--stage {plan|implement|qa|ship|retro}` — named stage preset; **replaces** the base set entirely (precedence: `--step` > `--stage` > `--size` > task-type). Full preset table in `docs/stages.md`.
+- `--scan-first` — prepend step 0 (`existing-system-bug-risk-scan`); only takes effect when step 1 is already in the selected set.
+- `--retro` — idempotently ensure step 14 (`session-continuity-summary`) and step 16 (`development-retrospective-review`) are both in the set.
+- `--auto-merge` — opt-in flag surfaced in preview JSON; the orchestrator persists this as `state.auto_merge` to authorize merging the PR after step 13 returns `approve`. See `docs/auto-merge.md` for the safety procedure.

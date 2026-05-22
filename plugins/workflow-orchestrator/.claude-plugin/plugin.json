@@ -1,7 +1,7 @@
 {
   "name": "workflow-orchestrator",
-  "version": "0.1.0",
-  "description": "Orchestrates a 15-skill engineering workflow inside Claude Code, with Codex review handoffs via a bundled codex-bridge MCP server.",
+  "version": "0.2.0",
+  "description": "Orchestrates a 17-skill engineering workflow inside Claude Code, with Codex review handoffs via a bundled codex-bridge MCP server and opt-in named stages (plan/implement/qa/ship/retro) plus --auto-merge.",
   "author": {
     "name": "liyunhui"
   }

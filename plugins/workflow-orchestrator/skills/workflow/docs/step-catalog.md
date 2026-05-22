@@ -1,7 +1,8 @@
-# Step catalog — the 15 skills
+# Step catalog — the 17 skills
 
 | Step | Skill                                | Owner  | Routing                |
 |------|---------------------------------------|--------|------------------------|
+| 0    | existing-system-bug-risk-scan         | Claude | inline (opt-in via `--scan-first`) |
 | 1    | task-clarification-tdd-spec           | Claude | inline                 |
 | 2    | github-issue-risk-investigation       | Claude | inline                 |
 | 3    | issue-investigation-plan-review       | Codex  | `codex_review_text`    |
@@ -17,3 +18,4 @@
 | 13   | pr-final-merge-review                 | Codex  | `codex_review_text`    |
 | 14   | session-continuity-summary            | Claude | inline                 |
 | 15   | answer-fact-check-review              | Codex  | `codex_review_text` (side-channel via `--fact-check`) |
+| 16   | development-retrospective-review      | Claude | inline (opt-in via `--retro`) |

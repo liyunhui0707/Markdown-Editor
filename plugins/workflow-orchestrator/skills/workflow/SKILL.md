@@ -1,17 +1,26 @@
 ---
 name: workflow
-description: Orchestrate the 15-skill engineering workflow end-to-end with typed Codex review handoffs and human gates. Public entry — /workflow-orchestrator:workflow "<task>"
+description: Orchestrate the 17-skill engineering workflow end-to-end with typed Codex review handoffs and human gates. Public entry — /workflow-orchestrator:workflow "<task>"
 ---
 
 # workflow
 
-You are the orchestrator for the 15-skill engineering workflow. Walk the user through a selected subset of steps, invoking Claude-owned skills inline and Codex-owned review skills via the bundled `codex-bridge` MCP. Final merge is always manual.
+You are the orchestrator for the 17-skill engineering workflow. Walk the user through a selected subset of steps, invoking Claude-owned skills inline and Codex-owned review skills via the bundled `codex-bridge` MCP. Final merge is manual by default; opt in to auto-merge via `--auto-merge` (see `docs/auto-merge.md`).
 
 ## How to invoke
 
 ```
-/workflow-orchestrator:workflow "<task description>" [--size {trivial|small|medium|large}] [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--resume] [--issue REF] [--run-context "<scope statement>"]
+/workflow-orchestrator:workflow "<task description>" [--size {trivial|small|medium|large}] [--stage {plan|implement|qa|ship|retro}] [--from N] [--to N] [--skip CSV] [--force CSV] [--step N] [--scan-first] [--retro] [--auto-merge] [--resume] [--issue REF] [--run-context "<scope statement>"]
 ```
+
+For scoped per-stage entry points see `skills/{plan,implement,qa,ship,retro}/SKILL.md` — each is a thin wrapper around `--stage NAME`.
+
+### Flag reference
+
+- `--stage NAME` — replace the base step set with a fixed stage preset (plan=`[1,4,5]`, implement=`[6,7,8]`, qa=`[9,10]`, ship=`[11,12,13]`, retro=`[14,16]`). Precedence: `--step` > `--stage` > `--size` > task-type. Full matrix in `docs/stages.md`.
+- `--scan-first` — prepend the opt-in scan step (`existing-system-bug-risk-scan`); no-op on mid-pipeline stages/sizes that lack the clarification step.
+- `--retro` — idempotently ensure both `session-continuity-summary` and `development-retrospective-review` are in the set.
+- `--auto-merge` — opt in to orchestrator-driven merge after step 13 approves. Persisted as `state.auto_merge=true` via `workflow_state.py set --field auto_merge --value true`. See `docs/auto-merge.md` for the full safety procedure.
 
 Per-repo state is stored at `<repo>/.workflow/state.json` and is managed exclusively by `bin/workflow_state.py`. Step selection is computed by `bin/workflow_select.py`. Do not write or modify state files by hand.
 
@@ -213,7 +222,11 @@ Recommend `accept-as-is` in the gate prompt when the last 2 rounds had verdicts 
 
 ## Final merge
 
-After step 13 (`pr-final-merge-review`), present Codex's recommendation. The orchestrator never auto-merges; the user performs the merge step themselves. Do not invoke any merge command from this skill or its helpers.
+After step 13 (`pr-final-merge-review`), present Codex's recommendation.
+
+**Default (no `--auto-merge`)**: the user performs the merge themselves. Do not invoke any merge command from this skill or its helpers.
+
+**Opt-in (`--auto-merge` was passed and `state.auto_merge=true`)**: follow `docs/auto-merge.md` exactly — it documents the only sanctioned merge command and is the only file in plugin source allow-listed for it. The orchestrator must verify every safety guard listed there (Codex verdict `approve` with zero blocker/major findings, CI green, `reviewDecision != CHANGES_REQUESTED`, all `reviewThreads.isResolved == true` via GraphQL); any failure or parse error skips the merge and logs to `.workflow/artifacts/13-auto-merge-skipped.md`. Treat skip-on-error as the fail-safe default.
 
 ## Wrap-up (step 14)
 
@@ -225,6 +238,8 @@ If step 14 (`session-continuity-summary`) is in `selected_steps`, run it as the 
 - `state.md` — state file schema (logic lives in `bin/workflow_state.py`)
 - `gates.md` — gate definitions and the pause/resume protocol
 - `mcp-contract.md` — codex-bridge tool routing (typed tools only for review skills)
-- `skill-routing.md` — owner mapping for each of the 15 skills
+- `skill-routing.md` — owner mapping for each of the 17 skills
 - `docs/gate-policy.md` — gate-by-gate policy reference
-- `docs/step-catalog.md` — numbered catalog of the 15 steps with owner + tool
+- `docs/step-catalog.md` — numbered catalog of the 17 steps with owner + tool
+- `docs/stages.md` — named stage presets (`--stage plan|implement|qa|ship|retro`)
+- `docs/auto-merge.md` — `--auto-merge` opt-in procedure and safety guards (only file allow-listed for the merge command)

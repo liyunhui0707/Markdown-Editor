@@ -1,14 +1,14 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "workflow-and-MCP-and-plugins",
-  "description": "Local development marketplace for the workflow-orchestrator plugin (15-skill engineering workflow with bundled codex-bridge MCP).",
+  "description": "Local development marketplace for the workflow-orchestrator plugin (17-skill engineering workflow with bundled codex-bridge MCP, named stages, and opt-in auto-merge).",
   "owner": {
     "name": "liyunhui"
   },
   "plugins": [
     {
       "name": "workflow-orchestrator",
-      "description": "Orchestrates a 15-skill engineering workflow inside Claude Code, with Codex review handoffs via a bundled codex-bridge MCP server.",
+      "description": "Orchestrates a 17-skill engineering workflow inside Claude Code, with Codex review handoffs via a bundled codex-bridge MCP server and opt-in named stages plus --auto-merge.",
       "author": {
         "name": "liyunhui"
       },

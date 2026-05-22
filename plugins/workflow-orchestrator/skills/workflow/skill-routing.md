@@ -1,4 +1,4 @@
-# Skill routing — owner and tool for each of the 15 skills
+# Skill routing — owner and tool for each of the 17 skills
 
 This is the authoritative routing table. For each skill, the orchestrator either invokes a Claude-side skill by name or calls one of the typed MCP tools on `codex-bridge`. The fallback escape-hatch tool is NEVER used for these review steps — see `mcp-contract.md` for its only documented use.
 
@@ -6,6 +6,7 @@ This is the authoritative routing table. For each skill, the orchestrator either
 
 | Step | Skill                                | When                              |
 |------|---------------------------------------|-----------------------------------|
+| 0    | `existing-system-bug-risk-scan`       | opt-in via `--scan-first`         |
 | 1    | `task-clarification-tdd-spec`         | always                            |
 | 2    | `github-issue-risk-investigation`     | `bug-with-issue` only             |
 | 4    | `minimal-tdd-implementation-plan-builder` | always                        |
@@ -15,6 +16,7 @@ This is the authoritative routing table. For each skill, the orchestrator either
 | 10   | `readme-docs-sync`                    | feature (or when docs affected)   |
 | 12   | `commit-push-pr-create`               | always (after step 11 gate)       |
 | 14   | `session-continuity-summary`          | end of run                        |
+| 16   | `development-retrospective-review`    | opt-in via `--retro`              |
 
 ## Codex-owned skills (typed MCP tools via codex-bridge)
 
