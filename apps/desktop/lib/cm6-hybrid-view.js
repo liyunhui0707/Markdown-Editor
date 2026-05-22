@@ -146,6 +146,17 @@
   function buildHeadingDecorations(state, cm6) {
     const decorations = [];
     const frontmatter = detectFrontmatter(state);
+    // Stage 33 — line-level table grid decorations. Per-walk closure
+    // counter resets at each Table enter so sibling tables both start
+    // parity at 0. GFM grammar has no nested tables; no stack needed.
+    let tableRowParity = 0;
+    // Stage 33 guard: line decorations only emit when Decoration.line
+    // is a function on the supplied cm6 backend. Existing
+    // Decoration.mark paths still fire when the guard is false; the
+    // parity counter still increments outside this guard so the
+    // sibling-row contract stays consistent across test backends.
+    const lineDecorationsEnabled =
+      !!cm6 && !!cm6.Decoration && typeof cm6.Decoration.line === 'function';
 
     if (cm6 && typeof cm6.syntaxTree === 'function') {
       const tree = cm6.syntaxTree(state);
@@ -487,11 +498,49 @@
                 cm6.Decoration.mark({ class: 'cm-md-task-marker' })
                   .range(node.from, node.to)
               );
-            } else if (name === 'Table' || name === 'TableHeader' || name === 'TableRow' || name === 'TableCell') {
-              // Stage 31 — container nodes around the table grid. The walker
-              // descends so child TableDelimiter nodes reach their own
-              // branch below. No decoration emitted at the container level
-              // (Stage 32 may add cell/row container classes if needed).
+            } else if (name === 'Table') {
+              // Stage 33 — start a new table scope. Body-row parity
+              // counter resets to 0 per Table. GFM has no nested
+              // tables so a closure-scoped counter (no stack) is
+              // sufficient. The walker continues to descend so
+              // TableHeader, TableRow, and TableDelimiter children
+              // reach their own enter() branches.
+              tableRowParity = 0;
+            } else if (name === 'TableHeader') {
+              // Stage 33 — line-level border-bottom marker for the
+              // header row. Guarded: line decorations only emit when
+              // Decoration.line is a function on the supplied cm6
+              // backend; Stage 31 Decoration.mark emissions still fire
+              // either way. The walker descends so child
+              // TableDelimiter (the "|" pipes) reaches the Stage 31
+              // branch below.
+              if (lineDecorationsEnabled) {
+                const lineFrom = state.doc.lineAt(node.from).from;
+                decorations.push(
+                  cm6.Decoration.line({ class: 'cm-md-table-header-line' })
+                    .range(lineFrom)
+                );
+              }
+            } else if (name === 'TableRow') {
+              // Stage 33 — line-level striping. Parity alternates per
+              // body row within a Table. Guarded same as TableHeader;
+              // parity counter increments OUTSIDE the guard so test
+              // backends without Decoration.line still see a
+              // consistent counter.
+              if (lineDecorationsEnabled) {
+                const lineFrom = state.doc.lineAt(node.from).from;
+                const parityClass = (tableRowParity % 2 === 0)
+                  ? 'cm-md-table-body-row-0'
+                  : 'cm-md-table-body-row-1';
+                decorations.push(
+                  cm6.Decoration.line({
+                    class: 'cm-md-table-body-row-line ' + parityClass,
+                  }).range(lineFrom)
+                );
+              }
+              tableRowParity += 1;
+            } else if (name === 'TableCell') {
+              // Stage 31 — container no-op (descend only).
             } else if (name === 'TableDelimiter') {
               // Stage 31 - GFM Markdown table walker emissions.
               // Lezer @lezer/markdown emits TableDelimiter for TWO distinct
