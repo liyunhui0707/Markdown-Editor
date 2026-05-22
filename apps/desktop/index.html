@@ -844,6 +844,33 @@
         background: transparent;
       }
 
+      /* CM6 hybrid live-styling — table-header underline override
+         (Stage 34). @lezer/markdown's Table extension applies
+         tags.heading to TableHeader content; CodeMirror's
+         defaultHighlightStyle maps tags.heading to text-decoration:
+         underline (plus font-weight: bold), runtime-injected as
+         opaque .ͼXX wrapper spans. The bold (font-weight) is
+         desired; the per-character underline duplicates Stage 33's
+         line-level border-bottom under the header row. Stage 34
+         strips ONLY the line component via text-decoration-line so
+         the existing .cm-md-link-text muted color + 1px thickness
+         declarations stay untouched. Two-layer override prevents
+         clobbering walker-emitted semantic decorations (link,
+         autolink, reflink, strikethrough): the wildcard neutralizes,
+         then 4 re-protection rules at higher specificity (0,2,0 vs
+         the wildcard's (0,1,0)) restore the semantic decorations. */
+      .cm-md-table-header-line * {
+        text-decoration-line: none !important;
+      }
+      .cm-md-table-header-line .cm-md-link-text,
+      .cm-md-table-header-line .cm-md-autolink-url,
+      .cm-md-table-header-line .cm-md-reflink-text {
+        text-decoration-line: underline !important;
+      }
+      .cm-md-table-header-line .cm-md-strikethrough {
+        text-decoration-line: line-through !important;
+      }
+
       /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
          of a long document be manually scrolled up to roughly the middle of
          the viewport, leaving ~half a viewport of empty space below. Pure

@@ -431,3 +431,203 @@ test('Stage 33-PEER: cm6-hybrid-view.js source obeys Section H forbidden-token l
   assert.ok(!src.includes('addEventListener("click"'),
     'must not contain addEventListener click handler (double quote)');
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Stage 34 — table-header underline override
+//
+// Stage 34 adds 3 CSS rule blocks containing 5 selectors:
+//   - .cm-md-table-header-line *  (wildcard neutralizer; strips the
+//     defaultHighlightStyle underline that @lezer/markdown's Table
+//     extension applies to TableHeader content via tags.heading).
+//   - .cm-md-table-header-line .cm-md-link-text,
+//     .cm-md-table-header-line .cm-md-autolink-url,
+//     .cm-md-table-header-line .cm-md-reflink-text
+//     (grouped re-protection; restores link underline).
+//   - .cm-md-table-header-line .cm-md-strikethrough
+//     (strikethrough re-protection).
+//
+// All rules use the text-decoration-line LONGHAND (not the shorthand)
+// so existing .cm-md-link-text muted color (var(--text-muted)) + 1px
+// thickness declarations stay untouched in header cells.
+//
+// Tests are scoped to an EXACT Stage 34 selector set (per Codex
+// codex_review_plan rev-4 MAJOR finding) so they do NOT collide with
+// Stage 33's .cm-md-table-header-line { border-bottom } base rule.
+// ─────────────────────────────────────────────────────────────────────────
+
+const STAGE_34_SELECTORS = Object.freeze([
+  '.cm-md-table-header-line *',
+  '.cm-md-table-header-line .cm-md-link-text',
+  '.cm-md-table-header-line .cm-md-autolink-url',
+  '.cm-md-table-header-line .cm-md-reflink-text',
+  '.cm-md-table-header-line .cm-md-strikethrough',
+]);
+const STAGE_34_SELECTOR_SET = new Set(STAGE_34_SELECTORS);
+
+// Return only the index.html CSS rules whose selector list intersects
+// the Stage 34 exact-selector set. Excludes Stage 33's base
+// .cm-md-table-header-line rule (selector token ".cm-md-table-header-
+// line" only — no descendant component) which is intentionally outside
+// the Stage 34 selector set.
+function loadStage34Rules() {
+  const { rules } = loadHtmlRules();
+  return rules.filter((r) =>
+    r.selectors.some((s) => STAGE_34_SELECTOR_SET.has(s.trim()))
+  );
+}
+
+test('Stage 34-CSS-1: wildcard reset rule shape — selector `.cm-md-table-header-line *`, body is EXACTLY one `text-decoration-line: none !important` declaration', () => {
+  const { rules } = loadHtmlRules();
+  const matches = rules.filter((r) =>
+    r.selectors.some((s) => s.trim() === '.cm-md-table-header-line *')
+  );
+  assert.equal(matches.length, 1,
+    'exactly one wildcard-reset rule expected; got ' + matches.length);
+  const decls = parseDeclarations(matches[0].body);
+  assert.equal(decls.length, 1,
+    'wildcard rule body must contain exactly one declaration; got ' + decls.length);
+  assert.equal(decls[0].property, 'text-decoration-line',
+    'wildcard rule property must be text-decoration-line; got ' + decls[0].property);
+  assert.equal(decls[0].value, 'none !important',
+    'wildcard rule value must be "none !important"; got "' + decls[0].value + '"');
+});
+
+test('Stage 34-CSS-2: Stage 34 rules are NOT scoped by .cm-md-table-active / .cm-md-construct-active / .cm-activeLine (always-visible contract preserved)', () => {
+  const forbiddenAncestors = ['cm-md-table-active', 'cm-md-construct-active', 'cm-activeLine'];
+  for (const r of loadStage34Rules()) {
+    for (const sel of r.selectors) {
+      const trimmed = sel.trim();
+      // Only check selectors that ARE Stage 34 selectors (skip stray)
+      if (!STAGE_34_SELECTOR_SET.has(trimmed)) continue;
+      for (const ancestor of forbiddenAncestors) {
+        assert.ok(!trimmed.includes(ancestor),
+          'Stage 34 selector "' + trimmed + '" must NOT include ".' + ancestor + '" (always-visible contract)');
+      }
+    }
+  }
+});
+
+test('Stage 34-CSS-NO-SHORTHAND: no Stage 34 rule body uses the `text-decoration:` shorthand (only `text-decoration-line` longhand)', () => {
+  for (const r of loadStage34Rules()) {
+    const decls = parseDeclarations(r.body);
+    for (const d of decls) {
+      assert.notEqual(d.property, 'text-decoration',
+        'Stage 34 rule (selectors: ' + r.selectors.join(',') + ') uses text-decoration shorthand; '
+        + 'must use text-decoration-line longhand (would clobber color/thickness)');
+    }
+  }
+});
+
+test('Stage 34-CSS-ONLY-LINE: each Stage 34 rule body has EXACTLY one declaration, and that property is `text-decoration-line` (rejects sibling longhands like text-decoration-color/thickness)', () => {
+  for (const r of loadStage34Rules()) {
+    const decls = parseDeclarations(r.body);
+    assert.equal(decls.length, 1,
+      'Stage 34 rule (selectors: ' + r.selectors.join(',') + ') must have exactly one declaration; got ' + decls.length);
+    assert.equal(decls[0].property, 'text-decoration-line',
+      'Stage 34 rule (selectors: ' + r.selectors.join(',') + ') must use text-decoration-line; got ' + decls[0].property);
+  }
+});
+
+test('Stage 34-PRESERVE-1: `.cm-md-table-header-line .cm-md-link-text` re-protection — text-decoration-line: underline !important', () => {
+  const rules = loadStage34Rules().filter((r) =>
+    r.selectors.some((s) => s.trim() === '.cm-md-table-header-line .cm-md-link-text')
+  );
+  assert.equal(rules.length, 1, 'exactly one rule with .cm-md-table-header-line .cm-md-link-text expected');
+  const decl = parseDeclarations(rules[0].body).find((d) => d.property === 'text-decoration-line');
+  assert.ok(decl, 'rule must declare text-decoration-line');
+  assert.equal(decl.value, 'underline !important',
+    'text-decoration-line value must be "underline !important"; got "' + decl.value + '"');
+});
+
+test('Stage 34-PRESERVE-2: `.cm-md-table-header-line .cm-md-autolink-url` re-protection — text-decoration-line: underline !important', () => {
+  const rules = loadStage34Rules().filter((r) =>
+    r.selectors.some((s) => s.trim() === '.cm-md-table-header-line .cm-md-autolink-url')
+  );
+  assert.equal(rules.length, 1);
+  const decl = parseDeclarations(rules[0].body).find((d) => d.property === 'text-decoration-line');
+  assert.ok(decl);
+  assert.equal(decl.value, 'underline !important');
+});
+
+test('Stage 34-PRESERVE-3: `.cm-md-table-header-line .cm-md-reflink-text` re-protection — text-decoration-line: underline !important', () => {
+  const rules = loadStage34Rules().filter((r) =>
+    r.selectors.some((s) => s.trim() === '.cm-md-table-header-line .cm-md-reflink-text')
+  );
+  assert.equal(rules.length, 1);
+  const decl = parseDeclarations(rules[0].body).find((d) => d.property === 'text-decoration-line');
+  assert.ok(decl);
+  assert.equal(decl.value, 'underline !important');
+});
+
+test('Stage 34-PRESERVE-4: `.cm-md-table-header-line .cm-md-strikethrough` re-protection — text-decoration-line: line-through !important', () => {
+  const rules = loadStage34Rules().filter((r) =>
+    r.selectors.some((s) => s.trim() === '.cm-md-table-header-line .cm-md-strikethrough')
+  );
+  assert.equal(rules.length, 1);
+  const decl = parseDeclarations(rules[0].body).find((d) => d.property === 'text-decoration-line');
+  assert.ok(decl);
+  assert.equal(decl.value, 'line-through !important');
+});
+
+test('Stage 34-ORDER: each re-protection selector\'s containing rule block opens AFTER the wildcard neutralizer block in source order', () => {
+  const { html } = loadHtmlRules();
+  const cssMatch = /<style[^>]*>([\s\S]*?)<\/style>/i.exec(html);
+  const css = cssMatch ? cssMatch[1] : '';
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Find each selector's opening "{" offset. Look for `<selector>` followed
+  // by any commas/whitespace then `{`. We anchor on the selector text appearing
+  // immediately before a `{` in the same rule-block opening preamble.
+  function blockOpenOffset(selector) {
+    // Build a regex that finds the selector text inside a selector list ending
+    // at `{`. Allows `,` and whitespace between this selector and the `{`.
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '\\s*(?:,[\\s\\S]*?)?\\{');
+    const m = stripped.match(re);
+    if (!m) return -1;
+    // Return the offset of the `{` for this rule block.
+    return stripped.indexOf('{', stripped.indexOf(selector));
+  }
+  const wildcardOffset = blockOpenOffset('.cm-md-table-header-line *');
+  assert.ok(wildcardOffset >= 0, 'wildcard neutralizer block must be present');
+  const reprotectionSelectors = [
+    '.cm-md-table-header-line .cm-md-link-text',
+    '.cm-md-table-header-line .cm-md-autolink-url',
+    '.cm-md-table-header-line .cm-md-reflink-text',
+    '.cm-md-table-header-line .cm-md-strikethrough',
+  ];
+  for (const sel of reprotectionSelectors) {
+    const off = blockOpenOffset(sel);
+    assert.ok(off >= 0, 're-protection selector "' + sel + '" must be present in a rule block');
+    assert.ok(off > wildcardOffset,
+      're-protection selector "' + sel + '" rule block opens at offset ' + off
+      + ' but must open after wildcard neutralizer block at offset ' + wildcardOffset);
+  }
+});
+
+test('Stage 34-FROZEN: Stage 33 base rules + cascade-override still match their exact-selector strings; cascade-override appears AFTER #hybridWritePane .cm-activeLine', () => {
+  const { rules, html } = loadHtmlRules();
+  // Stage 33 base rules — exact selector match.
+  const base = [
+    ['.cm-md-table-header-line', 'border-bottom', '1px solid var(--border-subtle)'],
+    ['.cm-md-table-body-row-0', 'background', 'var(--surface-muted)'],
+    ['.cm-md-table-body-row-1', 'background', 'transparent'],
+  ];
+  for (const [sel, prop, val] of base) {
+    const match = rules.filter((r) => r.selectors.some((s) => s.trim() === sel));
+    assert.equal(match.length, 1, 'Stage 33 base rule for "' + sel + '" must exist exactly once');
+    const decl = parseDeclarations(match[0].body).find((d) => d.property === prop);
+    assert.ok(decl, 'Stage 33 rule "' + sel + '" must declare ' + prop);
+    assert.equal(decl.value, val,
+      'Stage 33 rule "' + sel + '" property "' + prop + '" must be "' + val + '"; got "' + decl.value + '"');
+  }
+  // Stage 33 cascade override (33-CSS-4 contract).
+  const cssMatch = /<style[^>]*>([\s\S]*?)<\/style>/i.exec(html);
+  const css = cssMatch ? cssMatch[1] : '';
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const activeLineOffset = stripped.search(/#hybridWritePane\s+\.cm-activeLine\s*\{/);
+  const row0Offset       = stripped.search(/#hybridWritePane\s+\.cm-md-table-body-row-0\s*\{/);
+  assert.ok(activeLineOffset >= 0, 'Stage 33 cascade-override anchor #hybridWritePane .cm-activeLine must still be present');
+  assert.ok(row0Offset > activeLineOffset,
+    'Stage 33 cascade-override #hybridWritePane .cm-md-table-body-row-0 must still appear AFTER #hybridWritePane .cm-activeLine '
+    + '(activeLineOffset=' + activeLineOffset + ', row0Offset=' + row0Offset + ')');
+});
