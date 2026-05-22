@@ -825,6 +825,25 @@
         opacity: 0.5;
       }
 
+      /* CM6 hybrid live-styling — GFM table grid (Stage 33). Always-
+         visible visual structure so off-active tables (when Stage 32
+         hides the | pipes + |---|---| delimiter row) still read as
+         tables instead of text-with-spaces. Walker (Stage 33) emits
+         line-level cm-md-table-header-line on the header row's line
+         and cm-md-table-body-row-line + cm-md-table-body-row-0/1 on
+         each body row's line. These rules are independent of
+         cm-md-table-active — they apply whether the caret is in the
+         table or not. Pinned by test 33-CSS-3. */
+      .cm-md-table-header-line {
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .cm-md-table-body-row-0 {
+        background: var(--surface-muted);
+      }
+      .cm-md-table-body-row-1 {
+        background: transparent;
+      }
+
       /* CM6 editor — bottom scroll padding (Stage 12.1). Lets the last line
          of a long document be manually scrolled up to roughly the middle of
          the viewport, leaving ~half a viewport of empty space below. Pure
@@ -843,6 +862,19 @@
       }
       #hybridWritePane .cm-activeLine {
         background: transparent !important;
+      }
+
+      /* Stage 33 cascade override — `#hybridWritePane .cm-activeLine`
+         above sets `background: transparent !important` on every
+         active line, including a striped body-row-0 line, which would
+         erase the always-visible Stage 33 stripe. Restore it with a
+         same-specificity (#id + .class) `!important` rule placed
+         AFTER the active-line override so source order resolves the
+         !important tie in our favor. Only row-0 needs this — row-1's
+         `background: transparent` already matches the active-line
+         reset visually. Pinned by test 33-CSS-4. */
+      #hybridWritePane .cm-md-table-body-row-0 {
+        background: var(--surface-muted) !important;
       }
 
       /* Toast UI mount — hosts the Preview renderer. Hidden by default; shown
