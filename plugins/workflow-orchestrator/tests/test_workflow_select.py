@@ -236,3 +236,6 @@ def test_ui_idempotent_when_default_already_has_9_10(capsys):
 def test_ui_keyword_triggers_autodetect(capsys, keyword):
     _, data = _run(["preview", "--task", f"work on the {keyword} layer"], capsys)
     assert data["ui"] is True, f"keyword {keyword!r} should auto-detect ui=True"
+
+# Stage / --scan-first / --retro / --auto-merge tests live in
+# test_workflow_select_stages.py (split to stay under the 280-line file cap).

@@ -31,6 +31,16 @@ SIZE_STEPS: dict[str, list[int]] = {
     # "large" intentionally absent — falls through to task-type defaults.
 }
 
+# Named stage presets — replace the base step set entirely (like --size).
+# Precedence: --step > --stage > --size > task-type default.
+STAGE_STEPS: dict[str, list[int]] = {
+    "plan":       [1, 4, 5],      # clarify → plan → plan-review
+    "implement":  [6, 7, 8],      # TDD impl → diff-review → review-fix
+    "qa":         [9, 10],        # manual-QA checklist + docs sync
+    "ship":       [11, 12, 13],   # readiness → push/PR → final-merge-review
+    "retro":      [14, 16],       # continuity summary + retrospective
+}
+
 MANDATORY_GATE_STEPS = (5, 7, 11, 12)
 
 # P1.b: UI auto-detection keywords. Match as whole-word, case-insensitive.
@@ -72,11 +82,20 @@ def _parse_csv(s: str | None) -> list[int]:
 def cmd_preview(args):
     task_type = _detect_task_type(args.task, args.issue, args.task_type)
     ui = _detect_ui(args.task, args.ui)
+    has_issue = bool(args.issue or _ISSUE_HINT.search(args.task or ""))
     if args.step is not None:
         steps = [args.step]
         source = "single-step"
     else:
-        if args.size and args.size in SIZE_STEPS:
+        if args.stage and args.stage in STAGE_STEPS:
+            steps = list(STAGE_STEPS[args.stage])
+            source = f"stage={args.stage}"
+            # Plan stage with an issue context injects steps 2 + 3.
+            if args.stage == "plan" and has_issue:
+                for s in (2, 3):
+                    if s not in steps:
+                        steps.append(s)
+        elif args.size and args.size in SIZE_STEPS:
             steps = list(SIZE_STEPS[args.size])
             source = f"size={args.size}"
         else:
@@ -86,6 +105,16 @@ def cmd_preview(args):
         # in any size preset. Idempotent for size sets that already include them.
         if ui:
             for s in (9, 10):
+                if s not in steps:
+                    steps.append(s)
+        # --scan-first prepends step 0 only when step 1 is in the set; on
+        # mid-pipeline stages/sizes (implement/qa/ship/retro, size=trivial),
+        # step 0 has no place and the flag silently no-ops.
+        if args.scan_first and 1 in steps and 0 not in steps:
+            steps.append(0)
+        # --retro idempotently ensures both 14 (continuity) and 16 (retro).
+        if args.retro:
+            for s in (14, 16):
                 if s not in steps:
                     steps.append(s)
         for s in _parse_csv(args.force):
@@ -110,7 +139,9 @@ def cmd_preview(args):
 
     rationale = (
         f"task_type={task_type!r}; source={source}; ui={ui}; "
-        f"size={args.size or 'none'}; "
+        f"size={args.size or 'none'}; stage={args.stage or 'none'}; "
+        f"scan_first={bool(args.scan_first)}; retro={bool(args.retro)}; "
+        f"auto_merge={bool(args.auto_merge)}; "
         f"skip={args.skip or 'none'}; force={args.force or 'none'}; "
         f"from={args.from_step}; to={args.to_step}; step={args.step}."
     )
@@ -118,7 +149,9 @@ def cmd_preview(args):
         {
             "task_type": task_type,
             "size": args.size,
+            "stage": args.stage,
             "ui": ui,
+            "auto_merge": bool(args.auto_merge),
             "selected_steps": steps,
             "rationale": rationale,
             "warnings": warnings,
@@ -144,6 +177,38 @@ def _build_parser():
             "task size; overrides the task-type-derived step set. "
             "trivial=6,7,11,12  small=+1,8  medium=+4,5,14  "
             "large=use task-type defaults (current behavior)"
+        ),
+    )
+    pv.add_argument(
+        "--stage",
+        choices=list(STAGE_STEPS),
+        default=None,
+        help=(
+            "named stage preset; replaces the base set entirely. "
+            "plan=1,4,5  implement=6,7,8  qa=9,10  ship=11,12,13  retro=14,16. "
+            "Precedence: --step > --stage > --size > task-type."
+        ),
+    )
+    pv.add_argument(
+        "--scan-first", dest="scan_first", action="store_true",
+        help=(
+            "prepend step 0 (existing-system-bug-risk-scan); only takes effect "
+            "when step 1 is already in the selected set."
+        ),
+    )
+    pv.add_argument(
+        "--retro", dest="retro", action="store_true",
+        help=(
+            "ensure step 14 (continuity-summary) and step 16 "
+            "(development-retrospective-review) are both in the set."
+        ),
+    )
+    pv.add_argument(
+        "--auto-merge", dest="auto_merge", action="store_true",
+        help=(
+            "opt-in: when set, the orchestrator may merge the PR after "
+            "step 13 if Codex verdict=approve and all safety checks pass. "
+            "Reported in preview JSON; does not change step selection."
         ),
     )
     # P1.b: tri-state UI flag — explicit on (--ui), explicit off (--no-ui),
