@@ -38,8 +38,26 @@ _ENV_ALLOWLIST: tuple[str, ...] = (
 )
 
 
+# Common locations where `codex` (and other dev CLIs) are installed but which
+# may be missing from PATH when the MCP server is launched from a GUI context
+# (e.g. Claude.app spawned from the Dock on macOS — GUI apps inherit a minimal
+# /usr/bin:/bin PATH and do NOT pick up shell rc files).
+_FALLBACK_PATH_ENTRIES: tuple[str, ...] = (
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+)
+
+
 def _sanitized_env() -> dict[str, str]:
-    return {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
+    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
+    parts = env.get("PATH", "").split(os.pathsep) if env.get("PATH") else []
+    parts = [p for p in parts if p]
+    for p in _FALLBACK_PATH_ENTRIES:
+        if p not in parts:
+            parts.append(p)
+    env["PATH"] = os.pathsep.join(parts)
+    return env
 
 
 def run_codex(
