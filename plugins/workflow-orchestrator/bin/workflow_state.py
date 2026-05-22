@@ -47,6 +47,7 @@ def cmd_init(args):
         "review_rounds": {},
         "max_review_rounds": args.max_review_rounds,
         "ui": bool(args.ui),
+        "auto_merge": False,
         "partial_commits": [],
         "iteration": 1,
         "pivot_log": [],
