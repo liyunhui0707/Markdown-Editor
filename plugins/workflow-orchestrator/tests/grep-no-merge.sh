@@ -27,9 +27,13 @@ GREP_FLAGS=(
 fail=0
 
 # `gh pr merge` — allow-listed for the auto-merge doc only.
+# Match by exact path prefix on the grep output line ("<path>:<lineno>:<text>"),
+# not by substring across the whole line. A `# see auto-merge.md` comment on
+# a forbidden line must NOT be enough to slip through.
 gh_hits=$(grep -RnE "${GH_MERGE}" "${GREP_FLAGS[@]}" "$PLUGIN_DIR" || true)
 if [ -n "${gh_hits}" ]; then
-  unexpected=$(printf '%s\n' "${gh_hits}" | grep -v "${ALLOWED_AUTOMERGE_DOC}" || true)
+  ALLOWED_ABS="${PLUGIN_DIR}/${ALLOWED_AUTOMERGE_DOC}:"
+  unexpected=$(printf '%s\n' "${gh_hits}" | awk -v p="${ALLOWED_ABS}" 'index($0, p) != 1 { print }')
   if [ -n "${unexpected}" ]; then
     echo "FAIL: 'gh pr merge' found outside ${ALLOWED_AUTOMERGE_DOC}:" >&2
     printf '%s\n' "${unexpected}" >&2

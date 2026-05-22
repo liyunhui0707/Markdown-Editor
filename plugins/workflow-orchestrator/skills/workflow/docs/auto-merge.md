@@ -15,22 +15,37 @@ true:
    `workflow_state.py set --field auto_merge --value true`.
 2. Step 13 (`pr-final-merge-review`) returned verdict `approve` with
    zero `blocker` and zero `major` findings.
-3. CI is green — `gh pr checks <N> --json state,conclusion` reports
-   every check as `SUCCESS` or `SKIPPED`, with no `FAILURE`,
-   `CANCELLED`, or `TIMED_OUT` entries. If `gh pr checks` returns no
-   rows (repo has no required checks configured), treat that as
-   "no required checks" — acceptable.
+3. CI is green and **complete**. Run
+   `gh pr checks <N> --json name,state,conclusion`. Every returned
+   check must be terminal AND acceptable:
+
+   - terminal `state`: `COMPLETED`. Any check still in `PENDING`,
+     `QUEUED`, `IN_PROGRESS`, `WAITING`, `REQUESTED`, or any other
+     non-terminal/unknown state → **skip merge**. Do not wait, do not
+     poll — this run does not auto-merge.
+   - terminal `conclusion` of a completed check must be `SUCCESS`,
+     `NEUTRAL`, or `SKIPPED`. Anything else (`FAILURE`, `CANCELLED`,
+     `TIMED_OUT`, `ACTION_REQUIRED`, `STALE`, `STARTUP_FAILURE`,
+     `null`, unknown) → **skip merge**.
+
+   If `gh pr checks` returns zero rows (repo has no required checks
+   configured), treat that as "no required checks" — acceptable.
+   Any JSON parse error or non-zero exit from `gh` → **skip merge**.
 4. `gh pr view <N> --json reviewDecision` is not `CHANGES_REQUESTED`.
    Acceptable values: `APPROVED`, `REVIEW_REQUIRED`, `null`.
 5. No unresolved review threads. Detect with GraphQL — the REST
-   `/reviews` endpoint does **not** expose `isResolved`:
+   `/reviews` endpoint does **not** expose `isResolved`. Paginate
+   over **all** threads; a PR with >100 review threads can have
+   unresolved comments hidden on later pages:
 
    ```sh
-   gh api graphql -F number=<N> -F owner=<OWNER> -F name=<REPO> -f query='
-     query($number:Int!, $owner:String!, $name:String!) {
+   gh api graphql -F number=<N> -F owner=<OWNER> -F name=<REPO> \
+     -F cursor=<endCursor-or-null> -f query='
+     query($number:Int!, $owner:String!, $name:String!, $cursor:String) {
        repository(owner:$owner, name:$name) {
          pullRequest(number:$number) {
-           reviewThreads(first: 100) {
+           reviewThreads(first: 100, after: $cursor) {
+             pageInfo { hasNextPage endCursor }
              nodes { isResolved }
            }
          }
@@ -38,7 +53,11 @@ true:
      }'
    ```
 
-   If any thread has `isResolved: false` → skip merge.
+   Loop while `pageInfo.hasNextPage` is true, passing back
+   `pageInfo.endCursor` as the next `cursor`. If any thread on any
+   page has `isResolved: false` → skip merge. If the cursor loop
+   exits with even one page where `hasNextPage` could not be
+   determined (parse error, missing field, gh failure) → skip merge.
 
 ## Fail-safe — skip on any failure
 

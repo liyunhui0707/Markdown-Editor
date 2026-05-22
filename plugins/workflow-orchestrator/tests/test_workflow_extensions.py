@@ -151,6 +151,68 @@ def test_grep_no_merge_script_documents_allowed_path(plugin_root):
     )
 
 
+def test_grep_no_merge_rejects_forbidden_hit_in_file_mentioning_allowed_path(plugin_root, tmp_path):
+    """Codex blocker: substring `grep -v "$ALLOWED"` allowed any forbidden
+    `gh pr merge` line that ALSO mentioned `auto-merge.md` (e.g., a
+    `# see auto-merge.md` comment on the same line). Fault-inject such a
+    file into a synthetic plugin tree and assert the guard catches it."""
+    import shutil
+    synth = tmp_path / "synth_plugin"
+    (synth / "tests").mkdir(parents=True)
+    (synth / "skills" / "workflow" / "docs").mkdir(parents=True)
+    (synth / "skills" / "other").mkdir(parents=True)
+    shutil.copy(
+        plugin_root / "tests" / "grep-no-merge.sh",
+        synth / "tests" / "grep-no-merge.sh",
+    )
+    (synth / "tests" / "grep-no-merge.sh").chmod(0o755)
+    # Legitimate allow-listed file — must contain the command for the script's
+    # exception path to be exercised.
+    (synth / "skills" / "workflow" / "docs" / "auto-merge.md").write_text(
+        "Procedure: `gh pr merge <N>` after all safety guards pass.\n"
+    )
+    # Forbidden file: contains `gh pr merge` AND mentions auto-merge.md on
+    # the same line. The buggy substring filter would silently allow this.
+    (synth / "skills" / "other" / "SKILL.md").write_text(
+        "Do not run `gh pr merge`; see skills/workflow/docs/auto-merge.md\n"
+    )
+    result = subprocess.run(
+        [str(synth / "tests" / "grep-no-merge.sh")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0, (
+        "guard must reject `gh pr merge` in a non-allow-listed file even when "
+        "that file mentions auto-merge.md on the same line"
+    )
+    assert "skills/other/SKILL.md" in result.stderr, (
+        f"guard output should name the offending file. stderr={result.stderr!r}"
+    )
+
+
+def test_grep_no_merge_accepts_allowed_file_only(plugin_root, tmp_path):
+    """Complementary positive test: when `gh pr merge` appears ONLY in
+    skills/workflow/docs/auto-merge.md, the guard passes."""
+    import shutil
+    synth = tmp_path / "synth_plugin"
+    (synth / "tests").mkdir(parents=True)
+    (synth / "skills" / "workflow" / "docs").mkdir(parents=True)
+    shutil.copy(
+        plugin_root / "tests" / "grep-no-merge.sh",
+        synth / "tests" / "grep-no-merge.sh",
+    )
+    (synth / "tests" / "grep-no-merge.sh").chmod(0o755)
+    (synth / "skills" / "workflow" / "docs" / "auto-merge.md").write_text(
+        "Procedure: `gh pr merge <N> --<method>` after all guards pass.\n"
+    )
+    result = subprocess.run(
+        [str(synth / "tests" / "grep-no-merge.sh")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, (
+        f"guard rejected an allow-listed file: stderr={result.stderr!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main workflow SKILL.md — references the new flags so users discover them.
 # ---------------------------------------------------------------------------
