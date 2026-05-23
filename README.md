@@ -176,9 +176,10 @@ The project uses the Node.js built-in test runner.
 
 ```bash
 cd apps/desktop
-npm test                       # full suite (all .test.js under test/, test/spike-cm6/, test/cm6-write-view/)
+npm test                       # full suite (test/, test/spike-cm6/, test/cm6-write-view/, test/session-import/)
 npm run test:write-engine      # focused: Write engine resolver
 npm run test:cm6-write-view    # focused: CM6 write adapters, hybrid-cm6 decorations, and bundle-entry source contracts
+node --test test/session-import/*.test.mjs   # focused: ported Local-Web-Server importers (Stage S1a)
 ```
 
 MCP smoke test (from the plugin source — clone `markdown-vault-app` if needed):
@@ -231,6 +232,16 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 ## Developer notes
 
 - **CM6 spike artifacts** — `apps/desktop/spike/` and `apps/desktop/lib/spike-cm6-*` remain in the tree for spike reproducibility (`npm run spike:cm6`, `npm run test:spike-cm6`). They are not consumed by the production app at runtime. Cleanup is deferred.
+- **Session import (developer preview, Stage S1a)** — two CLI scripts under `apps/desktop/tools/session-import/` import Claude Code (`~/.claude/projects/<project>/<uuid>.jsonl`) and Codex CLI (`~/.codex/sessions/YYYY/MM/DD/rollout-…<uuid>.jsonl`) session transcripts into markdown files under `~/agent-sessions/<agent>/`. Run from `apps/desktop/`:
+
+  ```bash
+  npm run session-import:claude   # imports ~/.claude/projects/**/*.jsonl
+  npm run session-import:codex    # imports ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
+  SESSION_ROOT=/some/other/dir npm run session-import:claude   # override output root
+  SESSION_IMPORT_MAX_BYTES=1048576 npm run session-import:claude   # override 50 MB cap
+  ```
+
+  The output is a faithful port of `Local-Web-Server/tools/import-{claude,codex}.js` — byte-for-byte parity with upstream output except for a single inserted `source: claude` / `source: codex` line added immediately after `agent:` (so the existing AI Imports filter recognizes the imported notes). Security guarantees mirror upstream verbatim: `O_NOFOLLOW` open, post-open dev/ino TOCTOU check, ancestor-symlink rejection on the output chain, `0o600` files / `0o700` directories, atomic tmp+rename with 5× `EEXIST` retry. No UI integration at this stage; the right-side AI Imports panel is deferred to Stage S2.
 
 ## Project status & maturity
 
@@ -325,7 +336,8 @@ The hybrid-cm6 walker is intentionally limited to `Decoration.mark` over the exi
 ```text
 apps/desktop/             Electron desktop app
 apps/desktop/lib/         Editor, vault, and renderer helper modules
-apps/desktop/test/        Desktop app tests
+apps/desktop/test/        Desktop app tests (incl. test/session-import/ for the Stage S1a importer port)
+apps/desktop/tools/       Developer CLI tools (currently: session-import/ — Local-Web-Server importer port)
 apps/desktop/spike/       CM6 spike artifacts (deferred cleanup)
 plugins/mcp-note-ingest/  MCP plugin (note ingestion; distributed via the workflow-and-MCP-and-plugins marketplace)
 plugins/workflow-orchestrator/  Engineering-workflow orchestrator plugin (same marketplace)
