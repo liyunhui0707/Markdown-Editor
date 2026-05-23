@@ -19,7 +19,7 @@ mcp = FastMCP("codex-bridge")
 def codex_review_plan(plan_text: str | None = None,
                       plan_path: str | None = None,
                       context: dict | None = None) -> dict:
-    """Review an implementation plan via Codex. Returns a ReviewResult."""
+    """Review an implementation plan via Codex. Requires context["repo_root"] (absolute path); a KeyError is raised if omitted. Returns a ReviewResult."""
     return _review_plan(plan_text=plan_text, plan_path=plan_path, context=context or {})
 
 
@@ -27,7 +27,7 @@ def codex_review_plan(plan_text: str | None = None,
 def codex_review_diff(diff_text: str | None = None,
                       diff_path: str | None = None,
                       context: dict | None = None) -> dict:
-    """Review a git diff via Codex. Chunks by file when over the inline limit."""
+    """Review a git diff via Codex. Requires context["repo_root"] (absolute path); diff_path, if used, must live inside repo_root. Chunks by file when over the inline limit."""
     return _review_diff(diff_text=diff_text, diff_path=diff_path, context=context or {})
 
 
@@ -36,7 +36,7 @@ def codex_review_text(skill_id: str,
                       payload: str | None = None,
                       payload_path: str | None = None,
                       context: dict | None = None) -> dict:
-    """Generic Codex text review, parameterised by Codex-owned skill id."""
+    """Generic Codex text review, parameterised by Codex-owned skill id. Requires context["repo_root"] (absolute path); a KeyError is raised if omitted."""
     return _review_text(
         payload=payload, payload_path=payload_path,
         skill_id=skill_id, context=context or {},
