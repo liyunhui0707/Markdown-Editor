@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "workflow-and-MCP-and-plugins",
-  "description": "Local development marketplace for the workflow-orchestrator plugin (17-skill engineering workflow with bundled codex-bridge MCP, named stages, and opt-in auto-merge).",
+  "description": "Local development marketplace for the workflow-orchestrator plugin (17-skill engineering workflow with bundled codex-bridge MCP, named stages, and opt-in auto-merge) and the mcp-note-ingest plugin (writable bridge into a Markdown vault).",
   "owner": {
     "name": "liyunhui"
   },
@@ -13,6 +13,14 @@
         "name": "liyunhui"
       },
       "source": "./workflow-orchestrator"
+    },
+    {
+      "name": "mcp-note-ingest",
+      "description": "MCP server for ingesting chat notes and artifacts into a Markdown vault (Inbox/...).",
+      "author": {
+        "name": "liyunhui"
+      },
+      "source": "./mcp-note-ingest"
     }
   ]
 }

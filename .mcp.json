@@ -14,14 +14,6 @@
         "LAB_REPO_ROOT": "/Users/liyunhui/Liyunhui/Codes",
         "CODEX_BRIDGE_MOCK": "0"
       }
-    },
-    "mcp-note-ingest": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "/Users/liyunhui/Liyunhui/Codes/markdown-vault-app/tools/mcp-note-ingest/server.js"
-      ],
-      "env": {}
     }
   }
 }
