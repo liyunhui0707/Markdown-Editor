@@ -4,7 +4,7 @@ A local-first desktop Markdown editor for macOS, built with Electron. Notes are 
 
 Aimed at developers and tech-savvy note-takers who want their notes as plain `.md` files on disk, edited under their full control.
 
-The repository also ships an optional local MCP server (`tools/mcp-note-ingest/`) that lets AI tools write chat notes directly into the same vault.
+The setup also integrates with the `mcp-note-ingest` MCP server (installed as a Claude Code plugin from the `workflow-and-MCP-and-plugins` marketplace) that lets AI tools write chat notes directly into the same vault.
 
 > Status: usable for local development and early feedback. Not production-distributed. Inspired by simplified local-first Markdown editor workflows; not an Obsidian replacement.
 
@@ -122,7 +122,7 @@ Before publishing or sharing the repository, do not commit personal vault conten
 - Toast UI Editor (`@toast-ui/editor`) — Preview renderer; also powers the `hybrid` legacy Write engine
 - `marked` — Markdown utility
 - Node.js built-in test runner
-- Local MCP stdio server (`tools/mcp-note-ingest/`)
+- `mcp-note-ingest` MCP plugin — installed via the `workflow-and-MCP-and-plugins` Claude Code marketplace (see `docs/mcp-ingest-setup.md`)
 
 ## Getting Started
 
@@ -181,10 +181,10 @@ npm run test:write-engine      # focused: Write engine resolver
 npm run test:cm6-write-view    # focused: CM6 write adapters, hybrid-cm6 decorations, and bundle-entry source contracts
 ```
 
-MCP smoke test:
+MCP smoke test (from the plugin source — clone `markdown-vault-app` if needed):
 
 ```bash
-cd tools/mcp-note-ingest
+cd <markdown-vault-app>/plugins/mcp-note-ingest
 npm run smoke
 ```
 
@@ -212,7 +212,7 @@ The Write/Preview toggle is mouse-only — there is currently no global keyboard
 
 ## MCP Note Ingestion
 
-The repository includes a local MCP server in `tools/mcp-note-ingest/`.
+The `mcp-note-ingest` MCP server is installed as a Claude Code plugin via the `workflow-and-MCP-and-plugins` marketplace. Source lives in the `markdown-vault-app` repo at `plugins/mcp-note-ingest/`.
 
 The main tool is:
 
@@ -327,7 +327,6 @@ apps/desktop/             Electron desktop app
 apps/desktop/lib/         Editor, vault, and renderer helper modules
 apps/desktop/test/        Desktop app tests
 apps/desktop/spike/       CM6 spike artifacts (deferred cleanup)
-tools/mcp-note-ingest/    Local MCP server for note ingestion
 docs/                     Install, MCP, demo, roadmap, and test-manual docs
 ```
 
