@@ -31,6 +31,7 @@ vault-demo/
 .codex/config.toml
 .mcp.json
 !plugins/workflow-orchestrator/.mcp.json
+!plugins/mcp-note-ingest/.mcp.json
 
 # Workflow orchestrator runtime state (per-repo; ephemeral plans, reviews,
 # diff dumps; never committed).

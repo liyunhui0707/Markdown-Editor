@@ -19,7 +19,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "/Users/liyunhui/Liyunhui/Codes/markdown-vault-app/tools/mcp-note-ingest/server.js"
+        "/Users/liyunhui/Liyunhui/Codes/markdown-vault-app/plugins/mcp-note-ingest/server.js"
       ],
       "env": {}
     }
