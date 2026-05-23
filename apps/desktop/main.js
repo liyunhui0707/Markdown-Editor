@@ -5,6 +5,7 @@ const fs = require('fs');
 const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
+const { registerSessionIpc }      = require('./lib/session-ipc');
 
 let mainWindow = null;
 let currentVaultWatcher = null;
@@ -718,6 +719,13 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
 ipcMain.handle('open-external-link', async (_event, payload) => {
   return processOpenExternalLink(payload, shell);
 });
+
+// Phase A.1 — register session-import IPC handlers ('import-claude'; Phase A.2
+// adds 'import-codex'). Non-eager: this only wires handler closures. The
+// O_NOFOLLOW runtime check lives inside runImport, so on a platform missing
+// O_NOFOLLOW the first IPC call returns { ok: false, reason: 'platform-unsupported' }
+// instead of failing at app startup.
+registerSessionIpc(ipcMain);
 
 app.whenReady().then(() => {
   createWindow();

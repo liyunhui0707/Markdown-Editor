@@ -1,0 +1,24 @@
+Source app:    /Users/liyunhui/Liyunhui/Codes/Local-Web-Server
+Source commit: 4bb2eb3f01c33890c6576039aea75999aa7e047b
+Generator:     tools/import-claude.js  runImport()
+Generated at:  2026-05-23 (Phase A.1)
+
+Fixed inputs (deterministic):
+  source_mtime:    2026-05-22T12:00:00.000Z
+  imported_at:     2026-05-23T00:00:00.000Z
+  project name:    -Users-test-myproject
+  uuid:            12345678-1234-1234-1234-123456789012
+  includeRaw:      false
+  maxBytes:        52428800
+
+Fixture content (claude-tool-calls.jsonl) intentionally contains forbidden
+allowlist tokens that the reference output MUST NOT contain:
+  - "DROP-ME-THINKING"   (thinking field)
+  - "req_FORBIDDEN_1"    (requestId field)
+  - "req_FORBIDDEN_2"    (requestId field)
+  - "input_tokens"/"output_tokens"  (usage field)
+The parity test asserts both byte-equality with this reference AND zero
+matches for the forbidden tokens above in the reference content.
+
+Regeneration:
+  node /tmp/lws-claude-ref-runner.mjs claude-tool-calls.jsonl > claude-tool-calls.expected.md

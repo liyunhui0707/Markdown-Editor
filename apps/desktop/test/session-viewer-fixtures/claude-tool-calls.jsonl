@@ -1,0 +1,5 @@
+{"type":"user","timestamp":"2026-05-22T11:00:00.000Z","cwd":"/home/example","version":"1.2.3","sessionId":"00000000-0000-4000-8000-000000000002","message":{"content":"please run ls"}}
+{"type":"assistant","timestamp":"2026-05-22T11:00:01.000Z","message":{"content":[{"type":"text","text":"running ls"},{"type":"tool_use","id":"tu_1","name":"Bash","input":{"command":"ls /tmp"}}]},"thinking":"DROP-ME-THINKING","usage":{"input_tokens":20,"output_tokens":8},"requestId":"req_FORBIDDEN_1"}
+{"type":"user","timestamp":"2026-05-22T11:00:02.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"tu_1","content":[{"type":"text","text":"file1\nfile2\n"}]},{"type":"text","text":"thanks"}]}}
+{"type":"assistant","timestamp":"2026-05-22T11:00:03.000Z","message":{"content":[{"type":"tool_use","id":"tu_2","name":"Bash","input":{"command":"cat /nope"}}]},"requestId":"req_FORBIDDEN_2"}
+{"type":"user","timestamp":"2026-05-22T11:00:04.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"tu_2","is_error":true,"content":[{"type":"text","text":"cat: /nope: No such file or directory"}]}]}}

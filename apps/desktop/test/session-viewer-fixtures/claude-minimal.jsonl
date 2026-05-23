@@ -1,0 +1,2 @@
+{"type":"user","timestamp":"2026-05-22T11:00:00.000Z","cwd":"/home/example","version":"1.2.3","sessionId":"00000000-0000-4000-8000-000000000001","message":{"content":"hello"}}
+{"type":"assistant","timestamp":"2026-05-22T11:00:01.000Z","message":{"content":[{"type":"text","text":"hi back"}]},"thinking":"SHOULD-BE-DROPPED","usage":{"input_tokens":10,"output_tokens":4},"requestId":"req_FORBIDDEN","model":"claude-DROP-ME"}
