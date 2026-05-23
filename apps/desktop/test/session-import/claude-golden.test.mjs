@@ -10,67 +10,82 @@ import {
   copyFixtureWithPinnedMtime,
   expectedFromBaseline,
 } from './helpers.mjs';
+import { CLAUDE_SCENARIOS } from './scenarios.mjs';
 import { runClaudeImport } from '../../tools/session-import/import-claude.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, 'fixtures');
-const CLAUDE_FIXTURE_REL = 'claude/basic/test-project/00000000-0000-4000-8000-000000000001.jsonl';
-const CLAUDE_BASELINE = path.join(FIXTURES, 'upstream-baseline/claude-basic.md');
-const CLAUDE_UUID = '00000000-0000-4000-8000-000000000001';
-const CLAUDE_PROJECT = 'test-project';
+const PROJECT = 'test-project';
 
-test('claude: basic scenario byte-equals expectedFromBaseline under fixed now', async (t) => {
-  const tmpRaw = mkTempVault();
-  const tmp = fs.realpathSync(tmpRaw);
-  t.after(() => cleanupTempVault(tmpRaw));
+function countLF(b) {
+  let n = 0;
+  for (let i = 0; i < b.length; i++) if (b[i] === 0x0a) n += 1;
+  return n;
+}
 
-  const srcRoot = path.join(tmp, 'source');
-  const outBase = path.join(tmp, 'output');
-  const fixtureSrc = path.join(FIXTURES, CLAUDE_FIXTURE_REL);
-  const fixtureDest = path.join(srcRoot, CLAUDE_PROJECT, CLAUDE_UUID + '.jsonl');
-  copyFixtureWithPinnedMtime(fixtureSrc, fixtureDest);
+for (const scen of CLAUDE_SCENARIOS) {
+  test(`claude: ${scen.name} bytes equal expectedFromBaseline(claude)`, async (t) => {
+    const tmpRaw = mkTempVault();
+    const tmp = fs.realpathSync(tmpRaw);
+    t.after(() => cleanupTempVault(tmpRaw));
 
-  const result = await runClaudeImport({
-    sourceRoot: srcRoot,
-    outputBase: outBase,
-    maxBytes: 52428800,
-    now: FIXED_NOW,
+    const srcRoot = path.join(tmp, 'source');
+    const outBase = path.join(tmp, 'output');
+    const fixtureSrc = path.join(
+      FIXTURES,
+      'claude',
+      scen.name,
+      PROJECT,
+      scen.uuid + '.jsonl',
+    );
+    const fixtureDest = path.join(srcRoot, PROJECT, scen.uuid + '.jsonl');
+    copyFixtureWithPinnedMtime(fixtureSrc, fixtureDest);
+
+    const result = await runClaudeImport({
+      sourceRoot: srcRoot,
+      outputBase: outBase,
+      maxBytes: 52428800,
+      now: FIXED_NOW,
+    });
+    assert.equal(result.imported, 1, `${scen.name}: one file imported`);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.errors, 0);
+
+    const outPath = path.join(outBase, PROJECT, scen.uuid + '.md');
+    const actual = fs.readFileSync(outPath);
+    const baseline = fs.readFileSync(
+      path.join(FIXTURES, 'upstream-baseline', `claude-${scen.name}.md`),
+    );
+    const expected = expectedFromBaseline(baseline, 'claude');
+    assert.equal(
+      Buffer.compare(actual, expected),
+      0,
+      `${scen.name}: bytes must equal baseline + inserted 'source: claude' line`,
+    );
+    assert.equal(
+      countLF(actual),
+      countLF(baseline) + 1,
+      `${scen.name}: exactly one extra LF`,
+    );
   });
-  assert.equal(result.imported, 1);
-  assert.equal(result.skipped, 0);
-  assert.equal(result.errors, 0);
-
-  const outPath = path.join(outBase, CLAUDE_PROJECT, CLAUDE_UUID + '.md');
-  const actual = fs.readFileSync(outPath);
-  const baseline = fs.readFileSync(CLAUDE_BASELINE);
-  const expected = expectedFromBaseline(baseline, 'claude');
-  assert.equal(
-    Buffer.compare(actual, expected),
-    0,
-    'output bytes must equal baseline + inserted `source: claude` line',
-  );
-
-  const countLF = (b) => {
-    let n = 0;
-    for (let i = 0; i < b.length; i++) if (b[i] === 0x0a) n += 1;
-    return n;
-  };
-  assert.equal(
-    countLF(actual),
-    countLF(baseline) + 1,
-    'exactly one extra LF (the inserted `source:` line)',
-  );
-});
+}
 
 test('claude: basic scenario is idempotent under repeated runs', async (t) => {
   const tmpRaw = mkTempVault();
   const tmp = fs.realpathSync(tmpRaw);
   t.after(() => cleanupTempVault(tmpRaw));
 
+  const uuid = CLAUDE_SCENARIOS[0].uuid;
   const srcRoot = path.join(tmp, 'source');
   const outBase = path.join(tmp, 'output');
-  const fixtureSrc = path.join(FIXTURES, CLAUDE_FIXTURE_REL);
-  const fixtureDest = path.join(srcRoot, CLAUDE_PROJECT, CLAUDE_UUID + '.jsonl');
+  const fixtureSrc = path.join(
+    FIXTURES,
+    'claude',
+    'basic',
+    PROJECT,
+    uuid + '.jsonl',
+  );
+  const fixtureDest = path.join(srcRoot, PROJECT, uuid + '.jsonl');
   copyFixtureWithPinnedMtime(fixtureSrc, fixtureDest);
 
   const args = {
@@ -80,7 +95,7 @@ test('claude: basic scenario is idempotent under repeated runs', async (t) => {
     now: FIXED_NOW,
   };
   await runClaudeImport(args);
-  const outPath = path.join(outBase, CLAUDE_PROJECT, CLAUDE_UUID + '.md');
+  const outPath = path.join(outBase, PROJECT, uuid + '.md');
   const first = fs.readFileSync(outPath);
   await runClaudeImport(args);
   const second = fs.readFileSync(outPath);
