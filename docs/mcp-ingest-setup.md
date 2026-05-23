@@ -4,11 +4,13 @@ This guide explains how to configure the local MCP server so Claude Code and Cod
   
 ## What the MCP tool does  
   
-This project includes a local MCP server at:  
-  
+This project ships the MCP server as a Claude Code plugin distributed via the local `workflow-and-MCP-and-plugins` marketplace. The plugin source lives at:
+
 ```
-tools/mcp-note-ingest/
+plugins/mcp-note-ingest/
 ```
+
+After install, the runnable copy lives in the Claude Code plugin cache at `~/.claude/plugins/cache/workflow-and-MCP-and-plugins/mcp-note-ingest/<version>/`.
 
 The main tool is:
 
@@ -33,8 +35,7 @@ Before configuring any client, test the MCP server directly.
 Open Terminal:
 
 ```
-cd ~/code/markdown-vault-app/tools/mcp-note-ingest  
-npm install  
+cd ~/code/markdown-vault-app/plugins/mcp-note-ingest
 npm run smoke
 ```
 
@@ -44,34 +45,19 @@ If the smoke test passes, your local MCP server is working.
 
 ## 2. Claude Code setup
 
-From the project root:
+Add the local marketplace once and install the plugin:
 
 ```
-cd ~/code/markdown-vault-app  
-claude mcp add mcp-note-ingest --scope project -- node tools/mcp-note-ingest/server.js
-```
-Then verify:
-
-```
-claude mcp list  
-claude mcp get mcp-note-ingest
+/plugin marketplace add /Users/liyunhui/Liyunhui/Codes/markdown-vault-app/plugins
+/plugin install mcp-note-ingest@workflow-and-MCP-and-plugins
+/mcp
 ```
 
-You should also have a project `.mcp.json` file in the repo root.
+`/mcp` should now list `plugin:mcp-note-ingest:mcp-note-ingest · ✔ connected · 8 tools`.
 
-A typical project-level `.mcp.json` looks like this:
-```json
-{
-  "mcpServers": {
-    "mcp-note-ingest": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["tools/mcp-note-ingest/server.js"],
-      "env": {}
-    }
-  }
-}
-```
+The plugin install is per-user (not per-project), so once installed it is available in any Claude Code session — no per-repo `.mcp.json` block needed.
+
+If you already have a project-scope `mcp-note-ingest` block in `.mcp.json` from before the plugin packaging (Phase A of the MCP-inventory cleanup), remove it: it will collide with the plugin install and one of the two will be marked failed in `/mcp`.
 
 ---
 
@@ -88,7 +74,7 @@ inside the project root with content like:
 ```TOML
 [mcp_servers.mcp-note-ingest]  
 command = "node"  
-args = ["tools/mcp-note-ingest/server.js"]  
+args = ["plugins/mcp-note-ingest/server.js"]  
 cwd = "/absolute/path/to/your/repo"  
 enabled = true  
 startup_timeout_sec = 15  
@@ -152,7 +138,7 @@ By default, files land in `/Users/liyunhui/Liyunhui/Inbox/`. To redirect the too
     "mcp-note-ingest": {
       "type": "stdio",
       "command": "node",
-      "args": ["/absolute/path/to/tools/mcp-note-ingest/server.js"],
+      "args": ["/absolute/path/to/plugins/mcp-note-ingest/server.js"],
       "env": { "MCP_INGEST_TARGET_DIR": "/Users/your-name/path/to/your/inbox" }
     }
   }
