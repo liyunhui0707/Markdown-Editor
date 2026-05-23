@@ -1311,6 +1311,10 @@
               <div class="nav-label">Vault Files</div>
               <div class="nav-meta" id="filterVaultMeta">0 notes</div>
             </div>
+            <div class="nav-item" data-filter="sessions" id="filterSessions">
+              <div class="nav-label">AI Sessions</div>
+              <div class="nav-meta" id="filterSessionsMeta">0 notes</div>
+            </div>
           </div>
           <div class="sidebar-divider"></div>
           <div class="panel-tools">
@@ -1323,6 +1327,7 @@
             <div id="searchMeta" class="search-meta">Search all visible notes.</div>
             <div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
           </div>
+          <div id="sessionsRefreshMount" class="sessions-refresh-mount" style="display: none; padding: 8px;"></div>
           <div id="noteList" class="panel-body"></div>
         </aside>
 
@@ -1427,6 +1432,7 @@
     <script src="./lib/doc-stats.js"></script>
     <script src="./lib/note-row.js"></script>
     <script src="./lib/dirty-state.js"></script>
+    <script src="./lib/session-viewer/refresh-button.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1645,10 +1651,13 @@
       const filterAi        = document.getElementById('filterAi');
       const filterDrafts    = document.getElementById('filterDrafts');
       const filterVault     = document.getElementById('filterVault');
+      const filterSessions  = document.getElementById('filterSessions');
       const filterAllMeta   = document.getElementById('filterAllMeta');
       const filterAiMeta    = document.getElementById('filterAiMeta');
       const filterDraftsMeta = document.getElementById('filterDraftsMeta');
       const filterVaultMeta = document.getElementById('filterVaultMeta');
+      const filterSessionsMeta = document.getElementById('filterSessionsMeta');
+      const sessionsRefreshMount = document.getElementById('sessionsRefreshMount');
 
       let stopVaultWatcher        = null;
       let currentVaultPath        = '';
@@ -1939,6 +1948,10 @@
           return notes.filter((note) => note.source === 'vault');
         }
 
+        if (currentFilter === 'sessions') {
+          return notes.filter((note) => note.sessionsImport === true);
+        }
+
         return notes;
       }
 
@@ -1995,6 +2008,7 @@
           || (window.DirtyState && window.DirtyState.isNoteDirty(note))
         ).length} note(s)`;
         filterVaultMeta.textContent  = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
+        filterSessionsMeta.textContent = `${notes.filter((note) => note.sessionsImport === true).length} note(s)`;
       }
 
       function renderFilterNav() {
@@ -2002,8 +2016,10 @@
           [filterAll,    'all'],
           [filterAi,     'ai'],
           [filterDrafts, 'drafts'],
-          [filterVault,  'vault']
+          [filterVault,  'vault'],
+          [filterSessions, 'sessions']
         ];
+        sessionsRefreshMount.style.display = currentFilter === 'sessions' ? '' : 'none';
 
         items.forEach(([element, filterKey]) => {
           element.className = filterKey === currentFilter ? 'nav-item active' : 'nav-item';
@@ -2372,7 +2388,10 @@
       async function chooseVaultFolder() {
         await VaultActions.chooseVaultFolder({
           vaultApi:            window.vaultApi,
-          setCurrentVaultPath: (p) => { currentVaultPath = p; },
+          setCurrentVaultPath: (p) => {
+            currentVaultPath = p;
+            if (sessionsRefreshController) sessionsRefreshController.setVaultPath(p || '');
+          },
           stopWatching:        stopWatchingVault,
           startWatching:       startVaultWatcher,
           refreshVaultNotes:   refreshVaultNotes,
@@ -3557,6 +3576,23 @@
       filterAi.addEventListener('click',     () => setFilter('ai'));
       filterDrafts.addEventListener('click', () => setFilter('drafts'));
       filterVault.addEventListener('click',  () => setFilter('vault'));
+      filterSessions.addEventListener('click', () => setFilter('sessions'));
+
+      const sessionsRefreshController = window.SessionViewer.createRefreshController({
+        root: sessionsRefreshMount,
+        vaultApi: window.vaultApi,
+        document: document,
+        onComplete: () => {
+          if (currentVaultPath) {
+            loadVaultNotes();
+          }
+        },
+      });
+      // Seed the controller with whatever vault path is already present;
+      // currentVaultPath is mutated only via setCurrentVaultPath today, but
+      // seeding defends against future boot paths that populate it via
+      // localStorage / URL / IPC before the user clicks Choose Vault.
+      sessionsRefreshController.setVaultPath(currentVaultPath || '');
 
       document.addEventListener('keydown', async (e) => {
         if (e.isComposing) return;
