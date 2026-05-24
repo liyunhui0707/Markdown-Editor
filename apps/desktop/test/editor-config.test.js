@@ -483,9 +483,13 @@ test('showPreviewMode applies the ratio to .toastui-editor-md-preview after layo
 
 test('showWriteMode captures from the preview scroll element', () => {
   const html = readIndexHtml();
+  // Stage S3: showWriteMode now picks the source based on currentMode
+  // (Read uses readViewMount; otherwise previewScrollEl()). The
+  // capture-from-preview path is still expressed via previewScrollEl(),
+  // so a match anywhere inside showWriteMode is sufficient.
   assert.match(
     html,
-    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\(\s*(?:previewScrollEl\s*\(\s*\)|toastPreviewMount\.querySelector\(\s*['"]\.toastui-editor-md-preview['"]\s*\))\s*\)/
+    /function\s+showWriteMode\s*\([\s\S]*?captureScrollRatio\s*\([\s\S]*?previewScrollEl\s*\(\s*\)/
   );
 });
 
@@ -567,9 +571,13 @@ test('restoreNoteViewState uses applyPreviewScrollRatioWithRetries for the previ
   const html = readIndexHtml();
   // Inside restoreNoteViewState, the preview branch must route through the
   // bounded-retry helper. The Write branch keeps scheduleApplyAfterLayout.
+  // Stage S3: the mode check may use either `saved.mode === 'preview'`
+  // (pre-S3) or `effectiveMode === 'preview'` (S3 introduced the
+  // sessionsImport-aware fallback so a stale `read` mode for a non-session
+  // note is downgraded). Match either form.
   assert.match(
     html,
-    /function\s+restoreNoteViewState\s*\([\s\S]*?saved\.mode\s*===\s*['"]preview['"][\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/
+    /function\s+restoreNoteViewState\s*\([\s\S]*?(?:saved\.mode|effectiveMode)\s*===\s*['"]preview['"][\s\S]*?applyPreviewScrollRatioWithRetries\s*\(/
   );
 });
 
