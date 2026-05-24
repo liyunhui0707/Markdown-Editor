@@ -5,7 +5,9 @@
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
-    "test": "node --test test/*.test.js test/spike-cm6/*.test.js test/cm6-write-view/*.test.js",
+    "test": "node --test test/*.test.js test/spike-cm6/*.test.js test/cm6-write-view/*.test.js test/session-import/*.test.mjs test/session-viewer/*.test.js",
+    "session-import:claude": "node tools/session-import/import-claude.mjs",
+    "session-import:codex": "node tools/session-import/import-codex.mjs",
     "test:write-engine": "node --test test/write-engine.test.js",
     "test:cm6-write-view": "node --test test/cm6-write-view/*.test.js",
     "test:perf": "PERF_BENCH=1 node --test test/cm6-write-view/hybrid-cm6-perf.test.js",

@@ -5,6 +5,10 @@ const fs = require('fs');
 const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
+const SessionImportIpc = require('./lib/session-import-ipc');
+const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
+
+SessionImportIpc.register(ipcMain);
 
 let mainWindow = null;
 let currentVaultWatcher = null;
@@ -297,6 +301,7 @@ function parseMarkdownFile(relativePath, content) {
   }
 
   const aiImported = isAiImported(relativePath, frontmatter.source);
+  const sessionsImport = isSessionsImport(relativePath);
 
   return {
     id: `vault:${relativePath}`,
@@ -311,6 +316,7 @@ function parseMarkdownFile(relativePath, content) {
     relativePath,
     source: 'vault',
     aiImported,
+    sessionsImport,
     frontmatter: {
       tags: normalizeTags(frontmatter.tags),
       source: frontmatter.source || ''

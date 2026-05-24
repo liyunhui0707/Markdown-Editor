@@ -24,6 +24,7 @@ const ScrollSync  = require('../lib/scroll-sync');
 const DocStats    = require('../lib/doc-stats');
 const NoteRow     = require('../lib/note-row');
 const DirtyState  = require('../lib/dirty-state');
+const SessionViewer = require('../lib/session-viewer/refresh-button');
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -211,10 +212,13 @@ function makeRendererHarness({
     'filterAi',
     'filterDrafts',
     'filterVault',
+    'filterSessions',
     'filterAllMeta',
     'filterAiMeta',
     'filterDraftsMeta',
     'filterVaultMeta',
+    'filterSessionsMeta',
+    'sessionsRefreshMount',
     'hybridWritePane',
     'toastPreviewMount',
     'writeModeButton',
@@ -777,6 +781,7 @@ function makeRendererHarness({
     DocStats,
     NoteRow,
     DirtyState,
+    SessionViewer,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
