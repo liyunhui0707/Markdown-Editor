@@ -24,7 +24,10 @@ const ScrollSync  = require('../lib/scroll-sync');
 const DocStats    = require('../lib/doc-stats');
 const NoteRow     = require('../lib/note-row');
 const DirtyState  = require('../lib/dirty-state');
-const SessionViewer = require('../lib/session-viewer/refresh-button');
+const RefreshButton = require('../lib/session-viewer/refresh-button');
+const ReadRenderer = require('../lib/session-viewer/read-renderer');
+const ReadTab = require('../lib/session-viewer/read-tab');
+const SessionViewer = Object.assign({}, RefreshButton, ReadRenderer, ReadTab);
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -219,6 +222,8 @@ function makeRendererHarness({
     'filterVaultMeta',
     'filterSessionsMeta',
     'sessionsRefreshMount',
+    'modeReadButton',
+    'readViewMount',
     'hybridWritePane',
     'toastPreviewMount',
     'writeModeButton',

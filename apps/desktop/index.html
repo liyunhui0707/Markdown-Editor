@@ -919,6 +919,28 @@
         display: block;
       }
 
+      /* Stage S3 — Read-mode mount. Visible only for AI Sessions notes
+         when the Read tab is active. Reads the editor zoom variable so
+         Cmd/Ctrl +/- scales the rendered transcript the same way Write
+         and Preview scale. */
+      .read-view-mount {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 16px;
+        font-size: var(--editor-font-size, 15px);
+      }
+      .read-view-mount.is-visible {
+        display: block;
+      }
+      .read-view-mount .read-section.user-turn h2 {
+        color: var(--text, inherit);
+      }
+      .read-view-mount .read-section .user-typed {
+        font-weight: 500;
+      }
+
       /* Hide only inert Toast UI controls. Do NOT hide
          .toastui-editor-md-tab-style — that wrapper contains the preview
          pane itself; hiding it would make Preview unreachable. */
@@ -1377,6 +1399,14 @@
                     role="tab"
                     aria-selected="false"
                   >Preview</button>
+                  <button
+                    id="modeReadButton"
+                    class="mode-button"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    hidden
+                  >Read</button>
                 </div>
 
                 <!-- hybridWritePane hosts the selected Write surface.
@@ -1385,6 +1415,7 @@
                 <div id="liveEditorContainer" class="live-editor-container">
                   <div id="hybridWritePane" class="hybrid-write-pane"></div>
                   <div id="toastPreviewMount" class="toast-preview-mount"></div>
+                  <div id="readViewMount" class="read-view-mount"></div>
                 </div>
               </div>
             </div>
@@ -1433,6 +1464,10 @@
     <script src="./lib/note-row.js"></script>
     <script src="./lib/dirty-state.js"></script>
     <script src="./lib/session-viewer/refresh-button.js"></script>
+    <script src="./lib/session-viewer/read-inline.js"></script>
+    <script src="./lib/session-viewer/read-user-preprocess.js"></script>
+    <script src="./lib/session-viewer/read-renderer.js"></script>
+    <script src="./lib/session-viewer/read-tab.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1658,6 +1693,15 @@
       const filterVaultMeta = document.getElementById('filterVaultMeta');
       const filterSessionsMeta = document.getElementById('filterSessionsMeta');
       const sessionsRefreshMount = document.getElementById('sessionsRefreshMount');
+      const modeReadButton = document.getElementById('modeReadButton');
+      const readViewMount = document.getElementById('readViewMount');
+      // Stage S3 — Read tab controller. Declared as `let` here so a failed
+      // boot-time init never traps subsequent renderApp() calls in a
+      // temporal-dead-zone error; falls back to a null-guarded no-op if
+      // createReadTabController throws. The actual init runs near the
+      // bottom of the boot script (after all dependencies are in
+      // window.SessionViewer).
+      let readTabController = null;
 
       let stopVaultWatcher        = null;
       let currentVaultPath        = '';
@@ -2184,6 +2228,11 @@
           liveEditorContainer.classList.add('is-no-selection');
           // Stage 6.1: empty/no-selection state is never dirty.
           setStatusFromSelectedNote();
+          // Stage S3 — round-2 m2 fix: clear Read state in no-selection.
+          // Null-guarded: if read-tab init failed at boot, the renderer
+          // still works for non-session notes.
+          if (readTabController) readTabController.setSessionsMode(false);
+          if (currentMode === 'read') setActiveMode('write');
           return;
         }
 
@@ -2191,7 +2240,28 @@
         titleInput.disabled = false;
         liveEditorContainer.classList.remove('is-no-selection');
 
+        // Stage S3 — toggle Read tab visibility BEFORE renderEditor runs.
+        // setSessionsMode only flips `readButton.hidden`; it doesn't touch
+        // `currentMode`, so the round-2 M1 ordering contract (the
+        // `setActiveMode('write')` fallback must run AFTER renderEditor's
+        // captureNoteViewState so the outgoing session note's saved mode
+        // stays correct) is unaffected. Running setSessionsMode first
+        // means the Read button is visible for the user even if
+        // renderEditor / CM6 setText fails on a very large session body.
+        // Null-guarded — boot may have failed to init the controller.
+        if (readTabController) {
+          readTabController.setSessionsMode(!!selectedNote.sessionsImport);
+        }
+
         renderEditor(selectedNote);
+
+        // Defensive fallback: if `restoreNoteViewState` somehow set mode
+        // to 'read' for a note that isn't a session, flip back to Write
+        // so a hidden Read tab isn't left active. This must stay AFTER
+        // renderEditor (round-2 M1 fix).
+        if (currentMode === 'read' && !selectedNote.sessionsImport) {
+          setActiveMode('write');
+        }
         // Pass the note body directly rather than reading via
         // liveEditorInstance.getText() — handleWriteChange and
         // updateSelectedNoteFromInputs keep selectedNote.body in sync with
@@ -3401,7 +3471,9 @@
       }
 
       function activeScrollEl() {
-        return currentMode === 'preview' ? previewScrollEl() : hybridWritePane;
+        if (currentMode === 'preview') return previewScrollEl();
+        if (currentMode === 'read') return readViewMount;
+        return hybridWritePane;
       }
 
       // Double rAF: lets layout commit AND lets Toast UI's own
@@ -3474,20 +3546,41 @@
         if (mode === 'preview') {
           hybridWritePane.classList.add('is-hidden');
           toastPreviewMount.classList.add('is-visible');
+          readViewMount.classList.remove('is-visible');
           writeModeButton.classList.remove('mode-button-active');
           previewModeButton.classList.add('mode-button-active');
+          modeReadButton.classList.remove('mode-button-active');
           writeModeButton.setAttribute('aria-selected', 'false');
           previewModeButton.setAttribute('aria-selected', 'true');
+          modeReadButton.setAttribute('aria-selected', 'false');
           if (wasChange && _toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
             _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
+          }
+        } else if (mode === 'read') {
+          // Stage S3 — Read mode hides both write + preview; the renderer
+          // paints into readViewMount via readTabController.renderInto.
+          hybridWritePane.classList.add('is-hidden');
+          toastPreviewMount.classList.remove('is-visible');
+          readViewMount.classList.add('is-visible');
+          writeModeButton.classList.remove('mode-button-active');
+          previewModeButton.classList.remove('mode-button-active');
+          modeReadButton.classList.add('mode-button-active');
+          writeModeButton.setAttribute('aria-selected', 'false');
+          previewModeButton.setAttribute('aria-selected', 'false');
+          modeReadButton.setAttribute('aria-selected', 'true');
+          if (readTabController) {
+            readTabController.renderInto(getCurrentEditorText());
           }
         } else {
           hybridWritePane.classList.remove('is-hidden');
           toastPreviewMount.classList.remove('is-visible');
+          readViewMount.classList.remove('is-visible');
           writeModeButton.classList.add('mode-button-active');
           previewModeButton.classList.remove('mode-button-active');
+          modeReadButton.classList.remove('mode-button-active');
           writeModeButton.setAttribute('aria-selected', 'true');
           previewModeButton.setAttribute('aria-selected', 'false');
+          modeReadButton.setAttribute('aria-selected', 'false');
         }
       }
 
@@ -3515,9 +3608,21 @@
       // interference on that surface).
       function restoreNoteViewState(noteId) {
         const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
-        setActiveMode(saved.mode);
-        if (saved.mode === 'preview') {
+        // Stage S3 — defensive fallback: if a stored 'read' mode belongs to
+        // a note that is no longer a session (e.g. its frontmatter changed,
+        // or the path moved out of Inbox/AI Chats/), revert to 'write'.
+        const incoming = notes.find((n) => n.id === noteId);
+        let effectiveMode = saved.mode;
+        if (effectiveMode === 'read' && !(incoming && incoming.sessionsImport)) {
+          effectiveMode = 'write';
+        }
+        setActiveMode(effectiveMode);
+        if (effectiveMode === 'preview') {
           applyPreviewScrollRatioWithRetries(saved.scrollRatio);
+        } else if (effectiveMode === 'read') {
+          scheduleApplyAfterLayout(function () {
+            if (_applyScrollRatio) _applyScrollRatio(readViewMount, saved.scrollRatio);
+          });
         } else {
           scheduleApplyAfterLayout(function () {
             if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, saved.scrollRatio);
@@ -3527,12 +3632,33 @@
 
       function showWriteMode() {
         if (currentMode === 'write') return;
-        // Capture from the Preview scroll target BEFORE switching surfaces.
-        const ratio = _captureScrollRatio ? _captureScrollRatio(previewScrollEl()) : 0;
+        // Capture from whichever surface is active before switching. Stage
+        // S3: Read also has a scroll position to carry over.
+        const sourceEl =
+          currentMode === 'read' ? readViewMount : previewScrollEl();
+        const ratio = _captureScrollRatio ? _captureScrollRatio(sourceEl) : 0;
         setActiveMode('write');
         scheduleApplyAfterLayout(function () {
           if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, ratio);
         });
+      }
+
+      function showReadMode() {
+        if (currentMode === 'read') return;
+        // Capture from the outgoing surface so a later return to Write or
+        // Preview can restore it.
+        const sourceEl =
+          currentMode === 'preview' ? previewScrollEl() : hybridWritePane;
+        const ratio = _captureScrollRatio ? _captureScrollRatio(sourceEl) : 0;
+        setActiveMode('read');
+        scheduleApplyAfterLayout(function () {
+          if (_applyScrollRatio) _applyScrollRatio(readViewMount, 0);
+        });
+        // Hold ratio for the eventual return to the outgoing mode via the
+        // noteViewStates path; the per-note state captures the active
+        // scroll element via activeScrollEl() (which now returns
+        // readViewMount during Read).
+        void ratio;
       }
 
       function showPreviewMode() {
@@ -3554,6 +3680,7 @@
 
       writeModeButton.addEventListener('click', showWriteMode);
       previewModeButton.addEventListener('click', showPreviewMode);
+      modeReadButton.addEventListener('click', showReadMode);
 
       titleInput.addEventListener('input', handleEdit);
       titleInput.addEventListener('keydown', (e) => {
@@ -3593,6 +3720,27 @@
       // seeding defends against future boot paths that populate it via
       // localStorage / URL / IPC before the user clicks Choose Vault.
       sessionsRefreshController.setVaultPath(currentVaultPath || '');
+
+      // Stage S3 — Read tab controller. Visible only for AI Sessions notes.
+      // The `let readTabController` was declared early; here we initialise it
+      // inside try/catch so a missing/failed read-renderer module surfaces
+      // the actual error to DevTools instead of poisoning every subsequent
+      // renderApp() call with a temporal-dead-zone ReferenceError.
+      try {
+        readTabController = window.SessionViewer.createReadTabController({
+          readButton: modeReadButton,
+          readMount: readViewMount,
+          document: document,
+          renderMarkdown: window.SessionViewer && window.SessionViewer.renderMarkdown,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[session-viewer] Read tab controller init failed; Read tab disabled.',
+          err,
+        );
+        readTabController = null;
+      }
 
       document.addEventListener('keydown', async (e) => {
         if (e.isComposing) return;
