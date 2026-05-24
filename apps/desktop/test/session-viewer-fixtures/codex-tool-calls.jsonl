@@ -1,0 +1,12 @@
+{"type":"session_meta","payload":{"type":"session_meta","id":"019c5f21-83e1-72c2-a129-83fa090f4c41","cwd":"/home/example","cli_version":"0.42.0","base_instructions":"DROP-ME-BASE-INSTRUCTIONS"}}
+{"type":"turn_context","payload":{"type":"turn_context","model":"gpt-5-codex"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:00.000Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"please run ls"}]}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:01.000Z","payload":{"type":"reasoning","encrypted_content":"DROP-ME-ENCRYPTED","summary":"thinking"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:02.000Z","payload":{"type":"function_call","call_id":"call_ok","name":"shell","arguments":"{\"command\":\"ls /tmp\"}"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:03.000Z","payload":{"type":"function_call_output","call_id":"call_ok","output":"file1\nfile2\n"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:04.000Z","payload":{"type":"function_call","call_id":"call_err","name":"shell","arguments":"{\"command\":\"cat /nope\"}"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:05.000Z","payload":{"type":"function_call_output","call_id":"call_err","output":"cat: /nope: No such file or directory"}}
+{"type":"response_item","timestamp":"2026-05-22T11:00:06.000Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"first command succeeded; second failed"}]}}
+{"type":"event_msg","payload":{"type":"token_count","tokens":1234}}
+{"type":"event_msg","payload":{"type":"exec_command_end","call_id":"call_err","exit_code":1}}
+{"type":"event_msg","payload":{"type":"agent_reasoning","text":"DROP-ME-AGENT-REASONING"}}

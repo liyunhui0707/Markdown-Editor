@@ -76,16 +76,59 @@ function buildClaudeHandler({ homedir, claudeImporter, lock, clock }) {
   };
 }
 
+// Phase A.2 — Codex handler. Mirrors buildClaudeHandler shape; differs in
+// kind name, hardcoded paths, and importer signature parameter
+// (codexImporter accepts an additional `fsOverrides` param but IPC never
+// passes one — that seam is for tests only).
+function buildCodexHandler({ homedir, codexImporter, lock, clock }) {
+  return async function importCodex() {
+    const token = lock.acquire('codex');
+    if (token === null) {
+      return { ok: false, reason: 'in-progress' };
+    }
+    const startedAt = Date.now();
+    try {
+      const home       = homedir();
+      const sourceRoot = path.join(home, '.codex', 'sessions');
+      const outputBase = path.join(home, 'agent-sessions', 'codex');
+      const summary    = await codexImporter({
+        sourceRoot,
+        outputBase,
+        maxBytes:   52428800,    // 50 MB default, matching Local-Web-Server
+        now:        clock(),
+        includeRaw: false,        // HARDCODED — never honors SESSION_IMPORT_RAW.
+      });
+      return {
+        ok: true,
+        importedCount: summary.imported,
+        skippedCount:  summary.skipped,
+        errorCount:    summary.errors,
+        durationMs:    Date.now() - startedAt,
+      };
+    } catch (err) {
+      if (isNoFollowUnsupportedError(err)) {
+        return { ok: false, reason: 'platform-unsupported' };
+      }
+      // Sanitize: drop err.message entirely — importer errors may contain
+      // absolute paths (e.g. 'output ancestor is a symlink: /Users/...').
+      return { ok: false, reason: 'import-error' };
+    } finally {
+      lock.release(token);
+    }
+  };
+}
+
 function createSessionHandlers(opts = {}) {
   const homedir        = opts.homedir        || os.homedir;
   const claudeImporter = opts.claudeImporter || require('./session-importer-claude').runImport;
+  const codexImporter  = opts.codexImporter  || require('./session-importer-codex').runImport;
   const lock           = opts.lock           || require('./session-import-lock');
   const clock          = opts.clock          || (() => new Date());
 
   const importClaude = buildClaudeHandler({ homedir, claudeImporter, lock, clock });
+  const importCodex  = buildCodexHandler({ homedir, codexImporter, lock, clock });
 
-  // Phase A.2 will add importCodex here.
-  return { importClaude };
+  return { importClaude, importCodex };
 }
 
 function registerSessionIpc(ipcMain) {
@@ -96,6 +139,7 @@ function registerSessionIpc(ipcMain) {
   // O_NOFOLLOW; the first IPC call returns 'platform-unsupported'.
   const handlers = createSessionHandlers();
   ipcMain.handle('import-claude', () => handlers.importClaude());
+  ipcMain.handle('import-codex',  () => handlers.importCodex());
 }
 
 module.exports = {

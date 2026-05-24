@@ -1,0 +1,30 @@
+Source app:    /Users/liyunhui/Liyunhui/Codes/Local-Web-Server
+Source commit: 4bb2eb3f01c33890c6576039aea75999aa7e047b
+Generator:     tools/import-codex.js  runImport()
+Generated at:  2026-05-23 (Phase A.2)
+
+Fixed inputs (deterministic):
+  source_mtime:    2026-05-22T12:00:00.000Z
+  imported_at:     2026-05-23T00:00:00.000Z
+  date segments:   YEAR=2026, MONTH=05, DAY=22
+  uuid:            019c5f21-83e1-72c2-a129-83fa090f4c41
+  includeRaw:      false
+  maxBytes:        52428800
+
+Fixture intentionally contains forbidden allowlist tokens that the reference
+output MUST NOT contain:
+  - "DROP-ME-BASE-INSTRUCTIONS"   (session_meta.base_instructions)
+  - "DROP-ME-ENCRYPTED"           (response_item:reasoning.encrypted_content)
+  - "DROP-ME-AGENT-REASONING"     (event_msg:agent_reasoning.text)
+  - "token_count"                 (event_msg:token_count)
+  - "reasoning"                   (response_item:reasoning)
+Fixture ALSO exercises the prepass-across-stream-order edge: the
+event_msg:exec_command_end for call_err appears AFTER its function_call_output.
+The reference output's "### Tool result (error)" block for call_err proves
+the prepass correctly flagged it.
+
+Regeneration (cwd-explicit; absolute fixture/output paths):
+  cd /Users/liyunhui/Liyunhui/Codes/markdown-improvement && \
+  node /tmp/lws-codex-ref-runner.mjs \
+    /Users/liyunhui/Liyunhui/Codes/markdown-improvement/apps/desktop/test/session-viewer-fixtures/codex-tool-calls.jsonl \
+    > /Users/liyunhui/Liyunhui/Codes/markdown-improvement/apps/desktop/test/session-viewer-fixtures/codex-tool-calls.expected.md

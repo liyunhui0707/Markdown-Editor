@@ -61,8 +61,9 @@ const homedir    = () => FIXED_HOME;
 test('Stage A-IPC-1 — registerSessionIpc registers exactly "import-claude" (Phase A.2 adds "import-codex")', () => {
   const ipc = makeFakeIpcMain();
   registerSessionIpc(ipc);
-  assert.strictEqual(ipc.handlers.size, 1);
+  assert.strictEqual(ipc.handlers.size, 2);
   assert.ok(ipc.handlers.has('import-claude'));
+  assert.ok(ipc.handlers.has('import-codex'));
 });
 
 /* ─────────────────────── Stage A-IPC-2 ─────────────────────── */
@@ -204,4 +205,139 @@ test('Stage A-IPC-8 — O_NOFOLLOW-unavailable importer throw maps to { ok: fals
   assert.ok(!isNoFollowUnsupportedError(new Error('unrelated error mentioning O_NOFOLLOW in middle')));
   assert.ok(!isNoFollowUnsupportedError(null));
   assert.ok(!isNoFollowUnsupportedError({ message: 12345 }));
+});
+
+/* ═════════════ Phase A.2 — Codex handler tests (A-IPC-9..14) ═════════════ */
+
+/* ─────────────────────── Stage A-IPC-9 ─────────────────────── */
+test('Stage A-IPC-9 — registerSessionIpc now registers BOTH "import-claude" AND "import-codex" (2 channels)', () => {
+  const ipc = makeFakeIpcMain();
+  registerSessionIpc(ipc);
+  assert.strictEqual(ipc.handlers.size, 2);
+  assert.ok(ipc.handlers.has('import-claude'));
+  assert.ok(ipc.handlers.has('import-codex'));
+});
+
+/* ─────────────────────── Stage A-IPC-10 ─────────────────────── */
+test('Stage A-IPC-10 — codex handler uses hardcoded paths + HARDCODED includeRaw=false even when env.SESSION_IMPORT_RAW="1"', async () => {
+  const calls = [];
+  const codexImporter = async (opts) => {
+    calls.push(opts);
+    return { imported: 0, skipped: 0, errors: 0, outputs: [], root: opts.outputBase };
+  };
+  const lock = makeFakeLock();
+  const clock = () => new Date('2026-05-23T00:00:00.000Z');
+
+  const handlers = createSessionHandlers({
+    homedir,
+    codexImporter,
+    // claudeImporter is left to its real default — A-IPC-10 only exercises codex.
+    lock,
+    clock,
+    env: { SESSION_IMPORT_RAW: '1', SESSION_IMPORT_MAX_BYTES: '12345' },
+  });
+
+  await handlers.importCodex();
+  assert.strictEqual(calls.length, 1);
+  const opts = calls[0];
+  assert.strictEqual(opts.sourceRoot, '/fake/home/.codex/sessions');
+  assert.strictEqual(opts.outputBase, '/fake/home/agent-sessions/codex');
+  assert.strictEqual(opts.includeRaw, false, 'includeRaw HARDCODED to false — allowlist guarantee preserved for codex');
+  assert.ok(opts.now instanceof Date);
+});
+
+/* ─────────────────────── Stage A-IPC-11 ─────────────────────── */
+test('Stage A-IPC-11 — codex importer throw with absolute paths sanitized to typed reason; SECOND call invokes importer again (lock released)', async () => {
+  let invocationCount = 0;
+  const codexImporter = async () => {
+    invocationCount += 1;
+    throw new Error('output ancestor is a symlink: /Users/abs/path/.codex/sessions');
+  };
+  const lock = makeFakeLock();
+  const handlers = createSessionHandlers({ homedir, codexImporter, lock, clock: () => new Date() });
+
+  // First call: rejecting importer → sanitized typed reason.
+  const res1 = await handlers.importCodex();
+  const json1 = JSON.stringify(res1);
+  assert.ok(!/\/Users\//.test(json1),    'no /Users/ leaks into response');
+  assert.ok(!/\.codex/.test(json1),      'no source-root token leaks');
+  assert.ok(!/agent-sessions/.test(json1), 'no output-root token leaks');
+  assert.ok(!/symlink/.test(json1),      'no error message leaks at all');
+  assert.deepStrictEqual(res1, { ok: false, reason: 'import-error' });
+  assert.strictEqual(invocationCount, 1, 'importer invoked once');
+
+  // SECOND call (round-2 M3 fix — lock-release-after-throw): the stub
+  // importer MUST be invoked again. If buildCodexHandler is missing a
+  // try/finally, the lock would stay held and this call would return
+  // 'in-progress' without re-invoking the importer.
+  const res2 = await handlers.importCodex();
+  assert.strictEqual(invocationCount, 2, 'second call invokes importer again — lock was released');
+  assert.notDeepStrictEqual(res2, { ok: false, reason: 'in-progress' },
+    'second call must not return in-progress');
+});
+
+/* ─────────────────────── Stage A-IPC-12 ─────────────────────── */
+test('Stage A-IPC-12 — codex platform-unsupported via exact O_NOFOLLOW prefix', async () => {
+  const codexImporter = async () => {
+    throw new Error(O_NOFOLLOW_UNSUPPORTED_MSG);
+  };
+  const lock = makeFakeLock();
+  const handlers = createSessionHandlers({ homedir, codexImporter, lock, clock: () => new Date() });
+
+  const res = await handlers.importCodex();
+  assert.deepStrictEqual(res, { ok: false, reason: 'platform-unsupported' });
+});
+
+/* ─────────────────────── Stage A-IPC-13 ─────────────────────── */
+test('Stage A-IPC-13 — codex non-prefix error containing "O_NOFOLLOW" substring maps to import-error, NOT platform-unsupported', async () => {
+  const codexImporter = async () => {
+    throw new Error('random error mentioning O_NOFOLLOW in middle of message');
+  };
+  const lock = makeFakeLock();
+  const handlers = createSessionHandlers({ homedir, codexImporter, lock, clock: () => new Date() });
+
+  const res = await handlers.importCodex();
+  assert.deepStrictEqual(res, { ok: false, reason: 'import-error' });
+});
+
+/* ─────────────────────── Stage A-IPC-14 ─────────────────────── */
+test('Stage A-IPC-14 — claude+codex locks are independent; in-flight codex returns in-progress for second codex call', async () => {
+  const lock = makeFakeLock();
+  let releaseClaude;
+  let releaseCodex;
+  let claudeInvocations = 0;
+  let codexInvocations = 0;
+  const claudeImporter = async () => {
+    claudeInvocations += 1;
+    return new Promise((res) => { releaseClaude = () => res({ imported: 1, skipped: 0, errors: 0 }); });
+  };
+  const codexImporter = async () => {
+    codexInvocations += 1;
+    return new Promise((res) => { releaseCodex = () => res({ imported: 1, skipped: 0, errors: 0 }); });
+  };
+  const handlers = createSessionHandlers({
+    homedir,
+    claudeImporter,
+    codexImporter,
+    lock,
+    clock: () => new Date(),
+  });
+
+  // Start both concurrently — both should succeed (locks independent).
+  const claudeP = handlers.importClaude();
+  const codexP = handlers.importCodex();
+  assert.strictEqual(claudeInvocations, 1, 'claude invoked');
+  assert.strictEqual(codexInvocations,  1, 'codex invoked');
+
+  // Second codex call while first is in flight → in-progress.
+  const secondCodex = await handlers.importCodex();
+  assert.deepStrictEqual(secondCodex, { ok: false, reason: 'in-progress' });
+  assert.strictEqual(codexInvocations, 1, 'second codex call did NOT re-invoke importer');
+
+  // Unblock both; claudeP and codexP resolve normally.
+  releaseClaude();
+  releaseCodex();
+  const [claudeRes, codexRes] = await Promise.all([claudeP, codexP]);
+  assert.strictEqual(claudeRes.ok, true);
+  assert.strictEqual(codexRes.ok, true);
 });
