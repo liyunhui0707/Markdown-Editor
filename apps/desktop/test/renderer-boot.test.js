@@ -31,10 +31,14 @@ const LargeSessionGuard = require('../lib/session-viewer/large-session-guard');
 const SearchDom = require('../lib/session-viewer/search-dom');
 const SearchIndex = require('../lib/session-viewer/search-index');
 const InFileSearchToolbar = require('../lib/session-viewer/in-file-search-toolbar');
+const Favorites = require('../lib/session-viewer/favorites');
+const Grouping = require('../lib/session-viewer/grouping');
+const GroupedListRenderer = require('../lib/session-viewer/grouped-list-renderer');
 const SessionViewer = Object.assign(
   {},
   RefreshButton, ReadRenderer, ReadTab, LargeSessionGuard,
   SearchDom, SearchIndex, InFileSearchToolbar,
+  Favorites, Grouping, GroupedListRenderer,
 );
 
 function readIndexHtml() {

@@ -1,0 +1,101 @@
+// Stage S5 — favorites controller for AI Sessions.
+//
+// Port of Local-Web-Server/public/view-state.js favorites helpers
+// (lines 76-124). The pure helpers (loadFavoritesFromStorage,
+// saveFavoritesToStorage, toggleFavorite) remain on the api for
+// direct testing; the convenience controller wraps them with an
+// in-memory Set + an injected storage handle.
+//
+// Storage key is namespaced to match the editor's existing
+// `markdownVault.*` localStorage convention. Upstream's
+// `viewer.favorites` is renamed to avoid collisions.
+//
+// IIFE-wrapped + dual CJS/window export.
+
+'use strict';
+
+(function () {
+
+const DEFAULT_KEY = 'markdownVault.aiSessions.favorites';
+
+function loadFavoritesFromStorage(storage, key) {
+  if (!storage) return new Set();
+  const useKey = key || DEFAULT_KEY;
+  try {
+    const raw = storage.getItem(useKey);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x) => typeof x === 'string'));
+  } catch (_e) {
+    return new Set();
+  }
+}
+
+function saveFavoritesToStorage(storage, set, key) {
+  if (!storage) return;
+  const useKey = key || DEFAULT_KEY;
+  try {
+    storage.setItem(useKey, JSON.stringify([...set]));
+  } catch (_e) {
+    // quota exceeded / unavailable — silently no-op (matches upstream)
+  }
+}
+
+function toggleFavorite(set, relPath) {
+  const next = new Set(set);
+  if (next.has(relPath)) {
+    next.delete(relPath);
+  } else {
+    next.add(relPath);
+  }
+  return next;
+}
+
+function createFavoritesController(opts) {
+  opts = opts || {};
+  const storage = opts.storage || null;
+  const key = opts.key || DEFAULT_KEY;
+  let set = loadFavoritesFromStorage(storage, key);
+
+  return {
+    isFavorite(relativePath) {
+      if (typeof relativePath !== 'string' || relativePath.length === 0) return false;
+      return set.has(relativePath);
+    },
+    toggle(relativePath) {
+      if (typeof relativePath !== 'string' || relativePath.length === 0) return false;
+      set = toggleFavorite(set, relativePath);
+      saveFavoritesToStorage(storage, set, key);
+      return set.has(relativePath);
+    },
+    getAll() {
+      return new Set(set);
+    },
+    size() {
+      return set.size;
+    },
+    clear() {
+      set = new Set();
+      saveFavoritesToStorage(storage, set, key);
+    },
+  };
+}
+
+const api = {
+  FAVORITES_KEY: DEFAULT_KEY,
+  loadFavoritesFromStorage,
+  saveFavoritesToStorage,
+  toggleFavorite,
+  createFavoritesController,
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = api;
+}
+
+if (typeof window !== 'undefined') {
+  window.SessionViewer = Object.assign(window.SessionViewer || {}, api);
+}
+
+})();

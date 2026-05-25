@@ -1053,6 +1053,99 @@
         border-top: 1px solid var(--border, #e0e0e0);
       }
 
+      /* Stage S5 — AI Sessions grouped tree. Mounts inside the
+         existing #noteList container when currentFilter === 'sessions'. */
+      .session-group {
+        margin-bottom: 4px;
+      }
+      .session-group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted, #6c6a5f);
+        cursor: pointer;
+        user-select: none;
+      }
+      .session-group-header:hover {
+        background: var(--border-subtle, #e9e6dd);
+      }
+      .session-group-chevron {
+        width: 12px;
+        font-size: 10px;
+        color: var(--text-muted, #8a8678);
+      }
+      .session-group-title {
+        flex: 1 1 auto;
+      }
+      .session-group-count {
+        font-size: 10px;
+        color: var(--text-faint, #b3ad9d);
+        font-weight: 500;
+      }
+      .session-group-body {
+        padding: 0;
+      }
+      .session-bucket {
+        margin-bottom: 4px;
+      }
+      .session-bucket-header {
+        padding: 4px 10px 4px 22px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-faint, #b3ad9d);
+      }
+      .session-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px 6px 22px;
+        margin-bottom: 2px;
+        border-radius: 4px;
+        cursor: pointer;
+        border-left: 2px solid transparent;
+      }
+      .session-row:hover {
+        background: var(--border-subtle, #e9e6dd);
+      }
+      .session-row--active {
+        background: var(--accent-bg, rgba(109, 74, 224, 0.08));
+        border-left-color: var(--accent, #6d4ae0);
+      }
+      .session-row-title {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .session-row--active .session-row-title {
+        color: var(--accent, #6d4ae0);
+        font-weight: 600;
+      }
+      .session-star {
+        flex: 0 0 auto;
+        width: 16px;
+        font-size: 14px;
+        line-height: 1;
+        text-align: center;
+        color: var(--text-faint, #b3ad9d);
+        cursor: pointer;
+        border-radius: 3px;
+      }
+      .session-star:hover {
+        background: var(--surface-muted, #f0efe9);
+      }
+      .session-star--on {
+        color: var(--warning, #d4a017);
+      }
+
       /* Hide only inert Toast UI controls. Do NOT hide
          .toastui-editor-md-tab-style — that wrapper contains the preview
          pane itself; hiding it would make Preview unreachable. */
@@ -1596,6 +1689,9 @@
     <script src="./lib/session-viewer/search-dom.js"></script>
     <script src="./lib/session-viewer/search-index.js"></script>
     <script src="./lib/session-viewer/in-file-search-toolbar.js"></script>
+    <script src="./lib/session-viewer/favorites.js"></script>
+    <script src="./lib/session-viewer/grouping.js"></script>
+    <script src="./lib/session-viewer/grouped-list-renderer.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1844,6 +1940,12 @@
       let readTabController = null;
       // Stage S4 — in-file search toolbar controller; same null-guard pattern.
       let inFileSearchToolbarController = null;
+      // Stage S5 — AI Sessions favorites + grouped tree.
+      let favoritesController = null;
+      let groupedListRenderer = null;
+      // groupKey -> true (collapsed). Persisted under
+      // `markdownVault.aiSessions.collapsed` as an array of keys.
+      const groupCollapsedState = new Map();
       // Stage S4 — cross-session content-search state.
       //   - globalIndex / globalIndexStatus: managed by search-index.js
       //   - notesGeneration: stamped on the index; compared against
@@ -2324,11 +2426,63 @@
         searchMeta.textContent = `Found ${visibleResults.length} result(s) for "${query}" in the current filter.`;
       }
 
+      // Stage S5 — adapter: turn the editor's notes array (or visible
+      // search results) into the item shape that grouping.js expects.
+      // `agent` is derived from relativePath via the same prefix rules
+      // sessions-filter.js uses (Inbox/AI Chats/<codex|claude-code>/).
+      function relPathToAgent(relativePath) {
+        if (typeof relativePath !== 'string') return 'other';
+        if (relativePath.startsWith('Inbox/AI Chats/codex/')) return 'codex';
+        if (relativePath.startsWith('Inbox/AI Chats/claude-code/')) return 'claude';
+        return 'other';
+      }
+      function notesToSessionItems(notesList) {
+        const items = [];
+        for (const n of notesList || []) {
+          if (!n || n.sessionsImport !== true) continue;
+          const isDirty = window.DirtyState ? window.DirtyState.isNoteDirty(n) : false;
+          const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(n, isDirty) : null;
+          items.push({
+            id: n.id,
+            title: n.title || 'Untitled session',
+            relativePath: n.relativePath || '',
+            agent: relPathToAgent(n.relativePath),
+            mtime: n.mtime,
+            sourceMtime: n.mtime,
+            badge: badge,
+          });
+        }
+        return items;
+      }
+
       function renderNoteList() {
         noteList.innerHTML = '';
 
         const visibleResults = getVisibleResults();
         renderSearchMeta(visibleResults);
+
+        // Stage S5 — AI Sessions filter renders the grouped tree
+        // (Favorites → Codex → Claude → Other; each agent bucketed
+        // Today / Yesterday / Within 3 / Within 7 / Older). Other
+        // filters keep the existing flat-list code path below.
+        if (
+          currentFilter === 'sessions' &&
+          groupedListRenderer && favoritesController &&
+          window.SessionViewer && window.SessionViewer.groupAndSort
+        ) {
+          const items = notesToSessionItems(visibleResults.map((r) => r.note));
+          const tree = window.SessionViewer.groupAndSort(items, {
+            sort: 'newest',
+            today: new Date(),
+            isFavorite: (it) => favoritesController.isFavorite(it.relativePath),
+          });
+          groupedListRenderer.render(tree, selectedNoteId);
+          if (visibleResults.length === 0) {
+            noteList.innerHTML =
+              `<div class="note-meta">No search results in this filter.</div>`;
+          }
+          return;
+        }
 
         visibleResults.forEach((result) => {
           const note = result.note;
@@ -3328,11 +3482,21 @@
           query,
         );
         if (crossSessionResultsList) {
+          // Stage S5: pass `opts.isFavorite` so the existing
+          // renderGlobalResults adds the ★ indicator for favorited
+          // sessions in the cross-session result list. AC-S5-9.
           window.SessionViewer.renderGlobalResults(
             crossSessionResultsList,
             results,
             document,
             (id) => selectNote(id),
+            {
+              isFavorite: (id) => {
+                if (!favoritesController) return false;
+                const note = notes.find((n) => n && n.id === id);
+                return note ? favoritesController.isFavorite(note.relativePath) : false;
+              },
+            },
           );
         }
         if (crossSessionResults) {
@@ -4226,6 +4390,70 @@
           err,
         );
         inFileSearchToolbarController = null;
+      }
+
+      // Stage S5 — AI Sessions favorites + grouped-list controller.
+      try {
+        if (window.SessionViewer && window.SessionViewer.createFavoritesController) {
+          favoritesController = window.SessionViewer.createFavoritesController({
+            storage: window.localStorage,
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[session-viewer] Favorites init failed; favorites disabled.', err);
+        favoritesController = null;
+      }
+
+      // Restore the group-collapse preferences from localStorage.
+      try {
+        const rawCollapsed = window.localStorage.getItem('markdownVault.aiSessions.collapsed');
+        if (rawCollapsed) {
+          const arr = JSON.parse(rawCollapsed);
+          if (Array.isArray(arr)) {
+            for (const k of arr) {
+              if (typeof k === 'string') groupCollapsedState.set(k, true);
+            }
+          }
+        }
+      } catch (_e) { /* garbage data — start with all groups expanded */ }
+
+      try {
+        if (
+          favoritesController &&
+          window.SessionViewer && window.SessionViewer.createGroupedListRenderer
+        ) {
+          groupedListRenderer = window.SessionViewer.createGroupedListRenderer({
+            container: noteList,
+            document: document,
+            favoritesController: favoritesController,
+            onRowClick: (noteId) => selectNote(noteId),
+            onStarClick: (relativePath) => {
+              if (!favoritesController) return;
+              favoritesController.toggle(relativePath);
+              renderApp();
+            },
+            onHeaderToggle: (groupKey) => {
+              if (groupCollapsedState.has(groupKey)) groupCollapsedState.delete(groupKey);
+              else groupCollapsedState.set(groupKey, true);
+              try {
+                const arr = [...groupCollapsedState.keys()];
+                window.localStorage.setItem(
+                  'markdownVault.aiSessions.collapsed', JSON.stringify(arr),
+                );
+              } catch (_e) { /* quota — silent */ }
+              renderApp();
+            },
+            isCollapsed: (groupKey) => groupCollapsedState.has(groupKey),
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[session-viewer] Grouped list renderer init failed; grouped tree disabled.',
+          err,
+        );
+        groupedListRenderer = null;
       }
 
       document.addEventListener('keydown', async (e) => {
