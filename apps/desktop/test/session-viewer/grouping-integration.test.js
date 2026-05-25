@@ -294,3 +294,46 @@ test('T-S5-QA8b bucket-collapse state persists under its own localStorage key', 
     /localStorage\.setItem\([\s\S]*?markdownVault\.aiSessions\.bucketCollapsed/,
   );
 });
+
+// ---------- Round-4 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA9 restoreNoteViewState defaults AI Sessions to read mode + scrollRatio=1', () => {
+  const src = readIndex();
+  // Look for the new default-state branch keyed on isSession.
+  assert.match(
+    src,
+    /function\s+restoreNoteViewState[\s\S]*?const\s+isSession\s*=[\s\S]*?sessionsImport[\s\S]*?const\s+defaultState\s*=\s*isSession[\s\S]*?mode:\s*['"]read['"][\s\S]*?scrollRatio:\s*1/,
+  );
+});
+
+test('T-S5-QA10 deferred-large-session render applies scrollRatio=1 by default for AI Sessions', () => {
+  const src = readIndex();
+  // After forceReadModeWithBody in renderEditor's deferred branch, a
+  // scroll apply runs with defaultScroll = isSession ? 1 : 0.
+  assert.match(
+    src,
+    /forceReadModeWithBody\(note\)[\s\S]*?const\s+isSession\s*=\s*!!note\.sessionsImport[\s\S]*?const\s+defaultScroll\s*=\s*isSession\s*\?\s*1\s*:\s*0[\s\S]*?_applyScrollRatio\(readViewMount,\s*ratio\)/,
+  );
+});
+
+test('T-S5-QA11 watcher preserves selection when changed file is a session import', () => {
+  const src = readIndex();
+  // preferredRelativePath only equals changedPath for non-session AI imports;
+  // sessions fall through to selectedNote.relativePath.
+  assert.match(
+    src,
+    /const\s+preferredRelativePath\s*=[\s\S]*?\(looksLikeAiImport\s*&&\s*!looksLikeSessionsImport\)\s*\?\s*changedPath[\s\S]*?selectedNote\.relativePath/,
+  );
+});
+
+test('T-S5-QA12 watcher writes scrollRatio=1 when selected session got refreshed', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /selectedSessionGotRefreshed\s*=[\s\S]*?looksLikeSessionsImport[\s\S]*?selectedNote\.sessionsImport[\s\S]*?selectedNote\.relativePath\s*===\s*changedPath/,
+  );
+  assert.match(
+    src,
+    /if\s*\(selectedSessionGotRefreshed\)[\s\S]*?noteViewStates\.set\([\s\S]*?scrollRatio:\s*1/,
+  );
+});

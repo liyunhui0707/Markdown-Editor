@@ -2266,6 +2266,17 @@
               readTabController.setSessionsMode(true);
             }
             forceReadModeWithBody(note);
+            // Stage S5 round-4 QA fix: AI Sessions default to scroll-bottom
+            // on first open (so the latest content is visible); honor saved
+            // scroll when present. Mirrors the eager-path semantics in
+            // restoreNoteViewState.
+            const isSession = !!note.sessionsImport;
+            const defaultScroll = isSession ? 1 : 0;
+            const savedView = noteViewStates.get(note.id);
+            const ratio = savedView ? savedView.scrollRatio : defaultScroll;
+            scheduleApplyAfterLayout(function () {
+              if (_applyScrollRatio) _applyScrollRatio(readViewMount, ratio);
+            });
           } else {
             // EAGER PATH (existing behavior).
             // Restore from cache when possible: same note id AND cached doc
@@ -2791,12 +2802,35 @@
             changedPath.startsWith('Inbox/AI Chats/claude-code/');
 
           const selectedNote = getSelectedNote();
+          // Stage S5 round-4 QA fix: for session imports, the user
+          // explicitly does NOT want Refresh to yank selection to the
+          // last-changed file. Stay on the currently-selected note
+          // (vault OR session). Only true AI-imports (MCP-ingested)
+          // still auto-jump to the changed path.
           const preferredRelativePath =
-            looksLikeAiImport
+            (looksLikeAiImport && !looksLikeSessionsImport)
               ? changedPath
-              : selectedNote && selectedNote.source === 'vault'
+              : selectedNote && selectedNote.relativePath
               ? selectedNote.relativePath
               : '';
+
+          // Stage S5 round-4 QA fix: when the currently-viewed session's
+          // source file was just rewritten by Refresh, scroll its Read
+          // view to the bottom so the user sees the latest content.
+          // Persisted via noteViewStates BEFORE refreshVaultNotes runs
+          // so the post-refresh render picks it up automatically.
+          const selectedSessionGotRefreshed =
+            looksLikeSessionsImport &&
+            selectedNote &&
+            selectedNote.sessionsImport === true &&
+            selectedNote.relativePath === changedPath;
+          if (selectedSessionGotRefreshed) {
+            const saved = noteViewStates.get(selectedNote.id);
+            noteViewStates.set(selectedNote.id, {
+              mode: saved && saved.mode === 'preview' ? 'preview' : 'read',
+              scrollRatio: 1,
+            });
+          }
 
           // The watcher only knows that one file changed on disk; every other
           // vault-backed note is unchanged on disk and must keep its in-memory
@@ -4218,13 +4252,21 @@
       // restores keep the lighter scheduleApplyAfterLayout (no Toast UI
       // interference on that surface).
       function restoreNoteViewState(noteId) {
-        const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
+        // Stage S5 round-4 QA fix: for AI Sessions notes that haven't
+        // been visited before, default to Read mode with scrollRatio=1
+        // (bottom — show the latest content). For non-session notes,
+        // keep the historical Write/0 default.
+        const incoming = notes.find((n) => n.id === noteId);
+        const isSession = !!(incoming && incoming.sessionsImport);
+        const defaultState = isSession
+          ? { mode: 'read', scrollRatio: 1 }
+          : { mode: 'write', scrollRatio: 0 };
+        const saved = noteViewStates.get(noteId) || defaultState;
         // Stage S3 — defensive fallback: if a stored 'read' mode belongs to
         // a note that is no longer a session (e.g. its frontmatter changed,
         // or the path moved out of Inbox/AI Chats/), revert to 'write'.
-        const incoming = notes.find((n) => n.id === noteId);
         let effectiveMode = saved.mode;
-        if (effectiveMode === 'read' && !(incoming && incoming.sessionsImport)) {
+        if (effectiveMode === 'read' && !isSession) {
           effectiveMode = 'write';
         }
         setActiveMode(effectiveMode);
