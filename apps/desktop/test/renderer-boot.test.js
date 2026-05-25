@@ -28,7 +28,14 @@ const RefreshButton = require('../lib/session-viewer/refresh-button');
 const ReadRenderer = require('../lib/session-viewer/read-renderer');
 const ReadTab = require('../lib/session-viewer/read-tab');
 const LargeSessionGuard = require('../lib/session-viewer/large-session-guard');
-const SessionViewer = Object.assign({}, RefreshButton, ReadRenderer, ReadTab, LargeSessionGuard);
+const SearchDom = require('../lib/session-viewer/search-dom');
+const SearchIndex = require('../lib/session-viewer/search-index');
+const InFileSearchToolbar = require('../lib/session-viewer/in-file-search-toolbar');
+const SessionViewer = Object.assign(
+  {},
+  RefreshButton, ReadRenderer, ReadTab, LargeSessionGuard,
+  SearchDom, SearchIndex, InFileSearchToolbar,
+);
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -226,6 +233,15 @@ function makeRendererHarness({
     'modeReadButton',
     'readViewMount',
     'sessionsLargeBanner',
+    // Stage S4 — in-file search toolbar + cross-session results.
+    'inFileSearchToolbar',
+    'inFileSearchInput',
+    'inFileSearchPrev',
+    'inFileSearchNext',
+    'inFileSearchCounter',
+    'crossSessionResults',
+    'crossSessionResultsList',
+    'crossSessionIndexBanner',
     'hybridWritePane',
     'toastPreviewMount',
     'writeModeButton',

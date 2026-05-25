@@ -291,11 +291,19 @@ test('note-list click flushes the editor before changing selectedNoteId', () => 
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // The note-list item click handler must call exitWriteMode BEFORE setting
-  // selectedNoteId, so uncommitted edits on the outgoing note are preserved.
-  assert.match(
-    html,
-    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?exitWriteMode\s*\([\s\S]*?selectedNoteId\s*=\s*note\.id/
+  // Stage S4: the note-list click handler now delegates to selectNote(noteId)
+  // (round-1 plan-review B2 fix). The flush-before-selection contract
+  // moved into the shared selectNote helper. Accept either the inline
+  // form (legacy) OR the new delegated form, AND verify the helper itself
+  // still has the flush-then-reassign sequence.
+  const inline = /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?exitWriteMode\s*\([\s\S]*?selectedNoteId\s*=\s*note\.id/;
+  const delegated =
+    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?selectNote\(note\.id\)/;
+  const helperHasFlush =
+    /function\s+selectNote\s*\([^)]*\)[\s\S]*?exitWriteMode\s*\([\s\S]*?selectedNoteId\s*=/;
+  assert.ok(
+    inline.test(html) || (delegated.test(html) && helperHasFlush.test(html)),
+    'note-list click must either inline the flush OR delegate to selectNote() which contains the flush sequence',
   );
 });
 
@@ -433,14 +441,20 @@ test('note-list click writes flushed text back to the outgoing note before chang
     path.join(__dirname, '..', 'index.html'),
     'utf8'
   );
-  // Inside the note-list click handler, the outgoing note's body must be
-  // updated from liveEditorInstance.getText() BEFORE selectedNoteId mutates.
-  assert.match(
-    html,
-    // Stage S3.5: outgoing capture now goes through bodyForRead so a
-    // deferred large AI Sessions note doesn't get clobbered with
-    // empty CM6 content. Accept either pattern.
-    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?selectedNoteId\s*=\s*note\.id/
+  // Stage S3.5: outgoing capture goes through bodyForRead so a deferred
+  // large AI Sessions note doesn't get clobbered.
+  // Stage S4: the flush-and-reassign body moved into selectNote(noteId);
+  // accept either the inline pattern OR the delegation pattern + the
+  // selectNote helper containing the same sequence (round-1 B2 fix).
+  const inline =
+    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?selectedNoteId\s*=\s*note\.id/;
+  const delegated =
+    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?selectNote\(note\.id\)/;
+  const helperHasCapture =
+    /function\s+selectNote\s*\([^)]*\)[\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?selectedNoteId\s*=/;
+  assert.ok(
+    inline.test(html) || (delegated.test(html) && helperHasCapture.test(html)),
+    'note-list click outgoing-flush contract must hold either inline or via selectNote()',
   );
 });
 
