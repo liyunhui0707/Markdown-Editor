@@ -19,20 +19,21 @@
 
 (function () {
 
-const LAYER_ORDER = ['today', 'yesterday', 'w3', 'w7', 'older'];
+// Stage S5 round-2 QA fix (T2): simplified to 3 layers per user
+// feedback. Was: today / yesterday / w3 / w7 / older. Now:
+//   today    — day delta <= 0 (today or future-dated)
+//   w3       — day delta 1..3
+//   older    — day delta > 3
+const LAYER_ORDER = ['today', 'w3', 'older'];
 const LAYER_LABEL = {
   today: 'Today',
-  yesterday: 'Yesterday',
   w3: 'Within 3 Days',
-  w7: 'Within 7 Days',
-  older: 'Older Than 7 Days',
+  older: 'Older Than 3 Days',
 };
 
 function layerOf(d) {
   if (d <= 0) return 'today';
-  if (d === 1) return 'yesterday';
   if (d <= 3) return 'w3';
-  if (d <= 7) return 'w7';
   return 'older';
 }
 
@@ -110,8 +111,12 @@ function groupAndSort(items, opts) {
     },
   };
   if (typeof isFavorite === 'function') {
+    // Stage S5 round-2 QA fix (T2): the Favorites group renders FLAT
+    // (no date buckets). User wants quick access to starred sessions
+    // without the date-bucket noise. Agent groups (codex/claude/other)
+    // still bucketize for organisation.
     const favs = (items || []).filter((it) => it && isFavorite(it));
-    result.favorite = bucketize(favs, today, sort);
+    result.favorite = sortList(favs.slice(), sort, true);
     result.counts.favorite = countAgent(favs);
   }
   return result;

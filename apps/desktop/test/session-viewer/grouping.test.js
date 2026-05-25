@@ -65,7 +65,7 @@ test('T-S5-8 groupAndSort skips null items', () => {
 
 // ---------- favorites overlay ----------
 
-test('T-S5-9 favorites overlay populated when isFavorite given', () => {
+test('T-S5-9 favorites overlay populated when isFavorite given (flat — round-2 QA fix)', () => {
   const items = [
     makeItem({ id: 'a', relativePath: 'p/a.md' }),
     makeItem({ id: 'b', relativePath: 'p/b.md' }),
@@ -77,6 +77,13 @@ test('T-S5-9 favorites overlay populated when isFavorite given', () => {
   });
   assert.ok(out.favorite, 'favorite group should be present');
   assert.equal(out.counts.favorite.sessions, 2);
+  // Round-2 QA fix (T2): favorites are FLAT, not bucketized.
+  // Each entry is an item, not a bucket; no `layerId`/`label`.
+  assert.equal(out.favorite.length, 2);
+  for (const entry of out.favorite) {
+    assert.ok(entry.id, 'flat shape: items have id, not layerId');
+    assert.equal(entry.layerId, undefined);
+  }
 });
 
 test('T-S5-9b favorite group is omitted when isFavorite not given', () => {
@@ -98,15 +105,14 @@ test('T-S5-9c favorite group is empty array when no items match', () => {
 
 // ---------- bucketize / layerOf ----------
 
-test('T-S5-10 layerOf day-delta rules', () => {
+test('T-S5-10 layerOf day-delta rules (3-layer scheme, round-2 QA fix)', () => {
+  // Today / Within 3 Days / Older Than 3 Days
   assert.equal(Grouping.layerOf(0), 'today');
   assert.equal(Grouping.layerOf(-5), 'today');  // future also goes to today
-  assert.equal(Grouping.layerOf(1), 'yesterday');
-  assert.equal(Grouping.layerOf(2), 'w3');
+  assert.equal(Grouping.layerOf(1), 'w3');
   assert.equal(Grouping.layerOf(3), 'w3');
-  assert.equal(Grouping.layerOf(4), 'w7');
-  assert.equal(Grouping.layerOf(7), 'w7');
-  assert.equal(Grouping.layerOf(8), 'older');
+  assert.equal(Grouping.layerOf(4), 'older');
+  assert.equal(Grouping.layerOf(7), 'older');
   assert.equal(Grouping.layerOf(100), 'older');
 });
 
@@ -115,14 +121,12 @@ test('T-S5-11 bucketize creates buckets per layer + LAYER_ORDER preserved', () =
   const items = [
     makeItem({ id: 'a', mtime: today, agent: 'codex' }),
     makeItem({ id: 'b', mtime: daysAgo(1, today), agent: 'codex' }),
-    makeItem({ id: 'c', mtime: daysAgo(5, today), agent: 'codex' }),
-    makeItem({ id: 'd', mtime: daysAgo(15, today), agent: 'codex' }),
+    makeItem({ id: 'c', mtime: daysAgo(15, today), agent: 'codex' }),
   ];
   const out = Grouping.groupAndSort(items, { today });
   const layerIds = out.codex.map((b) => b.layerId);
-  // LAYER_ORDER = today, yesterday, w3, w7, older
-  assert.deepEqual(layerIds, ['today', 'yesterday', 'w7', 'older']);
-  // w3 has 0 items → bucket skipped.
+  // 3-layer LAYER_ORDER = today, w3, older.
+  assert.deepEqual(layerIds, ['today', 'w3', 'older']);
 });
 
 test('T-S5-12 empty buckets are skipped', () => {
@@ -204,10 +208,9 @@ test('T-S5-15a other is bucketed uniformly with codex/claude (round-1 diff-revie
 
 // ---------- LAYER constants ----------
 
-test('LAYER_ORDER + LAYER_LABEL are exported and immutable-friendly', () => {
-  assert.deepEqual(Grouping.LAYER_ORDER, ['today', 'yesterday', 'w3', 'w7', 'older']);
+test('LAYER_ORDER + LAYER_LABEL (3-layer scheme, round-2 QA fix)', () => {
+  assert.deepEqual(Grouping.LAYER_ORDER, ['today', 'w3', 'older']);
   assert.equal(Grouping.LAYER_LABEL.today, 'Today');
   assert.equal(Grouping.LAYER_LABEL.w3, 'Within 3 Days');
-  assert.equal(Grouping.LAYER_LABEL.w7, 'Within 7 Days');
-  assert.equal(Grouping.LAYER_LABEL.older, 'Older Than 7 Days');
+  assert.equal(Grouping.LAYER_LABEL.older, 'Older Than 3 Days');
 });

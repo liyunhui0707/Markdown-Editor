@@ -181,3 +181,44 @@ test('SC-S5-2 grouped-list-renderer.js source has no innerHTML write', () => {
   );
   assert.ok(!/\.innerHTML\s*=/.test(src));
 });
+
+// ---------- Round-2 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA1 watcher does NOT auto-jump to AI Imports when changed file is a sessions import', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /const\s+looksLikeSessionsImport\s*=[\s\S]*?Inbox\/AI Chats\/codex\/[\s\S]*?Inbox\/AI Chats\/claude-code\//,
+  );
+  assert.match(
+    src,
+    /if\s*\(\s*looksLikeAiImport\s*&&\s*!looksLikeSessionsImport\s*\)/,
+  );
+});
+
+test('T-S5-QA2 AI Imports filter excludes session-imports (disjoint from AI Sessions)', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /currentFilter\s*===\s*['"]ai['"][\s\S]*?notes\.filter\(\s*\(note\)\s*=>\s*note\.aiImported\s*===\s*true\s*&&\s*note\.sessionsImport\s*!==\s*true/,
+  );
+});
+
+test('T-S5-QA2b AI Imports nav count predicate is the same disjoint filter', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /filterAiMeta\.textContent[\s\S]*?note\.aiImported\s*===\s*true\s*&&\s*note\.sessionsImport\s*!==\s*true/,
+  );
+});
+
+test('T-S5-QA3 main.js attaches mtime to vault notes via fs.statSync', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'main.js'),
+    'utf8',
+  );
+  assert.match(src, /function\s+parseMarkdownFile\s*\(\s*relativePath\s*,\s*content\s*,\s*stat\s*\)/);
+  assert.match(src, /mtime:\s*stat\s*&&\s*stat\.mtimeMs/);
+  assert.match(src, /fs\.statSync\(fullPath\)/);
+  assert.match(src, /parseMarkdownFile\(relativePath,\s*content,\s*stat\)/);
+});

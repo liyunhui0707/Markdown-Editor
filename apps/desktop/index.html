@@ -2282,7 +2282,14 @@
 
       function getBaseFilteredNotes() {
         if (currentFilter === 'ai') {
-          return notes.filter((note) => note.aiImported === true);
+          // Stage S5: exclude session-imports from AI Imports so the
+          // two filters are disjoint. Sessions still match
+          // isAiImported (they have `source: claude/codex` in
+          // frontmatter), but the user wants AI Imports = MCP-ingested
+          // only; sessions live exclusively under AI Sessions.
+          return notes.filter(
+            (note) => note.aiImported === true && note.sessionsImport !== true,
+          );
         }
 
         if (currentFilter === 'drafts') {
@@ -2352,7 +2359,8 @@
 
       function updateFilterCounts() {
         filterAllMeta.textContent    = `${notes.length} note(s)`;
-        filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true).length} note(s)`;
+        // Stage S5: AI Imports count excludes sessions (disjoint from AI Sessions).
+        filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true && note.sessionsImport !== true).length} note(s)`;
         filterDraftsMeta.textContent = `${notes.filter((note) =>
           note.source === 'draft'
           || (window.DirtyState && window.DirtyState.isNoteDirty(note))
@@ -2743,6 +2751,14 @@
 
           const changedPath = String(payload?.fileName || '').replace(/\\/g, '/');
           const looksLikeAiImport = changedPath.toLowerCase().startsWith('inbox/ai chats/');
+          // Stage S5: a session import (Inbox/AI Chats/<codex|claude-code>/...)
+          // ALSO matches `inbox/ai chats/`. After Fix #2 sessions don't
+          // belong to AI Imports anymore, and the Refresh button in
+          // AI Sessions writes session files — auto-jumping to AI Imports
+          // would yank the user out of the filter they just used.
+          const looksLikeSessionsImport =
+            changedPath.startsWith('Inbox/AI Chats/codex/') ||
+            changedPath.startsWith('Inbox/AI Chats/claude-code/');
 
           const selectedNote = getSelectedNote();
           const preferredRelativePath =
@@ -2771,7 +2787,7 @@
             return;
           }
 
-          if (looksLikeAiImport) {
+          if (looksLikeAiImport && !looksLikeSessionsImport) {
             const matchedNote = notes.find((note) => note.relativePath === changedPath);
 
             if (matchedNote) {

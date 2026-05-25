@@ -206,9 +206,15 @@ function createGroupedListRenderer(opts) {
       body.hidden = true;
     }
 
-    // Stage S5 round-1 diff-review M1 fix: render `other` with the
-    // same Today/Yesterday/W3/W7/Older bucket structure as codex and
-    // claude. The grouping module now bucketizes `other` uniformly.
+    // Stage S5 round-2 QA fix (T2): the Favorites group renders flat
+    // (the grouping module now returns a flat sorted array for
+    // `favorite`); agent groups (codex/claude/other) keep buckets.
+    if (groupKey === 'favorite') {
+      for (const item of contents || []) {
+        body.appendChild(makeRow(item, currentSelectedId));
+      }
+      return body;
+    }
     for (const bucket of contents || []) {
       body.appendChild(makeBucket(bucket, currentSelectedId));
     }

@@ -94,6 +94,27 @@ test('T-S5-17 builds 4 section headers when there is at least one favorite (favo
   assert.deepEqual(keys, ['favorite', 'codex', 'claude', 'other']);
 });
 
+test('T-S5-17a favorite group body is FLAT (rows directly, no bucket wrappers) — round-2 QA fix', () => {
+  const h = makeHarness();
+  h.favoritesController.toggle('Inbox/AI Chats/codex/a.md');
+  h.renderer.render(sampleTree(h.favoritesController), null);
+  // Find the favorite group
+  const favGroup = findAllByClass(h.container, 'session-group')
+    .find((g) => g.attrs['data-group-key'] === 'favorite');
+  assert.ok(favGroup, 'favorite group should be rendered');
+  const favBody = favGroup.children[1];
+  assert.equal(favBody.attrs.class, 'session-group-body');
+  // The body's direct children must be `.session-row`, not `.session-bucket`.
+  const directRows = (favBody.children || []).filter(
+    (c) => c.attrs && String(c.attrs.class || '').split(' ').includes('session-row'),
+  );
+  const directBuckets = (favBody.children || []).filter(
+    (c) => c.attrs && String(c.attrs.class || '').split(' ').includes('session-bucket'),
+  );
+  assert.equal(directBuckets.length, 0, 'favorite group must NOT have bucket headers');
+  assert.equal(directRows.length, 1, 'one favorite row directly in body');
+});
+
 test('T-S5-18 bucket headers nested inside agent group bodies (today/etc.)', () => {
   const h = makeHarness();
   h.renderer.render(sampleTree(h.favoritesController), null);

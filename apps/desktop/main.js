@@ -283,7 +283,7 @@ function isAiImported(relativePath, frontmatterSource) {
   return aiSources.has(source);
 }
 
-function parseMarkdownFile(relativePath, content) {
+function parseMarkdownFile(relativePath, content, stat) {
   const fileName = path.basename(relativePath);
   const { frontmatter, body: contentWithoutFrontmatter } = parseFrontmatter(content);
   const lines = contentWithoutFrontmatter.split('\n');
@@ -317,6 +317,12 @@ function parseMarkdownFile(relativePath, content) {
     source: 'vault',
     aiImported,
     sessionsImport,
+    // Stage S5 — file mtime as epoch ms (Date | undefined). Used by
+    // the AI Sessions grouped tree to bucket sessions by recency.
+    // `null`-safe: caller passes the fs.Stats object opportunistically;
+    // missing stat (e.g., test fixtures, in-memory drafts) leaves
+    // mtime undefined and the grouper falls back to 'older' bucket.
+    mtime: stat && stat.mtimeMs ? stat.mtimeMs : (stat && stat.mtime ? stat.mtime : undefined),
     frontmatter: {
       tags: normalizeTags(frontmatter.tags),
       source: frontmatter.source || ''
@@ -700,7 +706,11 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
     const notes = relativePaths.map((relativePath) => {
       const fullPath = path.join(vaultPath, relativePath);
       const content = fs.readFileSync(fullPath, 'utf8');
-      return parseMarkdownFile(relativePath, content);
+      // Stage S5: capture file mtime so the renderer can bucket
+      // AI Sessions by recency. Stat error → undefined (best-effort).
+      let stat = null;
+      try { stat = fs.statSync(fullPath); } catch (_e) { /* swallow */ }
+      return parseMarkdownFile(relativePath, content, stat);
     });
 
     return {
