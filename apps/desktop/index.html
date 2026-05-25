@@ -957,6 +957,47 @@
         font-weight: 500;
       }
 
+      /* Stage S5 round-8 QA fix: user turns get a tinted background +
+         left accent stripe so they are visually distinct from
+         assistant turns. The negative margin pulls the surface to the
+         edges of readViewMount's 16px padding so the band reads as
+         "this whole stripe = the user".  */
+      .read-view-mount .read-section.user-turn {
+        background: var(--accent-bg, rgba(109, 74, 224, 0.08));
+        border-left: 3px solid var(--accent, #6d4ae0);
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin: 8px -16px 16px -16px;
+      }
+      .read-view-mount .read-section.assistant-turn {
+        padding: 8px 0;
+      }
+
+      /* Stage S5 round-8 QA fix: GFM tables in the Read view get a
+         minimal but legible default — collapsed borders, padded cells,
+         tinted header, alternating body rows. Without these the
+         renderer's <table>/<thead>/<tbody> markup falls back to the
+         browser's borderless default and looks like run-on text. */
+      .read-view-mount table {
+        border-collapse: collapse;
+        margin: 8px 0 16px 0;
+        font-size: 0.95em;
+      }
+      .read-view-mount th,
+      .read-view-mount td {
+        border: 1px solid var(--border, #e2dfd6);
+        padding: 4px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .read-view-mount thead th {
+        background: var(--surface-muted, #f0efe9);
+        font-weight: 600;
+      }
+      .read-view-mount tbody tr:nth-child(even) {
+        background: var(--surface-sidebar, #efede6);
+      }
+
       /* Stage S4 — in-file search toolbar. Sits between the editor
          action bar and readViewMount; visible only in Read mode. */
       .in-file-search-toolbar {
