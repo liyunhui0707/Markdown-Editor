@@ -33,17 +33,18 @@ test('index.html loads large-session-guard.js script', () => {
   );
 });
 
-test('index.html declares the sessionsLargeBanner DOM element', () => {
-  const src = readIndex();
-  assert.match(
-    src,
-    /<div\s+id="sessionsLargeBanner"[^>]*hidden[^>]*>/,
-  );
-});
+// Stage S6 removed the sessionsLargeBanner DOM + CSS and the
+// showLargeBanner / hideLargeBanner helpers. AI Sessions are now
+// read-only; there's no Write/Preview surface to load and therefore
+// no "may be slow" message to display. Tests for those literals
+// were deleted.
 
-test('index.html declares the .sessions-large-banner CSS class', () => {
+test('Stage S6: sessionsLargeBanner DOM and CSS are gone', () => {
   const src = readIndex();
-  assert.match(src, /\.sessions-large-banner\s*\{/);
+  assert.doesNotMatch(src, /<div\s+id="sessionsLargeBanner"/);
+  assert.doesNotMatch(src, /\.sessions-large-banner\s*\{/);
+  assert.doesNotMatch(src, /showLargeBanner\s*\(/);
+  assert.doesNotMatch(src, /hideLargeBanner\s*\(/);
 });
 
 test('index.html boots a hydrationCache from window.SessionViewer.createHydrationCache', () => {
@@ -59,13 +60,15 @@ test('index.html defines a bodyForRead helper', () => {
   assert.match(src, /function\s+bodyForRead\s*\(/);
 });
 
-test('bodyForRead returns note.body when isLargeSession AND !cm6-hydrated', () => {
+test('bodyForRead returns note.body for sessions OR large notes when CM6 unhydrated', () => {
   const src = readIndex();
-  // The helper must check isLargeSession AND hydrationCache.isHydrated
-  // before falling back to note.body.
+  // Stage S6: predicate broadened from isLargeSession-only to
+  // (isSession || isLarge). Sessions never hydrate CM6 anymore, so
+  // they always fall through to note.body for save / outgoing-capture
+  // paths.
   assert.match(
     src,
-    /function\s+bodyForRead\s*\([^)]*\)\s*\{[\s\S]*?isLargeSession[\s\S]*?hydrationCache\.isHydrated\s*\([^)]*'cm6'[^)]*\)[\s\S]*?note\.body/,
+    /function\s+bodyForRead\s*\([^)]*\)\s*\{[\s\S]*?isSession[\s\S]*?isLarge[\s\S]*?hydrationCache\.isHydrated\s*\([^)]*'cm6'[^)]*\)[\s\S]*?note\.body/,
   );
 });
 
@@ -78,47 +81,34 @@ test('index.html defines forceReadModeWithBody that calls renderInto with note.b
   );
 });
 
-test('renderEditor deferred branch checks isLargeSession AND skips eager setText', () => {
+test('Stage S6: renderEditor session branch goes straight to forceReadModeWithBody', () => {
   const src = readIndex();
-  // Look for the pattern inside renderEditor: if (isLarge && !cm6Hydrated)
-  // then forceReadModeWithBody, else (existing) liveEditorInstance.setText.
+  // The session branch now checks sessionsImport, not isLargeSession,
+  // and uses forceReadModeWithBody for ALL sessions (small + large).
   assert.match(
     src,
-    /isLargeSession[\s\S]*?hydrationCache\.isHydrated[\s\S]*?'cm6'[\s\S]*?forceReadModeWithBody/,
+    /const\s+isSession\s*=\s*note\.sessionsImport\s*===\s*true[\s\S]*?if\s*\(isSession\)[\s\S]*?forceReadModeWithBody\(note\)/,
   );
 });
 
-test('renderEditor non-deferred branch (eager) marks hydrated for already-large notes', () => {
+test('Stage S6: showWriteMode early-returns for sessions; the deferred-write banner branch is gone', () => {
   const src = readIndex();
-  // After the eager setText, isLarge notes mark both surfaces hydrated.
   assert.match(
     src,
-    /liveEditorInstance\.setText\(note\.body\)[\s\S]*?hydrationCache\.markHydrated\([^,]*,\s*'cm6'\)[\s\S]*?hydrationCache\.markHydrated\([^,]*,\s*'toast'\)/,
+    /function\s+showWriteMode[\s\S]*?note\.sessionsImport\s*===\s*true[\s\S]*?return/,
   );
+  // The old `showLargeBanner('loading-write'...)` deferred Write path
+  // is gone.
+  assert.doesNotMatch(src, /showLargeBanner\(\s*['"]loading-write['"]/);
 });
 
-test('showWriteMode deferred branch uses double-rAF before setText', () => {
+test('Stage S6: showPreviewMode early-returns for sessions; the deferred-preview banner branch is gone', () => {
   const src = readIndex();
-  // Inside showWriteMode, deferred path: showLargeBanner then nested
-  // requestAnimationFrame calls, then setText, then mark both surfaces hydrated.
   assert.match(
     src,
-    /function\s+showWriteMode[\s\S]*?showLargeBanner\([^)]*\)[\s\S]*?requestAnimationFrame[\s\S]*?requestAnimationFrame[\s\S]*?liveEditorInstance\.setText\(note\.body\)[\s\S]*?markHydrated[^)]*'cm6'[^)]*\)[\s\S]*?markHydrated[^)]*'toast'/,
+    /function\s+showPreviewMode[\s\S]*?note\.sessionsImport\s*===\s*true[\s\S]*?return/,
   );
-});
-
-test('showPreviewMode deferred branch chooses source by cm6 hydration', () => {
-  const src = readIndex();
-  // Deferred Preview picks getCurrentEditorText when cm6 hydrated, else note.body.
-  assert.match(
-    src,
-    /function\s+showPreviewMode[\s\S]*?hydrationCache\.isHydrated\s*\([^)]*'cm6'[^)]*\)[\s\S]*?\?\s*getCurrentEditorText\(\)[\s\S]*?:\s*note\.body/,
-  );
-  // And uses double-rAF + setMarkdown(previewSource).
-  assert.match(
-    src,
-    /function\s+showPreviewMode[\s\S]*?requestAnimationFrame[\s\S]*?requestAnimationFrame[\s\S]*?_toastuiInstance\.setMarkdown\(previewSource\)/,
-  );
+  assert.doesNotMatch(src, /showLargeBanner\(\s*['"]loading-preview['"]/);
 });
 
 test('outgoing capture in note-row click uses bodyForRead', () => {
@@ -174,5 +164,4 @@ test('renderer-boot harness imports LargeSessionGuard and assembles SessionViewe
     /require\(['"]\.\.\/lib\/session-viewer\/large-session-guard['"]\)/,
   );
   assert.match(src, /LargeSessionGuard/);
-  assert.match(src, /sessionsLargeBanner/);
 });

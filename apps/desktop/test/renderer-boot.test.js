@@ -236,7 +236,6 @@ function makeRendererHarness({
     'sessionsRefreshMount',
     'modeReadButton',
     'readViewMount',
-    'sessionsLargeBanner',
     // Stage S4 — in-file search toolbar + cross-session results.
     'inFileSearchToolbar',
     'inFileSearchInput',
