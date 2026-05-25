@@ -1,3 +1,55 @@
+// Stage 6.3C — terminal SIGINT / SIGTERM / SIGHUP routes through the
+// dirty-summary close-guard. Without this handler, Ctrl+C in the
+// terminal running `npm run dev` terminates Electron immediately
+// and silently discards unsaved work — the `before-quit` and
+// `window.close` events never fire on a process-level signal.
+//
+// Registered BEFORE `require('electron')` so the handler is on the
+// listener chain before any Electron binding code attaches its own
+// — and via `prependListener` to guarantee execution order even if
+// something else hooks the same signal later.
+//
+// A `process.stderr.write` at module-load time confirms in the
+// dev-server log that this code reached the registration step
+// (helps debug "is the handler even installed?" without GUI access).
+//
+// Bash convention escape hatch: a second matching signal within
+// 2 seconds force-quits via `process.exit(130)`. Protects against
+// a wedged renderer where the close-guard dialog never appears.
+const TERMINATION_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+let lastTerminationSignalAt = 0;
+let _runCloseGuardForSource = null; // set after that helper is defined.
+function handleTerminationSignal(signal) {
+  const now = Date.now();
+  if (now - lastTerminationSignalAt < 2000) {
+    process.stderr.write(
+      `\n[${signal}] received twice — force-quitting (unsaved changes will be lost).\n`,
+    );
+    process.exit(130);
+  }
+  lastTerminationSignalAt = now;
+  process.stderr.write(
+    `[${signal}] received — running close-guard. Press the same key again to force-quit.\n`,
+  );
+  if (typeof _runCloseGuardForSource === 'function') {
+    _runCloseGuardForSource('before-quit');
+  } else {
+    // Signal arrived before main.js finished initializing the guard
+    // helpers (extremely early — the renderer hasn't been created).
+    // There's no unsaved state to protect; exit cleanly.
+    process.stderr.write(
+      '[signal] close-guard not yet wired (early signal) — exiting cleanly.\n',
+    );
+    process.exit(0);
+  }
+}
+process.stderr.write(
+  `[main.js] registering termination signal handlers: ${TERMINATION_SIGNALS.join(', ')}\n`,
+);
+TERMINATION_SIGNALS.forEach((sig) => {
+  process.prependListener(sig, () => handleTerminationSignal(sig));
+});
+
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -116,7 +168,11 @@ async function showCloseDialog(summary) {
 }
 
 async function runCloseGuardForSource(source) {
-  if (!closeController.beginGuard()) return;
+  if (!closeController.beginGuard()) {
+    process.stderr.write(`[close-guard] already in flight (source=${source}); ignoring.\n`);
+    return;
+  }
+  process.stderr.write(`[close-guard] starting (source=${source})\n`);
   let decision;
   try {
     decision = await CloseGuard.runCloseGuard({
@@ -131,6 +187,7 @@ async function runCloseGuardForSource(source) {
   } finally {
     closeController.endGuard();
   }
+  process.stderr.write(`[close-guard] decision=${decision} (source=${source})\n`);
   if (decision !== 'allow-close') return;
 
   closeController.confirmClose();
@@ -140,6 +197,10 @@ async function runCloseGuardForSource(source) {
     mainWindow.close();
   }
 }
+
+// Stage 6.3C — wire the early-registered termination-signal handler
+// to runCloseGuardForSource now that the function exists.
+_runCloseGuardForSource = runCloseGuardForSource;
 
 // Filename derivation + save orchestration live in the shared FileName helper
 // so the renderer pre-check and this main-process guard cannot drift out of
@@ -807,33 +868,3 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Stage 6.3C — terminal SIGINT / SIGTERM also runs the dirty-summary
-// prompt. Without this handler, Ctrl+C in the terminal running
-// `npm run dev` (or any signal-based kill) terminates Electron
-// immediately and silently discards unsaved work — the
-// `before-quit` and `window.close` events never fire.
-//
-// Bash convention: a single Ctrl+C is "please exit cleanly"; a
-// second Ctrl+C within a couple seconds means "I'm serious, kill
-// it now". The two-stroke escape hatch lets the user force a quit
-// if the dirty-summary dialog itself is unresponsive (e.g. the
-// renderer is wedged) or if they just want out fast.
-let lastTerminationSignalAt = 0;
-function handleTerminationSignal(signal) {
-  const now = Date.now();
-  if (now - lastTerminationSignalAt < 2000) {
-    // eslint-disable-next-line no-console
-    console.error(
-      `\n[${signal}] received twice — force-quitting (unsaved changes will be lost).`,
-    );
-    process.exit(130);
-  }
-  lastTerminationSignalAt = now;
-  // eslint-disable-next-line no-console
-  console.error(
-    `[${signal}] received — running close-guard. Press Ctrl+C again to force-quit.`,
-  );
-  runCloseGuardForSource('before-quit');
-}
-process.on('SIGINT',  () => handleTerminationSignal('SIGINT'));
-process.on('SIGTERM', () => handleTerminationSignal('SIGTERM'));

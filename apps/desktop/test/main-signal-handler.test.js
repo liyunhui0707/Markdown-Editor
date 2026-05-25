@@ -15,18 +15,33 @@ const path = require('node:path');
 const MAIN_PATH = path.join(__dirname, '..', 'main.js');
 function readMain() { return fs.readFileSync(MAIN_PATH, 'utf8'); }
 
-test('main.js registers SIGINT handler routing to runCloseGuardForSource', () => {
+test('main.js registers SIGINT/SIGTERM/SIGHUP via prependListener (runs before Electron internal handlers)', () => {
   const src = readMain();
-  assert.match(src, /process\.on\(\s*['"]SIGINT['"]\s*,/);
   assert.match(
     src,
-    /process\.on\(\s*['"]SIGINT['"][\s\S]*?handleTerminationSignal\(['"]SIGINT['"]\)/,
+    /TERMINATION_SIGNALS\s*=\s*\[\s*['"]SIGINT['"]\s*,\s*['"]SIGTERM['"]\s*,\s*['"]SIGHUP['"]\s*\]/,
+  );
+  assert.match(
+    src,
+    /TERMINATION_SIGNALS\.forEach\([\s\S]*?process\.prependListener\(sig,\s*\(\)\s*=>\s*handleTerminationSignal\(sig\)\)/,
   );
 });
 
-test('main.js also registers SIGTERM (for orchestrators / OS shutdown signals)', () => {
+test('main.js registers the signal handlers BEFORE require(electron) so Electron internal handlers cannot pre-empt', () => {
   const src = readMain();
-  assert.match(src, /process\.on\(\s*['"]SIGTERM['"]\s*,/);
+  const idxRegistration = src.indexOf('process.prependListener(sig');
+  // Use the `const { app, ... } = require('electron')` destructure as
+  // the anchor; the comment that names `require('electron')` higher up
+  // would otherwise be matched first.
+  const idxElectronRequire = src.indexOf(
+    `const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')`,
+  );
+  assert.ok(idxRegistration > 0, 'registration call exists');
+  assert.ok(idxElectronRequire > 0, 'electron destructure require exists');
+  assert.ok(
+    idxRegistration < idxElectronRequire,
+    'signal handlers must register BEFORE electron is required',
+  );
 });
 
 test('handleTerminationSignal invokes runCloseGuardForSource with `before-quit`', () => {
@@ -46,14 +61,23 @@ test('handleTerminationSignal has a double-tap force-quit escape hatch (within 2
   );
 });
 
-test('handleTerminationSignal logs a heads-up so the user knows what is happening', () => {
+test('handleTerminationSignal logs via process.stderr.write (synchronous, unbuffered)', () => {
   const src = readMain();
-  // Console.error is the conventional channel for signal-handler
-  // diagnostics. Skipping the exact message text; just confirming
-  // SOMETHING is logged for both the prompt-triggering signal and
-  // the force-quit case.
+  // Switched from console.error to process.stderr.write because the
+  // user reported "no output" — synchronous stderr is more reliable
+  // when Electron may be shutting down concurrently.
   assert.match(
     src,
-    /function\s+handleTerminationSignal[\s\S]*?console\.error[\s\S]*?running close-guard[\s\S]*?Ctrl\+C again to force-quit/,
+    /function\s+handleTerminationSignal[\s\S]*?process\.stderr\.write[\s\S]*?running close-guard/,
+  );
+});
+
+test('main.js writes a load-time stderr log confirming handlers are registered', () => {
+  const src = readMain();
+  // A diagnostic so the user can verify in the dev-server log that
+  // main.js actually reached the registration step.
+  assert.match(
+    src,
+    /process\.stderr\.write\([\s\S]*?registering termination signal handlers/,
   );
 });
