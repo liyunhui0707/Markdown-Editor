@@ -2631,6 +2631,7 @@
           // selected so a previously-disabled state doesn't leak into
           // the next selection.
           applyPreviewButtonDisabledState();
+        applyWriteButtonDisabledState();
           return;
         }
 
@@ -2676,6 +2677,7 @@
         // current note is safe to render via Toast UI. Runs on every
         // render so cross-session navigation and refresh both update it.
         applyPreviewButtonDisabledState();
+        applyWriteButtonDisabledState();
       }
 
       function updateSelectedNoteFromInputs() {
@@ -4293,6 +4295,15 @@
 
       function showWriteMode() {
         if (currentMode === 'write') return;
+        // Stage S5 round-6 QA fix: guard against accidental triggers
+        // (keyboard shortcut, programmatic click) for a too-large
+        // session that would OOM the renderer during CM6 hydration.
+        if (writeIsUnsafeForSelectedNote()) {
+          setStatusFromSelectedNote(
+            'Write unavailable: this session is too large. Use Read mode.',
+          );
+          return;
+        }
         // Stage S3.5 — deferred path: if the selected note is too-large
         // and CM6 isn't hydrated yet, show "Loading editor…" banner,
         // double-rAF, then run the synchronous setText. Double-rAF
@@ -4352,19 +4363,26 @@
         void ratio;
       }
 
-      // Stage S5 round-5 QA fix: Toast UI Preview can OOM the renderer
-      // on multi-MB session imports (V8 young-object-promotion OOM).
-      // Read mode renders the same content via the lightweight
-      // SessionViewer.renderMarkdown — so Preview adds no functional
-      // value for large sessions yet crashes the app. Centralized
-      // "is this surface unsafe?" predicate so the disabled state on
-      // the button AND the early-return in showPreviewMode share one
-      // source of truth.
+      // Stage S5 round-5 / round-6 QA fix: both Toast UI Preview and
+      // CM6 Write hydration OOM the renderer on multi-MB session
+      // imports (V8 young-object-promotion OOM). Read mode renders
+      // the same content via the lightweight
+      // SessionViewer.renderMarkdown — Preview adds no functional
+      // value for sessions, and Write is rarely needed for transcript
+      // viewing. Centralized "is this surface unsafe?" predicate so
+      // the disabled state on each button AND the early-returns in
+      // showWriteMode / showPreviewMode share one source of truth.
       function previewIsUnsafeForSelectedNote() {
         const note = getSelectedNote();
         if (!note || note.sessionsImport !== true) return false;
         if (!window.SessionViewer || !window.SessionViewer.isLargeSession) return false;
         return window.SessionViewer.isLargeSession(note);
+      }
+      // Round-6 QA fix: Write uses the same predicate. Both surfaces
+      // hydrate via heavy frameworks that OOM at multi-MB; the safe
+      // path for transcript reading is Read mode.
+      function writeIsUnsafeForSelectedNote() {
+        return previewIsUnsafeForSelectedNote();
       }
 
       function applyPreviewButtonDisabledState() {
@@ -4374,6 +4392,17 @@
           'title',
           unsafe
             ? 'Preview is unavailable for large session imports (Read shows the same rendered content safely).'
+            : '',
+        );
+      }
+
+      function applyWriteButtonDisabledState() {
+        const unsafe = writeIsUnsafeForSelectedNote();
+        writeModeButton.disabled = unsafe;
+        writeModeButton.setAttribute(
+          'title',
+          unsafe
+            ? 'Write is unavailable for large session imports (CM6/Toast UI hydration can OOM the renderer at this size). Use Read mode.'
             : '',
         );
       }

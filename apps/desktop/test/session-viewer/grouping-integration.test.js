@@ -371,3 +371,21 @@ test('T-S5-QA14 Preview button disabled + showPreviewMode early-returns for larg
     /function\s+renderApp[\s\S]*?applyPreviewButtonDisabledState\(\)/,
   );
 });
+
+// ---------- Round-6 QA fix (2026-05-26): Write button parity ----------
+
+test('T-S5-QA15 Write button disabled + showWriteMode early-returns for large sessions', () => {
+  const src = readIndex();
+  assert.match(src, /function\s+writeIsUnsafeForSelectedNote/);
+  assert.match(src, /function\s+applyWriteButtonDisabledState/);
+  // showWriteMode must early-return when unsafe.
+  assert.match(
+    src,
+    /function\s+showWriteMode[\s\S]*?writeIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
+  );
+  // applyWriteButtonDisabledState must run from renderApp (both branches).
+  assert.match(
+    src,
+    /function\s+renderApp[\s\S]*?applyWriteButtonDisabledState\(\)/,
+  );
+});
