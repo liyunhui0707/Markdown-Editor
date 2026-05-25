@@ -203,7 +203,10 @@ test('saveCurrentNote calls exitWriteMode before reading the body', () => {
   // note state and save payload share the same raw Markdown source.
   assert.match(
     html,
-    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?const\s+savedBody\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?body:\s*savedBody/
+    // Stage S3.5: bodyForRead(selectedNote) is the data-loss guard for
+    // deferred large AI Sessions; accept either the original
+    // liveEditorInstance.getText() or the new bodyForRead(...) read.
+    /saveCurrentNote\s*\([\s\S]*?exitWriteMode\s*\([\s\S]*?const\s+savedBody\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?body:\s*savedBody/
   );
 });
 
@@ -434,7 +437,10 @@ test('note-list click writes flushed text back to the outgoing note before chang
   // updated from liveEditorInstance.getText() BEFORE selectedNoteId mutates.
   assert.match(
     html,
-    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?selectedNoteId\s*=\s*note\.id/
+    // Stage S3.5: outgoing capture now goes through bodyForRead so a
+    // deferred large AI Sessions note doesn't get clobbered with
+    // empty CM6 content. Accept either pattern.
+    /noteList[\s\S]*?addEventListener\(\s*['"]click['"][\s\S]*?const\s+outgoingNote\s*=\s*getSelectedNote\(\)[\s\S]*?exitWriteMode\s*\([\s\S]*?outgoingNote\.body\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?selectedNoteId\s*=\s*note\.id/
   );
 });
 

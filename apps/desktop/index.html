@@ -934,6 +934,22 @@
       .read-view-mount.is-visible {
         display: block;
       }
+
+      /* Stage S3.5 — banner shown when an AI Sessions note is too large
+         for eager CM6/Toast UI hydration. Non-intrusive, paints
+         immediately above the editor surface so the user sees a
+         "loading…" status before clicking Write or Preview locks the
+         UI synchronously. */
+      .sessions-large-banner {
+        padding: 8px 12px;
+        margin: 0 8px 8px 8px;
+        background: var(--accent-bg, #fff8e1);
+        border: 1px solid var(--accent-border, #f0c870);
+        border-radius: 4px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--text, #333);
+      }
       .read-view-mount .read-section.user-turn h2 {
         color: var(--text, inherit);
       }
@@ -1416,6 +1432,7 @@
                   <div id="hybridWritePane" class="hybrid-write-pane"></div>
                   <div id="toastPreviewMount" class="toast-preview-mount"></div>
                   <div id="readViewMount" class="read-view-mount"></div>
+                  <div id="sessionsLargeBanner" class="sessions-large-banner" hidden></div>
                 </div>
               </div>
             </div>
@@ -1468,6 +1485,7 @@
     <script src="./lib/session-viewer/read-user-preprocess.js"></script>
     <script src="./lib/session-viewer/read-renderer.js"></script>
     <script src="./lib/session-viewer/read-tab.js"></script>
+    <script src="./lib/session-viewer/large-session-guard.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1695,6 +1713,7 @@
       const sessionsRefreshMount = document.getElementById('sessionsRefreshMount');
       const modeReadButton = document.getElementById('modeReadButton');
       const readViewMount = document.getElementById('readViewMount');
+      const sessionsLargeBanner = document.getElementById('sessionsLargeBanner');
       // Stage S3 — Read tab controller. Declared as `let` here so a failed
       // boot-time init never traps subsequent renderApp() calls in a
       // temporal-dead-zone error; falls back to a null-guarded no-op if
@@ -1702,6 +1721,14 @@
       // bottom of the boot script (after all dependencies are in
       // window.SessionViewer).
       let readTabController = null;
+      // Stage S3.5 — per-note hydration cache. Tracks whether the CM6
+      // surface (cm6) and Toast UI surface (toast) have been hydrated
+      // for each note. Used by the deferred-load path to skip eager
+      // setText/setMarkdown on multi-MB AI Sessions notes.
+      const hydrationCache =
+        (window.SessionViewer && window.SessionViewer.createHydrationCache)
+          ? window.SessionViewer.createHydrationCache()
+          : { isHydrated() { return false; }, markHydrated() {}, drop() {}, clear() {} };
 
       let stopVaultWatcher        = null;
       let currentVaultPath        = '';
@@ -1849,9 +1876,12 @@
       function updateStatusReadouts(text) {
         const stats = window.DocStats;
         if (!stats) return;
+        // Stage S3.5: bodyForRead returns note.body for a deferred (CM6
+        // unhydrated) large session so the doc-stats counter reflects
+        // the on-disk content, not the empty CM6 buffer.
         const t = text != null
           ? text
-          : (liveEditorInstance ? liveEditorInstance.getText() : '');
+          : bodyForRead(getSelectedNote());
         docWords.textContent = stats.formatNumber(stats.countWords(t)) + ' words';
         docChars.textContent = stats.formatNumber(stats.countChars(t)) + ' chars';
         docLines.textContent = stats.formatNumber(stats.countLines(t)) + ' lines';
@@ -1930,6 +1960,10 @@
           // very renderEditor call triggered by the note switch).
           if (liveEditorLastNoteId) {
             captureNoteViewState(liveEditorLastNoteId);
+            // Stage S3.5: drop the OUTGOING note's hydration state so a
+            // future return triggers the deferred lazy-load again (if
+            // applicable). Matches AC-S3.5-7.
+            hydrationCache.drop(liveEditorLastNoteId);
           }
 
           liveEditorLastNoteId = note.id;
@@ -1948,29 +1982,58 @@
             }
           }
 
-          // Restore from cache when possible: same note id AND cached doc still
-          // matches the current body. If the body diverged (vault refresh, save
-          // round-trip, anything that rewrote it), drop the stale entry and
-          // fall back to the fresh-load path. Migration always forces a fresh
-          // load because we just rewrote note.body.
-          let restored = false;
-          if (!migrated && typeof liveEditorInstance.setState === 'function') {
-            const cached = noteEditorStates.get(note.id);
-            if (cached && cached.doc === note.body) {
-              liveEditorInstance.setState(cached.state);
-              restored = true;
-            } else if (cached) {
-              noteEditorStates.delete(note.id);
-            }
-          }
-          if (!restored) {
-            liveEditorInstance.setText(note.body);
-          }
+          // Stage S3.5 — deferred lazy-load for too-large AI Sessions.
+          // Check BEFORE the eager setText so we never feed multi-MB
+          // markdown to CM6 + Toast UI (which OOMs the renderer).
+          const isLarge =
+            window.SessionViewer && window.SessionViewer.isLargeSession
+              ? window.SessionViewer.isLargeSession(note)
+              : false;
+          const cm6Hydrated = hydrationCache.isHydrated(note.id, 'cm6');
 
-          // Restore the INCOMING note's saved mode + scroll ratio. Defaults
-          // to { mode: 'write', scrollRatio: 0 } for never-visited notes,
-          // matching the user's product rule.
-          restoreNoteViewState(note.id);
+          if (isLarge && !cm6Hydrated) {
+            // DEFERRED PATH. Skip eager setText. Force Read mode directly
+            // from note.body (forceReadModeWithBody bypasses
+            // setActiveMode's renderInto(getCurrentEditorText()) call).
+            showLargeBanner('idle', note);
+            if (readTabController) {
+              readTabController.setSessionsMode(true);
+            }
+            forceReadModeWithBody(note);
+          } else {
+            // EAGER PATH (existing behavior).
+            // Restore from cache when possible: same note id AND cached doc
+            // still matches the current body. If the body diverged (vault
+            // refresh, save round-trip, anything that rewrote it), drop
+            // the stale entry and fall back to the fresh-load path.
+            // Migration always forces a fresh load because we just rewrote
+            // note.body.
+            hideLargeBanner();
+            let restored = false;
+            if (!migrated && typeof liveEditorInstance.setState === 'function') {
+              const cached = noteEditorStates.get(note.id);
+              if (cached && cached.doc === note.body) {
+                liveEditorInstance.setState(cached.state);
+                restored = true;
+              } else if (cached) {
+                noteEditorStates.delete(note.id);
+              }
+            }
+            if (!restored) {
+              liveEditorInstance.setText(note.body);
+            }
+            if (isLarge) {
+              // Already-hydrated large note: mark both surfaces hydrated
+              // (setText mirrors into Toast UI internally).
+              hydrationCache.markHydrated(note.id, 'cm6');
+              hydrationCache.markHydrated(note.id, 'toast');
+            }
+
+            // Restore the INCOMING note's saved mode + scroll ratio.
+            // Defaults to { mode: 'write', scrollRatio: 0 } for
+            // never-visited notes, matching the user's product rule.
+            restoreNoteViewState(note.id);
+          }
         }
       }
 
@@ -2184,7 +2247,10 @@
             const outgoingNote = getSelectedNote();
             if (liveEditorInstance && outgoingNote) {
               liveEditorInstance.exitWriteMode();
-              outgoingNote.body = liveEditorInstance.getText();
+              // Stage S3.5: bodyForRead returns the on-disk body for a
+              // deferred (CM6 unhydrated) large session, preventing
+              // empty-CM6 from clobbering note.body on note switch.
+              outgoingNote.body = bodyForRead(outgoingNote);
             }
             selectedNoteId = note.id;
             renderApp();
@@ -2280,7 +2346,11 @@
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
 
-        const fullText = liveEditorInstance.getText();
+        // Stage S3.5: bodyForRead protects the note.body assignment
+        // below (line `selectedNote.body = fullText`) from clobbering
+        // on-disk content with an empty/stale CM6 buffer when the note
+        // is a deferred large session.
+        const fullText = bodyForRead(selectedNote);
         const { tags, source } = stripMetaPrefix(fullText);
 
         const rawTitle = titleInput.value;
@@ -2820,7 +2890,10 @@
           // Flush any in-progress active-block edit so getText() returns the
           // committed source before we send it to disk.
           liveEditorInstance.exitWriteMode();
-          const savedBody = liveEditorInstance.getText();
+          // Stage S3.5: bodyForRead is the data-loss guard for save.
+          // For a deferred large session (CM6 not hydrated), returns
+          // note.body unchanged; otherwise returns CM6's current text.
+          const savedBody = bodyForRead(selectedNote);
           selectedNote.body = savedBody;
           const preservedDrafts = notes.filter((note) =>
             note.id !== selectedNote.id && shouldPreserveDraft(note)
@@ -3125,7 +3198,9 @@
             liveEditorInstance.exitWriteMode();
             const beforeFlush = getSelectedNote();
             if (beforeFlush) {
-              beforeFlush.body = liveEditorInstance.getText();
+              // Stage S3.5: bodyForRead protects save-all from
+              // clobbering deferred large session bodies.
+              beforeFlush.body = bodyForRead(beforeFlush);
             }
           }
 
@@ -3456,6 +3531,70 @@
         return liveEditorInstance.getText();
       }
 
+      // Stage S3.5 — guarded read: for a deferred AI Sessions note
+      // whose CM6 surface is NOT yet hydrated, reading from CM6
+      // returns empty/stale text. Fall back to note.body so save /
+      // save-all / outgoing-capture / title-edit paths don't corrupt
+      // the on-disk content. Round-2 plan-review B1 fix.
+      function bodyForRead(note) {
+        if (!note) return '';
+        const isLarge =
+          window.SessionViewer && window.SessionViewer.isLargeSession
+            ? window.SessionViewer.isLargeSession(note)
+            : false;
+        if (isLarge && !hydrationCache.isHydrated(note.id, 'cm6')) {
+          return typeof note.body === 'string' ? note.body : '';
+        }
+        return getCurrentEditorText();
+      }
+
+      // Stage S3.5 — banner show/hide. Three states:
+      //   'idle'           — note is too-large and not yet hydrated.
+      //   'loading-write'  — user clicked Write; CM6 hydration in flight.
+      //   'loading-preview'— user clicked Preview; Toast hydration in flight.
+      function showLargeBanner(state, note) {
+        const size = (note && typeof note.body === 'string') ? note.body.length : 0;
+        const mb = (size / (1024 * 1024)).toFixed(1);
+        let msg;
+        if (state === 'idle') {
+          msg = `This session is large (~${mb} MB). Read mode is the default — click Write or Preview to load that surface (may be slow).`;
+        } else if (state === 'loading-write') {
+          msg = `Loading editor for ~${mb} MB session…`;
+        } else if (state === 'loading-preview') {
+          msg = `Loading preview for ~${mb} MB session…`;
+        } else {
+          msg = '';
+        }
+        sessionsLargeBanner.textContent = msg;
+        sessionsLargeBanner.hidden = false;
+      }
+      function hideLargeBanner() {
+        sessionsLargeBanner.textContent = '';
+        sessionsLargeBanner.hidden = true;
+      }
+
+      // Stage S3.5 — bypass setActiveMode('read') for the deferred
+      // path. setActiveMode's 'read' branch calls
+      // readTabController.renderInto(getCurrentEditorText()), which on
+      // a deferred note returns empty text. forceReadModeWithBody
+      // mutates the DOM directly AND calls renderInto(note.body) once.
+      // Round-2 plan-review M2 fix.
+      function forceReadModeWithBody(note) {
+        currentMode = 'read';
+        hybridWritePane.classList.add('is-hidden');
+        toastPreviewMount.classList.remove('is-visible');
+        readViewMount.classList.add('is-visible');
+        writeModeButton.classList.remove('mode-button-active');
+        previewModeButton.classList.remove('mode-button-active');
+        modeReadButton.classList.add('mode-button-active');
+        writeModeButton.setAttribute('aria-selected', 'false');
+        previewModeButton.setAttribute('aria-selected', 'false');
+        modeReadButton.setAttribute('aria-selected', 'true');
+        if (readTabController) {
+          readTabController.renderInto(note.body);
+        }
+      }
+
       // ── Write / Preview mode toggle ──────────────────────────────────────
       // Scroll-position sync is ratio-based. The apply step runs across TWO
       // animation frames (scheduleApplyAfterLayout) so it lands AFTER Toast
@@ -3632,8 +3771,38 @@
 
       function showWriteMode() {
         if (currentMode === 'write') return;
-        // Capture from whichever surface is active before switching. Stage
-        // S3: Read also has a scroll position to carry over.
+        // Stage S3.5 — deferred path: if the selected note is too-large
+        // and CM6 isn't hydrated yet, show "Loading editor…" banner,
+        // double-rAF, then run the synchronous setText. Double-rAF
+        // (rather than single) so the banner DOM actually paints before
+        // the heavy call blocks the renderer.
+        const note = getSelectedNote();
+        const isLarge =
+          note && window.SessionViewer && window.SessionViewer.isLargeSession
+            ? window.SessionViewer.isLargeSession(note)
+            : false;
+        if (isLarge && !hydrationCache.isHydrated(note.id, 'cm6')) {
+          showLargeBanner('loading-write', note);
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              liveEditorInstance.setText(note.body);
+              // setText mirrors into _toastuiInstance.setMarkdown
+              // internally, so Write hydration costs BOTH surfaces.
+              // Round-2 plan-review M4 acknowledgement.
+              hydrationCache.markHydrated(note.id, 'cm6');
+              hydrationCache.markHydrated(note.id, 'toast');
+              hideLargeBanner();
+              _resumeWriteModeAfterHydration();
+            });
+          });
+          return;
+        }
+        _resumeWriteModeAfterHydration();
+      }
+
+      function _resumeWriteModeAfterHydration() {
+        // Capture from whichever surface is active before switching.
+        // Stage S3: Read also has a scroll position to carry over.
         const sourceEl =
           currentMode === 'read' ? readViewMount : previewScrollEl();
         const ratio = _captureScrollRatio ? _captureScrollRatio(sourceEl) : 0;
@@ -3663,6 +3832,37 @@
 
       function showPreviewMode() {
         if (currentMode === 'preview') return;
+        // Stage S3.5 — deferred path: if the selected note is too-large
+        // and Toast UI isn't hydrated yet, show "Loading preview…"
+        // banner, double-rAF, then run synchronous setMarkdown. Source
+        // for setMarkdown depends on whether CM6 is hydrated:
+        //   - cm6 hydrated → use getCurrentEditorText() (user may have
+        //     edited; Preview must reflect the edits)
+        //   - cm6 NOT hydrated → use note.body (CM6 is empty / stale).
+        const note = getSelectedNote();
+        const isLarge =
+          note && window.SessionViewer && window.SessionViewer.isLargeSession
+            ? window.SessionViewer.isLargeSession(note)
+            : false;
+        const tooLargeDeferred =
+          isLarge && !hydrationCache.isHydrated(note.id, 'toast');
+        if (tooLargeDeferred) {
+          const previewSource = hydrationCache.isHydrated(note.id, 'cm6')
+            ? getCurrentEditorText()
+            : note.body;
+          showLargeBanner('loading-preview', note);
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              _toastuiInstance.setMarkdown(previewSource);
+              hydrationCache.markHydrated(note.id, 'toast');
+              hideLargeBanner();
+              setActiveMode('preview');
+            });
+          });
+          return;
+        }
+
+        // Normal path — existing logic unchanged.
         // Capture FIRST so the Write pane's measurements are still live —
         // before exitWriteMode swaps the active textarea or setMarkdown
         // re-renders Toast UI.
@@ -3792,7 +3992,9 @@
               const outgoing = getSelectedNote();
               if (liveEditorInstance && outgoing) {
                 liveEditorInstance.exitWriteMode();
-                outgoing.body = liveEditorInstance.getText();
+                // Stage S3.5: bodyForRead protects keyboard-nav
+                // outgoing capture from deferred-load data loss.
+                outgoing.body = bodyForRead(outgoing);
               }
               selectedNoteId = results[nextIndex].note.id;
               renderApp();
