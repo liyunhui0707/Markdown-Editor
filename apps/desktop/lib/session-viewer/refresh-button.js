@@ -66,15 +66,6 @@ function createRefreshController(opts) {
     applyDisabled();
   }
 
-  function summarise(label, summary) {
-    if (!summary || typeof summary !== 'object') return `${label} 0`;
-    const imported = summary.imported || 0;
-    const skipped = summary.skipped || 0;
-    const errors = summary.errors || 0;
-    const note = summary.note ? ` (${summary.note})` : '';
-    return `${label} ${imported}, skipped ${skipped}, errors ${errors}${note}`;
-  }
-
   async function handleClick() {
     if (!vaultPath || inFlight) return;
     inFlight = true;
@@ -87,9 +78,11 @@ function createRefreshController(opts) {
       result = { ok: false, error: (err && err.message) || String(err) };
     }
     if (result && result.ok) {
-      const c = summarise('claude:', result.claude);
-      const x = summarise('codex:', result.codex);
-      banner.textContent = `${c} · ${x}`;
+      // Stage 6.3D: hide the success summary banner. The user gets
+      // implicit feedback via the grouped tree updating + the Read
+      // view refreshing for the open session. Errors still surface
+      // below so silent failures can't slip through.
+      banner.textContent = '';
       if (typeof onComplete === 'function') {
         try {
           onComplete(result);
