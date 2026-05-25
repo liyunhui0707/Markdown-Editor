@@ -294,3 +294,98 @@ test('T-S5-QA8b bucket-collapse state persists under its own localStorage key', 
     /localStorage\.setItem\([\s\S]*?markdownVault\.aiSessions\.bucketCollapsed/,
   );
 });
+
+// ---------- Round-4 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA9 restoreNoteViewState defaults AI Sessions to read mode + scrollRatio=1', () => {
+  const src = readIndex();
+  // Look for the new default-state branch keyed on isSession.
+  assert.match(
+    src,
+    /function\s+restoreNoteViewState[\s\S]*?const\s+isSession\s*=[\s\S]*?sessionsImport[\s\S]*?const\s+defaultState\s*=\s*isSession[\s\S]*?mode:\s*['"]read['"][\s\S]*?scrollRatio:\s*1/,
+  );
+});
+
+test('T-S5-QA10 deferred-large-session render applies scrollRatio=1 by default for AI Sessions', () => {
+  const src = readIndex();
+  // After forceReadModeWithBody in renderEditor's deferred branch, a
+  // scroll apply runs with defaultScroll = isSession ? 1 : 0.
+  assert.match(
+    src,
+    /forceReadModeWithBody\(note\)[\s\S]*?const\s+isSession\s*=\s*!!note\.sessionsImport[\s\S]*?const\s+defaultScroll\s*=\s*isSession\s*\?\s*1\s*:\s*0[\s\S]*?_applyScrollRatio\(readViewMount,\s*ratio\)/,
+  );
+});
+
+test('T-S5-QA11 watcher preserves selection when changed file is a session import', () => {
+  const src = readIndex();
+  // preferredRelativePath only equals changedPath for non-session AI imports;
+  // sessions fall through to selectedNote.relativePath.
+  assert.match(
+    src,
+    /const\s+preferredRelativePath\s*=[\s\S]*?\(looksLikeAiImport\s*&&\s*!looksLikeSessionsImport\)\s*\?\s*changedPath[\s\S]*?selectedNote\.relativePath/,
+  );
+});
+
+test('T-S5-QA12 watcher writes scrollRatio=1 when selected session got refreshed', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /selectedSessionGotRefreshed\s*=[\s\S]*?looksLikeSessionsImport[\s\S]*?selectedNote\.sessionsImport[\s\S]*?selectedNote\.relativePath\s*===\s*changedPath/,
+  );
+  assert.match(
+    src,
+    /if\s*\(selectedSessionGotRefreshed\)[\s\S]*?noteViewStates\.set\([\s\S]*?scrollRatio:\s*1/,
+  );
+});
+
+// ---------- Round-5 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA13 Refresh onComplete preserves current selection (issue 2)', () => {
+  const src = readIndex();
+  // Refresh button's onComplete must compute `preferred` from the
+  // currently-selected note and call refreshVaultNotes(preferred),
+  // NOT loadVaultNotes() (which falls through to notes[0]).
+  assert.match(
+    src,
+    /onComplete:\s*\(\)\s*=>\s*\{[\s\S]*?getSelectedNote\(\)[\s\S]*?preferred\s*=[\s\S]*?selectedNote\.relativePath[\s\S]*?refreshVaultNotes\(preferred\)/,
+  );
+});
+
+test('T-S5-QA14 Preview button disabled + showPreviewMode early-returns for large sessions (issue 1)', () => {
+  const src = readIndex();
+  assert.match(src, /function\s+previewIsUnsafeForSelectedNote/);
+  assert.match(src, /function\s+applyPreviewButtonDisabledState/);
+  // Must check sessionsImport AND isLargeSession.
+  assert.match(
+    src,
+    /function\s+previewIsUnsafeForSelectedNote[\s\S]*?note\.sessionsImport[\s\S]*?isLargeSession\(note\)/,
+  );
+  // showPreviewMode must early-return when unsafe.
+  assert.match(
+    src,
+    /function\s+showPreviewMode[\s\S]*?previewIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
+  );
+  // applyPreviewButtonDisabledState must run from renderApp.
+  assert.match(
+    src,
+    /function\s+renderApp[\s\S]*?applyPreviewButtonDisabledState\(\)/,
+  );
+});
+
+// ---------- Round-6 QA fix (2026-05-26): Write button parity ----------
+
+test('T-S5-QA15 Write button disabled + showWriteMode early-returns for large sessions', () => {
+  const src = readIndex();
+  assert.match(src, /function\s+writeIsUnsafeForSelectedNote/);
+  assert.match(src, /function\s+applyWriteButtonDisabledState/);
+  // showWriteMode must early-return when unsafe.
+  assert.match(
+    src,
+    /function\s+showWriteMode[\s\S]*?writeIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
+  );
+  // applyWriteButtonDisabledState must run from renderApp (both branches).
+  assert.match(
+    src,
+    /function\s+renderApp[\s\S]*?applyWriteButtonDisabledState\(\)/,
+  );
+});
