@@ -374,6 +374,33 @@ test('T-S5-QA14 Preview button disabled + showPreviewMode early-returns for larg
 
 // ---------- Round-6 QA fix (2026-05-26): Write button parity ----------
 
+// ---------- Round-9 QA fix (2026-05-26) ----------
+
+test('T-S5-QA16 watcher resets liveEditorLastNoteId when selected session refreshed', () => {
+  const src = readIndex();
+  // selectedSessionGotRefreshed branch must reset both
+  // liveEditorLastNoteId and hydrationCache so the next renderEditor
+  // pass treats the same-id refresh as a fresh load (otherwise the
+  // same-id guard skips the heavy path and the Read DOM keeps the
+  // pre-refresh content).
+  assert.match(
+    src,
+    /if\s*\(selectedSessionGotRefreshed\)[\s\S]*?liveEditorLastNoteId\s*=\s*['"]['"][\s\S]*?hydrationCache\.drop\(selectedNote\.id\)/,
+  );
+});
+
+test('T-S5-QA17 Refresh onComplete force-rerenders the open AI Session', () => {
+  const src = readIndex();
+  // The onComplete callback also clears liveEditorLastNoteId for
+  // sessionsImport notes so the Refresh button always refreshes the
+  // visible Read surface (belt-and-suspenders against debounced or
+  // missed file-watcher events).
+  assert.match(
+    src,
+    /onComplete:\s*\(\)\s*=>\s*\{[\s\S]*?selectedNote\.sessionsImport\s*===\s*true[\s\S]*?liveEditorLastNoteId\s*=\s*['"]['"][\s\S]*?hydrationCache\.drop\(selectedNote\.id\)/,
+  );
+});
+
 test('T-S5-QA15 Write button disabled + showWriteMode early-returns for large sessions', () => {
   const src = readIndex();
   assert.match(src, /function\s+writeIsUnsafeForSelectedNote/);
