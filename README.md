@@ -53,6 +53,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Detect MCP-ingested notes by frontmatter `source` (claude/codex/chatgpt/gemini/ai). Older notes under `Inbox/AI Chats/YYYY/MM/` are still recognized by path for backward compatibility.
 - Package a local macOS Electron build for testing.
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
+- **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
 
 ### Data-safety guarantees
 
@@ -208,6 +209,9 @@ npm run smoke
 | `Cmd/Ctrl + Z` / `Cmd/Ctrl + Shift + Z` | Undo / redo in CM6 Write mode |
 | `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
+| `Enter` | (Stage S4) In the in-transcript search input — jump to next match |
+| `Shift + Enter` | (Stage S4) In the in-transcript search input — jump to previous match |
+| `Escape` | (Stage S4) In the in-transcript search input — clear the query and remove highlights |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
 
@@ -242,6 +246,17 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   ```
 
   The output is a faithful port of `Local-Web-Server/tools/import-{claude,codex}.js` — byte-for-byte parity with upstream output except for a single inserted `source: claude` / `source: codex` line added immediately after `agent:` (so the existing AI Imports filter recognizes the imported notes). Security guarantees mirror upstream verbatim: `O_NOFOLLOW` open, post-open dev/ino TOCTOU check, ancestor-symlink rejection on the output chain, `0o600` files / `0o700` directories, atomic tmp+rename with 5× `EEXIST` retry. No UI integration at this stage; the right-side AI Imports panel is deferred to Stage S2.
+
+- **AI Sessions search (Stage S4)** — port of `Local-Web-Server/public/search-utils.js` into the desktop renderer. Split into three IIFE-wrapped modules under `apps/desktop/lib/session-viewer/` to stay under the project's 300-LOC cap:
+  - `search-dom.js` — pure DOM walk that wraps matches in `<mark>` via `createElement` + `createTextNode` (never `innerHTML`); clears highlights by coalescing sibling text nodes; flips an `mark--active` class to mark the currently-focused result.
+  - `search-index.js` — lazy in-memory index over imported session bodies. `buildGlobalIndex` runs with bounded concurrency; `searchIndex` returns `{id, title, mtime, matchCount}` rows sorted by match count then mtime; `MIN_GLOBAL_QUERY_LEN = 2`.
+  - `in-file-search-toolbar.js` — headless controller for the Read-mode toolbar. Input → walk + counter; prev/next → cycle + scroll-into-view; Enter / Shift+Enter mirror the buttons; Escape clears.
+
+  Index lifecycle (in `apps/desktop/index.html`) holds two invariants:
+  - Single-flight: a `pendingCrossSessionIndexBuild` promise is reused across rapid keystrokes so two input events never kick two builds.
+  - Generation-stamped: `currentNotesGeneration` bumps on every successful `loadVaultNotes`; the index records its build-time generation in its `.then()`, and a post-await guard forces a rebuild on any mismatch so a mid-build vault refresh can't yield stale results. The index is also reset on `stopWatchingVault`.
+
+  Outgoing edits are preserved across cross-session result clicks via a shared `selectNote(noteId)` helper that runs `liveEditorInstance.exitWriteMode()` + `bodyForRead(outgoingNote)` BEFORE reassigning `selectedNoteId` — the same flush path the note-list row click uses, so the cross-session jump is data-safe.
 
 ## Project status & maturity
 

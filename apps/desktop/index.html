@@ -957,6 +957,102 @@
         font-weight: 500;
       }
 
+      /* Stage S4 — in-file search toolbar. Sits between the editor
+         action bar and readViewMount; visible only in Read mode. */
+      .in-file-search-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        background: var(--panel-bg, #fafafa);
+        border-bottom: 1px solid var(--border, #e0e0e0);
+        font-size: 12px;
+      }
+      .in-file-search-toolbar input {
+        flex: 1;
+        padding: 4px 8px;
+        font-size: 13px;
+        border: 1px solid var(--border, #ccc);
+        border-radius: 3px;
+      }
+      .in-file-search-toolbar button {
+        padding: 2px 8px;
+        font-size: 14px;
+        background: transparent;
+        border: 1px solid var(--border, #ccc);
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .in-file-search-toolbar button:hover {
+        background: var(--hover-bg, #eee);
+      }
+      .in-file-search-counter {
+        min-width: 40px;
+        text-align: right;
+        color: var(--text-muted, #666);
+        font-variant-numeric: tabular-nums;
+      }
+      .read-view-mount mark {
+        background: var(--mark-bg, #fff2a8);
+        color: inherit;
+        padding: 0;
+      }
+      .read-view-mount mark.mark--active {
+        background: var(--mark-active-bg, #ffba2e);
+        outline: 1px solid var(--mark-active-outline, #c98a00);
+      }
+
+      /* Stage S4 — cross-session content-search results. Rendered
+         below the note list when AI Sessions filter is active and the
+         sidebar search input has 2+ chars. */
+      .cross-session-results {
+        border-top: 1px solid var(--border, #e0e0e0);
+        max-height: 35vh;
+        overflow: auto;
+      }
+      .cross-session-results-header {
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--text-muted, #666);
+        background: var(--panel-bg, #fafafa);
+        letter-spacing: 0.5px;
+      }
+      .cross-session-results-list .sidebar-search-result-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-light, #f0f0f0);
+      }
+      .cross-session-results-list .sidebar-search-result-row:hover {
+        background: var(--hover-bg, #eef);
+      }
+      .cross-session-results-list .sidebar-search-result-title {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 13px;
+      }
+      .cross-session-results-list .sidebar-search-result-badge {
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 8px;
+        background: var(--accent-bg, #e7e7ff);
+        color: var(--accent-fg, #333);
+        font-variant-numeric: tabular-nums;
+      }
+      .cross-session-index-banner {
+        padding: 6px 12px;
+        font-size: 12px;
+        color: var(--text-muted, #666);
+        background: var(--panel-bg, #fafafa);
+        border-top: 1px solid var(--border, #e0e0e0);
+      }
+
       /* Hide only inert Toast UI controls. Do NOT hide
          .toastui-editor-md-tab-style — that wrapper contains the preview
          pane itself; hiding it would make Preview unreachable. */
@@ -1367,6 +1463,11 @@
           </div>
           <div id="sessionsRefreshMount" class="sessions-refresh-mount" style="display: none; padding: 8px;"></div>
           <div id="noteList" class="panel-body"></div>
+          <div id="crossSessionResults" class="cross-session-results" hidden>
+            <div class="cross-session-results-header">Matches in transcript</div>
+            <div id="crossSessionResultsList" class="cross-session-results-list"></div>
+          </div>
+          <div id="crossSessionIndexBanner" class="cross-session-index-banner" hidden></div>
         </aside>
 
         <!-- Single unified editor panel — no more split Editor / Preview -->
@@ -1431,6 +1532,12 @@
                 <div id="liveEditorContainer" class="live-editor-container">
                   <div id="hybridWritePane" class="hybrid-write-pane"></div>
                   <div id="toastPreviewMount" class="toast-preview-mount"></div>
+                  <div id="inFileSearchToolbar" class="in-file-search-toolbar" hidden>
+                    <input id="inFileSearchInput" type="text" placeholder="Search in transcript">
+                    <button id="inFileSearchPrev" type="button" aria-label="Previous match">‹</button>
+                    <button id="inFileSearchNext" type="button" aria-label="Next match">›</button>
+                    <span id="inFileSearchCounter" class="in-file-search-counter">0/0</span>
+                  </div>
                   <div id="readViewMount" class="read-view-mount"></div>
                   <div id="sessionsLargeBanner" class="sessions-large-banner" hidden></div>
                 </div>
@@ -1486,6 +1593,9 @@
     <script src="./lib/session-viewer/read-renderer.js"></script>
     <script src="./lib/session-viewer/read-tab.js"></script>
     <script src="./lib/session-viewer/large-session-guard.js"></script>
+    <script src="./lib/session-viewer/search-dom.js"></script>
+    <script src="./lib/session-viewer/search-index.js"></script>
+    <script src="./lib/session-viewer/in-file-search-toolbar.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -1714,6 +1824,17 @@
       const modeReadButton = document.getElementById('modeReadButton');
       const readViewMount = document.getElementById('readViewMount');
       const sessionsLargeBanner = document.getElementById('sessionsLargeBanner');
+      // Stage S4 — in-file search toolbar elements (mounted above readViewMount).
+      const inFileSearchToolbar = document.getElementById('inFileSearchToolbar');
+      const inFileSearchInput   = document.getElementById('inFileSearchInput');
+      const inFileSearchPrev    = document.getElementById('inFileSearchPrev');
+      const inFileSearchNext    = document.getElementById('inFileSearchNext');
+      const inFileSearchCounter = document.getElementById('inFileSearchCounter');
+      // Stage S4 — cross-session search elements (rendered below noteList
+      // when AI Sessions filter is active).
+      const crossSessionResults     = document.getElementById('crossSessionResults');
+      const crossSessionResultsList = document.getElementById('crossSessionResultsList');
+      const crossSessionIndexBanner = document.getElementById('crossSessionIndexBanner');
       // Stage S3 — Read tab controller. Declared as `let` here so a failed
       // boot-time init never traps subsequent renderApp() calls in a
       // temporal-dead-zone error; falls back to a null-guarded no-op if
@@ -1721,6 +1842,26 @@
       // bottom of the boot script (after all dependencies are in
       // window.SessionViewer).
       let readTabController = null;
+      // Stage S4 — in-file search toolbar controller; same null-guard pattern.
+      let inFileSearchToolbarController = null;
+      // Stage S4 — cross-session content-search state.
+      //   - globalIndex / globalIndexStatus: managed by search-index.js
+      //   - notesGeneration: stamped on the index; compared against
+      //     currentNotesGeneration so we can invalidate when loadVaultNotes
+      //     replaces the notes set (round-1 plan-review M3 fix).
+      const crossSessionState = {
+        globalIndex: null,
+        globalIndexStatus: 'idle',
+        globalIndexProgress: { done: 0, total: 0 },
+        notesGeneration: 0,
+      };
+      let currentNotesGeneration = 0;
+      // Round-1 plan-review B1 fix: track in-flight index build so a
+      // second input event during the build awaits the SAME promise
+      // instead of issuing a duplicate build.
+      let pendingCrossSessionIndexBuild = null;
+      // Round-1 plan-review M2 fix: monotonic token for stale-result guard.
+      let crossSessionSearchToken = 0;
       // Stage S3.5 — per-note hydration cache. Tracks whether the CM6
       // surface (cm6) and Toast UI surface (toast) have been hydrated
       // for each note. Used by the deferred-load path to skip eager
@@ -2240,26 +2381,10 @@
           `;
 
           item.addEventListener('click', () => {
-            // Flush any in-progress active-block edit on the OUTGOING note and
-            // write the flushed source back so uncommitted textarea / IME
-            // composition state is preserved before selectedNoteId changes
-            // and renderApp() loads the new note.
-            const outgoingNote = getSelectedNote();
-            if (liveEditorInstance && outgoingNote) {
-              liveEditorInstance.exitWriteMode();
-              // Stage S3.5: bodyForRead returns the on-disk body for a
-              // deferred (CM6 unhydrated) large session, preventing
-              // empty-CM6 from clobbering note.body on note switch.
-              outgoingNote.body = bodyForRead(outgoingNote);
-            }
-            selectedNoteId = note.id;
-            renderApp();
-            // Stage 6.1: a dirty saved note that the user edited and then
-            // switched away from must keep showing Draft when re-selected.
-            // Derive from the new selected note's dirty state instead of
-            // unconditionally clearing to Ready.
-            setStatusFromSelectedNote();
-            scrollSelectedNoteIntoView();
+            // Stage S4 — route through selectNote so cross-session result
+            // clicks get the same exitWriteMode + bodyForRead capture as
+            // note-row clicks (round-1 plan-review B2 fix).
+            selectNote(note.id);
           });
 
           noteList.appendChild(item);
@@ -2522,6 +2647,15 @@
           stopVaultWatcher = null;
         }
 
+        // Stage S4 — reset cross-session index state so a new vault
+        // doesn't reuse the previous vault's content index.
+        crossSessionState.globalIndex = null;
+        crossSessionState.globalIndexStatus = 'idle';
+        crossSessionState.notesGeneration = 0;
+        currentNotesGeneration = 0;
+        if (crossSessionResults) crossSessionResults.hidden = true;
+        if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
+
         await window.vaultApi.unwatchVaultFolder();
       }
 
@@ -2768,6 +2902,10 @@
         while (notes.some((note) => note.id === `draft:${nextDraftId}`)) {
           nextDraftId += 1;
         }
+
+        // Stage S4 — bump notes generation so any cached cross-session
+        // index is invalidated on the next query (round-1 plan-review M3 fix).
+        currentNotesGeneration += 1;
 
         renderApp();
 
@@ -3104,6 +3242,101 @@
           setStatusFromSelectedNote(`Search: ${currentSearchQuery}`);
         } else {
           setStatusFromSelectedNote('Search cleared');
+        }
+
+        // Stage S4 — cross-session content search. Only fires when the
+        // AI Sessions filter is active and the query is long enough.
+        // Otherwise hide the results container so a previous-filter
+        // query's results don't linger.
+        const minLen =
+          (window.SessionViewer && window.SessionViewer.MIN_GLOBAL_QUERY_LEN) || 2;
+        if (currentFilter === 'sessions' && currentSearchQuery.length >= minLen) {
+          runCrossSessionSearch(currentSearchQuery, ++crossSessionSearchToken);
+        } else {
+          if (crossSessionResults) crossSessionResults.hidden = true;
+          if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
+        }
+      }
+
+      // Stage S4 — cross-session content-search orchestration.
+      //   - Round-1 plan-review M3 fix: invalidate index when
+      //     notesGeneration moves (e.g., after loadVaultNotes refresh).
+      //   - Round-1 plan-review B1 fix: a second input event during a
+      //     pending build awaits the SAME in-flight promise.
+      //   - Round-1 plan-review M2 fix: stale-result guard via
+      //     monotonic searchToken + post-await guards.
+      async function runCrossSessionSearch(query, token) {
+        if (!window.SessionViewer || !window.SessionViewer.loadGlobalIndex) return;
+
+        // Stage S4 round-1 M3 fix: invalidate when the notes set has been
+        // replaced (e.g., after loadVaultNotes). `notesGeneration` is
+        // stamped on the state ONLY after a successful build completes
+        // (see the .then() below), so a mid-build vault refresh forces a
+        // rebuild rather than reusing a stale index labelled with the
+        // new generation.
+        if (crossSessionState.notesGeneration !== currentNotesGeneration) {
+          crossSessionState.globalIndex = null;
+          crossSessionState.globalIndexStatus = 'idle';
+          pendingCrossSessionIndexBuild = null;
+        }
+
+        if (crossSessionState.globalIndexStatus !== 'ready') {
+          if (!pendingCrossSessionIndexBuild) {
+            if (crossSessionIndexBanner) {
+              crossSessionIndexBanner.textContent = 'Indexing sessions…';
+              crossSessionIndexBanner.hidden = false;
+            }
+            const buildGen = currentNotesGeneration;
+            pendingCrossSessionIndexBuild = window.SessionViewer.loadGlobalIndex(
+              crossSessionState,
+              notes.filter((n) => n && n.sessionsImport === true),
+              async (it) => ({ content: typeof it.body === 'string' ? it.body : '' }),
+              (s) => s,
+              () => true,
+              (p) => {
+                if (crossSessionIndexBanner && p && p.total > 0) {
+                  crossSessionIndexBanner.textContent =
+                    `Indexing sessions… ${p.done}/${p.total}`;
+                }
+              },
+            ).then(() => {
+              // Stamp ONLY after a successful build; a build kicked off
+              // against an old notes set leaves notesGeneration at the
+              // OLD value, so a later guard catches the mismatch and
+              // forces a rebuild on the next query.
+              crossSessionState.notesGeneration = buildGen;
+            }).finally(() => {
+              pendingCrossSessionIndexBuild = null;
+              if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
+            });
+          }
+          try { await pendingCrossSessionIndexBuild; } catch (_e) { /* swallow */ }
+        }
+
+        // Round-1 plan-review M2 fix: stale-result guard.
+        if (
+          token !== crossSessionSearchToken ||
+          currentFilter !== 'sessions' ||
+          currentSearchQuery !== query ||
+          crossSessionState.notesGeneration !== currentNotesGeneration
+        ) {
+          return;
+        }
+
+        const results = window.SessionViewer.searchIndex(
+          crossSessionState.globalIndex,
+          query,
+        );
+        if (crossSessionResultsList) {
+          window.SessionViewer.renderGlobalResults(
+            crossSessionResultsList,
+            results,
+            document,
+            (id) => selectNote(id),
+          );
+        }
+        if (crossSessionResults) {
+          crossSessionResults.hidden = results.length === 0;
         }
       }
 
@@ -3548,6 +3781,23 @@
         return getCurrentEditorText();
       }
 
+      // Stage S4 — shared note-selection transition (round-1 plan-review
+      // B2 fix). Both the note-row click handler AND the cross-session
+      // result click handler must route through this; otherwise a
+      // cross-session jump bypasses exitWriteMode + bodyForRead and can
+      // lose unsaved edits on the outgoing note.
+      function selectNote(noteId) {
+        const outgoingNote = getSelectedNote();
+        if (liveEditorInstance && outgoingNote) {
+          liveEditorInstance.exitWriteMode();
+          outgoingNote.body = bodyForRead(outgoingNote);
+        }
+        selectedNoteId = noteId;
+        renderApp();
+        setStatusFromSelectedNote();
+        scrollSelectedNoteIntoView();
+      }
+
       // Stage S3.5 — banner show/hide. Three states:
       //   'idle'           — note is too-large and not yet hydrated.
       //   'loading-write'  — user clicked Write; CM6 hydration in flight.
@@ -3681,7 +3931,19 @@
       // on an actual mode change to avoid spamming Toast UI.
       function setActiveMode(mode) {
         const wasChange = currentMode !== mode;
+        const prevMode = currentMode;
         currentMode = mode;
+        // Stage S4 — show/hide the in-file search toolbar. The toolbar
+        // is bound to Read; hide it on transitions away from Read so a
+        // stale highlight doesn't leak into Write/Preview, and show it
+        // on transitions into Read so the user gets the search affordance.
+        if (inFileSearchToolbarController) {
+          if (mode === 'read' && prevMode !== 'read') {
+            inFileSearchToolbarController.onReadActivated();
+          } else if (mode !== 'read' && prevMode === 'read') {
+            inFileSearchToolbarController.onReadDeactivated();
+          }
+        }
         if (mode === 'preview') {
           hybridWritePane.classList.add('is-hidden');
           toastPreviewMount.classList.add('is-visible');
@@ -3940,6 +4202,30 @@
           err,
         );
         readTabController = null;
+      }
+
+      // Stage S4 — in-file search toolbar controller. Same null-guard
+      // pattern as readTabController.
+      try {
+        if (window.SessionViewer && window.SessionViewer.createInFileSearchToolbar) {
+          inFileSearchToolbarController = window.SessionViewer.createInFileSearchToolbar({
+            toolbarRoot: inFileSearchToolbar,
+            searchInput: inFileSearchInput,
+            prevButton:  inFileSearchPrev,
+            nextButton:  inFileSearchNext,
+            counterEl:   inFileSearchCounter,
+            readMount:   readViewMount,
+            document:    document,
+            searchDom:   window.SessionViewer,
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[session-viewer] In-file search toolbar init failed; toolbar disabled.',
+          err,
+        );
+        inFileSearchToolbarController = null;
       }
 
       document.addEventListener('keydown', async (e) => {
