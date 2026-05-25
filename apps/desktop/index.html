@@ -2881,6 +2881,24 @@
               mode: saved && saved.mode === 'preview' ? 'preview' : 'read',
               scrollRatio: 1,
             });
+            // Stage S5 round-9 QA fix: the prior fixes wrote
+            // scrollRatio=1 into noteViewStates, expecting the next
+            // renderEditor pass to apply it via restoreNoteViewState.
+            // But renderEditor's same-id guard (`note.id !==
+            // liveEditorLastNoteId`) skips the entire heavy path
+            // when the SAME note is still selected — including the
+            // setText / forceReadModeWithBody call that actually
+            // rewrites the visible DOM. Result: refresh updated the
+            // in-memory `notes` array but the Read view kept showing
+            // the pre-refresh content until the user switched notes
+            // and switched back.
+            //
+            // Reset the guard so the next renderEditor pass treats
+            // this as a fresh load. Also drop the hydration cache
+            // for this note so Write/Preview re-hydrate with the
+            // new body on demand.
+            liveEditorLastNoteId = '';
+            hydrationCache.drop(selectedNote.id);
           }
 
           // The watcher only knows that one file changed on disk; every other
@@ -4549,6 +4567,22 @@
           // re-selects the same note.
           const selectedNote = getSelectedNote();
           const preferred = (selectedNote && selectedNote.relativePath) || '';
+          // Stage S5 round-9 QA fix: when the user clicks Refresh
+          // while viewing an AI Session, force a fresh render in
+          // case the file watcher debounced or missed events. The
+          // watcher path also resets these (for completeness when
+          // the watcher does fire), but doing it here guarantees
+          // the Refresh button itself always refreshes the visible
+          // surface.
+          if (selectedNote && selectedNote.sessionsImport === true) {
+            const saved = noteViewStates.get(selectedNote.id);
+            noteViewStates.set(selectedNote.id, {
+              mode: saved && saved.mode === 'preview' ? 'preview' : 'read',
+              scrollRatio: 1,
+            });
+            liveEditorLastNoteId = '';
+            hydrationCache.drop(selectedNote.id);
+          }
           // Mirror loadVaultNotes's status side-effect, then call
           // refreshVaultNotes directly so we can pass `preferred`.
           setStatus('saving', 'Loading vault...');
