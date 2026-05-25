@@ -337,3 +337,37 @@ test('T-S5-QA12 watcher writes scrollRatio=1 when selected session got refreshed
     /if\s*\(selectedSessionGotRefreshed\)[\s\S]*?noteViewStates\.set\([\s\S]*?scrollRatio:\s*1/,
   );
 });
+
+// ---------- Round-5 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA13 Refresh onComplete preserves current selection (issue 2)', () => {
+  const src = readIndex();
+  // Refresh button's onComplete must compute `preferred` from the
+  // currently-selected note and call refreshVaultNotes(preferred),
+  // NOT loadVaultNotes() (which falls through to notes[0]).
+  assert.match(
+    src,
+    /onComplete:\s*\(\)\s*=>\s*\{[\s\S]*?getSelectedNote\(\)[\s\S]*?preferred\s*=[\s\S]*?selectedNote\.relativePath[\s\S]*?refreshVaultNotes\(preferred\)/,
+  );
+});
+
+test('T-S5-QA14 Preview button disabled + showPreviewMode early-returns for large sessions (issue 1)', () => {
+  const src = readIndex();
+  assert.match(src, /function\s+previewIsUnsafeForSelectedNote/);
+  assert.match(src, /function\s+applyPreviewButtonDisabledState/);
+  // Must check sessionsImport AND isLargeSession.
+  assert.match(
+    src,
+    /function\s+previewIsUnsafeForSelectedNote[\s\S]*?note\.sessionsImport[\s\S]*?isLargeSession\(note\)/,
+  );
+  // showPreviewMode must early-return when unsafe.
+  assert.match(
+    src,
+    /function\s+showPreviewMode[\s\S]*?previewIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
+  );
+  // applyPreviewButtonDisabledState must run from renderApp.
+  assert.match(
+    src,
+    /function\s+renderApp[\s\S]*?applyPreviewButtonDisabledState\(\)/,
+  );
+});
