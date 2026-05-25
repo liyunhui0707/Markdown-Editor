@@ -60,6 +60,9 @@ function createGroupedListRenderer(opts) {
     onStarClick,
     onHeaderToggle,
     isCollapsed,
+    // Stage S5 round-3 QA fix (issue B): bucket-level collapse.
+    onBucketToggle,
+    isBucketCollapsed,
   } = opts;
   if (!container) throw new Error('createGroupedListRenderer: container required');
   if (!doc) throw new Error('createGroupedListRenderer: document required');
@@ -183,18 +186,64 @@ function createGroupedListRenderer(opts) {
     return row;
   }
 
-  function makeBucket(bucket, currentSelectedId) {
+  function makeBucket(bucket, currentSelectedId, groupKey) {
     const wrapper = doc.createElement('div');
     wrapper.setAttribute('class', 'session-bucket');
     wrapper.setAttribute('data-bucket-id', bucket.layerId);
+    wrapper.setAttribute('data-group-key', groupKey);
+
+    // Stage S5 round-3 QA fix (issue B): the bucket header now
+    // toggles collapse for its bucket. State persisted by the caller
+    // under a separate localStorage key, keyed by `<groupKey>:<layerId>`.
+    const bucketCollapsed =
+      typeof isBucketCollapsed === 'function' &&
+      isBucketCollapsed(groupKey, bucket.layerId);
 
     const header = doc.createElement('div');
-    header.setAttribute('class', 'session-bucket-header');
-    header.appendChild(doc.createTextNode(bucket.label));
+    header.setAttribute(
+      'class',
+      bucketCollapsed
+        ? 'session-bucket-header session-bucket-header--collapsed'
+        : 'session-bucket-header',
+    );
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+
+    const bChev = doc.createElement('span');
+    bChev.setAttribute('class', 'session-bucket-chevron');
+    bChev.appendChild(doc.createTextNode(bucketCollapsed ? '▸' : '▾'));
+    header.appendChild(bChev);
+
+    const bLabel = doc.createElement('span');
+    bLabel.setAttribute('class', 'session-bucket-label');
+    bLabel.appendChild(doc.createTextNode(bucket.label));
+    header.appendChild(bLabel);
+
+    const bCount = doc.createElement('span');
+    bCount.setAttribute('class', 'session-bucket-count');
+    const n = (bucket.items || []).length;
+    bCount.appendChild(doc.createTextNode(String(n)));
+    header.appendChild(bCount);
+
+    if (typeof header.addEventListener === 'function' && typeof onBucketToggle === 'function') {
+      header.addEventListener('click', () => onBucketToggle(groupKey, bucket.layerId));
+      header.addEventListener('keydown', (e) => {
+        if (e && (e.key === 'Enter' || e.key === ' ')) {
+          if (typeof e.preventDefault === 'function') e.preventDefault();
+          onBucketToggle(groupKey, bucket.layerId);
+        }
+      });
+    } else {
+      header.__onClick = () => {
+        if (typeof onBucketToggle === 'function') onBucketToggle(groupKey, bucket.layerId);
+      };
+    }
     wrapper.appendChild(header);
 
-    for (const item of bucket.items || []) {
-      wrapper.appendChild(makeRow(item, currentSelectedId));
+    if (!bucketCollapsed) {
+      for (const item of bucket.items || []) {
+        wrapper.appendChild(makeRow(item, currentSelectedId));
+      }
     }
     return wrapper;
   }
@@ -216,7 +265,7 @@ function createGroupedListRenderer(opts) {
       return body;
     }
     for (const bucket of contents || []) {
-      body.appendChild(makeBucket(bucket, currentSelectedId));
+      body.appendChild(makeBucket(bucket, currentSelectedId, groupKey));
     }
     return body;
   }

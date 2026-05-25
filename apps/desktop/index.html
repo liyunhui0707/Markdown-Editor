@@ -1094,11 +1094,30 @@
         margin-bottom: 4px;
       }
       .session-bucket-header {
-        padding: 4px 10px 4px 22px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px 4px 18px;
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-faint, #b3ad9d);
+        cursor: pointer;
+        user-select: none;
+      }
+      .session-bucket-header:hover {
+        color: var(--text-muted, #8a8678);
+      }
+      .session-bucket-chevron {
+        width: 10px;
+        font-size: 9px;
+      }
+      .session-bucket-label {
+        flex: 1 1 auto;
+      }
+      .session-bucket-count {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
       }
       .session-row {
         display: flex;
@@ -1946,6 +1965,10 @@
       // groupKey -> true (collapsed). Persisted under
       // `markdownVault.aiSessions.collapsed` as an array of keys.
       const groupCollapsedState = new Map();
+      // Stage S5 round-3 QA fix (issue B): per-bucket collapse state.
+      // Keyed by `<groupKey>:<layerId>`. Persisted under
+      // `markdownVault.aiSessions.bucketCollapsed` as an array of keys.
+      const bucketCollapsedState = new Map();
       // Stage S4 — cross-session content-search state.
       //   - globalIndex / globalIndexStatus: managed by search-index.js
       //   - notesGeneration: stamped on the index; compared against
@@ -2450,13 +2473,20 @@
           if (!n || n.sessionsImport !== true) continue;
           const isDirty = window.DirtyState ? window.DirtyState.isNoteDirty(n) : false;
           const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(n, isDirty) : null;
+          // Stage S5 round-3 QA fix (issue D): bucket by the session's
+          // actual activity time (n.sourceMtime, from importer
+          // frontmatter), falling back to the file mtime when
+          // unavailable. Without this fix, every session imported in
+          // the same Refresh lands in the same bucket regardless of
+          // when the conversation actually happened.
+          const effectiveMtime = n.sourceMtime || n.mtime;
           items.push({
             id: n.id,
             title: n.title || 'Untitled session',
             relativePath: n.relativePath || '',
             agent: relPathToAgent(n.relativePath),
-            mtime: n.mtime,
-            sourceMtime: n.mtime,
+            mtime: effectiveMtime,
+            sourceMtime: effectiveMtime,
             badge: badge,
           });
         }
@@ -4434,6 +4464,21 @@
         }
       } catch (_e) { /* garbage data — start with all groups expanded */ }
 
+      // Stage S5 round-3 QA fix (issue B): restore bucket-collapse preferences.
+      try {
+        const rawBucketCollapsed = window.localStorage.getItem(
+          'markdownVault.aiSessions.bucketCollapsed',
+        );
+        if (rawBucketCollapsed) {
+          const arr = JSON.parse(rawBucketCollapsed);
+          if (Array.isArray(arr)) {
+            for (const k of arr) {
+              if (typeof k === 'string') bucketCollapsedState.set(k, true);
+            }
+          }
+        }
+      } catch (_e) { /* garbage data — start with all buckets expanded */ }
+
       try {
         if (
           favoritesController &&
@@ -4461,6 +4506,21 @@
               renderApp();
             },
             isCollapsed: (groupKey) => groupCollapsedState.has(groupKey),
+            // Stage S5 round-3 QA fix (issue B): bucket-collapse callbacks.
+            onBucketToggle: (groupKey, layerId) => {
+              const bk = `${groupKey}:${layerId}`;
+              if (bucketCollapsedState.has(bk)) bucketCollapsedState.delete(bk);
+              else bucketCollapsedState.set(bk, true);
+              try {
+                const arr = [...bucketCollapsedState.keys()];
+                window.localStorage.setItem(
+                  'markdownVault.aiSessions.bucketCollapsed', JSON.stringify(arr),
+                );
+              } catch (_e) { /* quota — silent */ }
+              renderApp();
+            },
+            isBucketCollapsed: (groupKey, layerId) =>
+              bucketCollapsedState.has(`${groupKey}:${layerId}`),
           });
         }
       } catch (err) {

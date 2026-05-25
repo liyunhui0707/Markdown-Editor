@@ -119,13 +119,67 @@ test('T-S5-18 bucket headers nested inside agent group bodies (today/etc.)', () 
   const h = makeHarness();
   h.renderer.render(sampleTree(h.favoritesController), null);
   const codexGroup = findByClass(h.container, 'session-group');
-  // codex is the first group; its body has buckets.
   const codexBody = codexGroup.children[1];
   assert.equal(codexBody.attrs.class, 'session-group-body');
   const buckets = findAllByClass(codexBody, 'session-bucket');
   assert.ok(buckets.length >= 1);
   const bucketHeader = findByClass(buckets[0], 'session-bucket-header');
-  assert.equal(bucketHeader.children[0].textContent, 'Today');
+  // Round-3 QA fix (issue B): bucket headers are now clickable
+  // chevron / label / count rows. Find the label span by class.
+  const label = findByClass(bucketHeader, 'session-bucket-label');
+  assert.ok(label, 'bucket header must have a .session-bucket-label child');
+  assert.equal(label.children[0].textContent, 'Today');
+});
+
+// ---------- Round-3 QA fix (issue B): bucket-level collapse ----------
+
+test('T-S5-18a bucket header is clickable + onBucketToggle fires with (groupKey, layerId)', () => {
+  const h = makeHarness();
+  const calls = [];
+  const renderer = createGroupedListRenderer({
+    container: h.container,
+    document: h.doc,
+    favoritesController: h.favoritesController,
+    onRowClick: () => {},
+    onStarClick: () => {},
+    onHeaderToggle: () => {},
+    isCollapsed: () => false,
+    onBucketToggle: (gk, lid) => calls.push([gk, lid]),
+    isBucketCollapsed: () => false,
+  });
+  renderer.render(sampleTree(h.favoritesController), null);
+  const codexGroup = findByClass(h.container, 'session-group');
+  const codexBody = codexGroup.children[1];
+  const buckets = findAllByClass(codexBody, 'session-bucket');
+  const bucketHeader = findByClass(buckets[0], 'session-bucket-header');
+  bucketHeader.__onClick();
+  assert.deepEqual(calls, [['codex', 'today']]);
+});
+
+test('T-S5-18b isBucketCollapsed=true hides bucket rows + flips chevron', () => {
+  const h = makeHarness();
+  const renderer = createGroupedListRenderer({
+    container: h.container,
+    document: h.doc,
+    favoritesController: h.favoritesController,
+    onRowClick: () => {},
+    onStarClick: () => {},
+    onHeaderToggle: () => {},
+    isCollapsed: () => false,
+    onBucketToggle: () => {},
+    isBucketCollapsed: (gk, lid) => gk === 'codex' && lid === 'today',
+  });
+  renderer.render(sampleTree(h.favoritesController), null);
+  const codexGroup = findByClass(h.container, 'session-group');
+  const codexBody = codexGroup.children[1];
+  const buckets = findAllByClass(codexBody, 'session-bucket');
+  // bucket children should be [header] only — rows are skipped when collapsed.
+  assert.equal(buckets[0].children.length, 1);
+  const header = buckets[0].children[0];
+  const cls = String(header.attrs.class).split(' ');
+  assert.ok(cls.includes('session-bucket-header--collapsed'));
+  const chev = findByClass(header, 'session-bucket-chevron');
+  assert.equal(chev.children[0].textContent, '▸');
 });
 
 test('T-S5-19 each row has a star + title; no innerHTML writes', () => {

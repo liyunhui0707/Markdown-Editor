@@ -222,3 +222,75 @@ test('T-S5-QA3 main.js attaches mtime to vault notes via fs.statSync', () => {
   assert.match(src, /fs\.statSync\(fullPath\)/);
   assert.match(src, /parseMarkdownFile\(relativePath,\s*content,\s*stat\)/);
 });
+
+// ---------- Round-3 QA fixes (2026-05-26) ----------
+
+test('T-S5-QA4 main.js parseFrontmatter extracts session-import frontmatter fields', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'main.js'),
+    'utf8',
+  );
+  assert.match(src, /key === 'source_mtime'/);
+  assert.match(src, /key === 'source_custom_title'/);
+  assert.match(src, /key === 'source_ai_title'/);
+});
+
+test('T-S5-QA5 session-import notes prefer custom/ai title over UUID filename (issue C)', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'main.js'),
+    'utf8',
+  );
+  // For sessionsImport notes, prefer source_custom_title || source_ai_title.
+  assert.match(
+    src,
+    /if\s*\(sessionsImport\)\s*\{[\s\S]*?source_custom_title[\s\S]*?source_ai_title[\s\S]*?title\s*=\s*preferred/,
+  );
+});
+
+test('T-S5-QA6 notes carry sourceMtime parsed from frontmatter (issue D)', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'main.js'),
+    'utf8',
+  );
+  // sourceMtime is parsed from frontmatter.source_mtime via Date.parse.
+  assert.match(
+    src,
+    /Date\.parse\(frontmatter\.source_mtime\)[\s\S]*?sourceMtime\s*=\s*parsed/,
+  );
+  // And the returned note exposes it as `sourceMtime: sourceMtime`.
+  assert.match(src, /sourceMtime,\n/);
+});
+
+test('T-S5-QA7 notesToSessionItems prefers n.sourceMtime over n.mtime', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /function\s+notesToSessionItems[\s\S]*?n\.sourceMtime\s*\|\|\s*n\.mtime/,
+  );
+});
+
+test('T-S5-QA8 bucket-collapse callbacks wired into createGroupedListRenderer (issue B)', () => {
+  const src = readIndex();
+  assert.match(
+    src,
+    /onBucketToggle:\s*\(groupKey,\s*layerId\)\s*=>[\s\S]*?bucketCollapsedState[\s\S]*?renderApp\(\)/,
+  );
+  assert.match(
+    src,
+    /isBucketCollapsed:\s*\(groupKey,\s*layerId\)\s*=>[\s\S]*?bucketCollapsedState\.has/,
+  );
+});
+
+test('T-S5-QA8b bucket-collapse state persists under its own localStorage key', () => {
+  const src = readIndex();
+  assert.match(src, /'markdownVault\.aiSessions\.bucketCollapsed'/);
+  // Verify both a getItem call (boot restore) and a setItem call exist.
+  assert.match(
+    src,
+    /localStorage\.getItem\([\s\S]*?markdownVault\.aiSessions\.bucketCollapsed/,
+  );
+  assert.match(
+    src,
+    /localStorage\.setItem\([\s\S]*?markdownVault\.aiSessions\.bucketCollapsed/,
+  );
+});
