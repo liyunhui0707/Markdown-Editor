@@ -27,7 +27,8 @@ const DirtyState  = require('../lib/dirty-state');
 const RefreshButton = require('../lib/session-viewer/refresh-button');
 const ReadRenderer = require('../lib/session-viewer/read-renderer');
 const ReadTab = require('../lib/session-viewer/read-tab');
-const SessionViewer = Object.assign({}, RefreshButton, ReadRenderer, ReadTab);
+const LargeSessionGuard = require('../lib/session-viewer/large-session-guard');
+const SessionViewer = Object.assign({}, RefreshButton, ReadRenderer, ReadTab, LargeSessionGuard);
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -224,6 +225,7 @@ function makeRendererHarness({
     'sessionsRefreshMount',
     'modeReadButton',
     'readViewMount',
+    'sessionsLargeBanner',
     'hybridWritePane',
     'toastPreviewMount',
     'writeModeButton',
@@ -3501,18 +3503,22 @@ test('CM6 parity: same-note Write↔Preview round-trip preserves position with a
   assert.equal(writePane.scrollTop, 240, 'CM6: Preview→Write returns to 40%');
 });
 
-test('renderer source keeps save and note-switch reads on liveEditorInstance.getText()', () => {
+test('renderer source keeps save and note-switch reads on liveEditorInstance.getText() (or bodyForRead in Stage S3.5)', () => {
   const html = readIndexHtml();
 
+  // Stage S3.5: the raw `liveEditorInstance.getText()` reads at the
+  // save / note-switch / save-all / keyboard-nav sites are now guarded
+  // by the bodyForRead(note) helper so deferred large AI Sessions
+  // don't get clobbered with empty CM6 content. Accept either pattern.
   assert.match(
     html,
-    /const\s+savedBody\s*=\s*liveEditorInstance\.getText\(\)[\s\S]*?body:\s*savedBody/,
-    'save should read raw Markdown through liveEditorInstance.getText()'
+    /const\s+savedBody\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))[\s\S]*?body:\s*savedBody/,
+    'save should read raw Markdown through liveEditorInstance.getText() or bodyForRead()'
   );
   assert.match(
     html,
-    /outgoingNote\.body\s*=\s*liveEditorInstance\.getText\(\)/,
-    'note switching should flush outgoing raw Markdown through liveEditorInstance.getText()'
+    /outgoingNote\.body\s*=\s*(?:liveEditorInstance\.getText\(\)|bodyForRead\([^)]*\))/,
+    'note switching should flush outgoing raw Markdown through liveEditorInstance.getText() or bodyForRead()'
   );
   assert.match(
     html,
