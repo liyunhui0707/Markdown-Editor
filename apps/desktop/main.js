@@ -806,3 +806,34 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// Stage 6.3C — terminal SIGINT / SIGTERM also runs the dirty-summary
+// prompt. Without this handler, Ctrl+C in the terminal running
+// `npm run dev` (or any signal-based kill) terminates Electron
+// immediately and silently discards unsaved work — the
+// `before-quit` and `window.close` events never fire.
+//
+// Bash convention: a single Ctrl+C is "please exit cleanly"; a
+// second Ctrl+C within a couple seconds means "I'm serious, kill
+// it now". The two-stroke escape hatch lets the user force a quit
+// if the dirty-summary dialog itself is unresponsive (e.g. the
+// renderer is wedged) or if they just want out fast.
+let lastTerminationSignalAt = 0;
+function handleTerminationSignal(signal) {
+  const now = Date.now();
+  if (now - lastTerminationSignalAt < 2000) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `\n[${signal}] received twice — force-quitting (unsaved changes will be lost).`,
+    );
+    process.exit(130);
+  }
+  lastTerminationSignalAt = now;
+  // eslint-disable-next-line no-console
+  console.error(
+    `[${signal}] received — running close-guard. Press Ctrl+C again to force-quit.`,
+  );
+  runCloseGuardForSource('before-quit');
+}
+process.on('SIGINT',  () => handleTerminationSignal('SIGINT'));
+process.on('SIGTERM', () => handleTerminationSignal('SIGTERM'));
