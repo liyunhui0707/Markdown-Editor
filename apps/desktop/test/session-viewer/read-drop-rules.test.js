@@ -206,6 +206,40 @@ test('<local-command-caveat> and <local-command-stderr> are also dropped', () =>
   assert.match(text, /bye/);
 });
 
+test('round-7: [Image: source: <path>] lines are dropped from user turns', () => {
+  const src = user(
+    'maybe you are right\n\n[Image: source: /Users/liyunhui/.claude/image-cache/abc/3.png]\n\n[Image: source: /Users/liyunhui/.claude/image-cache/abc/4.png]',
+  );
+  const { frag } = render(src);
+  const text = flattenText(frag);
+  // The user's actual message survives.
+  assert.match(text, /maybe you are right/);
+  // The image-source noise is gone.
+  assert.ok(!/Image: source:/.test(text), 'image-source line should be dropped');
+  assert.ok(!/image-cache/.test(text), 'image-cache path should be dropped');
+});
+
+test('round-7: [Image: source: …] in assistant turns is left alone (drop is user-only)', () => {
+  // Assistant turns never run the user-line preprocessor; the literal
+  // text passes through, matching the existing drop-rule scoping.
+  const src = assistant('reply with [Image: source: /tmp/x.png] noted');
+  const { frag } = render(src);
+  const text = flattenText(frag);
+  assert.match(text, /Image: source: \/tmp\/x\.png/);
+});
+
+test('round-7: a placeholder line like "[Image #3] [Image #4]" is preserved', () => {
+  // The user's typed message uses placeholder labels (NOT "source:" lines).
+  // Those must continue to render — only the importer's expanded
+  // source-path lines get dropped.
+  const src = user('[Image #3] [Image #4] maybe you are right');
+  const { frag } = render(src);
+  const text = flattenText(frag);
+  assert.match(text, /\[Image #3\]/);
+  assert.match(text, /\[Image #4\]/);
+  assert.match(text, /maybe you are right/);
+});
+
 test('drop rules only apply in user turns, not assistant', () => {
   const src = assistant('hi\n<system-reminder>this is shown</system-reminder>\nbye');
   const { frag } = render(src);

@@ -40,6 +40,18 @@ function preprocessUserLine(line, state) {
     }
   }
 
+  // Stage S5 round-7 QA fix: drop `[Image: source: /path/to/cache.png]`
+  // lines from the rendered transcript. The importer writes these
+  // alongside `[Image #N]` placeholders for the chat client's image
+  // attachments; the source path is meaningful to the importer's
+  // round-trip layer but is just noise in the human-readable Read view.
+  // Pattern matches lines that are exclusively `[Image: source: <path>]`
+  // (optional surrounding whitespace) — leaves anything with trailing
+  // prose alone.
+  if (/^\s*\[Image:\s+source:\s+[^\]]+\]\s*$/.test(line)) {
+    return { drop: true, emitSlash: false };
+  }
+
   for (const tag of DROP_TAGS) {
     if (new RegExp(`^\\s*<${tag}>.*</${tag}>\\s*$`).test(line)) {
       return { drop: true, emitSlash: true };
