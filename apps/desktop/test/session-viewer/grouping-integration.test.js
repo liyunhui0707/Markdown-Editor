@@ -306,13 +306,14 @@ test('T-S5-QA9 restoreNoteViewState defaults AI Sessions to read mode + scrollRa
   );
 });
 
-test('T-S5-QA10 deferred-large-session render applies scrollRatio=1 by default for AI Sessions', () => {
+test('T-S5-QA10 Stage S6: session render applies scrollRatio=1 by default for AI Sessions', () => {
   const src = readIndex();
-  // After forceReadModeWithBody in renderEditor's deferred branch, a
-  // scroll apply runs with defaultScroll = isSession ? 1 : 0.
+  // Stage S6: the session branch is now keyed on sessionsImport
+  // (not isLargeSession) and applies a default scrollRatio of 1
+  // when no saved view exists.
   assert.match(
     src,
-    /forceReadModeWithBody\(note\)[\s\S]*?const\s+isSession\s*=\s*!!note\.sessionsImport[\s\S]*?const\s+defaultScroll\s*=\s*isSession\s*\?\s*1\s*:\s*0[\s\S]*?_applyScrollRatio\(readViewMount,\s*ratio\)/,
+    /forceReadModeWithBody\(note\)[\s\S]*?const\s+savedView\s*=\s*noteViewStates\.get\(note\.id\)[\s\S]*?savedView\s*\?\s*savedView\.scrollRatio\s*:\s*1[\s\S]*?_applyScrollRatio\(readViewMount,\s*ratio\)/,
   );
 });
 
@@ -351,24 +352,38 @@ test('T-S5-QA13 Refresh onComplete preserves current selection (issue 2)', () =>
   );
 });
 
-test('T-S5-QA14 Preview button disabled + showPreviewMode early-returns for large sessions (issue 1)', () => {
+test('T-S5-QA14 Stage S6: Write/Preview/Read mode buttons are HIDDEN for AI Sessions', () => {
   const src = readIndex();
-  assert.match(src, /function\s+previewIsUnsafeForSelectedNote/);
-  assert.match(src, /function\s+applyPreviewButtonDisabledState/);
-  // Must check sessionsImport AND isLargeSession.
+  // applyModeButtonsVisibility hides Write + Preview for sessions and
+  // always hides modeReadButton.
+  assert.match(src, /function\s+applyModeButtonsVisibility/);
   assert.match(
     src,
-    /function\s+previewIsUnsafeForSelectedNote[\s\S]*?note\.sessionsImport[\s\S]*?isLargeSession\(note\)/,
+    /function\s+applyModeButtonsVisibility[\s\S]*?const\s+isSession\s*=\s*!!\(note\s*&&\s*note\.sessionsImport\)[\s\S]*?writeModeButton\.hidden\s*=\s*isSession[\s\S]*?previewModeButton\.hidden\s*=\s*isSession[\s\S]*?modeReadButton\.hidden\s*=\s*true/,
   );
-  // showPreviewMode must early-return when unsafe.
+  // The disable-state predicates and apply helpers from rounds 5/6 are gone.
+  assert.doesNotMatch(src, /previewIsUnsafeForSelectedNote/);
+  assert.doesNotMatch(src, /writeIsUnsafeForSelectedNote/);
+  assert.doesNotMatch(src, /applyPreviewButtonDisabledState/);
+  assert.doesNotMatch(src, /applyWriteButtonDisabledState/);
+});
+
+test('T-S5-QA15 Stage S6: showWriteMode + showPreviewMode early-return for any session', () => {
+  const src = readIndex();
+  // Both guard against keyboard / programmatic triggers since the
+  // tab buttons are hidden in renderApp.
   assert.match(
     src,
-    /function\s+showPreviewMode[\s\S]*?previewIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
+    /function\s+showWriteMode[\s\S]*?note\.sessionsImport\s*===\s*true[\s\S]*?return/,
   );
-  // applyPreviewButtonDisabledState must run from renderApp.
   assert.match(
     src,
-    /function\s+renderApp[\s\S]*?applyPreviewButtonDisabledState\(\)/,
+    /function\s+showPreviewMode[\s\S]*?note\.sessionsImport\s*===\s*true[\s\S]*?return/,
+  );
+  // applyModeButtonsVisibility runs from renderApp.
+  assert.match(
+    src,
+    /function\s+renderApp[\s\S]*?applyModeButtonsVisibility\(\)/,
   );
 });
 
@@ -401,18 +416,4 @@ test('T-S5-QA17 Refresh onComplete force-rerenders the open AI Session', () => {
   );
 });
 
-test('T-S5-QA15 Write button disabled + showWriteMode early-returns for large sessions', () => {
-  const src = readIndex();
-  assert.match(src, /function\s+writeIsUnsafeForSelectedNote/);
-  assert.match(src, /function\s+applyWriteButtonDisabledState/);
-  // showWriteMode must early-return when unsafe.
-  assert.match(
-    src,
-    /function\s+showWriteMode[\s\S]*?writeIsUnsafeForSelectedNote\(\)[\s\S]*?return;/,
-  );
-  // applyWriteButtonDisabledState must run from renderApp (both branches).
-  assert.match(
-    src,
-    /function\s+renderApp[\s\S]*?applyWriteButtonDisabledState\(\)/,
-  );
-});
+// (Stage S6 replaced this round-6 test — see T-S5-QA15 above at line 371.)

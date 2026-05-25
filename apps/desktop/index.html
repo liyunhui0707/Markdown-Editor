@@ -935,21 +935,6 @@
         display: block;
       }
 
-      /* Stage S3.5 — banner shown when an AI Sessions note is too large
-         for eager CM6/Toast UI hydration. Non-intrusive, paints
-         immediately above the editor surface so the user sees a
-         "loading…" status before clicking Write or Preview locks the
-         UI synchronously. */
-      .sessions-large-banner {
-        padding: 8px 12px;
-        margin: 0 8px 8px 8px;
-        background: var(--accent-bg, #fff8e1);
-        border: 1px solid var(--accent-border, #f0c870);
-        border-radius: 4px;
-        font-size: 12px;
-        line-height: 1.4;
-        color: var(--text, #333);
-      }
       .read-view-mount .read-section.user-turn h2 {
         color: var(--text, inherit);
       }
@@ -1692,7 +1677,6 @@
                     <span id="inFileSearchCounter" class="in-file-search-counter">0/0</span>
                   </div>
                   <div id="readViewMount" class="read-view-mount"></div>
-                  <div id="sessionsLargeBanner" class="sessions-large-banner" hidden></div>
                 </div>
               </div>
             </div>
@@ -1979,7 +1963,6 @@
       const sessionsRefreshMount = document.getElementById('sessionsRefreshMount');
       const modeReadButton = document.getElementById('modeReadButton');
       const readViewMount = document.getElementById('readViewMount');
-      const sessionsLargeBanner = document.getElementById('sessionsLargeBanner');
       // Stage S4 — in-file search toolbar elements (mounted above readViewMount).
       const inFileSearchToolbar = document.getElementById('inFileSearchToolbar');
       const inFileSearchInput   = document.getElementById('inFileSearchInput');
@@ -2289,44 +2272,31 @@
             }
           }
 
-          // Stage S3.5 — deferred lazy-load for too-large AI Sessions.
-          // Check BEFORE the eager setText so we never feed multi-MB
-          // markdown to CM6 + Toast UI (which OOMs the renderer).
-          const isLarge =
-            window.SessionViewer && window.SessionViewer.isLargeSession
-              ? window.SessionViewer.isLargeSession(note)
-              : false;
-          const cm6Hydrated = hydrationCache.isHydrated(note.id, 'cm6');
-
-          if (isLarge && !cm6Hydrated) {
-            // DEFERRED PATH. Skip eager setText. Force Read mode directly
-            // from note.body (forceReadModeWithBody bypasses
-            // setActiveMode's renderInto(getCurrentEditorText()) call).
-            showLargeBanner('idle', note);
-            if (readTabController) {
-              readTabController.setSessionsMode(true);
-            }
+          // Stage S6 — AI Sessions are read-only transcripts. ALL
+          // sessions (not just large ones) go through the deferred
+          // Read path: no CM6/Toast UI hydration, no banner, no
+          // mode toggle. The render-into-readViewMount call comes
+          // straight from note.body.
+          const isSession = note.sessionsImport === true;
+          if (isSession) {
             forceReadModeWithBody(note);
-            // Stage S5 round-4 QA fix: AI Sessions default to scroll-bottom
-            // on first open (so the latest content is visible); honor saved
-            // scroll when present. Mirrors the eager-path semantics in
-            // restoreNoteViewState.
-            const isSession = !!note.sessionsImport;
-            const defaultScroll = isSession ? 1 : 0;
+            // Sessions default to scroll-bottom on first open (so
+            // the latest content is visible). Honor any saved
+            // scroll position when the user has navigated within
+            // the session before.
             const savedView = noteViewStates.get(note.id);
-            const ratio = savedView ? savedView.scrollRatio : defaultScroll;
+            const ratio = savedView ? savedView.scrollRatio : 1;
             scheduleApplyAfterLayout(function () {
               if (_applyScrollRatio) _applyScrollRatio(readViewMount, ratio);
             });
           } else {
-            // EAGER PATH (existing behavior).
+            // EAGER PATH for non-session notes (existing behavior).
             // Restore from cache when possible: same note id AND cached doc
             // still matches the current body. If the body diverged (vault
             // refresh, save round-trip, anything that rewrote it), drop
             // the stale entry and fall back to the fresh-load path.
             // Migration always forces a fresh load because we just rewrote
             // note.body.
-            hideLargeBanner();
             let restored = false;
             if (!migrated && typeof liveEditorInstance.setState === 'function') {
               const cached = noteEditorStates.get(note.id);
@@ -2339,12 +2309,6 @@
             }
             if (!restored) {
               liveEditorInstance.setText(note.body);
-            }
-            if (isLarge) {
-              // Already-hydrated large note: mark both surfaces hydrated
-              // (setText mirrors into Toast UI internally).
-              hydrationCache.markHydrated(note.id, 'cm6');
-              hydrationCache.markHydrated(note.id, 'toast');
             }
 
             // Restore the INCOMING note's saved mode + scroll ratio.
@@ -2664,15 +2628,10 @@
           // Stage 6.1: empty/no-selection state is never dirty.
           setStatusFromSelectedNote();
           // Stage S3 — round-2 m2 fix: clear Read state in no-selection.
-          // Null-guarded: if read-tab init failed at boot, the renderer
-          // still works for non-session notes.
-          if (readTabController) readTabController.setSessionsMode(false);
           if (currentMode === 'read') setActiveMode('write');
-          // Stage S5 round-5 QA fix: re-enable Preview when no note is
-          // selected so a previously-disabled state doesn't leak into
-          // the next selection.
-          applyPreviewButtonDisabledState();
-        applyWriteButtonDisabledState();
+          // Stage S6: re-show Write/Preview tabs in no-selection state
+          // so they don't stay hidden from a previously-selected session.
+          applyModeButtonsVisibility();
           return;
         }
 
@@ -2680,18 +2639,10 @@
         titleInput.disabled = false;
         liveEditorContainer.classList.remove('is-no-selection');
 
-        // Stage S3 — toggle Read tab visibility BEFORE renderEditor runs.
-        // setSessionsMode only flips `readButton.hidden`; it doesn't touch
-        // `currentMode`, so the round-2 M1 ordering contract (the
-        // `setActiveMode('write')` fallback must run AFTER renderEditor's
-        // captureNoteViewState so the outgoing session note's saved mode
-        // stays correct) is unaffected. Running setSessionsMode first
-        // means the Read button is visible for the user even if
-        // renderEditor / CM6 setText fails on a very large session body.
-        // Null-guarded — boot may have failed to init the controller.
-        if (readTabController) {
-          readTabController.setSessionsMode(!!selectedNote.sessionsImport);
-        }
+        // Stage S6: hide Write/Preview/Read mode buttons appropriately
+        // BEFORE renderEditor. Runs before the editor body update so
+        // the tab bar matches the new note's surface set from frame 1.
+        applyModeButtonsVisibility();
 
         renderEditor(selectedNote);
 
@@ -2714,11 +2665,12 @@
         // loaded: N note(s)") still call setStatus *after* renderApp, and
         // those messages override this derivation as before.
         setStatusFromSelectedNote();
-        // Stage S5 round-5 QA fix: Preview button reflects whether the
-        // current note is safe to render via Toast UI. Runs on every
-        // render so cross-session navigation and refresh both update it.
-        applyPreviewButtonDisabledState();
-        applyWriteButtonDisabledState();
+        // Stage S6: tab-bar visibility runs at the tail as well so any
+        // late selection changes (e.g. cross-session click) settle the
+        // tab bar in sync with the just-rendered note. The pre-render
+        // call above prevents a one-frame flash; this trailing call
+        // covers the steady state.
+        applyModeButtonsVisibility();
       }
 
       function updateSelectedNoteFromInputs() {
@@ -4077,18 +4029,21 @@
         return liveEditorInstance.getText();
       }
 
-      // Stage S3.5 — guarded read: for a deferred AI Sessions note
-      // whose CM6 surface is NOT yet hydrated, reading from CM6
-      // returns empty/stale text. Fall back to note.body so save /
-      // save-all / outgoing-capture / title-edit paths don't corrupt
-      // the on-disk content. Round-2 plan-review B1 fix.
+      // Stage S3.5 / S6 — guarded read: AI Sessions never hydrate CM6
+      // anymore (S6 made them read-only), so reading from CM6 for any
+      // session returns empty/stale text. Fall back to note.body so
+      // save / save-all / outgoing-capture / title-edit paths don't
+      // corrupt the on-disk transcript content. For non-session notes
+      // that ARE still large but unhydrated (legacy/historical state),
+      // the same fallback applies.
       function bodyForRead(note) {
         if (!note) return '';
+        const isSession = note.sessionsImport === true;
         const isLarge =
           window.SessionViewer && window.SessionViewer.isLargeSession
             ? window.SessionViewer.isLargeSession(note)
             : false;
-        if (isLarge && !hydrationCache.isHydrated(note.id, 'cm6')) {
+        if ((isSession || isLarge) && !hydrationCache.isHydrated(note.id, 'cm6')) {
           return typeof note.body === 'string' ? note.body : '';
         }
         return getCurrentEditorText();
@@ -4109,31 +4064,6 @@
         renderApp();
         setStatusFromSelectedNote();
         scrollSelectedNoteIntoView();
-      }
-
-      // Stage S3.5 — banner show/hide. Three states:
-      //   'idle'           — note is too-large and not yet hydrated.
-      //   'loading-write'  — user clicked Write; CM6 hydration in flight.
-      //   'loading-preview'— user clicked Preview; Toast hydration in flight.
-      function showLargeBanner(state, note) {
-        const size = (note && typeof note.body === 'string') ? note.body.length : 0;
-        const mb = (size / (1024 * 1024)).toFixed(1);
-        let msg;
-        if (state === 'idle') {
-          msg = `This session is large (~${mb} MB). Read mode is the default — click Write or Preview to load that surface (may be slow).`;
-        } else if (state === 'loading-write') {
-          msg = `Loading editor for ~${mb} MB session…`;
-        } else if (state === 'loading-preview') {
-          msg = `Loading preview for ~${mb} MB session…`;
-        } else {
-          msg = '';
-        }
-        sessionsLargeBanner.textContent = msg;
-        sessionsLargeBanner.hidden = false;
-      }
-      function hideLargeBanner() {
-        sessionsLargeBanner.textContent = '';
-        sessionsLargeBanner.hidden = true;
       }
 
       // Stage S3.5 — bypass setActiveMode('read') for the deferred
@@ -4354,41 +4284,11 @@
 
       function showWriteMode() {
         if (currentMode === 'write') return;
-        // Stage S5 round-6 QA fix: guard against accidental triggers
-        // (keyboard shortcut, programmatic click) for a too-large
-        // session that would OOM the renderer during CM6 hydration.
-        if (writeIsUnsafeForSelectedNote()) {
-          setStatusFromSelectedNote(
-            'Write unavailable: this session is too large. Use Read mode.',
-          );
-          return;
-        }
-        // Stage S3.5 — deferred path: if the selected note is too-large
-        // and CM6 isn't hydrated yet, show "Loading editor…" banner,
-        // double-rAF, then run the synchronous setText. Double-rAF
-        // (rather than single) so the banner DOM actually paints before
-        // the heavy call blocks the renderer.
+        // Stage S6: AI Sessions are read-only. Write is not a valid
+        // surface for them — the Write button is hidden in renderApp,
+        // but guard here too against keyboard / programmatic triggers.
         const note = getSelectedNote();
-        const isLarge =
-          note && window.SessionViewer && window.SessionViewer.isLargeSession
-            ? window.SessionViewer.isLargeSession(note)
-            : false;
-        if (isLarge && !hydrationCache.isHydrated(note.id, 'cm6')) {
-          showLargeBanner('loading-write', note);
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              liveEditorInstance.setText(note.body);
-              // setText mirrors into _toastuiInstance.setMarkdown
-              // internally, so Write hydration costs BOTH surfaces.
-              // Round-2 plan-review M4 acknowledgement.
-              hydrationCache.markHydrated(note.id, 'cm6');
-              hydrationCache.markHydrated(note.id, 'toast');
-              hideLargeBanner();
-              _resumeWriteModeAfterHydration();
-            });
-          });
-          return;
-        }
+        if (note && note.sessionsImport === true) return;
         _resumeWriteModeAfterHydration();
       }
 
@@ -4422,90 +4322,28 @@
         void ratio;
       }
 
-      // Stage S5 round-5 / round-6 QA fix: both Toast UI Preview and
-      // CM6 Write hydration OOM the renderer on multi-MB session
-      // imports (V8 young-object-promotion OOM). Read mode renders
-      // the same content via the lightweight
-      // SessionViewer.renderMarkdown — Preview adds no functional
-      // value for sessions, and Write is rarely needed for transcript
-      // viewing. Centralized "is this surface unsafe?" predicate so
-      // the disabled state on each button AND the early-returns in
-      // showWriteMode / showPreviewMode share one source of truth.
-      function previewIsUnsafeForSelectedNote() {
+      // Stage S6: AI Sessions are read-only transcripts. For
+      // sessionsImport notes, hide all three mode buttons (Write,
+      // Preview, Read) — the right panel just renders the Read view
+      // directly. For non-session notes, show Write + Preview and
+      // hide the Read tab (Read was always a sessions-only affordance).
+      function applyModeButtonsVisibility() {
         const note = getSelectedNote();
-        if (!note || note.sessionsImport !== true) return false;
-        if (!window.SessionViewer || !window.SessionViewer.isLargeSession) return false;
-        return window.SessionViewer.isLargeSession(note);
-      }
-      // Round-6 QA fix: Write uses the same predicate. Both surfaces
-      // hydrate via heavy frameworks that OOM at multi-MB; the safe
-      // path for transcript reading is Read mode.
-      function writeIsUnsafeForSelectedNote() {
-        return previewIsUnsafeForSelectedNote();
-      }
-
-      function applyPreviewButtonDisabledState() {
-        const unsafe = previewIsUnsafeForSelectedNote();
-        previewModeButton.disabled = unsafe;
-        previewModeButton.setAttribute(
-          'title',
-          unsafe
-            ? 'Preview is unavailable for large session imports (Read shows the same rendered content safely).'
-            : '',
-        );
-      }
-
-      function applyWriteButtonDisabledState() {
-        const unsafe = writeIsUnsafeForSelectedNote();
-        writeModeButton.disabled = unsafe;
-        writeModeButton.setAttribute(
-          'title',
-          unsafe
-            ? 'Write is unavailable for large session imports (CM6/Toast UI hydration can OOM the renderer at this size). Use Read mode.'
-            : '',
-        );
+        const isSession = !!(note && note.sessionsImport);
+        writeModeButton.hidden = isSession;
+        previewModeButton.hidden = isSession;
+        // The Read tab is no longer surfaced anywhere — sessions render
+        // Read directly, non-sessions never had Read. Always hidden.
+        modeReadButton.hidden = true;
       }
 
       function showPreviewMode() {
         if (currentMode === 'preview') return;
-        // Stage S5 round-5 QA fix: guard against accidental triggers
-        // (keyboard shortcut, programmatic click) for a too-large
-        // session that would OOM the renderer.
-        if (previewIsUnsafeForSelectedNote()) {
-          setStatusFromSelectedNote(
-            'Preview unavailable: this session is too large. Use Read mode.',
-          );
-          return;
-        }
-        // Stage S3.5 — deferred path: if the selected note is too-large
-        // and Toast UI isn't hydrated yet, show "Loading preview…"
-        // banner, double-rAF, then run synchronous setMarkdown. Source
-        // for setMarkdown depends on whether CM6 is hydrated:
-        //   - cm6 hydrated → use getCurrentEditorText() (user may have
-        //     edited; Preview must reflect the edits)
-        //   - cm6 NOT hydrated → use note.body (CM6 is empty / stale).
+        // Stage S6: AI Sessions are read-only. Preview is not a valid
+        // surface for them — the Preview button is hidden in renderApp,
+        // but guard here too against keyboard / programmatic triggers.
         const note = getSelectedNote();
-        const isLarge =
-          note && window.SessionViewer && window.SessionViewer.isLargeSession
-            ? window.SessionViewer.isLargeSession(note)
-            : false;
-        const tooLargeDeferred =
-          isLarge && !hydrationCache.isHydrated(note.id, 'toast');
-        if (tooLargeDeferred) {
-          const previewSource = hydrationCache.isHydrated(note.id, 'cm6')
-            ? getCurrentEditorText()
-            : note.body;
-          showLargeBanner('loading-preview', note);
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              _toastuiInstance.setMarkdown(previewSource);
-              hydrationCache.markHydrated(note.id, 'toast');
-              hideLargeBanner();
-              setActiveMode('preview');
-            });
-          });
-          return;
-        }
+        if (note && note.sessionsImport === true) return;
 
         // Normal path — existing logic unchanged.
         // Capture FIRST so the Write pane's measurements are still live —
