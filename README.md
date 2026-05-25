@@ -54,6 +54,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Package a local macOS Electron build for testing.
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
 - **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
+- **AI Sessions favorites + grouped view (Stage S5)** — the AI Sessions filter now renders sessions as a grouped tree: **Favorites** (when any; rendered flat) → **Codex** → **Claude** → **Other**. The three agent groups are bucketed by the session's last-activity time (read from the importer's `source_mtime` frontmatter, falling back to file mtime): Today / Within 3 Days / Older Than 3 Days. Empty buckets are skipped. Click the ☆ on any session row to favorite it (★); favorites persist to `localStorage` and appear in a collapsible Favorites section at the top. Both group headers AND bucket headers collapse/expand on click; their state persists. Session row titles use the importer's `source_custom_title` / `source_ai_title` when present (falls back to the on-disk filename otherwise). Cross-session search results (Stage S4) show the ★ indicator for favorited sessions. Other filters (All / Drafts / Vault / AI Imports) keep their flat list — only AI Sessions gets the grouped view. AI Imports and AI Sessions are disjoint: imported sessions appear only under AI Sessions, not under AI Imports.
 
 ### Data-safety guarantees
 
@@ -212,6 +213,7 @@ npm run smoke
 | `Enter` | (Stage S4) In the in-transcript search input — jump to next match |
 | `Shift + Enter` | (Stage S4) In the in-transcript search input — jump to previous match |
 | `Escape` | (Stage S4) In the in-transcript search input — clear the query and remove highlights |
+| `Enter` / `Space` | (Stage S5) On a focused AI Sessions star button — toggle favorite; on a focused group header — collapse / expand the group |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
 
@@ -257,6 +259,13 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   - Generation-stamped: `currentNotesGeneration` bumps on every successful `loadVaultNotes`; the index records its build-time generation in its `.then()`, and a post-await guard forces a rebuild on any mismatch so a mid-build vault refresh can't yield stale results. The index is also reset on `stopWatchingVault`.
 
   Outgoing edits are preserved across cross-session result clicks via a shared `selectNote(noteId)` helper that runs `liveEditorInstance.exitWriteMode()` + `bodyForRead(outgoingNote)` BEFORE reassigning `selectedNoteId` — the same flush path the note-list row click uses, so the cross-session jump is data-safe.
+
+- **AI Sessions favorites + grouping (Stage S5)** — port of `Local-Web-Server/public/grouping.js` (verbatim) + the favorites helpers from `view-state.js` lines 76–124. Three IIFE-wrapped modules under `apps/desktop/lib/session-viewer/`:
+  - `favorites.js` — `createFavoritesController({ storage, key })` returning `{ isFavorite, toggle, getAll, clear, size }`. Pure helpers (`loadFavoritesFromStorage`, `saveFavoritesToStorage`, `toggleFavorite`) remain on the api for direct testing. localStorage key is namespaced as `markdownVault.aiSessions.favorites`.
+  - `grouping.js` — `groupAndSort(items, { sort, today, isFavorite })` returning `{ favorite?, codex, claude, other, counts }`. `LAYER_ORDER` is `today / w3 / older` (3-layer scheme — simplified from upstream's 5-layer based on round-2 user feedback). `localEpochDay` is timezone-aware. The editor's port bucketizes **all** agent groups including `other` (uniform tree shape; intentional divergence from upstream which leaves `other` flat). The Favorites overlay is rendered flat (not bucketed) so starred sessions are reachable in one glance.
+  - `grouped-list-renderer.js` — headless renderer. Builds collapsible group + bucket + row DOM via `createElement` + `createTextNode` (no `innerHTML`). Star-click handlers call `stopPropagation` so toggling a row's star doesn't also fire the row's selection click. Group-header collapse state is stored in a renderer-injected `isCollapsed` callback so the caller owns persistence.
+
+  The grouped tree replaces the flat AI Sessions list only when `currentFilter === 'sessions'`; all other filters keep the existing flat-list code path unchanged. Notes are adapted into the grouping item shape via an in-renderer `notesToSessionItems(notes)` + `relPathToAgent(relativePath)` pair (the agent prefix rules mirror `sessions-filter.js`).
 
 ## Project status & maturity
 

@@ -196,7 +196,12 @@ function parseFrontmatter(content) {
   const result = {
     frontmatter: {
       tags: [],
-      source: ''
+      source: '',
+      // Stage S5 round-3 QA fix: session-import frontmatter fields.
+      // Filled when present; empty string otherwise.
+      source_mtime: '',
+      source_custom_title: '',
+      source_ai_title: ''
     },
     body: content
   };
@@ -214,6 +219,10 @@ function parseFrontmatter(content) {
   const frontmatterBlock = content.slice(4, endIndex);
   const body = content.slice(endIndex + 5);
   const lines = frontmatterBlock.split('\n');
+
+  function unquote(v) {
+    return v.replace(/^['"]|['"]$/g, '');
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -234,7 +243,13 @@ function parseFrontmatter(content) {
     if (key === 'tags') {
       result.frontmatter.tags = normalizeTags(rawValue);
     } else if (key === 'source') {
-      result.frontmatter.source = rawValue.replace(/^['"]|['"]$/g, '');
+      result.frontmatter.source = unquote(rawValue);
+    } else if (key === 'source_mtime') {
+      result.frontmatter.source_mtime = unquote(rawValue);
+    } else if (key === 'source_custom_title') {
+      result.frontmatter.source_custom_title = unquote(rawValue);
+    } else if (key === 'source_ai_title') {
+      result.frontmatter.source_ai_title = unquote(rawValue);
     }
   }
 
@@ -283,7 +298,7 @@ function isAiImported(relativePath, frontmatterSource) {
   return aiSources.has(source);
 }
 
-function parseMarkdownFile(relativePath, content) {
+function parseMarkdownFile(relativePath, content, stat) {
   const fileName = path.basename(relativePath);
   const { frontmatter, body: contentWithoutFrontmatter } = parseFrontmatter(content);
   const lines = contentWithoutFrontmatter.split('\n');
@@ -303,6 +318,29 @@ function parseMarkdownFile(relativePath, content) {
   const aiImported = isAiImported(relativePath, frontmatter.source);
   const sessionsImport = isSessionsImport(relativePath);
 
+  // Stage S5 round-3 QA fix (issue C): for session imports, prefer
+  // the importer-captured human-readable title over the UUID
+  // filename fallback. source_custom_title (user-typed) wins over
+  // source_ai_title (Claude/Codex-generated).
+  if (sessionsImport) {
+    const customTitle = (frontmatter.source_custom_title || '').trim();
+    const aiTitle = (frontmatter.source_ai_title || '').trim();
+    const preferred = customTitle || aiTitle;
+    if (preferred) {
+      title = preferred;
+    }
+  }
+
+  // Stage S5 round-3 QA fix (issue D): parse source_mtime so the
+  // bucket grouper can use the session's actual activity time
+  // instead of the import-write time. Falls back to file mtime
+  // (set below by the caller) when absent or unparseable.
+  let sourceMtime;
+  if (frontmatter.source_mtime) {
+    const parsed = Date.parse(frontmatter.source_mtime);
+    if (!Number.isNaN(parsed)) sourceMtime = parsed;
+  }
+
   return {
     id: `vault:${relativePath}`,
     title,
@@ -317,6 +355,17 @@ function parseMarkdownFile(relativePath, content) {
     source: 'vault',
     aiImported,
     sessionsImport,
+    // Stage S5 — file mtime as epoch ms (Date | undefined). Used by
+    // the AI Sessions grouped tree to bucket sessions by recency.
+    // `null`-safe: caller passes the fs.Stats object opportunistically;
+    // missing stat (e.g., test fixtures, in-memory drafts) leaves
+    // mtime undefined and the grouper falls back to 'older' bucket.
+    mtime: stat && stat.mtimeMs ? stat.mtimeMs : (stat && stat.mtime ? stat.mtime : undefined),
+    // Stage S5 round-3 QA fix (issue D): sourceMtime is the session's
+    // actual activity time per importer frontmatter. Used by the
+    // grouped tree for bucket assignment; renderer falls back to
+    // `mtime` when undefined.
+    sourceMtime,
     frontmatter: {
       tags: normalizeTags(frontmatter.tags),
       source: frontmatter.source || ''
@@ -700,7 +749,11 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
     const notes = relativePaths.map((relativePath) => {
       const fullPath = path.join(vaultPath, relativePath);
       const content = fs.readFileSync(fullPath, 'utf8');
-      return parseMarkdownFile(relativePath, content);
+      // Stage S5: capture file mtime so the renderer can bucket
+      // AI Sessions by recency. Stat error → undefined (best-effort).
+      let stat = null;
+      try { stat = fs.statSync(fullPath); } catch (_e) { /* swallow */ }
+      return parseMarkdownFile(relativePath, content, stat);
     });
 
     return {
