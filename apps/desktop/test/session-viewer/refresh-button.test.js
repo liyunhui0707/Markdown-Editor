@@ -157,7 +157,7 @@ test('S2-15: second click while in-flight is a no-op; banner shows "Importing…
   await ctl.waitForIdle();
 });
 
-test('S2-16: success response — banner reports counts, onComplete fires once', async () => {
+test('S2-16: success response — banner is cleared (no count summary), onComplete fires once', async () => {
   const { createRefreshController } = load();
   const dom = makeDom();
   const root = dom.createElement('div');
@@ -174,8 +174,10 @@ test('S2-16: success response — banner reports counts, onComplete fires once',
   const banner = findBanner(root);
   btn.dispatchEvent({ type: 'click' });
   await ctl.waitForIdle();
-  assert.match(banner.textContent, /claude.*3/i);
-  assert.match(banner.textContent, /codex.*2/i);
+  // Stage 6.3D: the success summary banner ("claude: 3, skipped 1…")
+  // was removed per user feedback ("有点多余"). The user gets implicit
+  // feedback via the grouped tree update and the Read view refresh.
+  assert.equal(banner.textContent, '');
   assert.equal(onComplete.calls.length, 1);
 });
 
