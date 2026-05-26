@@ -1637,7 +1637,6 @@
                 <button id="newNoteButton" class="action-button">New Note</button>
                 <button id="saveNoteButton" class="action-button">Save Note</button>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
-                <button id="loadVaultButton" class="action-button">Load Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
             </div>
@@ -1958,7 +1957,6 @@
       const newNoteButton          = document.getElementById('newNoteButton');
       const saveNoteButton         = document.getElementById('saveNoteButton');
       const deleteNoteButton       = document.getElementById('deleteNoteButton');
-      const loadVaultButton        = document.getElementById('loadVaultButton');
       const sidebarToggle          = document.getElementById('sidebarToggle');
       const sidebarPanel           = document.getElementById('sidebarPanel');
       const noteList               = document.getElementById('noteList');
@@ -3562,16 +3560,6 @@
         }
       }
 
-      async function loadVaultNotes() {
-        if (!currentVaultPath) {
-          setStatus('error', 'Choose a vault first');
-          return;
-        }
-
-        setStatus('saving', 'Loading vault...');
-        await refreshVaultNotes();
-      }
-
       function deleteDraftNote() {
         const selectedNote = getSelectedNote();
         if (!selectedNote) {
@@ -4575,7 +4563,6 @@
       newNoteButton.addEventListener('click', createNewNote);
       saveNoteButton.addEventListener('click', saveCurrentNote);
       deleteNoteButton.addEventListener('click', deleteCurrentNote);
-      loadVaultButton.addEventListener('click', loadVaultNotes);
       sidebarToggle.addEventListener('click', () => {
         isSidebarHidden = !isSidebarHidden;
         updateLayoutVisibility();
