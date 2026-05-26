@@ -993,6 +993,37 @@
         background: var(--surface-sidebar, #efede6);
       }
 
+      /* Read view overflow containment. Without these rules, a transcript
+         with one long heredoc line, a long single-line JSON payload, a wide
+         GFM table, or a no-whitespace token (long URL, base64 blob) widens
+         .read-view-mount past the viewport and surfaces a horizontal
+         scrollbar on the WINDOW. Constrain each offending block to scroll /
+         wrap inside its own container instead:
+           - <pre> keeps white-space: pre so shell commands stay on one
+             logical line; overflow-x: auto puts the scrollbar on the code
+             block itself, matching GitHub / VS Code conventions.
+           - tables cap at the container width; cells wrap long tokens
+             instead of widening the table.
+           - prose containers (p / li / blockquote) break unbreakable tokens
+             so long URLs don't push the page wider than the viewport. */
+      .read-view-mount pre {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .read-view-mount table {
+        max-width: 100%;
+        table-layout: auto;
+      }
+      .read-view-mount th,
+      .read-view-mount td {
+        overflow-wrap: anywhere;
+      }
+      .read-view-mount p,
+      .read-view-mount li,
+      .read-view-mount blockquote {
+        overflow-wrap: anywhere;
+      }
+
       /* Stage S4 — in-file search toolbar. Sits between the editor
          action bar and readViewMount; visible only in Read mode. */
       .in-file-search-toolbar {
