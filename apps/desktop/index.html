@@ -413,7 +413,17 @@
         flex-direction: column;
         gap: 0;
         width: 100%;
-        max-width: 720px;
+        /* Stage 6.9: content width scales with the workspace column
+           — when the sidebar collapses or the window grows, the
+           editor column expands instead of leaving empty margin.
+             - Narrow window:  clamps to the 720px floor (preserves
+                               the original typographic "measure" for
+                               prose on small screens).
+             - Medium window:  uses 80vw — content tracks the window.
+             - Very wide:      capped at 1200px so prose lines don't
+                               stretch beyond a comfortable reading
+                               distance on ultrawide monitors. */
+        max-width: clamp(720px, 80vw, 1200px);
         margin: 0 auto;
         flex: 1;
         min-height: 0;
