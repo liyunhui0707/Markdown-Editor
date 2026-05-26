@@ -2648,6 +2648,15 @@
           // Stage 6.1: dirty vault notes also get the Draft badge.
           const isDirty = window.DirtyState ? window.DirtyState.isNoteDirty(note) : false;
           const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(note, isDirty) : null;
+          // Stage 6.8: AI-imported vault notes that the user has
+          // modified also render a secondary "Draft" badge next to
+          // the AI badge so the AI Imports list can distinguish
+          // modified vs unmodified rows. Non-AI notes already convey
+          // dirty state via the primary badge, so this is null for
+          // them.
+          const dirtyBadge = window.NoteRow
+            ? window.NoteRow.computeNoteDirtyBadge(note, isDirty)
+            : null;
           const tagsInfo = window.NoteRow
             ? window.NoteRow.computeNoteTags(note)
             : { visible: [], overflow: 0 };
@@ -2657,9 +2666,9 @@
             ? `<div class="note-snippet">${highlightText(result.snippet, currentSearchQuery)}</div>`
             : '';
 
-          const badgeHtml = badge
-            ? `<span class="note-badge note-badge-${badge.kind}">${escapeHtml(badge.label)}</span>`
-            : '';
+          const renderBadge = (b) =>
+            `<span class="note-badge note-badge-${b.kind}">${escapeHtml(b.label)}</span>`;
+          const badgeHtml = [badge, dirtyBadge].filter(Boolean).map(renderBadge).join('');
 
           let tagsHtml = '';
           if (hasTagChips) {
