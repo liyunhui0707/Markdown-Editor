@@ -45,7 +45,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Create, edit, save, and delete notes.
 - Notes are kept as normal Markdown files on disk — no proprietary format.
 - Focused editor workspace with a collapsible sidebar (open by default).
-- Filter notes by All Notes, AI Imports, Drafts, and Vault Files.
+- Filter notes by Drafts, My Notes, AI Imports, and AI Sessions — four disjoint rows in the sidebar (every note belongs to exactly one).
 - Search by title, body, tags, source, file name, and relative path.
 - Lightweight frontmatter parsing for `tags` and `source`.
 - Seed a demo vault for local testing and demos.
