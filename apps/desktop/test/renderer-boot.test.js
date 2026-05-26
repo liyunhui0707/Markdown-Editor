@@ -3897,7 +3897,11 @@ test('Stage 6.1: dirty saved note appears in Drafts filter and shows the Draft b
     'dirty saved note should render the Draft badge');
 });
 
-test('Stage 6.1: AI badge takes precedence over Draft for a dirty AI-imported vault note', async () => {
+test('Stage 6.8: dirty AI-imported vault note renders BOTH the AI badge AND the Draft badge', async () => {
+  // Stage 6.1 precedence was AI-only ("AI wins over Draft"). Stage
+  // 6.8 (this PR) renders both badges so the AI Imports filter can
+  // distinguish modified vs unmodified rows at a glance while still
+  // signalling "this came from AI Imports" in the Drafts filter.
   const { calls, elements } = makeRendererHarness({
     search: '?writeEngine=cm6',
     vaultNotes: [
@@ -3915,23 +3919,30 @@ test('Stage 6.1: AI badge takes precedence over Draft for a dirty AI-imported va
 
   await elements.get('chooseVaultButton').fireAsync('click');
 
-  // Stage 6.4 — boot default filter 'vault' hides AI imports. Switch
-  // to 'all' (hidden in production but kept in DOM for test fixtures)
-  // so both notes — the AI-imported and the plain vault — render.
+  // Stage 6.4 — boot default filter 'vault' hides AI imports, which
+  // means the auto-selected note falls through to vault:b (not the
+  // AI import). Switch to 'all' AND then explicitly select the AI
+  // imported row so the subsequent edit + flush mutates IT, not
+  // Vault B.
   elements.get('filterAll').fire('click');
+  const rowsBefore = elements.get('noteList').children;
+  const aiRowToSelect = Array.from(rowsBefore).find((r) => r.innerHTML.includes('Imported essay'));
+  aiRowToSelect.fire('click');
 
-  // Edit the AI-imported note and flush by switching away.
+  // Edit the AI-imported note (now selected) and flush by switching away.
   calls.cm6Adapter.text = '# Imported edited';
-  elements.get('noteList').children[1].fire('click');
+  const rowsForFlush = elements.get('noteList').children;
+  const vaultBRow = Array.from(rowsForFlush).find((r) => r.innerHTML.includes('Vault B'));
+  vaultBRow.fire('click');
 
-  // The AI-imported row is dirty AND aiImported — AI badge must win.
+  // The AI-imported row is dirty AND aiImported — BOTH badges render.
   const rows = elements.get('noteList').children;
   const aiRow = Array.from(rows).find((row) => row.innerHTML.includes('Imported essay'));
   assert.ok(aiRow, 'AI-imported row should be present');
   assert.ok(aiRow.innerHTML.includes('note-badge note-badge-ai'),
-    'AI badge must win over Draft for a dirty AI-imported note');
-  assert.ok(!aiRow.innerHTML.includes('note-badge note-badge-draft'),
-    'AI-imported dirty row should NOT also render the Draft badge');
+    'AI badge must render for an AI-imported note');
+  assert.ok(aiRow.innerHTML.includes('note-badge note-badge-draft'),
+    'dirty AI-imported row must ALSO render the Draft badge (Stage 6.8)');
 });
 
 test('Stage 6.1: pristine vault note is NOT Draft and shows no Draft badge', async () => {
