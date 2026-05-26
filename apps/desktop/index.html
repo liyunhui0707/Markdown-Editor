@@ -44,7 +44,7 @@
            Cmd/Ctrl+-, Cmd/Ctrl+0; persisted to localStorage under
            markdownVault.editorFontSize. Consumed by .hybrid-write-pane (Write
            pane root) and the Toast UI Preview body. */
-        --editor-font-size: 15px;
+        --editor-font-size: 18px;
 
         /* Radius */
         --radius-sm: 6px;
@@ -545,7 +545,7 @@
         /* Stage 13: editor body text size. CM6 .cm-content inherits from
            this root; legacy hybrid .hybrid-active-textarea also inherits
            via its `font: inherit` declaration below. */
-        font-size: var(--editor-font-size, 15px);
+        font-size: var(--editor-font-size, 18px);
       }
 
       .hybrid-write-pane.is-hidden {
@@ -939,7 +939,7 @@
         min-height: 0;
         overflow: auto;
         padding: 16px;
-        font-size: var(--editor-font-size, 15px);
+        font-size: var(--editor-font-size, 18px);
       }
       .read-view-mount.is-visible {
         display: block;
@@ -1217,7 +1217,7 @@
          up rendering text picks it up. */
       .toast-preview-mount .toastui-editor-md-preview,
       .toast-preview-mount .toastui-editor-contents {
-        font-size: var(--editor-font-size, 15px);
+        font-size: var(--editor-font-size, 18px);
       }
       /* Stage 13: Toast UI bundles fixed-px heading sizes on
          .toastui-editor-contents h1…h6 that would override inherited
@@ -2063,7 +2063,7 @@
       //     Number.isInteger + FONT_SIZE_STEPS.includes — and falls back
       //     to default for any invalid value.
       const FONT_SIZE_STEPS       = [12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 36];
-      const FONT_SIZE_DEFAULT     = 15;
+      const FONT_SIZE_DEFAULT     = 18;
       const FONT_SIZE_STORAGE_KEY = 'markdownVault.editorFontSize';
       let   currentFontSizePx     = FONT_SIZE_DEFAULT;
 
@@ -2080,19 +2080,89 @@
         }
       }
 
+      // Viewport-center anchor across font-size zoom. When the user presses
+      // Cmd/Ctrl + + / - / 0, the active scroll container reflows: every line
+      // grows or shrinks proportionally to the new font-size, so the content
+      // that was at the viewport's vertical center drifts to a different
+      // position without intervention. To keep the same content under the
+      // user's eye, we capture (scrollTop + clientHeight/2) / scrollHeight
+      // BEFORE the variable changes, then re-apply that proportion against the
+      // post-reflow scrollHeight so the new scrollTop puts the same fractional
+      // document position back at the viewport center.
+      //
+      // Targets the currently-visible scroll container (Write / Preview / Read)
+      // via activeScrollEl(); in Preview mode we also anchor the inner
+      // .toastui-editor-contents because either layer can be the actual visible
+      // scroller depending on Toast UI's layout. Boot opts out (keepCenter
+      // false) because activeScrollEl / currentMode / mount refs are declared
+      // later in this script; running this before they're initialized would
+      // throw a TDZ ReferenceError.
+      function captureFontZoomAnchor() {
+        const targets = [];
+        let el;
+        try { el = activeScrollEl(); } catch (_e) { return targets; }
+        if (!el) return targets;
+        const ch = Number(el.clientHeight) || 0;
+        const sh = Number(el.scrollHeight) || 0;
+        if (ch > 0 && sh > 0) {
+          const centerY = (Number(el.scrollTop) || 0) + ch / 2;
+          targets.push({ el, ratio: centerY / sh });
+        }
+        if (el && typeof el.querySelector === 'function') {
+          const inner = el.querySelector('.toastui-editor-contents');
+          if (inner && inner !== el) {
+            const ich = Number(inner.clientHeight) || 0;
+            const ish = Number(inner.scrollHeight) || 0;
+            if (ich > 0 && ish > 0) {
+              const centerY = (Number(inner.scrollTop) || 0) + ich / 2;
+              targets.push({ el: inner, ratio: centerY / ish });
+            }
+          }
+        }
+        return targets;
+      }
+
+      function restoreFontZoomAnchor(targets) {
+        if (!targets || !targets.length) return;
+        const apply = () => {
+          for (const t of targets) {
+            const ch = Number(t.el.clientHeight) || 0;
+            const sh = Number(t.el.scrollHeight) || 0;
+            if (ch <= 0 || sh <= 0) continue;
+            const max = Math.max(0, sh - ch);
+            const desired = t.ratio * sh - ch / 2;
+            t.el.scrollTop = Math.max(0, Math.min(max, desired));
+          }
+        };
+        // Synchronous apply covers the common case where layout has already
+        // resolved by the time the style write returns. The next-frame apply
+        // covers CM6 / Toast UI height-map updates that can lag the CSS write
+        // by one frame; reading scrollHeight then yields the settled value.
+        apply();
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(apply);
+        }
+      }
+
       function applyEditorFontSize(px, options) {
-        const persist = !options || options.persist !== false;
+        const opts = options || {};
+        const persist = opts.persist !== false;
+        const keepCenter = opts.keepCenter !== false;
+        const anchor = keepCenter ? captureFontZoomAnchor() : null;
         currentFontSizePx = px;
         document.documentElement.style.setProperty('--editor-font-size', px + 'px');
         if (persist) {
           try { window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(px)); } catch (_e) { /* ignore */ }
         }
+        if (anchor && anchor.length) restoreFontZoomAnchor(anchor);
       }
 
       // Boot: apply the persisted (or default) size BEFORE any user interaction.
       // persist:false ensures the boot apply itself doesn't write localStorage —
-      // only explicit Cmd/Ctrl+= / +- / +0 actions do.
-      applyEditorFontSize(readPersistedFontSize(), { persist: false });
+      // only explicit Cmd/Ctrl+= / +- / +0 actions do. keepCenter:false skips
+      // the viewport-center anchor (no meaningful scroll position to preserve
+      // yet, and activeScrollEl's deps are still in TDZ).
+      applyEditorFontSize(readPersistedFontSize(), { persist: false, keepCenter: false });
       // Stage 6.3B: while saveAllDirtyNotes is iterating, the watcher
       // refresh callback bails out so its loadVaultNotes calls don't
       // race in-flight saves. Save-all does its OWN single refresh

@@ -207,7 +207,7 @@ npm run smoke
 | `Cmd/Ctrl + S` | Save current note |
 | `Cmd/Ctrl + =` (or `+`) | Increase editor text size |
 | `Cmd/Ctrl + -` | Decrease editor text size |
-| `Cmd/Ctrl + 0` | Reset editor text size to default (15px) |
+| `Cmd/Ctrl + 0` | Reset editor text size to default (18px) |
 | `Cmd/Ctrl + Z` / `Cmd/Ctrl + Shift + Z` | Undo / redo in CM6 Write mode |
 | `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
