@@ -2421,11 +2421,25 @@
       }
 
       function scrollSelectedNoteIntoView() {
+        // Stage 6.6: handle both the flat note list (every row is a
+        // direct child of noteList with `.note-item active`) AND the
+        // AI Sessions grouped tree (the active row is `.session-row
+        // session-row--active` nested several levels deep). Prefer
+        // querySelector when available for the grouped case; fall
+        // back to the shallow loop for the test harness's lightweight
+        // DOM.
         let activeItem = null;
-        for (let i = 0; i < noteList.children.length; i++) {
-          if (String(noteList.children[i].className || '').includes('active')) {
-            activeItem = noteList.children[i];
-            break;
+        if (typeof noteList.querySelector === 'function') {
+          activeItem =
+            noteList.querySelector('.note-item.active') ||
+            noteList.querySelector('.session-row--active');
+        }
+        if (!activeItem) {
+          for (let i = 0; i < noteList.children.length; i++) {
+            if (String(noteList.children[i].className || '').includes('active')) {
+              activeItem = noteList.children[i];
+              break;
+            }
           }
         }
         if (!activeItem) return;
@@ -4682,11 +4696,37 @@
             || (toastPreviewMount && toastPreviewMount.contains(focused));
           if (!inTextSurface) {
             e.preventDefault();
-            const results = getVisibleResults();
-            const currentIndex = results.findIndex((r) => r.note.id === selectedNoteId);
+            // Stage 6.6: for the AI Sessions grouped tree, arrow keys
+            // must traverse the VISUAL display order
+            // (Favorites → Codex (Today / W3 / Older) → Claude → Other),
+            // respecting any collapsed groups / buckets. For all
+            // other filters, the flat note list IS the
+            // getVisibleResults order, so we keep that path.
+            let orderedIds;
+            if (
+              currentFilter === 'sessions' &&
+              favoritesController &&
+              window.SessionViewer && window.SessionViewer.flattenVisibleGroupedTree
+            ) {
+              const items = notesToSessionItems(notes);
+              const tree = window.SessionViewer.groupAndSort(items, {
+                sort: 'newest',
+                today: new Date(),
+                isFavorite: (it) => favoritesController.isFavorite(it.relativePath),
+              });
+              const visibleRows = window.SessionViewer.flattenVisibleGroupedTree(tree, {
+                isGroupCollapsed:  (gk) => groupCollapsedState.has(gk),
+                isBucketCollapsed: (gk, layerId) =>
+                  bucketCollapsedState.has(`${gk}:${layerId}`),
+              });
+              orderedIds = visibleRows.map((it) => it.id);
+            } else {
+              orderedIds = getVisibleResults().map((r) => r.note.id);
+            }
+            const currentIndex = orderedIds.indexOf(selectedNoteId);
             const delta = e.key === 'ArrowDown' ? 1 : -1;
             const nextIndex = currentIndex + delta;
-            if (nextIndex >= 0 && nextIndex < results.length) {
+            if (nextIndex >= 0 && nextIndex < orderedIds.length) {
               const outgoing = getSelectedNote();
               if (liveEditorInstance && outgoing) {
                 liveEditorInstance.exitWriteMode();
@@ -4694,7 +4734,7 @@
                 // outgoing capture from deferred-load data loss.
                 outgoing.body = bodyForRead(outgoing);
               }
-              selectedNoteId = results[nextIndex].note.id;
+              selectedNoteId = orderedIds[nextIndex];
               renderApp();
               setStatusFromSelectedNote();
               scrollSelectedNoteIntoView();

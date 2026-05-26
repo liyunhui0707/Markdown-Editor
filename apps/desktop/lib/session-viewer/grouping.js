@@ -122,8 +122,49 @@ function groupAndSort(items, opts) {
   return result;
 }
 
+// Stage 6.6 — flatten the grouped tree into the visible row order
+// (Favorites → Codex (Today / W3 / Older) → Claude (same) → Other),
+// optionally skipping rows the user can't currently see because their
+// containing group or bucket is collapsed. Used by the keyboard arrow
+// handler so ↑/↓ traverse exactly what the user sees in the sidebar.
+//
+// `tree` is the object returned by `groupAndSort`.
+// `opts.isGroupCollapsed(groupKey)`  — return true to skip the whole group.
+// `opts.isBucketCollapsed(groupKey, layerId)` — return true to skip just
+//   that bucket's rows (the group header still counts as visible).
+const SESSION_GROUP_ORDER = ['favorite', 'codex', 'claude', 'other'];
+function flattenVisibleGroupedTree(tree, opts) {
+  opts = opts || {};
+  const isGroupCollapsed  = typeof opts.isGroupCollapsed  === 'function' ? opts.isGroupCollapsed  : () => false;
+  const isBucketCollapsed = typeof opts.isBucketCollapsed === 'function' ? opts.isBucketCollapsed : () => false;
+  const out = [];
+  if (!tree) return out;
+  for (const groupKey of SESSION_GROUP_ORDER) {
+    const contents = tree[groupKey];
+    if (!contents || isGroupCollapsed(groupKey)) continue;
+    if (groupKey === 'favorite') {
+      // Favorites render flat (no buckets) — items are the contents.
+      for (const item of contents) {
+        if (item) out.push(item);
+      }
+      continue;
+    }
+    // codex / claude / other render bucketed.
+    for (const bucket of contents) {
+      if (!bucket) continue;
+      if (isBucketCollapsed(groupKey, bucket.layerId)) continue;
+      for (const item of bucket.items || []) {
+        if (item) out.push(item);
+      }
+    }
+  }
+  return out;
+}
+
 const api = {
   groupAndSort,
+  flattenVisibleGroupedTree,
+  SESSION_GROUP_ORDER,
   LAYER_ORDER,
   LAYER_LABEL,
   // Exported for direct testing:

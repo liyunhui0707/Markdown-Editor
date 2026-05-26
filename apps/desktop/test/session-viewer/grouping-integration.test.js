@@ -387,6 +387,38 @@ test('T-S5-QA15 Stage S6: showWriteMode + showPreviewMode early-return for any s
   );
 });
 
+// ---------- Stage 6.6 — Arrow nav uses grouped order for sessions ----------
+
+test('Stage 6.6: arrow-key handler uses flattenVisibleGroupedTree when filter=sessions', () => {
+  const src = readIndex();
+  // The arrow handler must branch on `currentFilter === 'sessions'`
+  // and call flattenVisibleGroupedTree with both collapse predicates.
+  assert.match(
+    src,
+    /currentFilter\s*===\s*['"]sessions['"][\s\S]*?flattenVisibleGroupedTree\(tree,[\s\S]*?isGroupCollapsed[\s\S]*?groupCollapsedState\.has[\s\S]*?isBucketCollapsed[\s\S]*?bucketCollapsedState\.has/,
+  );
+});
+
+test('Stage 6.6: non-session filters still use getVisibleResults order', () => {
+  const src = readIndex();
+  // The else branch in the arrow handler keeps the legacy
+  // getVisibleResults flow for non-session filters.
+  assert.match(
+    src,
+    /orderedIds\s*=\s*getVisibleResults\(\)\.map\(\(r\)\s*=>\s*r\.note\.id\)/,
+  );
+});
+
+test('Stage 6.6: scrollSelectedNoteIntoView finds active row in the grouped tree', () => {
+  const src = readIndex();
+  // The helper must look for `.session-row--active` in addition to
+  // `.note-item.active`.
+  assert.match(
+    src,
+    /function\s+scrollSelectedNoteIntoView[\s\S]*?\.note-item\.active[\s\S]*?\.session-row--active/,
+  );
+});
+
 // ---------- Round-6 QA fix (2026-05-26): Write button parity ----------
 
 // ---------- Round-9 QA fix (2026-05-26) ----------
