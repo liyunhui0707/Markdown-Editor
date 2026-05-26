@@ -2444,12 +2444,40 @@
         }
         if (!activeItem) return;
         if (noteList.scrollHeight <= noteList.clientHeight) return;
-        // offsetTop is relative to the nearest positioned ancestor (the body in this
-        // layout — #noteList has no position set). Use getBoundingClientRect instead
-        // so the delta is always relative to the visible noteList top edge.
-        const containerTop = noteList.getBoundingClientRect().top;
-        const itemTop = activeItem.getBoundingClientRect().top;
-        noteList.scrollTop += itemTop - containerTop;
+
+        // Stage 6.7: two-part scroll policy.
+        //   1. If the active row is FULLY visible, leave scroll alone.
+        //      Prevents arrow-keying through visible rows from jittering
+        //      the list every keystroke.
+        //   2. If the active row is partly or fully clipped, scroll so
+        //      its vertical CENTER aligns with the viewport's vertical
+        //      center. Gives equal context above and below the
+        //      selection — better than the prior "pin to top" which
+        //      gave no context after a jump.
+        //
+        // The lightweight test harness's fake rect only exposes `top`,
+        // so fall back to offsetHeight for the row's height and derive
+        // bottom from top + height.
+        const containerRect = noteList.getBoundingClientRect();
+        const itemRect      = activeItem.getBoundingClientRect();
+        const itemHeight    = itemRect.height != null
+          ? itemRect.height
+          : (activeItem.offsetHeight || 0);
+        const itemTop       = itemRect.top;
+        const itemBottom    = itemRect.bottom != null
+          ? itemRect.bottom
+          : itemTop + itemHeight;
+        const containerBottom = containerRect.bottom != null
+          ? containerRect.bottom
+          : containerRect.top + noteList.clientHeight;
+        const fullyVisible =
+          itemTop    >= containerRect.top &&
+          itemBottom <= containerBottom;
+        if (fullyVisible) return;
+
+        const itemCenter      = itemTop + itemHeight / 2;
+        const containerCenter = containerRect.top + noteList.clientHeight / 2;
+        noteList.scrollTop += itemCenter - containerCenter;
       }
 
       function updateFilterCounts() {

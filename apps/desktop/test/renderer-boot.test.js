@@ -6133,23 +6133,30 @@ test('ArrowDown with no note selected and no visible notes does nothing', async 
   assert.ok(preventDefaultCalled, 'ArrowDown with no notes must still call preventDefault()');
 });
 
-// ── Stage 8.3: scroll selected note to top using getBoundingClientRect ──────────
-// Formula: noteList.scrollTop += item.getBoundingClientRect().top - noteList.getBoundingClientRect().top
+// ── Stage 8.3 / Stage 6.7: scroll selected note into view ───────────────────
+// Stage 6.7 (2026-05-26) changed the policy from "pin selection to top
+// of viewport" to:
+//   - if the selected row is fully visible, leave scroll alone;
+//   - if the selected row is clipped, scroll so its vertical CENTER
+//     aligns with the viewport's vertical center.
 //
-// Layout simulation (harness):
-//   - noteList.getBoundingClientRect().top = 0 (stable viewport reference)
+// Harness layout simulation:
+//   - noteList.getBoundingClientRect() returns { top: 0, bottom: clientHeight }
 //   - child at index n: getBoundingClientRect().top = n*50 - noteList.scrollTop
-//   - child.offsetTop = _SIDEBAR_OFFSET(200) + n*50  ← body-relative, as in real browser
+//   - child.offsetHeight = 50
 //
-// Expected scrollTop after selecting note at index n:
-//   delta = (n*50 - current_scrollTop) - 0
-//   scrollTop += delta  →  scrollTop = n*50
+// Center math for an off-screen row at index n with container clientHeight H:
+//   itemRect.top    = n*50 - scrollTop
+//   itemCenter      = itemRect.top + 25
+//   containerCenter = H/2
+//   scrollTop_new   = scrollTop + (itemCenter - containerCenter)
+//                   = n*50 + 25 - H/2
 //
-// Any formula using child.offsetTop directly would produce scrollTop = 200 + n*50 (wrong).
+// For n=1, H=60 → scrollTop_new = 50 + 25 - 30 = 45.
 
-test('ArrowDown aligns the selected note to the top using getBoundingClientRect', async () => {
-  // 2 notes. Note B is at index 1 (getBoundingClientRect().top = 50 - scrollTop).
-  // Starting scrollTop=0: delta = (50-0)-0 = 50 → scrollTop = 50.
+test('Stage 6.7: ArrowDown centers the clipped selected note in the viewport', async () => {
+  // 2 notes, container clientHeight=60, scrollTop=0. Note B's bottom
+  // (100) is below the viewport bottom (60) → clipped → center → 45.
   const { elements, documentHandlers } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -6163,13 +6170,13 @@ test('ArrowDown aligns the selected note to the top using getBoundingClientRect'
 
   await fireDocumentKeydown(documentHandlers, 'ArrowDown');
 
-  assert.equal(noteList.scrollTop, 50,
-    'ArrowDown must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
+  assert.equal(noteList.scrollTop, 45,
+    'ArrowDown to a clipped row must center it (scrollTop = n*50 + 25 - clientHeight/2 = 45)');
 });
 
-test('ArrowUp aligns the selected note to the top using getBoundingClientRect', async () => {
-  // 3 notes. Navigate to Note C (two ArrowDowns → scrollTop=100).
-  // ArrowUp → Note B: getBoundingClientRect().top = 50-100 = -50. delta=-50 → scrollTop=50.
+test('Stage 6.7: ArrowUp centers the clipped selected note in the viewport', async () => {
+  // 3 notes. Navigate down twice (scrollTop → 45 → 95), then ArrowUp
+  // → Note B (top = 50 - 95 = -45, clipped above) → center → 45.
   const { elements, documentHandlers } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -6180,13 +6187,13 @@ test('ArrowUp aligns the selected note to the top using getBoundingClientRect', 
   await elements.get('chooseVaultButton').fireAsync('click');
   const noteList = elements.get('noteList');
   noteList.clientHeight = 60;
-  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 50
-  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 100
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 45
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown'); // scrollTop → 95
 
-  await fireDocumentKeydown(documentHandlers, 'ArrowUp'); // scrollTop → 50
+  await fireDocumentKeydown(documentHandlers, 'ArrowUp');   // scrollTop → 45
 
-  assert.equal(noteList.scrollTop, 50,
-    'ArrowUp must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
+  assert.equal(noteList.scrollTop, 45,
+    'ArrowUp to a clipped row must center it (scrollTop = 45)');
 });
 
 test('no scroll when entire list fits in the viewport', async () => {
@@ -6208,8 +6215,9 @@ test('no scroll when entire list fits in the viewport', async () => {
     'no scroll when scrollHeight(100) <= clientHeight(200)');
 });
 
-test('mouse click aligns the clicked note to the top using getBoundingClientRect', async () => {
-  // Click Note B (index 1, getBoundingClientRect().top = 50-0 = 50). delta=50 → scrollTop=50.
+test('Stage 6.7: mouse click centers the clipped clicked note in the viewport', async () => {
+  // Click Note B (index 1). Container clientHeight = 60, scrollTop = 0.
+  // Note B (top = 50, bottom = 100) is clipped → center it → scrollTop = 45.
   const { elements } = makeRendererHarness({
     vaultNotes: [
       { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
@@ -6223,8 +6231,31 @@ test('mouse click aligns the clicked note to the top using getBoundingClientRect
 
   noteList.children[1].fire('click');
 
-  assert.equal(noteList.scrollTop, 50,
-    'mouse click must set scrollTop=50 (Note B index-top via getBoundingClientRect)');
+  assert.equal(noteList.scrollTop, 45,
+    'click on a clipped row must center it (scrollTop = 45)');
+});
+
+test('Stage 6.7: no scroll when the selected row is already fully visible', async () => {
+  // 3 notes, container clientHeight = 200 (fits all 3 rows of 50 each
+  // — total 150). ArrowDown to Note B: Note B is fully visible
+  // (top=50, bottom=100, all within [0, 200]) → leave scroll alone.
+  // This pins the "don't disrupt scanning" half of the policy.
+  const { elements, documentHandlers } = makeRendererHarness({
+    vaultNotes: [
+      { id: 'vault:a.md', title: 'Note A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b.md', title: 'Note B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+      { id: 'vault:c.md', title: 'Note C', body: '# C', fileName: 'c.md', relativePath: 'c.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const noteList = elements.get('noteList');
+  noteList.clientHeight = 200;
+  noteList.scrollTop = 0;
+
+  await fireDocumentKeydown(documentHandlers, 'ArrowDown');
+
+  assert.equal(noteList.scrollTop, 0,
+    'when scrollHeight <= clientHeight, the early-return guard fires and scrollTop stays 0');
 });
 
 // ── Stage 10.1: title textarea + sidebar default ──────────────────────────────
