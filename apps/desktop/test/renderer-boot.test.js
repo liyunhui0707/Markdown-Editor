@@ -5314,20 +5314,20 @@ test('Stage 13: Cmd+= grows editor font size by one step and persists', async ()
   const harness = makeRendererHarness();
   const { documentHandlers, setItemCalls } = harness;
 
-  // Boot at default 15px.
-  assert.equal(readEditorFontSizeVar(harness), '15px',
-    'boot should apply default --editor-font-size: 15px');
+  // Boot at default 18px.
+  assert.equal(readEditorFontSizeVar(harness), '18px',
+    'boot should apply default --editor-font-size: 18px');
   assert.equal(setItemForEditorFontSize(setItemCalls).length, 0,
     'boot must NOT persist (apply only, no setItem)');
 
   const { preventDefaultCalled } = await fireDocumentKeydown(documentHandlers, '=', { metaKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '16px',
-    'Cmd+= should grow one step (15 → 16)');
+  assert.equal(readEditorFontSizeVar(harness), '20px',
+    'Cmd+= should grow one step (18 → 20)');
   assert.ok(preventDefaultCalled, 'Cmd+= must call preventDefault()');
   const editorPersists = setItemForEditorFontSize(setItemCalls);
   assert.equal(editorPersists.length, 1, 'Cmd+= must persist exactly once');
-  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '16'],
+  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '20'],
     'Cmd+= must persist new step value as decimal string');
 });
 
@@ -5336,7 +5336,7 @@ test('Stage 13: Cmd+Shift+= also grows editor font size by one step', async () =
   // On a US keyboard, Cmd+Shift+= produces e.key === '+' (the shifted form).
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '+', { metaKey: true, shiftKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '16px',
+  assert.equal(readEditorFontSizeVar(harness), '20px',
     'Cmd+Shift+= (e.key === "+") should grow one step');
   assert.ok(preventDefaultCalled, 'Cmd+Shift+= must call preventDefault()');
 });
@@ -5345,7 +5345,7 @@ test('Stage 13: Ctrl+= grows editor font size by one step (Linux/Windows shortcu
   const harness = makeRendererHarness();
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { ctrlKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '16px',
+  assert.equal(readEditorFontSizeVar(harness), '20px',
     'Ctrl+= must work the same as Cmd+= for Linux/Windows users');
   assert.ok(preventDefaultCalled, 'Ctrl+= must call preventDefault()');
 });
@@ -5354,11 +5354,11 @@ test('Stage 13: Cmd+- shrinks editor font size by one step and persists', async 
   const harness = makeRendererHarness();
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '-', { metaKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '14px',
-    'Cmd+- should shrink one step (15 → 14)');
+  assert.equal(readEditorFontSizeVar(harness), '16px',
+    'Cmd+- should shrink one step (18 → 16)');
   assert.ok(preventDefaultCalled, 'Cmd+- must call preventDefault()');
   const editorPersists = setItemForEditorFontSize(harness.setItemCalls);
-  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '14']);
+  assert.deepEqual(editorPersists[0], ['markdownVault.editorFontSize', '16']);
 });
 
 test('Stage 13: Cmd+0 resets editor font size to default and persists', async () => {
@@ -5368,10 +5368,10 @@ test('Stage 13: Cmd+0 resets editor font size to default and persists', async ()
 
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '0', { metaKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '15px', 'Cmd+0 must reset to default 15');
+  assert.equal(readEditorFontSizeVar(harness), '18px', 'Cmd+0 must reset to default 18');
   assert.ok(preventDefaultCalled, 'Cmd+0 must call preventDefault()');
   const editorPersists = setItemForEditorFontSize(harness.setItemCalls);
-  assert.deepEqual(editorPersists[editorPersists.length - 1], ['markdownVault.editorFontSize', '15']);
+  assert.deepEqual(editorPersists[editorPersists.length - 1], ['markdownVault.editorFontSize', '18']);
 });
 
 test('Stage 13: Cmd+= at maximum step is a no-op (clamped) but still consumes the key', async () => {
@@ -5406,7 +5406,7 @@ test('Stage 13: Cmd+Alt+= does NOT zoom and does NOT call preventDefault', async
   const harness = makeRendererHarness();
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true, altKey: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'Cmd+Alt+= must not change the font-size variable');
   assert.ok(!preventDefaultCalled,
     'Cmd+Alt+= must not call preventDefault — handler must not consume the key');
@@ -5416,7 +5416,7 @@ test('Stage 13: IME composition suppresses zoom shortcut', async () => {
   const harness = makeRendererHarness();
   const { preventDefaultCalled } = await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true, isComposing: true });
 
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'composition (e.isComposing) must suppress zoom');
   assert.ok(!preventDefaultCalled,
     'composition path returns early; preventDefault must not be called');
@@ -5433,40 +5433,137 @@ test('Stage 13: boot restores valid persisted size WITHOUT writing localStorage'
 
 test('Stage 13: boot falls back to default when persisted value is missing', () => {
   const harness = makeRendererHarness();
-  assert.equal(readEditorFontSizeVar(harness), '15px',
-    'no persisted value → default 15px');
+  assert.equal(readEditorFontSizeVar(harness), '18px',
+    'no persisted value → default 18px');
 });
 
 test('Stage 13: boot falls back to default for non-numeric persisted value "banana"', () => {
   const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': 'banana' } });
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'Number("banana") is NaN → default');
 });
 
 test('Stage 13: boot falls back to default for partial-numeric "14px"', () => {
   // parseInt('14px') is 14 — insufficient. Number('14px') is NaN — strict.
   const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '14px' } });
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'Number("14px") is NaN; strict parsing must fall back');
 });
 
 test('Stage 13: boot falls back to default for non-integer "14.5"', () => {
   const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '14.5' } });
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'Number.isInteger(14.5) is false → default');
 });
 
 test('Stage 13: boot falls back to default for in-range but off-step "17"', () => {
   // 17 is between 16 and 18 in the step list — not a valid step.
   const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '17' } });
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'FONT_SIZE_STEPS.includes(17) is false → default');
 });
 
 test('Stage 13: boot falls back to default for out-of-range "999"', () => {
   const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '999' } });
-  assert.equal(readEditorFontSizeVar(harness), '15px',
+  assert.equal(readEditorFontSizeVar(harness), '18px',
     'value outside step list → default');
+});
+
+// ── Stage 13.B: viewport-center anchor across font zoom ───────────────────
+// Without anchoring, a Cmd+= / Cmd+- / Cmd+0 reflow uniformly grows or shrinks
+// every line, so the content centered in the viewport drifts up or down. The
+// fix captures (scrollTop + clientHeight/2) / scrollHeight BEFORE the variable
+// changes and re-applies that ratio against the post-reflow scrollHeight so
+// the same content stays at the viewport center. The harness simulates reflow
+// by mutating scrollHeight between the synchronous apply (runs inside
+// applyEditorFontSize) and the rAF apply (re-runs after layout settles), so
+// the rAF pass reads the post-reflow scrollHeight and updates scrollTop.
+test('Stage 13.B: Cmd+= keeps viewport-center content centered after reflow', async () => {
+  const harness = makeRendererHarness();
+  const writePane = harness.elements.get('hybridWritePane');
+  // Pre-zoom: scrollTop=200, clientHeight=500, scrollHeight=1000 →
+  // centerY = 450, ratio = 0.45.
+  writePane.clientHeight = 500;
+  writePane.scrollHeight = 1000;
+  writePane.scrollTop    = 200;
+
+  await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true });
+  // Simulate the post-CSS reflow: at +1 step from 18px → 20px, the document
+  // body grows ~11%. Test uses 1100 to make the arithmetic obvious.
+  writePane.scrollHeight = 1100;
+  harness.flushRaf();
+
+  // Expected: scrollTop = 0.45 * 1100 - 250 = 245.
+  assert.equal(writePane.scrollTop, 245,
+    'after reflow, scrollTop must put the same fractional position back at the viewport center (0.45 * 1100 - 250)');
+});
+
+test('Stage 13.B: Cmd+- keeps viewport-center content centered after reflow', async () => {
+  const harness = makeRendererHarness();
+  const writePane = harness.elements.get('hybridWritePane');
+  writePane.clientHeight = 400;
+  writePane.scrollHeight = 1000;
+  writePane.scrollTop    = 300;  // centerY = 500, ratio = 0.5
+
+  await fireDocumentKeydown(harness.documentHandlers, '-', { metaKey: true });
+  // Simulate shrink: 18 → 16 ≈ 11% smaller, use 900 for clean arithmetic.
+  writePane.scrollHeight = 900;
+  harness.flushRaf();
+
+  // Expected: 0.5 * 900 - 200 = 250.
+  assert.equal(writePane.scrollTop, 250,
+    'shrink path must also re-anchor on the captured center ratio');
+});
+
+test('Stage 13.B: Cmd+0 keeps viewport-center content centered after reflow', async () => {
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '32' } });
+  const writePane = harness.elements.get('hybridWritePane');
+  writePane.clientHeight = 600;
+  writePane.scrollHeight = 2000;
+  writePane.scrollTop    = 700;  // centerY = 1000, ratio = 0.5
+
+  await fireDocumentKeydown(harness.documentHandlers, '0', { metaKey: true });
+  // Reset 32 → 18 shrinks ~44%; use 1200 for round arithmetic.
+  writePane.scrollHeight = 1200;
+  harness.flushRaf();
+
+  // Expected: 0.5 * 1200 - 300 = 300.
+  assert.equal(writePane.scrollTop, 300,
+    'reset to default must also re-anchor on the captured center ratio');
+});
+
+test('Stage 13.B: clamps to [0, max] so center-anchor never pushes scrollTop past the scrollable range', async () => {
+  const harness = makeRendererHarness();
+  const writePane = harness.elements.get('hybridWritePane');
+  // Doc is at the very top with center near the top of a short doc; growing
+  // the font keeps the desired centerY below half the viewport, which would
+  // yield a negative scrollTop. The clamp must pin it to 0.
+  writePane.clientHeight = 500;
+  writePane.scrollHeight = 800;
+  writePane.scrollTop    = 0;  // centerY = 250, ratio = 0.3125
+
+  await fireDocumentKeydown(harness.documentHandlers, '=', { metaKey: true });
+  writePane.scrollHeight = 900;  // ratio*900 - 250 = 281.25 - 250 = 31.25; positive — pick a smaller reflow:
+  // Use 700 instead so desired = 0.3125*700 - 250 = -31.25 → clamp to 0.
+  writePane.scrollHeight = 700;
+  harness.flushRaf();
+
+  assert.equal(writePane.scrollTop, 0,
+    'desired scrollTop below 0 must be clamped to 0 (cannot scroll above the top)');
+});
+
+test('Stage 13.B: boot does NOT anchor (no scroll write at startup)', () => {
+  // The boot apply path passes keepCenter:false so activeScrollEl is not
+  // touched before its dependencies (currentMode, hybridWritePane, …) are
+  // initialized. If captureFontZoomAnchor were called at boot it would throw
+  // a TDZ ReferenceError and crash the renderer. Boot succeeding to set the
+  // CSS var is the proxy assertion that anchoring was skipped.
+  const harness = makeRendererHarness({ storageEntries: { 'markdownVault.editorFontSize': '24' } });
+  assert.equal(readEditorFontSizeVar(harness), '24px',
+    'boot must apply the persisted size cleanly, with no TDZ crash from anchoring');
+  const writePane = harness.elements.get('hybridWritePane');
+  assert.equal(writePane.scrollTop, 0,
+    'boot must not write scrollTop on hybridWritePane');
 });
 
 // ── Stage A (Issue #12 R1a + R3): title sync + per-note save latch ────────
@@ -6725,11 +6822,11 @@ test('Stage 12.2: marker-reveal CSS contract intact (.cm-activeLine .cm-md-headi
 // Preview). Block-bound [^}]* prevents the property match from leaking
 // outside its CSS rule.
 
-test('Stage 13: :root declares --editor-font-size: 15px', () => {
+test('Stage 13: :root declares --editor-font-size: 18px', () => {
   const html = readIndexHtml();
-  const re = /:root\s*\{[^}]*--editor-font-size\s*:\s*15px\s*;?[^}]*\}/;
+  const re = /:root\s*\{[^}]*--editor-font-size\s*:\s*18px\s*;?[^}]*\}/;
   assert.ok(re.test(html),
-    'must contain ":root { … --editor-font-size: 15px; … }"');
+    'must contain ":root { … --editor-font-size: 18px; … }"');
 });
 
 test('Stage 13: .hybrid-write-pane consumes var(--editor-font-size, …) for font-size', () => {
