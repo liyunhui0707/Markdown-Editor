@@ -1567,21 +1567,25 @@
             <span class="panel-header-title">Notes</span>
           </div>
           <div class="panel-body" style="padding:8px 8px 4px;">
-            <div class="nav-item active" data-filter="all" id="filterAll">
+            <!-- Stage 6.4: the legacy "All Notes" filter row is hidden
+                 from the user but kept in the DOM so test fixtures that
+                 fire('click') on filterAll continue to work. Production
+                 nav is the 4-row layout below. -->
+            <div class="nav-item" data-filter="all" id="filterAll" style="display:none;">
               <div class="nav-label">All Notes</div>
               <div class="nav-meta" id="filterAllMeta">0 notes</div>
             </div>
-            <div class="nav-item" data-filter="ai" id="filterAi">
-              <div class="nav-label">AI Imports</div>
-              <div class="nav-meta" id="filterAiMeta">0 notes</div>
-            </div>
-            <div class="nav-item" data-filter="drafts" id="filterDrafts">
+            <div class="nav-item active" data-filter="drafts" id="filterDrafts">
               <div class="nav-label">Drafts</div>
               <div class="nav-meta" id="filterDraftsMeta">0 notes</div>
             </div>
             <div class="nav-item" data-filter="vault" id="filterVault">
-              <div class="nav-label">Vault Files</div>
+              <div class="nav-label">My Notes</div>
               <div class="nav-meta" id="filterVaultMeta">0 notes</div>
+            </div>
+            <div class="nav-item" data-filter="ai" id="filterAi">
+              <div class="nav-label">AI Imports</div>
+              <div class="nav-meta" id="filterAiMeta">0 notes</div>
             </div>
             <div class="nav-item" data-filter="sessions" id="filterSessions">
               <div class="nav-label">AI Sessions</div>
@@ -1950,11 +1954,13 @@
       const noteList               = document.getElementById('noteList');
       const mainLayout             = document.getElementById('mainLayout');
 
-      const filterAll       = document.getElementById('filterAll');
       const filterAi        = document.getElementById('filterAi');
       const filterDrafts    = document.getElementById('filterDrafts');
       const filterVault     = document.getElementById('filterVault');
       const filterSessions  = document.getElementById('filterSessions');
+      // Stage 6.4: filterAll is hidden from production UI but kept in
+      // the DOM for test fixtures that need a "show every note" path.
+      const filterAll       = document.getElementById('filterAll');
       const filterAllMeta   = document.getElementById('filterAllMeta');
       const filterAiMeta    = document.getElementById('filterAiMeta');
       const filterDraftsMeta = document.getElementById('filterDraftsMeta');
@@ -2022,7 +2028,11 @@
 
       let stopVaultWatcher        = null;
       let currentVaultPath        = '';
-      let currentFilter           = 'all';
+      // Stage 6.4 — default filter is now `vault` ("My Notes"). The
+      // legacy 'all' filter row was removed; any place that still
+      // sets currentFilter = 'all' falls through to the My Notes
+      // predicate via getBaseFilteredNotes's defensive fallback.
+      let currentFilter           = 'vault';
       let currentSearchQuery      = '';
       let lastIngestedRelativePath = '';
       let lastIngestedAt          = '';
@@ -2320,6 +2330,11 @@
       }
 
       function getBaseFilteredNotes() {
+        // Stage 6.4: 'all' is hidden from production UI but supported
+        // for tests + back-compat with stale currentFilter values.
+        if (currentFilter === 'all') {
+          return notes;
+        }
         if (currentFilter === 'ai') {
           // Stage S5: exclude session-imports from AI Imports so the
           // two filters are disjoint. Sessions still match
@@ -2341,14 +2356,32 @@
         }
 
         if (currentFilter === 'vault') {
-          return notes.filter((note) => note.source === 'vault');
+          // Stage 6.4 — "My Notes": vault-backed notes that aren't
+          // AI-imported and aren't session-imported. Disjoint from
+          // AI Imports + AI Sessions so every note belongs to
+          // exactly one filter row.
+          return notes.filter(
+            (note) =>
+              note.source === 'vault' &&
+              note.aiImported !== true &&
+              note.sessionsImport !== true,
+          );
         }
 
         if (currentFilter === 'sessions') {
           return notes.filter((note) => note.sessionsImport === true);
         }
 
-        return notes;
+        // Defensive fallback if `currentFilter` is somehow not one of
+        // the known values — e.g. a stale 'all' from before Stage 6.4.
+        // Show vault notes (the most "All Notes"-ish remaining filter)
+        // to avoid an empty sidebar.
+        return notes.filter(
+          (note) =>
+            note.source === 'vault' &&
+            note.aiImported !== true &&
+            note.sessionsImport !== true,
+        );
       }
 
       function getVisibleResults() {
@@ -2397,24 +2430,41 @@
       }
 
       function updateFilterCounts() {
-        filterAllMeta.textContent    = `${notes.length} note(s)`;
-        // Stage S5: AI Imports count excludes sessions (disjoint from AI Sessions).
-        filterAiMeta.textContent     = `${notes.filter((note) => note.aiImported === true && note.sessionsImport !== true).length} note(s)`;
+        // Stage 6.4 — each visible filter row counts a DISJOINT subset
+        // of the notes set; every note belongs to exactly one row.
+        // The hidden "All Notes" row keeps its legacy total count for
+        // tests that still read it.
+        if (filterAllMeta) {
+          filterAllMeta.textContent = `${notes.length} note(s)`;
+        }
         filterDraftsMeta.textContent = `${notes.filter((note) =>
           note.source === 'draft'
           || (window.DirtyState && window.DirtyState.isNoteDirty(note))
         ).length} note(s)`;
-        filterVaultMeta.textContent  = `${notes.filter((note) => note.source === 'vault').length} note(s)`;
+        filterVaultMeta.textContent  = `${notes.filter((note) =>
+          note.source === 'vault'
+          && note.aiImported !== true
+          && note.sessionsImport !== true
+        ).length} note(s)`;
+        filterAiMeta.textContent     = `${notes.filter((note) =>
+          note.aiImported === true && note.sessionsImport !== true
+        ).length} note(s)`;
         filterSessionsMeta.textContent = `${notes.filter((note) => note.sessionsImport === true).length} note(s)`;
       }
 
       function renderFilterNav() {
+        // Stage 6.4 — render order: Drafts → My Notes → AI Imports →
+        // AI Sessions. "All Notes" / "Vault Files" were removed; My
+        // Notes is the renamed-and-narrowed Vault filter.
         const items = [
-          [filterAll,    'all'],
-          [filterAi,     'ai'],
-          [filterDrafts, 'drafts'],
-          [filterVault,  'vault'],
-          [filterSessions, 'sessions']
+          // Stage 6.4: filterAll is hidden in CSS but still part of
+          // the active-class rotation so tests that switch to 'all'
+          // get the correct nav-item state.
+          [filterAll,      'all'],
+          [filterDrafts,   'drafts'],
+          [filterVault,    'vault'],
+          [filterAi,       'ai'],
+          [filterSessions, 'sessions'],
         ];
         sessionsRefreshMount.style.display = currentFilter === 'sessions' ? '' : 'none';
 
@@ -2946,6 +2996,10 @@
           return;
         }
 
+        // Stage 6.4: keep the internal 'all' filter for the demo-seed
+        // flow so the freshly-seeded notes are all visible regardless
+        // of type. 'all' is the hidden internal filter retained for
+        // exactly these post-bulk-reset states.
         currentFilter = 'all';
         currentSearchQuery = '';
         searchInput.value = '';
@@ -3117,6 +3171,11 @@
                 }
               }
             ];
+            // Stage 6.4: keep the internal 'all' filter so the
+            // placeholder Untitled draft is visible in the empty-vault
+            // state. Switching to 'vault' here would hide the draft
+            // (drafts aren't in My Notes) and the user would see an
+            // empty list with no obvious way to start typing.
             currentFilter = 'all';
             selectedNoteId = 'draft:1';
           }
@@ -4382,10 +4441,10 @@
         updateLayoutVisibility();
       });
 
-      filterAll.addEventListener('click',    () => setFilter('all'));
-      filterAi.addEventListener('click',     () => setFilter('ai'));
-      filterDrafts.addEventListener('click', () => setFilter('drafts'));
-      filterVault.addEventListener('click',  () => setFilter('vault'));
+      filterAll.addEventListener('click',      () => setFilter('all'));
+      filterDrafts.addEventListener('click',   () => setFilter('drafts'));
+      filterVault.addEventListener('click',    () => setFilter('vault'));
+      filterAi.addEventListener('click',       () => setFilter('ai'));
       filterSessions.addEventListener('click', () => setFilter('sessions'));
 
       const sessionsRefreshController = window.SessionViewer.createRefreshController({

@@ -3722,6 +3722,11 @@ test('Stage 5.3: AI-imported vault note renders the AI badge and overflow chip w
 
   await elements.get('chooseVaultButton').fireAsync('click');
 
+  // Stage 6.4 — boot default filter is now 'vault' which excludes
+  // AI-imported notes. Switch to 'AI Imports' (or 'All' via the
+  // hidden filterAll) to make the imported row visible.
+  elements.get('filterAi').fire('click');
+
   const rows = elements.get('noteList').children;
   const aiRow = Array.from(rows).find((r) => r.innerHTML.includes('Imported essay'));
   assert.ok(aiRow, 'AI-imported row should be present after Choose Vault');
@@ -3827,6 +3832,11 @@ test('Stage 6.1: AI badge takes precedence over Draft for a dirty AI-imported va
   });
 
   await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Stage 6.4 — boot default filter 'vault' hides AI imports. Switch
+  // to 'all' (hidden in production but kept in DOM for test fixtures)
+  // so both notes — the AI-imported and the plain vault — render.
+  elements.get('filterAll').fire('click');
 
   // Edit the AI-imported note and flush by switching away.
   calls.cm6Adapter.text = '# Imported edited';
