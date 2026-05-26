@@ -2270,11 +2270,20 @@
 
           // Migration: if the body doesn't already start with inline metadata,
           // prepend it from frontmatter and store it back so future saves are canonical.
+          //
+          // Stage 6.5 bug fix: skip this for AI Imports and AI Sessions —
+          // their canonical metadata lives in the YAML frontmatter the
+          // importer wrote, not in inline `Source:` / tag lines in the
+          // body. Without this guard the renderer prepends a synthetic
+          // prefix on every click, mutates note.body away from
+          // note.loadedBody, and `isNoteDirty(note)` honestly reports
+          // a divergence — making every selected AI note appear in the
+          // Drafts filter even though the user hasn't touched it.
           const { tags: existingTags } = stripMetaPrefix(note.body);
           const hasMeta = existingTags.length > 0
             || /^Source:/im.test((note.body || '').split('\n').slice(0, 3).join('\n'));
           let migrated = false;
-          if (!hasMeta) {
+          if (!hasMeta && !note.aiImported && !note.sessionsImport) {
             const prefix = serializeMetaPrefix(note.frontmatter);
             if (prefix) {
               note.body = prefix + '\n\n' + (note.body || '');

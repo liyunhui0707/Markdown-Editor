@@ -3786,6 +3786,88 @@ test('Stage 6.1: editing vault A → switching to B → back to A keeps A as Dra
   assert.equal(elements.get('statusText').className, 'topbar-status status-draft');
 });
 
+test('Stage 6.5: clicking an AI Imports note does NOT mutate note.body (no false-dirty)', async () => {
+  // Bug: the renderEditor migration prepended `Source: <agent>\n\n` to
+  // note.body for any note whose body lacked inline metadata. AI
+  // Imports get their metadata from YAML frontmatter, so the migration
+  // ran on every click — diverging note.body from note.loadedBody and
+  // making the note appear in the Drafts filter. Fix: skip migration
+  // for `aiImported === true` and `sessionsImport === true`.
+  const { elements } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:claude-note',
+      title: 'Claude convo',
+      body: '## User\n\nhello\n\n## Assistant\n\nhi',
+      fileName: 'claude-note.md',
+      relativePath: 'Inbox/AI Chats/claude-note.md',
+      aiImported: true,
+      frontmatter: { tags: [], source: 'claude' },
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Switch to the AI Imports filter so the note is in visibleResults.
+  elements.get('filterAi').fire('click');
+
+  // Click the AI-imported note row.
+  const rows = elements.get('noteList').children;
+  const aiRow = Array.from(rows).find((r) => r.innerHTML.includes('Claude convo'));
+  assert.ok(aiRow, 'AI-imported row must be present in the AI Imports filter');
+  aiRow.fire('click');
+
+  // After selection, the note must NOT show in Drafts. Drafts filter
+  // is the user-facing surface where the bug appeared.
+  elements.get('filterDrafts').fire('click');
+  const draftsRows = elements.get('noteList').children;
+  const titles = Array.from(draftsRows).map((row) => row.innerHTML);
+  assert.ok(
+    !titles.some((html) => html.includes('Claude convo')),
+    'AI Imports note must NOT appear in Drafts after a plain click — that was the false-dirty bug',
+  );
+});
+
+test('Stage 6.5: an AI Sessions note loads clean (no migration mutation, not in Drafts)', async () => {
+  // Same root cause as the AI Imports test above, but pinned for the
+  // sessionsImport=true path too. We don't traverse the grouped tree
+  // here (its renderer needs createTextNode which the lightweight
+  // harness document doesn't mock) — chooseVault auto-selects the
+  // first note, which fires renderEditor for the session. The
+  // assertion is on the Drafts filter: if the migration mutated
+  // note.body for the session, it would appear in Drafts. With the
+  // fix it must not.
+  const { elements } = makeRendererHarness({
+    vaultNotes: [{
+      id: 'vault:plain',
+      title: 'Plain note',
+      body: '# plain',
+      fileName: 'plain.md',
+      relativePath: 'plain.md',
+    }, {
+      id: 'vault:session',
+      title: 'Codex session',
+      body: '## User\n\nbuild me a thing\n\n## Assistant\n\nok',
+      fileName: 'rollout-x.md',
+      relativePath: 'Inbox/AI Chats/codex/2026/05/26/rollout-x.md',
+      aiImported: true,
+      sessionsImport: true,
+      frontmatter: { tags: [], source: 'codex' },
+    }],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // Drafts filter is the user-facing surface where the bug appeared.
+  // After load, no notes have been edited; Drafts should be empty.
+  elements.get('filterDrafts').fire('click');
+  const draftsRows = elements.get('noteList').children;
+  const titles = Array.from(draftsRows).map((row) => row.innerHTML);
+  assert.ok(
+    !titles.some((html) => html.includes('Codex session')),
+    'AI Sessions note must NOT appear in Drafts — the migration must not run for sessionsImport notes',
+  );
+});
+
 test('Stage 6.1: dirty saved note appears in Drafts filter and shows the Draft badge', async () => {
   const { calls, elements } = makeRendererHarness({
     search: '?writeEngine=cm6',
