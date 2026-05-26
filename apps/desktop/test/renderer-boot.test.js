@@ -218,7 +218,6 @@ function makeRendererHarness({
     'newNoteButton',
     'saveNoteButton',
     'deleteNoteButton',
-    'loadVaultButton',
     'sidebarToggle',
     'sidebarPanel',
     'noteList',
@@ -979,11 +978,11 @@ test('Stage 10.2: seedDemoVaultButton is not present in the toolbar DOM', () => 
   assert.ok(!html.includes('id="seedDemoVaultButton"'), 'seedDemoVaultButton must be removed from the toolbar');
 });
 
-test('Stage 10.2: chooseVaultButton, loadVaultButton, and deleteNoteButton are directly in the toolbar', () => {
+test('Stage 10.2: chooseVaultButton and deleteNoteButton are directly in the toolbar', () => {
   const html = readIndexHtml();
   assert.ok(html.includes('id="chooseVaultButton"'), 'chooseVaultButton must be present');
-  assert.ok(html.includes('id="loadVaultButton"'),   'loadVaultButton must be present');
   assert.ok(html.includes('id="deleteNoteButton"'),  'deleteNoteButton must be present');
+  assert.ok(!html.includes('id="loadVaultButton"'),  'loadVaultButton has been removed — Choose Vault auto-loads');
   assert.ok(!html.includes('id="moreMenu"'), 'no moreMenu should wrap any button');
 });
 
@@ -2081,43 +2080,6 @@ test('CM6: save + watcher preserve cached states for both a dirty vault note and
   assert.equal(calls.cm6SetText.length, textBeforeD,
     "D must not be reloaded via setText after save + watcher");
   assert.equal(calls.cm6Adapter._state._kind, 'D-edited');
-});
-
-test('CM6: manual Load Vault still clears cached editor states (external/manual reload may invalidate)', async () => {
-  // Complementary test: the bulk clear is only gated for save and watcher
-  // refreshes. Manual / external / vault-switch refreshes still wipe the
-  // cache by design — the product rule allows external reload to invalidate
-  // editor state. This test pins that residual behavior so a future change
-  // does not silently turn manual reload into a state-preserving path.
-  const { calls, elements } = makeRendererHarness({
-    search: '?writeEngine=cm6',
-    vaultNotes: [
-      { id: 'vault:a.md', title: 'A', body: '# A body', fileName: 'a.md', relativePath: 'a.md' },
-      { id: 'vault:b.md', title: 'B', body: '# B body', fileName: 'b.md', relativePath: 'b.md' },
-    ],
-  });
-
-  await elements.get('chooseVaultButton').fireAsync('click');
-
-  // Switch to B so A's state is cached (cache.doc = '# A body', the unchanged
-  // body — which equals what's on disk so the per-entry mismatch guard alone
-  // would NOT drop this entry; only a bulk clear can).
-  elements.get('noteList').children[1].fire('click');
-
-  const setStateBefore = calls.cm6SetState.length;
-  const setTextBefore  = calls.cm6SetText.length;
-
-  // Manual reload resets selection to notes[0] (A) and triggers a B → A
-  // switch. With bulk clear, cache miss for A → setText. Without bulk clear,
-  // cache.doc would still equal note.body and A would restore via setState —
-  // that is the regression this test guards against.
-  await elements.get('loadVaultButton').fireAsync('click');
-
-  assert.equal(calls.cm6SetState.length, setStateBefore,
-    'manual Load Vault must wipe cached states — no setState restore on reload');
-  assert.ok(calls.cm6SetText.length > setTextBefore,
-    'manual Load Vault must force a fresh setText for the re-selected note');
-  assert.equal(calls.cm6SetText.at(-1), '# A body');
 });
 
 // ── Duplicate filename / silent-overwrite guard ─────────────────────────────
