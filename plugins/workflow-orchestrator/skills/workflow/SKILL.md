@@ -41,7 +41,7 @@ Set it once at init via `--run-context`, or update mid-run with `workflow_state.
 Before doing anything else, check for existing state:
 
 ```
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py resume --repo "<cwd>"
+python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py resume --repo "<cwd>"
 ```
 
 If the command returns a non-null `pending_gate`, re-emit the gate prompt verbatim and **end your turn**. Do not re-run prior steps. Otherwise, continue with the preview.
@@ -61,7 +61,7 @@ If `resume` returns a non-null `run_id` AND the task description in this invocat
 On `pivot`, run:
 
 ```
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py pivot --repo "<cwd>" \
+python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py pivot --repo "<cwd>" \
   --new-task "<new title>" \
   --new-selected "<CSV from a fresh `workflow_select.py preview`>" \
   [--new-task-type <type>] \
@@ -73,7 +73,7 @@ The helper archives `state.json` → `.workflow/state.history/<ts>-<run_id>.json
 To inspect the pivot history mid-run or post-run:
 
 ```
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py history --repo "<cwd>"
+python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py history --repo "<cwd>"
 ```
 
 After a pivot, restart the run from "Preview" with the new task description.
@@ -84,7 +84,7 @@ BEFORE executing any step, you MUST:
 
 1. Run the selector to compute the step set. If the user passed `--size {trivial|small|medium|large}` in the invocation, pass it through to the selector. Same for the other override flags:
    ```
-   python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_select.py preview \
+   python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_select.py preview \
      --task "<task description>" \
      [--size {trivial|small|medium|large}] \
      [--issue REF] [--skip CSV] [--force CSV] \
@@ -103,8 +103,8 @@ Only after the user confirms may you initialize state and begin the run.
 ## Initialize state
 
 ```
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py acquire-lock --repo "<cwd>"
-python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py init \
+python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py acquire-lock --repo "<cwd>"
+python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py init \
   --repo "<cwd>" --task-type "<detected>" --selected "<CSV>" --title "<task>" \
   [--run-context "<scope statement>"]
 ```
@@ -121,13 +121,13 @@ For each selected step in order:
 2. If Claude-owned: invoke the corresponding skill directly using its standard `/<skill-name>` invocation. In runtime contexts where direct slash-command invocation is unavailable (e.g., when this orchestrator skill is already active and is the one initiating the next step), use the Skill tool instead.
 3. If Codex-owned: BEFORE dispatching, check the review-round cap (P2):
    ```
-   python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py should-escalate \
+   python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py should-escalate \
      --repo "<cwd>" --skill <mcp_tool_name>
    ```
    - If the response has `"escalate": true`, do NOT dispatch another round. Set the escalation gate instead (see "Escalation gate" below) and end your turn.
    - Otherwise, dispatch the typed MCP tool (see `mcp-contract.md` for routing), then bump the counter:
      ```
-     python ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py bump-review \
+     python3 ${CLAUDE_PLUGIN_ROOT}/bin/workflow_state.py bump-review \
        --repo "<cwd>" --skill <mcp_tool_name>
      ```
    Use only typed tools for review skills.
