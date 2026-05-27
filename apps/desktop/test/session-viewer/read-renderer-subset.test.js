@@ -210,6 +210,108 @@ test('Stage 6.11: non-list prefix followed by `1.` items splits into <p> + <ol>'
   assert.equal(flattenText(lis[0]), 'first');
 });
 
+test('one-level nested list: `-` parents with 2-space-indented `1.` and `-` children render as nested <ol>/<ul>', () => {
+  // Q8-shaped manual-QA checklist content. Top-level uses `-`; some items
+  // have a colon-suffixed label and the next lines are 2-space-indented
+  // ordered or unordered children. Previously this fell through to the
+  // fallback paragraph (all lines joined with \n into a single <p>) which
+  // the browser collapsed to one run-on line. The fix must render this
+  // as a real top-level <ul> with nested <ol>/<ul> attached to the
+  // matching parent <li>.
+  const src = assistantSection(
+    '- **Starting state:** Clean tree.\n' +
+    '- **Steps:**\n' +
+    '  1. step alpha\n' +
+    '  2. step beta\n' +
+    '  3. step gamma\n' +
+    '- **Expected result:**\n' +
+    '  - sub bullet\n' +
+    '- **Notes:**'
+  );
+  const { frag, doc } = render(src);
+  assertNoUnsafe(doc);
+
+  // No fallback <p> for the list block.
+  const ps = findAllByTag(frag, 'p');
+  assert.equal(ps.length, 0, 'list block must not fall through to a <p>');
+
+  // One top-level <ul> with exactly 4 direct <li> children.
+  const ul = findByTag(frag, 'ul');
+  assert.ok(ul, 'must emit a top-level <ul>');
+  const topLis = ul.children.filter((c) => c.tag === 'li');
+  assert.equal(topLis.length, 4, 'top-level <ul> must have 4 <li> children');
+
+  // Top-level item text (strip nested-list text from the comparison).
+  function directText(li) {
+    return li.children
+      .filter((c) => c.tag !== 'ul' && c.tag !== 'ol')
+      .map(flattenText)
+      .join('')
+      .trim();
+  }
+  assert.equal(directText(topLis[0]), 'Starting state: Clean tree.');
+  assert.equal(directText(topLis[1]), 'Steps:');
+  assert.equal(directText(topLis[2]), 'Expected result:');
+  assert.equal(directText(topLis[3]), 'Notes:');
+
+  // "Steps:" <li> has a nested <ol> with 3 items.
+  const stepsOl = topLis[1].children.find((c) => c.tag === 'ol');
+  assert.ok(stepsOl, '"Steps:" <li> must contain a nested <ol>');
+  const stepLis = stepsOl.children.filter((c) => c.tag === 'li');
+  assert.equal(stepLis.length, 3);
+  assert.equal(flattenText(stepLis[0]), 'step alpha');
+  assert.equal(flattenText(stepLis[2]), 'step gamma');
+
+  // "Expected result:" <li> has a nested <ul> with 1 item.
+  const expectedUl = topLis[2].children.find((c) => c.tag === 'ul');
+  assert.ok(expectedUl, '"Expected result:" <li> must contain a nested <ul>');
+  const subLis = expectedUl.children.filter((c) => c.tag === 'li');
+  assert.equal(subLis.length, 1);
+  assert.equal(flattenText(subLis[0]), 'sub bullet');
+});
+
+test('nested list: lazy continuation line (indent, no marker) appends to the previous <li>', () => {
+  // Q4-shaped: a nested ordered item whose second line is an indented
+  // continuation (5 spaces, starts with inline `code`, no list marker).
+  // Without continuation support, the whole block fails the "every line
+  // is a marker" check and falls back to a single <p>.
+  const src = assistantSection(
+    '- **Steps:**\n' +
+    '  1. In a terminal, rename the dir aside:\n' +
+    '     `mv ~/.claude/projects ~/.claude/projects.bak.qa`\n' +
+    '  2. In the app, click Refresh.\n' +
+    '- **Notes:**'
+  );
+  const { frag, doc } = render(src);
+  assertNoUnsafe(doc);
+
+  // No fallback <p>.
+  const ps = findAllByTag(frag, 'p');
+  assert.equal(ps.length, 0, 'list block must not fall through to a <p>');
+
+  const ul = findByTag(frag, 'ul');
+  assert.ok(ul);
+  const topLis = ul.children.filter((c) => c.tag === 'li');
+  assert.equal(topLis.length, 2);
+
+  const stepsOl = topLis[0].children.find((c) => c.tag === 'ol');
+  assert.ok(stepsOl, '"Steps:" <li> must contain a nested <ol>');
+  const stepLis = stepsOl.children.filter((c) => c.tag === 'li');
+  assert.equal(stepLis.length, 2, 'nested <ol> must have exactly 2 items (continuation joins item 1, does NOT create a third item)');
+
+  // Item 1 carries the prose text and the inline-code token from the
+  // continuation line.
+  const item1Text = flattenText(stepLis[0]);
+  assert.ok(item1Text.includes('rename the dir aside:'), 'item 1 keeps its primary text');
+  assert.ok(item1Text.includes('mv ~/.claude/projects ~/.claude/projects.bak.qa'),
+    'item 1 absorbs the continuation line text');
+  const item1Code = findByTag(stepLis[0], 'code');
+  assert.ok(item1Code, 'item 1 keeps the continuation line\'s <code> token');
+  assert.equal(flattenText(item1Code), 'mv ~/.claude/projects ~/.claude/projects.bak.qa');
+
+  assert.equal(flattenText(stepLis[1]), 'In the app, click Refresh.');
+});
+
 test('GFM table becomes <table><thead><tr><th>… plus <tbody>', () => {
   const src = assistantSection(
     '| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |'

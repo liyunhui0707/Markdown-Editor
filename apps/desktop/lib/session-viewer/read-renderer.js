@@ -102,6 +102,24 @@ function renderMarkdown(text, opts) {
       flushPara();
       return;
     }
+    // One level of nesting: the first line is a column-0 list marker,
+    // and every subsequent line is either a list marker (any indent) or
+    // an indented lazy continuation of the previous item. At least one
+    // line must be indented — otherwise the column-0 fast paths above
+    // would have matched. Lets Q8-shaped checklists render as a real
+    // nested <ul>/<ol> tree, and Q4-shaped items keep their wrapped
+    // continuation text (`  1. line one\n     line two`) on the same
+    // <li> instead of collapsing into a single fallback <p>.
+    if (
+      paraLines.length > 0 &&
+      /^(?:[-*+]|\d+\.)\s+/.test(paraLines[0]) &&
+      paraLines.every((l) => /^\s*(?:[-*+]|\d+\.)\s+/.test(l) || /^\s+\S/.test(l)) &&
+      paraLines.some((l) => /^\s+/.test(l))
+    ) {
+      renderNestedList(paraLines);
+      paraLines = [];
+      return;
+    }
     if (paraLines.length >= 2 && /^\s*\|.*\|\s*$/.test(paraLines[0]) && isTableSeparator(paraLines[0], paraLines[1])) {
       let tableEnd = 2;
       while (tableEnd < paraLines.length && /^\s*\|.*\|\s*$/.test(paraLines[tableEnd])) tableEnd += 1;
@@ -139,6 +157,65 @@ function renderMarkdown(text, opts) {
       appendInline(li, raw.replace(markerRegex, ''), doc);
       list.appendChild(li);
     }
+  }
+
+  // One-level nested list. Top-level type comes from the first column-0
+  // line's marker; deeper indents (any indent > 0) become a nested
+  // <ul>/<ol> (matching the indented marker's kind) attached to the
+  // most recent top-level <li>. Does not merge with a preceding list —
+  // the column-0 fast paths handle that for pure top-level blocks.
+  function renderNestedList(items) {
+    attachSection();
+    const markerRe = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
+    let topType = 'ul';
+    for (const raw of items) {
+      const m = markerRe.exec(raw);
+      if (m && m[1].length === 0) {
+        topType = /\d+\./.test(m[2]) ? 'ol' : 'ul';
+        break;
+      }
+    }
+    const list = doc.createElement(topType);
+    let currentTopLi = null;
+    let nested = null;
+    let nestedType = null;
+    let lastItem = null; // most recent <li> at any level, for continuation lines
+    for (const raw of items) {
+      const m = markerRe.exec(raw);
+      if (!m) {
+        // Indented lazy continuation. Append to the most recent <li>
+        // with a single space separator so the wrapped line joins the
+        // primary text instead of fragmenting into a new item.
+        if (lastItem !== null) {
+          appendInline(lastItem, ' ' + raw.replace(/^\s+/, ''), doc);
+        }
+        continue;
+      }
+      const indent = m[1].length;
+      const isOl = /\d+\./.test(m[2]);
+      const text = m[3];
+      if (indent === 0 || currentTopLi === null) {
+        const li = doc.createElement('li');
+        appendInline(li, text, doc);
+        list.appendChild(li);
+        currentTopLi = li;
+        nested = null;
+        nestedType = null;
+        lastItem = li;
+      } else {
+        const want = isOl ? 'ol' : 'ul';
+        if (!nested || nestedType !== want) {
+          nested = doc.createElement(want);
+          nestedType = want;
+          currentTopLi.appendChild(nested);
+        }
+        const nli = doc.createElement('li');
+        appendInline(nli, text, doc);
+        nested.appendChild(nli);
+        lastItem = nli;
+      }
+    }
+    currentSection.appendChild(list);
   }
 
   function renderTable(rows) {
