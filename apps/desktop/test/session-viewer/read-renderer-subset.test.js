@@ -179,6 +179,37 @@ test('ordered list `1.` becomes <ol><li>', () => {
   assert.equal(lis.length, 2);
 });
 
+test('Stage 6.11: non-list prefix followed by `-` items splits into <p> + <ul>', () => {
+  // Source: a header line, then list items WITHOUT a blank line between
+  // them. Previously the renderer fell back to a single <p> joining the
+  // lines with "\n", which renders as one continuous line — visible to
+  // the user as "Header: - item1 - item2 - item3".
+  const src = userSection('Workflow status:\n- step 1\n- step 2\n- step 3');
+  const { frag } = render(src);
+  const p = findByTag(frag, 'p');
+  const ul = findByTag(frag, 'ul');
+  assert.ok(p, 'must emit a <p> for the non-list prefix');
+  assert.equal(flattenText(p).trim(), 'Workflow status:');
+  assert.ok(ul, 'must emit a <ul> for the list lines that follow');
+  const lis = findAllByTag(ul, 'li');
+  assert.equal(lis.length, 3);
+  assert.equal(flattenText(lis[0]), 'step 1');
+  assert.equal(flattenText(lis[2]), 'step 3');
+});
+
+test('Stage 6.11: non-list prefix followed by `1.` items splits into <p> + <ol>', () => {
+  const src = userSection('Steps to take:\n1. first\n2. second');
+  const { frag } = render(src);
+  const p = findByTag(frag, 'p');
+  const ol = findByTag(frag, 'ol');
+  assert.ok(p);
+  assert.equal(flattenText(p).trim(), 'Steps to take:');
+  assert.ok(ol);
+  const lis = findAllByTag(ol, 'li');
+  assert.equal(lis.length, 2);
+  assert.equal(flattenText(lis[0]), 'first');
+});
+
 test('GFM table becomes <table><thead><tr><th>… plus <tbody>', () => {
   const src = assistantSection(
     '| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |'
@@ -192,6 +223,30 @@ test('GFM table becomes <table><thead><tr><th>… plus <tbody>', () => {
   assert.equal(tds.length, 4);
   assert.equal(flattenText(ths[1]), 'b');
   assert.equal(flattenText(tds[3]), '4');
+});
+
+test('Stage 6.11: GFM table is wrapped in a .table-scroller div for horizontal-scroll containment', () => {
+  // The wrapper lets the table render at its natural max-content width
+  // (so single-word columns like "Severity" never break mid-word) while
+  // confining any horizontal overflow to the wrapper instead of the
+  // whole read-view.
+  const src = assistantSection(
+    '| Severity | Where | What |\n| - | - | - |\n| minor | index.html:413 | scrollbar-gutter stacking |'
+  );
+  const { frag } = render(src);
+  // The fake DOM stores element attributes in `.attrs` (set via
+  // setAttribute), not as a `.className` property. Match the wrapper by
+  // its attribute value.
+  const wrappers = findAllByTag(frag, 'div').filter((d) => {
+    const cls = (d.attrs && d.attrs.class) || '';
+    return cls.split(' ').includes('table-scroller');
+  });
+  assert.equal(wrappers.length, 1, 'expected exactly one .table-scroller wrapper');
+  const innerTable = findByTag(wrappers[0], 'table');
+  assert.ok(innerTable, '.table-scroller must contain a <table>');
+  const ths = findAllByTag(innerTable, 'th');
+  assert.equal(ths.length, 3, 'wrapped table must still carry 3 headers');
+  assert.equal(flattenText(ths[0]), 'Severity');
 });
 
 test('round-2 m1: markdown link syntax never creates <a>, href, or src', () => {

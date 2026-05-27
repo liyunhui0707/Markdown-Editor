@@ -7018,7 +7018,63 @@ test('Stage 6.10.F: .workspace declares min-width: 0 — the actual root cause (
     '.workspace is the grid item of .main-layout 1fr column. Grid items default to min-width: auto = min-content, which lets the column grow past its allocated 1fr share. Without min-width: 0 here, the previous min-width: 0 fixes on .editor-stack / .live-editor-container / .read-view-mount were downstream of the inflation source: the whole chain inherited .workspace\'s ballooned width. Measured 112px overflow at innerWidth=1038.');
 });
 
-test('Stage 6.10.E: residual transcript elements get overflow-wrap: anywhere (h1-h6, section, code, a)', () => {
+test('Stage 6.11: .read-view-mount th/td use overflow-wrap: break-word (not anywhere) so table cells do not break mid-word', () => {
+  const html = readIndexHtml();
+  const re = /\.read-view-mount\s+th,\s*\.read-view-mount\s+td\s*\{[^}]*overflow-wrap\s*:\s*break-word[^}]*\}/;
+  assert.ok(re.test(html),
+    'table cells must use overflow-wrap: break-word; anywhere collapses cell min-content to 1 character and produces mid-word breaks like "Se / ver / ity"');
+});
+
+test('Stage 6.11: .read-view-mount .table-scroller wrapper provides max-width + overflow-x: auto (per-table horizontal scroll, no mid-word squeeze)', () => {
+  const html = readIndexHtml();
+  const block = /\.read-view-mount\s+\.table-scroller\s*\{[^}]*\}/;
+  const m = html.match(block);
+  assert.ok(m, 'must define .read-view-mount .table-scroller rule');
+  const body = m[0];
+  assert.ok(/max-width\s*:\s*100%/.test(body),
+    '.table-scroller must declare max-width: 100% so the wrapper itself does not push the parent wider than the viewport');
+  assert.ok(/overflow-x\s*:\s*auto/.test(body),
+    '.table-scroller must declare overflow-x: auto so wide tables scroll within their own region instead of squeezing column widths');
+});
+
+test('Stage 6.11: .read-view-mount table no longer pins max-width: 100% (wrapper handles containment so table can reach max-content width)', () => {
+  const html = readIndexHtml();
+  // Match the rule whose selector is exactly `.read-view-mount table` (not table-scroller etc.).
+  const rules = [...html.matchAll(/\.read-view-mount\s+table\s*\{[^}]*\}/g)];
+  assert.ok(rules.length > 0, 'must have at least one .read-view-mount table rule');
+  for (const m of rules) {
+    assert.ok(!/max-width\s*:\s*100%/.test(m[0]),
+      '.read-view-mount table must NOT pin max-width: 100% anymore; the wrapper provides containment and capping the table here re-introduces the column-squeeze');
+  }
+});
+
+test('Stage 6.11: .read-view-mount p/li/blockquote use overflow-wrap: break-word (not anywhere)', () => {
+  const html = readIndexHtml();
+  const re = /\.read-view-mount\s+p,\s*\.read-view-mount\s+li,\s*\.read-view-mount\s+blockquote\s*\{[^}]*overflow-wrap\s*:\s*break-word[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.11: .read-view-mount inline code gets accent-tinted background + monospace font (iTerm2-style distinction)', () => {
+  const html = readIndexHtml();
+  // Inline code = <code> NOT inside <pre>. Selector :not(pre) > code.
+  const block = /\.read-view-mount\s+:not\(pre\)\s*>\s*code\s*\{[^}]*\}/;
+  const m = html.match(block);
+  assert.ok(m, 'must define .read-view-mount :not(pre) > code rule');
+  const ruleBody = m[0];
+  assert.ok(/background\s*:\s*var\(--accent-bg/.test(ruleBody),
+    'inline code must use --accent-bg as its background');
+  assert.ok(/color\s*:\s*var\(--accent/.test(ruleBody),
+    'inline code must use --accent color so it visually stands out from prose');
+  assert.ok(/font-family\s*:\s*var\(--font-mono/.test(ruleBody),
+    'inline code must use the monospace font');
+});
+
+test('Stage 6.10.E / 6.11: residual transcript elements get overflow-wrap: break-word (h1-h6, section, code, a)', () => {
+  // Stage 6.11 softened the original Stage 6.10.E rule from
+  // `overflow-wrap: anywhere` to `overflow-wrap: break-word`. anywhere was
+  // breaking words mid-character in narrow table cells (e.g. "Severity"
+  // wrapping as "Se / ver / ity"). break-word preserves word boundaries
+  // unless an unbreakable token forces a fallback break.
   const html = readIndexHtml();
   const leafSelectors = [
     '\\.read-view-mount\\s+h1',
@@ -7032,9 +7088,9 @@ test('Stage 6.10.E: residual transcript elements get overflow-wrap: anywhere (h1
     '\\.read-view-mount\\s+a',
   ];
   for (const sel of leafSelectors) {
-    const re = new RegExp(`${sel}[^{]*\\{[^}]*overflow-wrap\\s*:\\s*anywhere[^}]*\\}`);
+    const re = new RegExp(`${sel}[^{]*\\{[^}]*overflow-wrap\\s*:\\s*break-word[^}]*\\}`);
     assert.ok(re.test(html),
-      `${sel} must end up in a rule that declares overflow-wrap: anywhere`);
+      `${sel} must end up in a rule that declares overflow-wrap: break-word`);
   }
 });
 
