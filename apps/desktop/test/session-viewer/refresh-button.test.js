@@ -181,11 +181,12 @@ test('S2-16: success response — banner is cleared (no count summary), onComple
   assert.equal(onComplete.calls.length, 1);
 });
 
-test('S2-17: error response — banner shows error, button re-enabled, onComplete NOT called', async () => {
+test("S2-17: error response — banner shows mapped reason string, button re-enabled, onComplete NOT called", async () => {
   const { createRefreshController } = load();
   const dom = makeDom();
   const root = dom.createElement('div');
-  const vaultApi = makeVaultApi(async () => ({ ok: false, error: 'No vault selected' }));
+  // Retrofit #1: IPC now returns {ok:false, reason:<code>}, never {error:...}.
+  const vaultApi = makeVaultApi(async () => ({ ok: false, reason: 'no-vault' }));
   const onComplete = (...args) => { onComplete.calls.push(args); };
   onComplete.calls = [];
   const ctl = createRefreshController({ root, vaultApi, document: dom, onComplete });
@@ -194,7 +195,75 @@ test('S2-17: error response — banner shows error, button re-enabled, onComplet
   const banner = findBanner(root);
   btn.dispatchEvent({ type: 'click' });
   await ctl.waitForIdle();
-  assert.match(banner.textContent, /No vault selected/);
+  assert.equal(banner.textContent, 'No vault selected.');
   assert.equal(btn.disabled, false, 'button re-enabled after error');
   assert.equal(onComplete.calls.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Retrofit #1 — reason → banner mapping (REASON_TO_BANNER table)
+// ---------------------------------------------------------------------------
+
+const REASON_BANNER_EXPECTATIONS = [
+  ['in-progress',          'Import already in progress.'],
+  ['platform-unsupported', "This platform doesn't support symlink-safe imports."],
+  ['no-vault',             'No vault selected.'],
+  ['import-error',         'Import failed — see logs for details.'],
+];
+
+for (const [reason, expectedText] of REASON_BANNER_EXPECTATIONS) {
+  test(`T-button-mapping: reason='${reason}' -> banner='${expectedText}'`, async () => {
+    const { createRefreshController } = load();
+    const dom = makeDom();
+    const root = dom.createElement('div');
+    const vaultApi = makeVaultApi(async () => ({ ok: false, reason }));
+    const ctl = createRefreshController({ root, vaultApi, document: dom });
+    ctl.setVaultPath('/v');
+    const btn = findButton(root);
+    const banner = findBanner(root);
+    btn.dispatchEvent({ type: 'click' });
+    await ctl.waitForIdle();
+    assert.equal(banner.textContent, expectedText);
+    assert.equal(btn.disabled, false);
+  });
+}
+
+test('T-button-fallback: unknown reason -> default "Import failed." banner', async () => {
+  const { createRefreshController } = load();
+  const dom = makeDom();
+  const root = dom.createElement('div');
+  const vaultApi = makeVaultApi(async () => ({ ok: false, reason: 'totally-unknown-code' }));
+  const ctl = createRefreshController({ root, vaultApi, document: dom });
+  ctl.setVaultPath('/v');
+  const btn = findButton(root);
+  const banner = findBanner(root);
+  btn.dispatchEvent({ type: 'click' });
+  await ctl.waitForIdle();
+  assert.equal(banner.textContent, 'Import failed.');
+  assert.equal(btn.disabled, false);
+});
+
+test('T-button-bridge-throws: rejected refreshSessions -> import-error banner; controller does not crash', async () => {
+  const { createRefreshController } = load();
+  const dom = makeDom();
+  const root = dom.createElement('div');
+  // Rejected Promise; the controller's `await + try/catch` collapses this
+  // into the same path as a synchronous-throw bridge, so testing the
+  // rejected-Promise shape alone covers both.
+  const vaultApi = makeVaultApi(() => Promise.reject(new Error('bridge died: /Users/test/bad')));
+  const ctl = createRefreshController({ root, vaultApi, document: dom });
+  ctl.setVaultPath('/v');
+  const btn = findButton(root);
+  const banner = findBanner(root);
+  btn.dispatchEvent({ type: 'click' });
+  await ctl.waitForIdle();
+  assert.equal(banner.textContent, 'Import failed — see logs for details.');
+  assert.equal(btn.disabled, false);
+  // Sanitization belt-and-suspenders: the abs-path embedded in the rejection
+  // message must NEVER leak into the banner text.
+  assert.equal(banner.textContent.includes('/Users/'), false);
+
+  // Controller is still alive — a subsequent setVaultPath + click cycle works.
+  ctl.setVaultPath('/v2');
+  assert.equal(btn.disabled, false, 'controller did not crash');
 });

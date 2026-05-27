@@ -95,7 +95,7 @@ test('S2-1: success response carries both summaries', async () => {
   });
 });
 
-test('S2-2: missing vaultPath -> {ok:false, error}; importers NOT invoked', async () => {
+test("S2-2: missing vaultPath -> {ok:false, reason:'no-vault'}; importers NOT invoked", async () => {
   const ipc = makeMockIpc();
   const mock = makeMockImporters();
   const mod = loadModule();
@@ -104,13 +104,14 @@ test('S2-2: missing vaultPath -> {ok:false, error}; importers NOT invoked', asyn
   for (const bad of [undefined, null, '', 0, {}]) {
     const result = await ipc.invoke('sessionViewer:import', bad === undefined ? undefined : (typeof bad === 'object' && bad !== null ? bad : { vaultPath: bad }));
     assert.equal(result.ok, false);
-    assert.match(result.error, /vault/i);
+    assert.equal(result.reason, 'no-vault');
+    assert.equal(result.error, undefined);
   }
   assert.equal(mock.calls.claude.length, 0);
   assert.equal(mock.calls.codex.length, 0);
 });
 
-test('S2-3: single-flight — concurrent call returns {ok:false, error}; original still resolves', async () => {
+test("S2-3: single-flight — concurrent call returns {ok:false, reason:'in-progress'}; original still resolves", async () => {
   const ipc = makeMockIpc();
   const mock = makeMockImporters();
   let release;
@@ -122,7 +123,8 @@ test('S2-3: single-flight — concurrent call returns {ok:false, error}; origina
   const first = ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
   const second = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
   assert.equal(second.ok, false);
-  assert.match(second.error, /in progress/i);
+  assert.equal(second.reason, 'in-progress');
+  assert.equal(second.error, undefined);
 
   release({ imported: 1, skipped: 0, errors: 0 });
   const firstResult = await first;
@@ -135,7 +137,7 @@ test('S2-3: single-flight — concurrent call returns {ok:false, error}; origina
   assert.equal(third.claude.imported, 5);
 });
 
-test('S2-4: importer rejection -> {ok:false, error}; not re-thrown; lock released', async () => {
+test("S2-4: importer rejection -> {ok:false, reason:'import-error'}; not re-thrown; lock released", async () => {
   const ipc = makeMockIpc();
   const mock = makeMockImporters();
   mock.setClaudeImpl(async () => { throw new Error('disk full'); });
@@ -144,7 +146,8 @@ test('S2-4: importer rejection -> {ok:false, error}; not re-thrown; lock release
 
   const result = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
   assert.equal(result.ok, false);
-  assert.match(result.error, /disk full/);
+  assert.equal(result.reason, 'import-error');
+  assert.equal(result.error, undefined);
 
   // Lock released — next call must proceed.
   mock.setClaudeImpl(async () => ({ imported: 1, skipped: 0, errors: 0 }));
@@ -168,14 +171,16 @@ test('S2-4b: lock stays held when one importer rejects while the other is still 
   await new Promise((res) => setTimeout(res, 5));
   const second = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
   assert.equal(second.ok, false);
-  assert.match(second.error, /in progress/i, 'lock must still be held even though claude rejected');
+  assert.equal(second.reason, 'in-progress', 'lock must still be held even though claude rejected');
+  assert.equal(second.error, undefined);
   codexInProgressAfterClaudeReject = true;
 
   codexRelease();
   const firstResult = await first;
   // First returns ok:false because claude rejected; the run completed cleanly.
   assert.equal(firstResult.ok, false);
-  assert.match(firstResult.error, /claude blew up/);
+  assert.equal(firstResult.reason, 'import-error');
+  assert.equal(firstResult.error, undefined);
   assert.ok(codexInProgressAfterClaudeReject);
 
   // Lock released — fresh call proceeds.
@@ -183,6 +188,162 @@ test('S2-4b: lock stays held when one importer rejects while the other is still 
   mock.setCodexImpl(async () => ({ imported: 8, skipped: 0, errors: 0 }));
   const third = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
   assert.equal(third.ok, true);
+});
+
+// ---------------------------------------------------------------------------
+// Retrofit #1 — typed IPC reason codes (replaces free-form `error: <string>`)
+// ---------------------------------------------------------------------------
+//
+// Failure response is `{ ok: false, reason: <code> }` where <code> is one of:
+//   'no-vault' | 'in-progress' | 'platform-unsupported' | 'import-error'
+// `result.error` is NEVER set on failure. The IPC layer drops `err.message`
+// entirely to avoid leaking absolute paths across the IPC boundary.
+//
+// The 'platform-unsupported' predicate matches err.message via
+//   String.prototype.startsWith('symlink-safe reads unsupported on this platform')
+// — the exact prefix emitted by all three importer throw sites:
+//   apps/desktop/tools/session-import/import-claude.mjs:204
+//   apps/desktop/tools/session-import/import-codex.mjs:59
+//   apps/desktop/tools/session-import/lib/safe-read.mjs:17
+// If any of those source strings is reworded, T2 below must be updated
+// together with the predicate.
+
+test('T1: importer rejection messages with absolute paths NEVER leak into the response (sanitization)', async () => {
+  const messages = [
+    "ENOENT, open '/Users/test/.codex/sessions/2026/05/27/rollout-deadbeef.jsonl'",
+    "EACCES, write '/Users/test/Inbox/AI Chats/codex/sub/dir/foo.jsonl'",
+    'output ancestor is a symlink: /Users/test/vault',
+  ];
+  for (const msg of messages) {
+    const ipc = makeMockIpc();
+    const mock = makeMockImporters();
+    mock.setClaudeImpl(async () => { throw new Error(msg); });
+    const mod = loadModule();
+    mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+    const result = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'import-error');
+    assert.equal(result.error, undefined);
+    assert.equal(
+      JSON.stringify(result).includes('/Users/'),
+      false,
+      `response must NOT contain '/Users/' substring (offending message: ${msg})`,
+    );
+  }
+});
+
+test("T2: importer rejection with the well-known O_NOFOLLOW prefix -> reason:'platform-unsupported'", async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  // Exact verbatim string from import-claude.mjs:204 / import-codex.mjs:59 /
+  // lib/safe-read.mjs:17 — keep in sync with those throw sites.
+  mock.setClaudeImpl(async () => {
+    throw new Error('symlink-safe reads unsupported on this platform: fs.constants.O_NOFOLLOW unavailable');
+  });
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  const result = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'platform-unsupported');
+  assert.equal(result.error, undefined);
+});
+
+test("T3: predicate tightness — near-miss prefix does NOT map to 'platform-unsupported'", async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  // 'writes' instead of 'reads' — must NOT trip the predicate.
+  mock.setClaudeImpl(async () => {
+    throw new Error('symlink-safe writes unsupported on this platform');
+  });
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  const result = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'import-error');
+  assert.equal(result.error, undefined);
+});
+
+test('T7-A: no-vault NEVER acquires the lock', async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  // Two invalid calls in a row — the SECOND must also return 'no-vault',
+  // never 'in-progress'. If 'in-progress' surfaced, the first call would
+  // have set inFlight = true before returning.
+  const first = await ipc.invoke('sessionViewer:import', { vaultPath: '' });
+  assert.equal(first.reason, 'no-vault');
+  const second = await ipc.invoke('sessionViewer:import', { vaultPath: '' });
+  assert.equal(second.reason, 'no-vault');
+
+  // Belt-and-suspenders: a fresh valid call must proceed.
+  const third = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(third.ok, true);
+});
+
+test('T7-B: platform-unsupported releases the lock in finally', async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  mock.setClaudeImpl(async () => {
+    throw new Error('symlink-safe reads unsupported on this platform: fs.constants.O_NOFOLLOW unavailable');
+  });
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  const first = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(first.reason, 'platform-unsupported');
+
+  mock.setClaudeImpl(async () => ({ imported: 9, skipped: 0, errors: 0 }));
+  const second = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(second.ok, true); // ← proves finally released the lock
+});
+
+test('T7-B: import-error releases the lock in finally', async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  mock.setClaudeImpl(async () => { throw new Error('disk full'); });
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  const first = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(first.reason, 'import-error');
+
+  mock.setClaudeImpl(async () => ({ imported: 1, skipped: 0, errors: 0 }));
+  const second = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(second.ok, true); // ← proves finally released the lock
+});
+
+test("T7-C: an 'in-progress' second call does NOT release the original's lock", async () => {
+  const ipc = makeMockIpc();
+  const mock = makeMockImporters();
+  let release;
+  const hang = new Promise((resolve) => { release = resolve; });
+  mock.setClaudeImpl(() => hang.then(() => ({ imported: 1, skipped: 0, errors: 0 })));
+  const mod = loadModule();
+  mod.register(ipc, { importers: { runClaudeImport: mock.runClaudeImport, runCodexImport: mock.runCodexImport } });
+
+  const first = ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  // Yield so claude.start fires and the lock is acquired.
+  await new Promise((res) => setTimeout(res, 5));
+
+  const second = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(second.reason, 'in-progress');
+
+  // Third call WHILE first is still hanging — must also see 'in-progress'.
+  // If the second call had erroneously released the lock, this would proceed.
+  const third = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(third.reason, 'in-progress');
+
+  // Release the original; once it settles, a fresh call must proceed.
+  release({ imported: 1, skipped: 0, errors: 0 });
+  await first;
+  mock.setClaudeImpl(async () => ({ imported: 4, skipped: 0, errors: 0 }));
+  const fourth = await ipc.invoke('sessionViewer:import', { vaultPath: '/v' });
+  assert.equal(fourth.ok, true);
 });
 
 test('S2-5: both importers run in parallel (not sequential)', async () => {

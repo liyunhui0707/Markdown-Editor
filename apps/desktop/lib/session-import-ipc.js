@@ -2,8 +2,12 @@
 // Thin wrapper around the S1 importers at apps/desktop/tools/session-import/
 // (which are .mjs). Importers are loaded via dynamic import() on first use
 // in production; in tests they're injected through register(ipc, {importers}).
-// Single-flight, per-agent outputBase, error-as-value (never throws across
-// the IPC boundary).
+// Single-flight, per-agent outputBase, typed-reason failure response
+// ({ok:false, reason:'no-vault'|'in-progress'|'platform-unsupported'|
+// 'import-error'}; never throws across the IPC boundary; err.message is
+// dropped here so absolute paths from the importers can't leak to the
+// renderer — see test/session-viewer/refresh-ipc.test.js T1 for the
+// sanitization invariant).
 
 'use strict';
 
@@ -18,6 +22,28 @@ const CLAUDE_ESM_REL =
   '../tools/session-import/import-claude.mjs';
 const CODEX_ESM_REL =
   '../tools/session-import/import-codex.mjs';
+
+// Predicate matches the well-known importer emit string verbatim. Source:
+//   apps/desktop/tools/session-import/import-claude.mjs:204
+//   apps/desktop/tools/session-import/import-codex.mjs:59
+//   apps/desktop/tools/session-import/lib/safe-read.mjs:17
+// If any of those throw sites is reworded, T2 in refresh-ipc.test.js must
+// be updated alongside this prefix.
+const O_NOFOLLOW_UNSUPPORTED_PREFIX =
+  'symlink-safe reads unsupported on this platform';
+
+function isNoFollowUnsupportedError(err) {
+  return !!(
+    err &&
+    typeof err.message === 'string' &&
+    err.message.startsWith(O_NOFOLLOW_UNSUPPORTED_PREFIX)
+  );
+}
+
+function reasonForRejection(reason) {
+  if (isNoFollowUnsupportedError(reason)) return 'platform-unsupported';
+  return 'import-error';
+}
 
 let inFlight = false;
 
@@ -60,16 +86,10 @@ async function runImports({ vaultPath, importers }) {
     }),
   ]);
   if (claudeRes.status === 'rejected') {
-    return {
-      ok: false,
-      error: (claudeRes.reason && claudeRes.reason.message) || String(claudeRes.reason),
-    };
+    return { ok: false, reason: reasonForRejection(claudeRes.reason) };
   }
   if (codexRes.status === 'rejected') {
-    return {
-      ok: false,
-      error: (codexRes.reason && codexRes.reason.message) || String(codexRes.reason),
-    };
+    return { ok: false, reason: reasonForRejection(codexRes.reason) };
   }
   return { ok: true, claude: claudeRes.value, codex: codexRes.value };
 }
@@ -79,19 +99,19 @@ function register(ipc, options) {
   ipc.handle(CHANNEL, async (_event, payload) => {
     const vaultPath = payload && payload.vaultPath;
     if (!isNonEmptyString(vaultPath)) {
-      return { ok: false, error: 'No vault selected' };
+      return { ok: false, reason: 'no-vault' };
     }
     if (inFlight) {
-      return { ok: false, error: 'Import already in progress' };
+      return { ok: false, reason: 'in-progress' };
     }
     inFlight = true;
     try {
       const eff = importers || (await defaultImporters());
       return await runImports({ vaultPath, importers: eff });
     } catch (err) {
-      // runImports itself returns error-as-value; this catch is for the
+      // runImports itself returns reason-as-value; this catch is for the
       // dynamic-import path (defaultImporters()) failing.
-      return { ok: false, error: (err && err.message) || String(err) };
+      return { ok: false, reason: reasonForRejection(err) };
     } finally {
       inFlight = false;
     }
