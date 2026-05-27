@@ -6933,6 +6933,111 @@ test('Stage 13: source contains literal storage key "markdownVault.editorFontSiz
     'source must reference the literal storage-key string for the font-size preference');
 });
 
+// ── Stage 6.10: AI Sessions Read-mode layout fix bundle ──────────────────
+//
+// The bug: in AI Sessions Read mode, the rendered transcript widened past
+// the viewport's right edge by 100–200px depending on window width. Left
+// padding stayed; right padding was eaten by the off-screen overflow. The
+// content also stopped shrinking with the window. Other note modes
+// (Write/Preview, which use CM6 / Toast UI internal scrollers) were
+// unaffected — the issue was specific to .read-view-mount where the
+// transcript renders directly into raw HTML.
+//
+// Fix bundle (CSS-only): A) tighter workspace-body padding + scrollbar
+// gutter; B) remove the 720px floor from .editor-stack max-width;
+// C) read-view-mount horizontal padding removed + scrollbar gutter +
+// user-turn margin no longer uses -16px trick; D) min-width: 0 on the
+// flex chain (.editor-stack / .live-editor-container / .read-view-mount)
+// so overflow: auto can actually contain transcript width; E) defensive
+// overflow-wrap: anywhere on residual transcript elements that PR #120
+// didn't cover (h1-h6, section, code, a).
+
+test('Stage 6.10.A: .workspace-body uses tighter clamp(16px, 3%, 48px) horizontal padding', () => {
+  const html = readIndexHtml();
+  const re = /\.workspace-body\s*\{[^}]*padding\s*:\s*24px\s+clamp\(16px,\s*3%,\s*48px\)[^}]*\}/;
+  assert.ok(re.test(html),
+    '.workspace-body must declare padding: 24px clamp(16px, 3%, 48px)');
+});
+
+test('Stage 6.10.A: .workspace-body does NOT declare scrollbar-gutter (avoid nested gutter stacking with .read-view-mount on classic-scrollbar platforms)', () => {
+  const html = readIndexHtml();
+  const re = /\.workspace-body\s*\{[^}]*scrollbar-gutter[^}]*\}/;
+  assert.ok(!re.test(html),
+    'Codex round-1 finding: workspace-body and read-view-mount both declaring stable both-edges would stack gutters on platforms with classic scrollbars (Windows/Linux). Keep scrollbar-gutter only on .read-view-mount — the actual Read-mode scroll owner. workspace-body rarely scrolls vertically (CM6 / Toast UI / read-view-mount handle their own scrolling internally).');
+});
+
+test('Stage 6.10.B: .editor-stack max-width drops 720px floor (uses min(80vw, 1200px))', () => {
+  const html = readIndexHtml();
+  assert.ok(!/\.editor-stack\s*\{[^}]*max-width\s*:\s*clamp\(720px/.test(html),
+    '.editor-stack must NOT keep the 720px floor');
+  const re = /\.editor-stack\s*\{[^}]*max-width\s*:\s*min\(80vw,\s*1200px\)[^}]*\}/;
+  assert.ok(re.test(html),
+    '.editor-stack must declare max-width: min(80vw, 1200px)');
+});
+
+test('Stage 6.10.C: .read-view-mount has no horizontal padding (16px T/B only)', () => {
+  const html = readIndexHtml();
+  const re = /\.read-view-mount\s*\{[^}]*padding\s*:\s*16px\s+0[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.10.C: .read-view-mount declares scrollbar-gutter: stable both-edges', () => {
+  const html = readIndexHtml();
+  const re = /\.read-view-mount\s*\{[^}]*scrollbar-gutter\s*:\s*stable\s+both-edges[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.10.C: .read-view-mount .read-section.user-turn margin no longer uses -16px', () => {
+  const html = readIndexHtml();
+  assert.ok(!/\.read-section\.user-turn\s*\{[^}]*margin\s*:[^}]*-16px[^}]*\}/.test(html),
+    'user-turn band must not use the old -16px horizontal margin');
+});
+
+test('Stage 6.10.D: .editor-stack declares min-width: 0', () => {
+  const html = readIndexHtml();
+  const re = /\.editor-stack\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.10.D: .live-editor-container declares min-width: 0', () => {
+  const html = readIndexHtml();
+  const re = /\.live-editor-container\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.10.D: .read-view-mount declares min-width: 0', () => {
+  const html = readIndexHtml();
+  const re = /\.read-view-mount\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
+  assert.ok(re.test(html));
+});
+
+test('Stage 6.10.F: .workspace declares min-width: 0 — the actual root cause (grid item allowed to grow past its 1fr column)', () => {
+  const html = readIndexHtml();
+  const re = /\.workspace\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
+  assert.ok(re.test(html),
+    '.workspace is the grid item of .main-layout 1fr column. Grid items default to min-width: auto = min-content, which lets the column grow past its allocated 1fr share. Without min-width: 0 here, the previous min-width: 0 fixes on .editor-stack / .live-editor-container / .read-view-mount were downstream of the inflation source: the whole chain inherited .workspace\'s ballooned width. Measured 112px overflow at innerWidth=1038.');
+});
+
+test('Stage 6.10.E: residual transcript elements get overflow-wrap: anywhere (h1-h6, section, code, a)', () => {
+  const html = readIndexHtml();
+  const leafSelectors = [
+    '\\.read-view-mount\\s+h1',
+    '\\.read-view-mount\\s+h2',
+    '\\.read-view-mount\\s+h3',
+    '\\.read-view-mount\\s+h4',
+    '\\.read-view-mount\\s+h5',
+    '\\.read-view-mount\\s+h6',
+    '\\.read-view-mount\\s+section',
+    '\\.read-view-mount\\s+code',
+    '\\.read-view-mount\\s+a',
+  ];
+  for (const sel of leafSelectors) {
+    const re = new RegExp(`${sel}[^{]*\\{[^}]*overflow-wrap\\s*:\\s*anywhere[^}]*\\}`);
+    assert.ok(re.test(html),
+      `${sel} must end up in a rule that declares overflow-wrap: anywhere`);
+  }
+});
+
 // ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────
 //
 // These tests exercise host-level wiring (save payload, dirty state, close
