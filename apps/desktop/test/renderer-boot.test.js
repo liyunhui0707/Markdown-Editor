@@ -6975,10 +6975,16 @@ test('Stage 6.10.B: .editor-stack max-width drops 720px floor (uses min(80vw, 12
     '.editor-stack must declare max-width: min(80vw, 1200px)');
 });
 
-test('Stage 6.10.C: .read-view-mount has no horizontal padding (16px T/B only)', () => {
+test('Stage 6.10.C: .read-view-mount has zero left padding (aligns with workspace-body gutter) and a small right inset for scrollbar clearance', () => {
   const html = readIndexHtml();
-  const re = /\.read-view-mount\s*\{[^}]*padding\s*:\s*16px\s+0[^}]*\}/;
-  assert.ok(re.test(html));
+  // 16px top, 24px right (scrollbar clearance + breathing room — overlay
+  // scrollbars on macOS would otherwise overlap the last characters of
+  // long lines, and a snug 12px still felt visually cramped),
+  // 16px bottom, 0 left (keeps Read-mode left edge aligned with
+  // Write/Preview and lets the user-turn accent stripe sit flush).
+  const re = /\.read-view-mount\s*\{[^}]*padding\s*:\s*16px\s+24px\s+16px\s+0[^}]*\}/;
+  assert.ok(re.test(html),
+    '.read-view-mount must declare padding: 16px 24px 16px 0 (T/R/B/L)');
 });
 
 test('Stage 6.10.C: .read-view-mount declares scrollbar-gutter: stable both-edges', () => {
@@ -7054,19 +7060,21 @@ test('Stage 6.11: .read-view-mount p/li/blockquote use overflow-wrap: break-word
   assert.ok(re.test(html));
 });
 
-test('Stage 6.11: .read-view-mount inline code gets accent-tinted background + monospace font (iTerm2-style distinction)', () => {
+test('Stage 6.11: .read-view-mount inline code uses accent color + monospace font only (no background, no border chip)', () => {
   const html = readIndexHtml();
   // Inline code = <code> NOT inside <pre>. Selector :not(pre) > code.
   const block = /\.read-view-mount\s+:not\(pre\)\s*>\s*code\s*\{[^}]*\}/;
   const m = html.match(block);
   assert.ok(m, 'must define .read-view-mount :not(pre) > code rule');
   const ruleBody = m[0];
-  assert.ok(/background\s*:\s*var\(--accent-bg/.test(ruleBody),
-    'inline code must use --accent-bg as its background');
   assert.ok(/color\s*:\s*var\(--accent/.test(ruleBody),
     'inline code must use --accent color so it visually stands out from prose');
   assert.ok(/font-family\s*:\s*var\(--font-mono/.test(ruleBody),
     'inline code must use the monospace font');
+  assert.ok(!/background\s*:/.test(ruleBody),
+    'inline code must NOT declare a background — color-only distinction, no chip');
+  assert.ok(!/border\s*:/.test(ruleBody),
+    'inline code must NOT declare a border — color-only distinction, no chip');
 });
 
 test('Stage 6.10.E / 6.11: residual transcript elements get overflow-wrap: break-word (h1-h6, section, code, a)', () => {
