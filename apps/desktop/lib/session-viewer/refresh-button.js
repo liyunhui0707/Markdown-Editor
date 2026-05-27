@@ -20,13 +20,29 @@
 // Contract:
 //   - Button is disabled whenever vaultPath is falsy OR inFlight is true.
 //   - Click invokes vaultApi.refreshSessions(capturedVaultPath).
-//   - On {ok: true, claude, codex}: banner reports counts, onComplete()
-//     fires once. On {ok: false, error}: banner shows error,
-//     onComplete is NOT called. In both cases the lock releases.
+//   - On {ok: true, claude, codex}: banner is cleared (Stage 6.3D),
+//     onComplete() fires once.
+//   - On {ok: false, reason}: banner shows the user-facing string mapped
+//     from REASON_TO_BANNER below (or DEFAULT_BANNER for an unknown
+//     reason); onComplete is NOT called. The enum is defined by the IPC
+//     handler — see apps/desktop/lib/session-import-ipc.js.
+//   - In both cases the lock releases.
 //   - waitForIdle() resolves when the current in-flight import settles
 //     (test-only convenience; production code uses onComplete).
 
 'use strict';
+
+// Retrofit #1 — reason → banner mapping. Enum is owned by
+// apps/desktop/lib/session-import-ipc.js; this is the renderer-side
+// localization layer. Unknown reasons fall back to DEFAULT_BANNER so a
+// future enum addition can't blank the banner.
+const REASON_TO_BANNER = Object.freeze({
+  'in-progress':          'Import already in progress.',
+  'platform-unsupported': "This platform doesn't support symlink-safe imports.",
+  'no-vault':             'No vault selected.',
+  'import-error':         'Import failed — see logs for details.',
+});
+const DEFAULT_BANNER = 'Import failed.';
 
 function createRefreshController(opts) {
   const root = opts && opts.root;
@@ -75,7 +91,14 @@ function createRefreshController(opts) {
     try {
       result = await vaultApi.refreshSessions(vaultPath);
     } catch (err) {
-      result = { ok: false, error: (err && err.message) || String(err) };
+      // Bridge-level failure (e.g. preload not reachable). Funnel into the
+      // same typed shape as IPC failures — err.message is intentionally
+      // dropped here too so abs-paths can't leak. Uses 'import-error'
+      // because this is structurally an importer-side failure from the
+      // renderer's POV; the banner-mapping table renders the generic
+      // "Import failed — see logs for details." string.
+      void err;
+      result = { ok: false, reason: 'import-error' };
     }
     if (result && result.ok) {
       // Stage 6.3D: hide the success summary banner. The user gets
@@ -92,8 +115,8 @@ function createRefreshController(opts) {
         }
       }
     } else {
-      const msg = (result && result.error) || 'Import failed';
-      banner.textContent = msg;
+      const reason = result && result.reason;
+      banner.textContent = REASON_TO_BANNER[reason] || DEFAULT_BANNER;
     }
     inFlight = false;
     applyDisabled();
