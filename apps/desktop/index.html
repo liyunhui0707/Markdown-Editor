@@ -6,18 +6,23 @@
     <title>Markdown Vault App</title>
     <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
     <style>
-      /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ── */
+      /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ──
+         Stage 6.13: theme shifted from warm-paper to neutral / off-white.
+         Editor surface is now pure white; sidebar / chrome / hover states
+         are neutral light grays. Borders are neutral too. Text and accent
+         tokens are unchanged — they were already dark/saturated enough to
+         carry over without re-balancing for the new background. */
       :root {
         /* Surfaces */
-        --bg:              #f5f3ee;   /* app background — warm paper */
-        --surface:         #fbfaf6;   /* editor paper (off pure white) */
-        --surface-sidebar: #efede6;   /* nav + notes panel background */
-        --surface-chrome:  #f0eee8;   /* topbar / status bar / toolbars */
-        --surface-muted:   #f0efe9;   /* hover / pressed states */
+        --bg:              #fefefe;   /* app background — near-white */
+        --surface:         #ffffff;   /* editor paper — pure white */
+        --surface-sidebar: #f5f5f5;   /* nav + notes panel — neutral light gray */
+        --surface-chrome:  #f3f3f3;   /* topbar / status bar / toolbars — neutral */
+        --surface-muted:   #eeeeee;   /* hover / pressed states — neutral */
 
         /* Borders */
-        --border:          #e2dfd6;   /* panel / input edges */
-        --border-subtle:   #e9e6dd;   /* inner dividers, hairlines */
+        --border:          #e0e0e0;   /* panel / input edges — neutral light gray */
+        --border-subtle:   #ececec;   /* inner dividers, hairlines — neutral */
 
         /* Text */
         --text:            #26241f;   /* primary ink */
