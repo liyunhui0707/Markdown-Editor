@@ -388,6 +388,20 @@
         flex-direction: column;
         min-height: 0;
         flex: 1;
+        /* Stage 6.10.F: actual root cause of the AI Sessions Read-mode
+           layout bug. .workspace is the grid item filling the 1fr column
+           of .main-layout (grid-template-columns: 300px 1fr). Grid items
+           default to min-width: auto = min-content, which lets a 1fr
+           column grow past its allocated share when descendant content's
+           min-content is wider — propagating through every flex/grid
+           child until .read-view-mount lands past the viewport's right
+           edge. The earlier min-width: 0 fixes on .editor-stack /
+           .live-editor-container / .read-view-mount were downstream of
+           this inflation source and only fixed shrinking WITHIN .workspace,
+           not the grid column itself. Setting min-width: 0 here pins the
+           1fr column to its allocated share, and the rest of the chain
+           (with its own min-width: 0) shrinks properly. */
+        min-width: 0;
       }
 
       .workspace-panel {
@@ -399,7 +413,17 @@
       }
 
       .workspace-body {
-        padding: 32px clamp(40px, 8%, 96px);
+        /* Stage 6.10.A: smaller, still-responsive side padding
+           (was 40-96px). NOTE: no gutter reservation here — Codex
+           round-1 diff review flagged that declaring it BOTH on this
+           element AND .read-view-mount would stack nested reserved
+           gutters on classic-scrollbar platforms (Windows/Linux),
+           giving Read mode extra inset that Write/Preview don't have.
+           Workspace-body rarely scrolls vertically anyway (CM6 / Toast
+           UI / read-view-mount handle scrolling internally), so the
+           reservation belongs only on .read-view-mount (the actual
+           Read-mode scroll owner). */
+        padding: 24px clamp(16px, 3%, 48px);
         flex: 1;
         min-height: 0;
         overflow: auto;
@@ -413,20 +437,19 @@
         flex-direction: column;
         gap: 0;
         width: 100%;
-        /* Stage 6.9: content width scales with the workspace column
-           — when the sidebar collapses or the window grows, the
-           editor column expands instead of leaving empty margin.
-             - Narrow window:  clamps to the 720px floor (preserves
-                               the original typographic "measure" for
-                               prose on small screens).
-             - Medium window:  uses 80vw — content tracks the window.
-             - Very wide:      capped at 1200px so prose lines don't
-                               stretch beyond a comfortable reading
-                               distance on ultrawide monitors. */
-        max-width: clamp(720px, 80vw, 1200px);
+        /* Stage 6.10.B: content scales with viewport down to small
+           windows; capped at 1200px on ultrawide. The prior 720px floor
+           prevented shrinking past 720px even when the workspace was
+           narrower, which clipped text. */
+        max-width: min(80vw, 1200px);
         margin: 0 auto;
         flex: 1;
         min-height: 0;
+        /* Stage 6.10.D: flex-chain shrink unlock. Without min-width: 0,
+           the flex-item default min-width: auto pinned this stack to
+           its child content's min-content size, overriding max-width and
+           pushing the AI Sessions read view past the viewport. */
+        min-width: 0;
       }
 
       /* Title — document heading, no box. Textarea so long titles wrap. */
@@ -466,6 +489,10 @@
         padding: 0;
         min-height: 0;
         cursor: text;
+        /* Stage 6.10.D: same flex-shrink unlock as .editor-stack — see
+           the comment there. Middle link in the chain that hosts Read
+           mode's read-view-mount. */
+        min-width: 0;
       }
 
       /* Stage 6.2: no-selection state. Disable mouse interaction with the
@@ -937,8 +964,18 @@
         display: none;
         flex: 1;
         min-height: 0;
+        /* Stage 6.10.D: flex-shrink unlock so overflow: auto can
+           contain transcript width instead of being overridden by the
+           flex-item default min-width: auto. */
+        min-width: 0;
         overflow: auto;
-        padding: 16px;
+        /* Stage 6.10.C: vertical breathing only — no horizontal
+           padding so Read-mode side margins match Write/Preview
+           (governed by .workspace-body alone). scrollbar-gutter:
+           stable both-edges keeps the long-transcript vertical
+           scrollbar from visually shifting content. */
+        padding: 16px 0;
+        scrollbar-gutter: stable both-edges;
         font-size: var(--editor-font-size, 18px);
       }
       .read-view-mount.is-visible {
@@ -954,15 +991,16 @@
 
       /* Stage S5 round-8 QA fix: user turns get a tinted background +
          left accent stripe so they are visually distinct from
-         assistant turns. The negative margin pulls the surface to the
-         edges of readViewMount's 16px padding so the band reads as
-         "this whole stripe = the user".  */
+         assistant turns. Stage 6.10.C: with .read-view-mount's
+         horizontal padding removed, the band sits flush inside the
+         content area (the -16px negative-margin trick is no longer
+         needed to break out of padding). */
       .read-view-mount .read-section.user-turn {
         background: var(--accent-bg, rgba(109, 74, 224, 0.08));
         border-left: 3px solid var(--accent, #6d4ae0);
         border-radius: 4px;
         padding: 8px 12px;
-        margin: 8px -16px 16px -16px;
+        margin: 8px 0 16px 0;
       }
       .read-view-mount .read-section.assistant-turn {
         padding: 8px 0;
@@ -1022,6 +1060,29 @@
       .read-view-mount li,
       .read-view-mount blockquote {
         overflow-wrap: anywhere;
+      }
+      /* Stage 6.10.E: residual transcript elements PR #120 didn't cover.
+         Headings with long file paths, <section> wrappers with long
+         identifiers, inline <code> with long unbreakable tokens, and
+         anchors with long URLs all contributed the last ~13px of
+         viewport overflow that the flex-chain min-width: 0 fix
+         couldn't eliminate (measured in Phase A at 1484px). Apply
+         the same overflow-wrap: anywhere treatment so any long token
+         breaks at the character level instead of inflating the
+         element. headings and section also get word-break: break-word
+         as a belt-and-suspenders fallback for engines that interpret
+         overflow-wrap differently. */
+      .read-view-mount h1,
+      .read-view-mount h2,
+      .read-view-mount h3,
+      .read-view-mount h4,
+      .read-view-mount h5,
+      .read-view-mount h6,
+      .read-view-mount section,
+      .read-view-mount code,
+      .read-view-mount a {
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       /* Stage S4 — in-file search toolbar. Sits between the editor
