@@ -974,12 +974,15 @@
            flex-item default min-width: auto. */
         min-width: 0;
         overflow: auto;
-        /* Stage 6.10.C: vertical breathing only — no horizontal
-           padding so Read-mode side margins match Write/Preview
-           (governed by .workspace-body alone). scrollbar-gutter:
-           stable both-edges keeps the long-transcript vertical
-           scrollbar from visually shifting content. */
-        padding: 16px 0;
+        /* Vertical breathing + a small right inset so the vertical
+           scrollbar (overlay on macOS) does not visually clip the last
+           characters of long lines. Left stays 0 so horizontal side
+           margins still align with Write/Preview (governed by
+           .workspace-body) and the user-turn left accent stripe sits
+           flush with that gutter. scrollbar-gutter: stable both-edges
+           keeps the long-transcript vertical scrollbar from visually
+           shifting content. */
+        padding: 16px 24px 16px 0;
         scrollbar-gutter: stable both-edges;
         font-size: var(--editor-font-size, 18px);
       }
@@ -1092,6 +1095,7 @@
       .read-view-mount blockquote {
         /* Stage 6.11: same rationale as the cell rule above. */
         overflow-wrap: break-word;
+        line-height: 1.7;
       }
       /* Stage 6.10.E: residual transcript elements PR #120 didn't cover.
          Headings with long file paths, <section> wrappers with long
@@ -1118,19 +1122,14 @@
         overflow-wrap: break-word;
         word-break: break-word;
       }
-      /* Stage 6.11: inline-code styling for Read mode. Matches the
-         Preview-mode look (.preview-markdown code) so inline `code`
-         tokens like `origin/main` stand out from prose with a tinted
-         background + accent text. Scoped to <code> whose parent is NOT
-         <pre> so fenced-code blocks keep their plain rendering. */
+      /* Inline-code styling for Read mode. Color-only distinction —
+         accent-colored monospace text, no chip (no background, border,
+         padding, or border-radius). Scoped to <code> whose parent is
+         NOT <pre> so fenced-code blocks keep their plain rendering. */
       .read-view-mount :not(pre) > code {
-        background:    var(--accent-bg);
-        border:        1px solid var(--accent-border);
         color:         var(--accent);
         font-family:   var(--font-mono);
         font-size:     0.88em;
-        padding:       1px 6px;
-        border-radius: 4px;
       }
 
       /* Stage S4 — in-file search toolbar. Sits between the editor
