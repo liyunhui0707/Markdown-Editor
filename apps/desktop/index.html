@@ -1013,7 +1013,10 @@
          browser's borderless default and looks like run-on text. */
       .read-view-mount table {
         border-collapse: collapse;
-        margin: 8px 0 16px 0;
+        /* Stage 6.11: table now lives inside .table-scroller which owns
+           the outer margin. Keeping border-collapse + font-size on the
+           table itself; the wrapper rule (below in the PR #120 block)
+           provides margin + max-width + overflow-x. */
         font-size: 0.95em;
       }
       .read-view-mount th,
@@ -1048,18 +1051,42 @@
         max-width: 100%;
         overflow-x: auto;
       }
-      .read-view-mount table {
+      /* Stage 6.11: tables now sit inside a .table-scroller wrapper so the
+         table can render at its natural max-content width without the
+         table-layout: auto algorithm squeezing single-word columns
+         (e.g. "Severity") below the word's width. The wrapper provides
+         the visual width containment and the per-table horizontal scroll
+         if a particular table is wider than the viewport. */
+      .read-view-mount .table-scroller {
         max-width: 100%;
+        overflow-x: auto;
+        margin: 8px 0 16px 0;
+      }
+      .read-view-mount table {
+        /* Width is governed by the wrapper now; table goes to max-content
+           inside the wrapper, columns get their natural max-content widths,
+           no mid-word breaking. */
         table-layout: auto;
       }
       .read-view-mount th,
       .read-view-mount td {
-        overflow-wrap: anywhere;
+        /* Stage 6.11: was `overflow-wrap: anywhere` — too aggressive for
+           table cells. `anywhere` lets the browser break mid-word AND
+           collapses the cell's min-content size to a single character;
+           combined with `table-layout: auto`, that makes narrow cells
+           wrap as "Se / ver / ity". `break-word` keeps the cell's
+           min-content at the longest unbroken word and only breaks
+           inside a word when there's no whitespace alternative. PR
+           #121's `.workspace min-width: 0` already prevents the chain
+           from inflating, so the aggressive form is no longer needed
+           here for layout containment. */
+        overflow-wrap: break-word;
       }
       .read-view-mount p,
       .read-view-mount li,
       .read-view-mount blockquote {
-        overflow-wrap: anywhere;
+        /* Stage 6.11: same rationale as the cell rule above. */
+        overflow-wrap: break-word;
       }
       /* Stage 6.10.E: residual transcript elements PR #120 didn't cover.
          Headings with long file paths, <section> wrappers with long
@@ -1081,8 +1108,24 @@
       .read-view-mount section,
       .read-view-mount code,
       .read-view-mount a {
-        overflow-wrap: anywhere;
+        /* Stage 6.11: softened from `anywhere` to `break-word` (see the
+           table-cell rule above for the full rationale). */
+        overflow-wrap: break-word;
         word-break: break-word;
+      }
+      /* Stage 6.11: inline-code styling for Read mode. Matches the
+         Preview-mode look (.preview-markdown code) so inline `code`
+         tokens like `origin/main` stand out from prose with a tinted
+         background + accent text. Scoped to <code> whose parent is NOT
+         <pre> so fenced-code blocks keep their plain rendering. */
+      .read-view-mount :not(pre) > code {
+        background:    var(--accent-bg);
+        border:        1px solid var(--accent-border);
+        color:         var(--accent);
+        font-family:   var(--font-mono);
+        font-size:     0.88em;
+        padding:       1px 6px;
+        border-radius: 4px;
       }
 
       /* Stage S4 — in-file search toolbar. Sits between the editor

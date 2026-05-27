@@ -77,6 +77,31 @@ function renderMarkdown(text, opts) {
       paraLines = [];
       return;
     }
+    // Stage 6.11: if a non-list prefix is followed by list-marker lines
+    // (no blank line in between), split the block into a paragraph for
+    // the prefix and a list for the suffix. Without this, "Header text:\n
+    // - item one\n- item two" would collapse into a single <p> joined by
+    // newlines, which the browser renders as one continuous line.
+    const ulStart = paraLines.findIndex((l) => /^[-*+]\s+/.test(l));
+    if (ulStart > 0 && paraLines.slice(ulStart).every((l) => /^[-*+]\s+/.test(l))) {
+      const prefix = paraLines.slice(0, ulStart);
+      const listItems = paraLines.slice(ulStart);
+      paraLines = prefix;
+      flushPara();
+      paraLines = listItems;
+      flushPara();
+      return;
+    }
+    const olStart = paraLines.findIndex((l) => /^\d+\.\s+/.test(l));
+    if (olStart > 0 && paraLines.slice(olStart).every((l) => /^\d+\.\s+/.test(l))) {
+      const prefix = paraLines.slice(0, olStart);
+      const listItems = paraLines.slice(olStart);
+      paraLines = prefix;
+      flushPara();
+      paraLines = listItems;
+      flushPara();
+      return;
+    }
     if (paraLines.length >= 2 && /^\s*\|.*\|\s*$/.test(paraLines[0]) && isTableSeparator(paraLines[0], paraLines[1])) {
       let tableEnd = 2;
       while (tableEnd < paraLines.length && /^\s*\|.*\|\s*$/.test(paraLines[tableEnd])) tableEnd += 1;
@@ -141,7 +166,17 @@ function renderMarkdown(text, opts) {
       table.appendChild(tbody);
     }
     attachSection();
-    currentSection.appendChild(table);
+    // Stage 6.11: wrap the table in a horizontally-scrollable div. Without
+    // this wrapper, `table-layout: auto` squeezes narrow columns below
+    // their longest word and the browser falls back to mid-word breaks
+    // ("Severity" → "Sev / erit / y") even with overflow-wrap: break-word
+    // on cells. The wrapper provides the visual containment so the table
+    // itself can render at its natural width and only scrolls horizontally
+    // within its own region when wider than the viewport.
+    const tableWrapper = doc.createElement('div');
+    tableWrapper.setAttribute('class', 'table-scroller');
+    tableWrapper.appendChild(table);
+    currentSection.appendChild(tableWrapper);
   }
 
   function flushFence() {
