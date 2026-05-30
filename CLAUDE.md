@@ -97,6 +97,16 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
 ### Documentation
 - When user-facing behavior changes, update docs.
 
+### Versioning
+- The app version lives in `apps/desktop/package.json` (currently `0.1.0`, pre-1.0).
+- Follow SemVer (`MAJOR.MINOR.PATCH`). Pre-1.0 rules: bump **patch** for bug fixes, **minor** for user-visible features or a new stage's worth of behavior, **major** only when cutting `1.0.0` (the "ready for daily use by others" signal).
+- Before committing, propose the version bump in the same commit as the change. Map by intent, not line count:
+  - Bug fix only → patch (`0.1.0` → `0.1.1`)
+  - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
+  - Internal refactor with no behavior change → no bump
+- After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
+- `plugins/*/package.json` have **independent** versions. Do not bump them in lockstep with the app.
+
 ### AI workflow
 - Claude may implement.
 - Codex should audit important diffs.
