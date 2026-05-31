@@ -64,6 +64,13 @@
     if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpInline) {
       globalThis.Cm6LpInline = lpInline;
     }
+    // Stage E — bridge cm6-lp-table-widget.js onto globalThis for the
+    // Table branch's parseTableNode + TableWidget lookup. Browser path
+    // loads it via <script> tag before cm6-lp-block.js.
+    const lpTable = require('./cm6-lp-table-widget.js');
+    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpTableWidget) {
+      globalThis.Cm6LpTableWidget = lpTable;
+    }
     module.exports = factory();
   } else {
     root.Cm6LpBlock = factory();
@@ -154,9 +161,56 @@
       return !touchedSet.has(lineNumber);
     }
 
+    // Stage E — Table-level active resolution: a Table node spans
+    // multiple lines. Return true if NO line in the [fromLine, toLine]
+    // closed interval is in the touched set. Used by the Table branch.
+    function isWholeRangeOffActive(fromLine, toLine) {
+      for (let n = fromLine; n <= toLine; n++) {
+        if (touchedSet.has(n)) return false;
+      }
+      return true;
+    }
+
+    // Stage E — Table widget lookup. Browser path: script tag before
+    // cm6-lp-block.js sets globalThis.Cm6LpTableWidget. CJS path: the
+    // UMD wrapper above bridges it. If unavailable, silently skip the
+    // Table branch (table renders via walker as before — Stage 31+33).
+    const tableMod =
+      (typeof globalThis !== 'undefined') ? globalThis.Cm6LpTableWidget : null;
+    const TableWidgetClass = (tableMod && typeof tableMod.getTableWidgetClass === 'function')
+      ? tableMod.getTableWidgetClass()
+      : null;
+
     const replacedRanges = [];
     tree.iterate({
       enter(node) {
+        // Stage E — GFM table widget. Emits ONE Decoration.replace
+        // covering the full Table range when no line in the table is
+        // touched. Returns false to skip descent into the table's
+        // children (we don't want HeaderMark/ListMark/etc. branches to
+        // fire inside the table since the widget replaces the whole
+        // range). On-active OR widget-unavailable: descend naturally so
+        // other lp branches (none expected inside a table) can run.
+        if (node.name === 'Table' && TableWidgetClass && tableMod && typeof tableMod.parseTableNode === 'function') {
+          if (node.from < fmEnd) return;
+          const fromLine = state.doc.lineAt(node.from).number;
+          // node.to is exclusive end. Subtract 1 so we read the LAST
+          // character's line, not the next line's first character.
+          const lastCharPos = Math.max(node.from, Math.min(node.to - 1, state.doc.length - 1));
+          const toLine = state.doc.lineAt(Math.max(lastCharPos, 0)).number;
+          if (!isWholeRangeOffActive(fromLine, toLine)) {
+            // On-active table: emit nothing; walker renders source.
+            return;
+          }
+          const parsed = tableMod.parseTableNode(node.node, state.doc);
+          if (!parsed) return;  // malformed table; let walker handle
+          const tableWidget = new TableWidgetClass(parsed);
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
+              .range(node.from, node.to)
+          );
+          return false;  // do not descend into Table children
+        }
         // Stage D — ATX HeaderMark (`#` … `######` and optional trailing `#`).
         // Parent guard excludes SetextHeading1/2 underlines.
         if (node.name === 'HeaderMark') {

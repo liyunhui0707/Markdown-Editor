@@ -789,6 +789,98 @@ Fourth stage of the option-2 Live Preview migration. Same opt-in mechanism as St
 - [ ] Drag-select across multiple block-marker lines — every touched line reveals (Stage 26 active-range contract preserved).
 - [ ] Cmd-click on a link inside a heading or list item — still works per Stage 25.
 
+## Stage E — `hybrid-cm6-lp` renders GFM tables as HTML `<table>` widgets off-active
+
+Fifth stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B + C + D. Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage D**: GFM tables off-active render as actual HTML `<table>` grids via a new multi-line block `TableWidget`. Caret on ANY line of the table swaps the widget back to walker-styled Markdown source. Cell text is rendered as PLAIN text (inline markdown inside cells is NOT rendered — `**bold**` shows as literal characters inside the widget; deferred to a follow-on).
+
+**Starting state**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note** (paste into a vault note):
+
+```markdown
+Before.
+
+| A | B |
+|---|---|
+| 1 | 2 |
+
+After.
+
+| L | C | R |
+|:--|:-:|--:|
+| 1 | 2 | 3 |
+
+After alignment.
+```
+
+**MQ-E1 — engine opt-in works (unchanged from Stages A + B + C + D)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-E2 — simple 2-col table renders as HTML `<table>` off-active (load-bearing)**
+- [ ] Click on the "Before." line. The table renders as a grid (header row + body row).
+- [ ] DevTools Elements panel: the rendered DOM contains a `<table>` element with `<thead>` (containing `<th>A</th><th>B</th>`) and `<tbody>` (containing `<td>1</td><td>2</td>`).
+- [ ] No raw Markdown `| A | B |` characters visible in the rendered DOM for this region.
+
+**MQ-E3 — per-column alignment from delimiter row (load-bearing)**
+- [ ] Click off the alignment table. Visually: column L is left-aligned, column C is center-aligned, column R is right-aligned.
+- [ ] DevTools: each `<th>` / `<td>` has inline `style="text-align: left;"` / `"text-align: center;"` / `"text-align: right;"` per column.
+
+**MQ-E4 — table-level on-active toggle works**
+- [ ] Click into the header row. The widget disappears; the raw Markdown source `| A | B |` returns with the walker's styled pipes (Stage 31 cm-md-table-pipe).
+- [ ] Click into the delimiter row `|---|---|`. Still source mode.
+- [ ] Click into any body row. Still source mode.
+- [ ] Click outside the table. Widget returns.
+
+**MQ-E5 — single-column table works**
+- [ ] Add `| only |\n|------|\n| a |\n`. Click off → renders as 1-column grid.
+
+**MQ-E6 — HTML-special chars in cells render as escaped text (XSS-safe, load-bearing)**
+- [ ] Add a cell containing `<script>alert(1)</script>`. Click off.
+- [ ] Confirm: NO alert fires. The cell shows the literal characters `<script>alert(1)</script>` as text.
+- [ ] DevTools: the `<td>` element contains a text node, NOT a child `<script>` element.
+
+**MQ-E7 — empty cells render as empty `<td>`**
+- [ ] Table with `| a |  | c |`. Off-active: the 3-column row renders with the middle cell empty.
+
+**MQ-E8 — multi-cursor across table + non-table lines**
+- [ ] Multi-select with one cursor inside the table and another outside (Cmd+click). Table goes to source mode (any cursor inside → on-active).
+
+**MQ-E9 — drag-select across table boundaries**
+- [ ] Drag-select from a line above the table through a line below it. Table goes to source.
+
+**MQ-E10 — multiple tables, independently active**
+- [ ] Two tables in one doc. Click in table 1 → only table 2 renders as widget. Click in table 2 → only table 1.
+
+**MQ-E11 — round-trip / `getText()`**
+- [ ] After clicking in and out of the table multiple times, save (Cmd-S) and close + reopen. Source on disk is byte-identical at LF level. `window.markdownVaultLive.getText()` matches source.
+
+**MQ-E12 — Chinese IME composition near a table**
+- [ ] Place caret on a line adjacent to the table. Start IME composition. Confirm: composition completes normally; widget on the table doesn't disrupt composition.
+- [ ] Click into the table, place caret in a cell, start IME composition. Confirm: composition works in source mode.
+
+**MQ-E13 — undo/redo through table edits**
+- [ ] Click into the table, edit a cell, click out, Cmd-Z. Confirm: edit reverts cleanly. Cmd-Shift-Z. Confirm: edit re-applied.
+
+**MQ-E14 — long table (50+ rows) responsiveness**
+- [ ] Paste a 50-row table. Click in/out. Confirm: no perceptible lag.
+
+**MQ-E15 — Stages A + B + C + D preserved (regression)**
+- [ ] Confirm: emphasis, inline code, strikethrough, inline links, inline images, block markers all continue to work as in prior stages.
+
+**MQ-E16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Tables render as walker-styled Markdown source (NO `<table>` widget). All Stage 31 + 33 table styling intact.
+
+**MQ-E17 — Automated regression sweep after Stage E**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-E baseline ~1810/1808/0/2; post-Stage-E should be roughly 1848/1846/0/2 (+38 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (705/703/0/2 after Stage E).
+
+**Known limitations (intentional, deferred)**
+- Inline markdown inside cells (`**bold**`, `[link](url)`, `` `code` ``) renders as raw text inside the widget. Click into the table to see normal source styling.
+- A non-blank, non-pipe line immediately after a table (no separator blank line) is absorbed into the Lezer Table node as a single-cell trailing row. Convention: separate tables from the following paragraph with a blank line.
+- Cells cannot be edited inside the widget; must click into the table first (triggers source mode).
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

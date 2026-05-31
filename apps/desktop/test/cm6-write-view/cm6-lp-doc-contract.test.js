@@ -277,3 +277,52 @@ test('Stage D WAVE 8-T-DD-7: docs/test-manual.md Stage D section preserves Stage
   assert.match(testManual, /MQ-D15[\s\S]{0,500}Stage[s]? A \+ B \+ C/,
     'docs/test-manual.md Stage D section must include a Stage A + B + C regression gate (MQ-D15)');
 });
+
+// ── Stage E WAVE 7 — docs reflect Stage E coverage ──────────────────────
+
+test('Stage E WAVE 7-T-DE-1: CLAUDE.md mentions Stage E + GFM table widget', () => {
+  assert.match(claudeMd, /Stage E/,
+    'CLAUDE.md must mention "Stage E"');
+  assert.match(claudeMd, /TableWidget|GFM table|<table>/i,
+    'CLAUDE.md must describe Stage E\'s table widget');
+  assert.match(claudeMd, /block:\s*true|multi-line block/i,
+    'CLAUDE.md must reference the multi-line block widget contract');
+});
+
+test('Stage E WAVE 7-T-DE-2: README.md hybrid-cm6-lp row mentions Stage E coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,3500}Stage E/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage E');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,4000}(table|<table>|TableWidget)/i,
+    'README.md hybrid-cm6-lp row must mention table rendering for Stage E');
+});
+
+test('Stage E WAVE 7-T-DE-3: README.md "Live styling" section mentions Stage E coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*C\s*\+\s*D\s*\+\s*)?E/,
+    'README.md "Live styling" subsection must mention Stage E (or Stages A + B + C + D + E)');
+});
+
+test('Stage E WAVE 7-T-DE-4: docs/stage-history.md has a Stage E row referencing hybrid-cm6-lp + table widget', () => {
+  assert.match(stageHistory, /\|\s*E\s*\|/,
+    'docs/stage-history.md must have a "| E |" table row');
+  assert.match(stageHistory, /\|\s*E\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage E row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*E\s*\|[\s\S]{0,3000}(TableWidget|<table>|GFM)/,
+    'Stage E row must reference the table widget surface');
+});
+
+test('Stage E WAVE 7-T-DE-5: docs/test-manual.md has a Stage E section', () => {
+  assert.match(testManual, /##\s+Stage E/,
+    'docs/test-manual.md must have a "## Stage E" section header');
+});
+
+test('Stage E WAVE 7-T-DE-6: docs/test-manual.md Stage E section includes load-bearing gates for table widget + XSS + alignment', () => {
+  assert.match(testManual, /MQ-E2/, 'table widget DOM rendering gate');
+  assert.match(testManual, /MQ-E3/, 'per-column alignment gate');
+  assert.match(testManual, /MQ-E6/, 'XSS-safe cell content gate');
+  assert.match(testManual, /MQ-E4/, 'table-level on-active toggle gate');
+});
+
+test('Stage E WAVE 7-T-DE-7: docs/test-manual.md Stage E section preserves Stage A + B + C + D regression check', () => {
+  assert.match(testManual, /MQ-E15[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D/,
+    'docs/test-manual.md Stage E section must include a Stage A + B + C + D regression gate (MQ-E15)');
+});

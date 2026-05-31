@@ -164,3 +164,24 @@ test('Stage D WAVE 7-T-RWB-4: lp-block script tag is not duplicated', () => {
   assert.equal(matches.length, 1,
     'cm6-lp-block.js must be loaded exactly once');
 });
+
+// ── Stage E WAVE 6 — lp table-widget script tag + ordering ──────────────
+
+test('Stage E WAVE 6-T-RWT-1: index.html loads ./lib/cm6-lp-table-widget.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-table-widget\.js["']/,
+    'index.html must include <script src="./lib/cm6-lp-table-widget.js">');
+});
+
+test('Stage E WAVE 6-T-RWT-2: cm6-lp-table-widget.js loads BEFORE cm6-lp-block.js (widget dep)', () => {
+  const lpTable = tagOffset('./lib/cm6-lp-table-widget.js');
+  const lpBlock = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(lpTable >= 0, 'cm6-lp-table-widget.js script tag must be present');
+  assert.ok(lpTable < lpBlock,
+    'cm6-lp-table-widget.js must load BEFORE cm6-lp-block.js (block plugin reads window.Cm6LpTableWidget)');
+});
+
+test('Stage E WAVE 6-T-RWT-3: cm6-lp-table-widget.js script tag is not duplicated', () => {
+  const matches = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-table-widget\.js["']/g) || [];
+  assert.equal(matches.length, 1,
+    'cm6-lp-table-widget.js must be loaded exactly once');
+});
