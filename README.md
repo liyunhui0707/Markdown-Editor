@@ -10,7 +10,7 @@ The setup also integrates with the `mcp-note-ingest` MCP server (installed as a 
 
 ## Headline guarantees
 
-- **Raw Markdown is the source of truth.** The editor stores notes as plain `.md` files; `getText()` returns the raw Markdown text. The live-styling layer in Write mode is visual decoration only — no HTML is injected, no document is rewritten. Round-trip is at the LF / character level (CodeMirror normalizes line endings internally; exact on-disk byte equality is not promised for CRLF files).
+- **Raw Markdown is the source of truth.** The editor stores notes as plain `.md` files; `getText()` returns the raw Markdown text. The live-styling layer in Write mode is visual decoration only — no HTML is injected, no document is rewritten. Round-trip is at the LF / character level (CodeMirror normalizes line endings internally; exact on-disk byte equality is not promised for CRLF files). This guarantee holds for ALL Write engines, including the Stage A `hybrid-cm6-lp` live-preview engine (which uses `Decoration.replace` for emphasis markers — the document is unchanged; only the visible rendering hides them).
 - **Local-first.** Notes live in a folder you choose. No cloud, no accounts, no hosted backend.
 
 ## Screenshots
@@ -73,7 +73,7 @@ Each note has two display modes selected by the `Write` and `Preview` tab button
 - **Write mode** — type and edit Markdown source.
 - **Preview mode** — Toast UI Editor renders the Markdown read-only.
 
-Three Write engines exist in the codebase. The engine is resolved on load by `apps/desktop/lib/write-engine.js` in the following priority order:
+Four Write engines exist in the codebase. The engine is resolved on load by `apps/desktop/lib/write-engine.js` in the following priority order:
 
 1. URL query parameter: `?writeEngine=<name>`
 2. `localStorage` key: `markdownVault.writeEngine = "<name>"`
@@ -81,13 +81,16 @@ Three Write engines exist in the codebase. The engine is resolved on load by `ap
 
 | Engine | Status | Description |
 |---|---|---|
-| `hybrid-cm6` | **Default** | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). Promoted from experimental to default in Stage 17. |
+| `hybrid-cm6` | **Default** | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). Promoted from experimental to default in Stage 17. Uses `Decoration.mark` only — no widgets, no `Decoration.replace`. |
+| `hybrid-cm6-lp` | Experimental (Stage A, opt-in) | Live-preview variant of `hybrid-cm6`. Reuses the hybrid walker via its public export PLUS adds an emphasis-marker plugin that emits `Decoration.replace` for `*` / `_` / `**` / `__` markers off the active line and registers them with `EditorView.atomicRanges` so arrow-key cursor motion steps over each hidden marker as one unit. On-active-line behavior matches `hybrid-cm6` exactly. Opt in via `?writeEngine=hybrid-cm6-lp` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp')`. First stage of the option-2 Obsidian-style Live Preview migration; stages B–H will extend the `Decoration.replace` + widget pattern to other inline markers, images, tables, math, and code highlighting. **User-visible payoff at Stage A is intentionally thin** (mostly improved cursor mechanics around hidden markers) — the architectural payoff is enabling subsequent stages. |
 | `cm6` | Fallback | CodeMirror 6 single-document adapter — Markdown editing with syntax highlighting, real undo/redo, real selection, Chinese IME support. Reachable via `?writeEngine=cm6` or by setting the `markdownVault.writeEngine` localStorage key to `cm6`. |
 | `hybrid` | Legacy fallback | Stage 2 HybridWriteView (per-block textarea swap) plus Toast UI Preview. Retained as a fallback; removal is deferred. |
 
-### Live styling in `hybrid-cm6` (default)
+### Live styling in `hybrid-cm6` (default) and `hybrid-cm6-lp` (Stage A opt-in)
 
 The hybrid-cm6 engine emits CSS-class decorations over the existing source text — purely visual, never modifying the document or generating HTML. Raw Markdown is the source of truth; `getText()` returns the raw Markdown source text without rendered HTML or decoration artifacts. (CodeMirror normalizes line endings internally, so source-text round-trip is at the LF / character level, not the exact on-disk byte level for CRLF files.)
+
+**Stage A `hybrid-cm6-lp` differs from `hybrid-cm6` in exactly one place**: emphasis markers (`*`, `_`, `**`, `__`). The lp engine reuses the hybrid walker via its public export (no duplication) and adds an emphasis-marker plugin that emits `Decoration.replace` off the active line (the marker characters are removed from the visible DOM) and registers the replaced ranges with `EditorView.atomicRanges` so arrow-key cursor motion steps over each hidden marker as one unit. On the active line the lp plugin emits nothing — the hybrid walker's existing `Decoration.mark` + existing CSS reveal the marker dimmed exactly as in `hybrid-cm6`. Off-active-line visual appearance is essentially identical between the two engines (both hide the markers); the differences are cursor mechanics and the architectural foundation for stages B–H.
 
 Since Stage 26 the "hide off the active line / reveal on the active line" reveal mechanism that appears in the bullets below actually follows the FULL selection: every line touched by the current selection or any cursor reveals its syntax markers. Single-caret behavior is unchanged. Multi-line drag selections and multi-cursor selections (Alt-click) now show raw markers on every touched line, not just the line containing the primary caret. Currently styled:
 
@@ -149,7 +152,7 @@ cd apps/desktop
 npm run dev
 ```
 
-Opens the Electron window in development mode. The default Write engine is `hybrid-cm6` (Stage 17). To select a fallback engine, set the `markdownVault.writeEngine` localStorage key to `cm6` or `hybrid` in DevTools (`localStorage.setItem('markdownVault.writeEngine', 'cm6')` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid')` — Electron has no normal address bar). The same fallback can also be selected by loading the window with `?writeEngine=cm6` or `?writeEngine=hybrid` in its URL.
+Opens the Electron window in development mode. The default Write engine is `hybrid-cm6` (Stage 17). To select a fallback or the Stage A opt-in, set the `markdownVault.writeEngine` localStorage key to `cm6`, `hybrid`, or `hybrid-cm6-lp` in DevTools (`localStorage.setItem('markdownVault.writeEngine', 'cm6')` / `'hybrid'` / `'hybrid-cm6-lp'` — Electron has no normal address bar). The same selection can also be made by loading the window with `?writeEngine=cm6`, `?writeEngine=hybrid`, or `?writeEngine=hybrid-cm6-lp` in its URL.
 
 ### Build a local macOS app
 
@@ -167,7 +170,7 @@ The renderer loads two pre-built IIFE bundles checked into `apps/desktop/lib/`. 
 
 ```bash
 cd apps/desktop
-npm run build:cm6       # rebuilds lib/cm6-bundle.js (used by cm6 + hybrid-cm6 engines)
+npm run build:cm6       # rebuilds lib/cm6-bundle.js (used by cm6 + hybrid-cm6 + hybrid-cm6-lp engines)
 npm run build:editor    # rebuilds lib/toastui-bundle.js (used by Preview + hybrid engine)
 ```
 
@@ -276,7 +279,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 - Save / load round-trip preserves raw Markdown source.
 - Dirty-state tracking and close-guard dialog (Cancel / Discard & Quit / Save All & Quit) protect unsaved work.
 - Live-styled Write mode under the default `hybrid-cm6` engine; Preview mode via Toast UI Editor.
-- All three engines (`hybrid-cm6`, `cm6`, `hybrid`) selectable via URL query or `markdownVault.writeEngine` localStorage key.
+- All four engines (`hybrid-cm6` default, `hybrid-cm6-lp` Stage A opt-in, `cm6` fallback, `hybrid` legacy fallback) selectable via URL query or `markdownVault.writeEngine` localStorage key.
 - MCP ingest writes AI-chat notes into a fixed local Inbox folder (default `/Users/liyunhui/Liyunhui/Inbox/`; overridable via `MCP_INGEST_TARGET_DIR`).
 - Stage 18 stabilization QA passed — clean Branch A closure (see `docs/test-manual.md` Stage 18 section).
 - Automated test suite at `tests 907, pass 905, skipped 2, fail 0` (`npm test`); perf opt-in suite at `5 / 5 / 0 / 0` (`npm run test:perf`).
@@ -332,6 +335,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 Not committed to dates. Items listed roughly in priority order:
 
 - ~~Hybrid-cm6 default-readiness sequence~~ — completed in Stage 17. `hybrid-cm6` is now the default Write engine; `cm6` and legacy `hybrid` remain selectable fallbacks.
+- **Obsidian-style Live Preview migration** — Stage A done (`hybrid-cm6-lp` opt-in engine with `Decoration.replace`-based emphasis-marker hiding + atomic-range cursor motion). Stages B–H upcoming: other inline markers (B), inline image widgets (C), block-level marker hiding (D), tables as widgets (E), KaTeX math (F), code-block syntax highlighting + Mermaid (G), promotion to default (H). See `docs/stage-history.md` Stage A row for full implementation summary.
 - Add screenshots and a polished release checklist.
 - Broaden automated coverage for vault file operations.
 - Improve metadata editing UX (current frontmatter handling is read-only beyond tags / source).
@@ -344,17 +348,18 @@ Not committed to dates. Items listed roughly in priority order:
 Electron main (apps/desktop/main.js)
   ├── Vault file I/O + IPC bridge (apps/desktop/lib/vault-actions.js)
   └── Renderer window (apps/desktop/index.html)
-        ├── Write engine resolver (lib/write-engine.js) → cm6 | hybrid-cm6 | hybrid
+        ├── Write engine resolver (lib/write-engine.js) → cm6 | hybrid-cm6 | hybrid-cm6-lp | hybrid
         ├── Write surface
         │     ├── cm6              → lib/cm6-write-view.js + lib/cm6-bundle.js
         │     ├── hybrid-cm6       → lib/cm6-hybrid-view.js (decoration walker over the same bundle)
+        │     ├── hybrid-cm6-lp    → lib/cm6-lp-view.js + lib/cm6-lp-emphasis.js (reuses the hybrid walker; adds Decoration.replace + EditorView.atomicRanges for emphasis markers — Stage A opt-in)
         │     └── hybrid (legacy)  → lib/hybrid-write-view.js + Toast UI textarea per block
         ├── Preview surface        → Toast UI Editor (lib/toastui-bundle.js, read-only renderer)
         ├── Dirty-state tracking   → lib/dirty-state.js + close-guard.js
         └── Note list, search, filters, status bar (in index.html)
 ```
 
-The hybrid-cm6 walker is intentionally limited to `Decoration.mark` over the existing source — no widgets, no `Decoration.replace`, no document mutation, no HTML generation. Source text is the source of truth; decorations are visual only.
+The `hybrid-cm6` walker is intentionally limited to `Decoration.mark` over the existing source — no widgets, no `Decoration.replace`, no document mutation, no HTML generation. The Stage A `hybrid-cm6-lp` engine relaxes this for emphasis markers only (uses `Decoration.replace` + `WidgetType` widgets to hide off-active markers and registers them with `EditorView.atomicRanges` for atomic cursor motion) while preserving the source-of-truth invariant: the document is never mutated. Source text is the source of truth in BOTH engines; decorations are visual only.
 
 ## Project Structure
 

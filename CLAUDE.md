@@ -61,9 +61,12 @@ apps/desktop/lib/dirty-state.js         Unsaved-state tracking
 apps/desktop/lib/close-guard.js         Quit-with-unsaved-work dialog
 ```
 
-Three Write engines coexist. Resolution priority (`lib/write-engine.js`): `?writeEngine=<name>` URL param → `localStorage.markdownVault.writeEngine` → default `hybrid-cm6`. Valid names: `hybrid-cm6` (default), `cm6` (fallback), `hybrid` (legacy fallback).
+Four Write engines coexist. Resolution priority (`lib/write-engine.js`): `?writeEngine=<name>` URL param → `localStorage.markdownVault.writeEngine` → default `hybrid-cm6`. Valid names: `hybrid-cm6` (default), `cm6` (fallback), `hybrid` (legacy fallback), `hybrid-cm6-lp` (Stage A live-preview opt-in).
 
-**Core invariant: raw Markdown is the source of truth.** The `hybrid-cm6` engine uses only `Decoration.mark` over existing source text — no widgets, no `Decoration.replace`, no document mutation, no HTML generation. `getText()` returns raw Markdown. Round-trip is character-identical at the LF level (CodeMirror normalizes line endings, so CRLF byte-equality is not promised).
+**Core invariant: raw Markdown is the source of truth (applies to BOTH `hybrid-cm6` and `hybrid-cm6-lp`).** `getText()` returns raw Markdown verbatim; no decoration mutates the document; no HTML is generated; round-trip is character-identical at the LF level (CodeMirror normalizes line endings, so CRLF byte-equality is not promised).
+
+- **`hybrid-cm6` (legacy default)** — uses `Decoration.mark` ONLY. No widgets, no `Decoration.replace`. Marker visibility is driven by CSS `display: none` on `.cm-md-syntax`, revealed via the `.cm-activeLine` / `.cm-md-active-range` selectors.
+- **`hybrid-cm6-lp` (Stage A live-preview)** — extends the `Decoration.mark` invariant with `Decoration.replace` AND `WidgetType` widgets for emphasis markers (`*`, `_`, `**`, `__`) only. Off-active-line, lp-emphasis emits `Decoration.replace` with an empty widget AND registers the replaced ranges with `EditorView.atomicRanges` so arrow-key cursor motion steps over each hidden marker as one unit. On-active-line, lp-emphasis emits nothing and the hybrid walker's existing `Decoration.mark` + existing CSS reveals the marker dimmed. The raw-Markdown-as-source-of-truth invariant is preserved: `Decoration.replace` does not mutate the document. Stage B–H may extend the `Decoration.replace` / `WidgetType` pattern to additional constructs.
 
 The hybrid-cm6 walker styles a subset of `@lezer/markdown` nodes (ATX/Setext headings, bold/italic, inline code, links, images, lists, blockquotes, fenced code, HR, tables, strikethrough, task list, autolinks, YAML frontmatter). The "hide off the active line / reveal on the active line" reveal mechanism follows the full selection — every line touched by selection or cursor reveals its markers (see README's "Live styling in hybrid-cm6" for the full per-construct spec and the construct-active scoping rules across Stages 26–34).
 

@@ -1869,6 +1869,8 @@
     <script src="./lib/cm6-active-range.js"></script>
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
+    <script src="./lib/cm6-lp-emphasis.js"></script>
+    <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
@@ -4224,9 +4226,10 @@
       });
 
       // Engine label is constant for the session; set once.
-      docEngine.textContent = selectedWriteEngine === 'cm6'        ? 'CM6'
-                            : selectedWriteEngine === 'hybrid-cm6' ? 'CM6 Hybrid'
-                            :                                        'Hybrid';
+      docEngine.textContent = selectedWriteEngine === 'cm6'           ? 'CM6'
+                            : selectedWriteEngine === 'hybrid-cm6'    ? 'CM6 Hybrid'
+                            : selectedWriteEngine === 'hybrid-cm6-lp' ? 'CM6 Hybrid LP'
+                            :                                           'Hybrid';
 
       if (window.console && typeof window.console.debug === 'function') {
         window.console.debug('[write-engine]', selectedWriteEngine);
@@ -4323,6 +4326,33 @@
             _toastuiInstance.setMarkdown(cm6HybridWrite.getText());
           },
           exitWriteMode() { cm6HybridWrite.exitWriteMode(); },
+        };
+      } else if (selectedWriteEngine === 'hybrid-cm6-lp') {
+        // Stage A live-preview engine. Reuses the hybrid walker for every
+        // construct except emphasis markers (*, _, **, __) which the
+        // lp-emphasis plugin replaces with empty widgets off-active-line
+        // and lets the walker's existing Decoration.mark + CSS reveal on-
+        // active-line. Replaced ranges are atomic via EditorView.atomicRanges
+        // so arrow-key cursor motion steps over hidden markers as one unit.
+        // getText() returns raw Markdown — no document mutation.
+        const cm6LpWrite = window.Cm6LpView.createCm6LpView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+        });
+
+        liveEditorInstance = {
+          getText() { return cm6LpWrite.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6LpWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6LpWrite.getState(); },
+          setState(state) {
+            cm6LpWrite.setState(state);
+            _toastuiInstance.setMarkdown(cm6LpWrite.getText());
+          },
+          exitWriteMode() { cm6LpWrite.exitWriteMode(); },
         };
       } else {
         const hybridWrite = new window.HybridWriteView(hybridWritePane, {
