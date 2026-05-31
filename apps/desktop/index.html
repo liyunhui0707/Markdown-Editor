@@ -144,6 +144,18 @@
         border-color: var(--border);
       }
 
+      .action-button:disabled,
+      .action-button[disabled] {
+        opacity: 0.5;
+        cursor: progress;
+      }
+      .action-button:disabled:hover,
+      .action-button[disabled]:hover {
+        background: var(--surface);
+        color: var(--text-muted);
+        border-color: var(--border);
+      }
+
       .search-input {
         width: 100%;
         font-weight: 400;
@@ -1704,6 +1716,59 @@
       .toastui-editor-defaultUI .toastui-editor-main {
         border: none;
       }
+
+      /* Path D — AI Summarize result panel. Empty shell is in HTML;
+         .ai-summary-status, .ai-summary-body, and (when wired) the
+         .ai-summary-close × button are created by mount(). */
+      .ai-summary-panel {
+        position: relative;
+        padding: 12px 16px;
+        padding-right: 36px; /* leave room for the × button */
+        border-top: 1px solid var(--border, #d0d0d0);
+        background: var(--surface-chrome, #f3f3f3);
+        max-height: 240px;
+        overflow: auto;
+      }
+      .ai-summary-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        width: 22px;
+        height: 22px;
+        line-height: 18px;
+        font-size: 18px;
+        text-align: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm, 4px);
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        padding: 0;
+      }
+      .ai-summary-close:hover {
+        background: var(--surface-muted, #eee);
+        color: var(--text, #222);
+        border-color: var(--border, #d0d0d0);
+      }
+      .ai-summary-panel.error {
+        background: #fff4f4;
+        border-top-color: #d99;
+      }
+      .ai-summary-status {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .ai-summary-panel.error .ai-summary-status {
+        color: #c33;
+      }
+      .ai-summary-body {
+        white-space: pre-wrap;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #222;
+      }
     </style>
   </head>
   <body>
@@ -1775,6 +1840,7 @@
                 >‹</button>
                 <button id="newNoteButton" class="action-button">New Note</button>
                 <button id="saveNoteButton" class="action-button">Save Note</button>
+                <button id="summarizeButton" class="action-button">Summarize</button>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
@@ -1830,6 +1896,10 @@
                   </div>
                   <div id="readViewMount" class="read-view-mount"></div>
                 </div>
+                <!-- Path D — AI Summarize result panel. Empty shell only:
+                     children (.ai-summary-status + .ai-summary-body) are
+                     created by AiSummaryPanel.mount() in lib/ai-boot.js. -->
+                <div id="aiSummaryPanel" class="ai-summary-panel" hidden></div>
               </div>
             </div>
           </div>
@@ -1888,6 +1958,12 @@
     <script src="./lib/session-viewer/favorites.js"></script>
     <script src="./lib/session-viewer/grouping.js"></script>
     <script src="./lib/session-viewer/grouped-list-renderer.js"></script>
+    <!-- Path D — AI Summarize. ai-result-panel exposes window.AiSummaryPanel;
+         ai-boot registers a DOMContentLoaded handler that mounts the panel
+         and wires the Summarize button. Loaded via <script src> so the
+         renderer-boot test harness (getBootScript) does NOT execute them. -->
+    <script src="./lib/ai-result-panel.js"></script>
+    <script src="./lib/ai-boot.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -2341,6 +2417,15 @@
       function getSelectedNote() {
         return notes.find((note) => note.id === selectedNoteId);
       }
+
+      // Path D — bridge for lib/ai-boot.js. The AI Summarize button lives
+      // in lib/ai-boot.js (loaded via <script src>) so the renderer-boot
+      // test harness does not execute it. The boot module reads the active
+      // note via this bridge instead of touching renderer internals.
+      window.markdownVault = {
+        getActiveNoteBody: () => bodyForRead(getSelectedNote()),
+        getActiveNoteId:   () => { const n = getSelectedNote(); return (n && n.id) || null; },
+      };
 
       function setStatus(mode, message) {
         if (mode === 'draft') {

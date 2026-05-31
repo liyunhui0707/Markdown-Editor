@@ -53,3 +53,10 @@ contextBridge.exposeInMainWorld('vaultApi', {
     return () => ipcRenderer.removeListener('request-save-all', listener);
   }
 });
+
+// Path D — local AI Summarize. Renderer calls window.ai.summarizeNote(text);
+// preload routes it to the 'ai:summarize-note' IPC channel. No raw
+// ipcRenderer is exposed (plan A7).
+contextBridge.exposeInMainWorld('ai', {
+  summarizeNote: (text) => ipcRenderer.invoke('ai:summarize-note', { text }),
+});

@@ -6,9 +6,11 @@ const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
 const SessionImportIpc = require('./lib/session-import-ipc');
+const AiIpc = require('./lib/ai-ipc');
 const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
 
 SessionImportIpc.register(ipcMain);
+AiIpc.register(ipcMain);
 
 let mainWindow = null;
 let currentVaultWatcher = null;

@@ -55,6 +55,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
 - **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
 - **AI Sessions are read-only (Stage S6)** — opening any session in the AI Sessions filter now renders the transcript directly (no Write / Preview / Read tabs). The tab bar above the editor is hidden for sessions; the right panel shows the rendered transcript only. Non-session notes (Drafts / Vault / AI Imports) keep their existing Write + Preview tabs. Rationale: AI Sessions are immutable transcripts of past conversations — the editing surfaces (CM6 / Toast UI) consume substantial memory on multi-MB transcripts (OOM risk) and were rarely the right tool for log content. If you want to annotate a session, create a separate companion note.
+- **Local AI Summarize** — one-click summarize of the active note via a configurable local OpenAI-compatible endpoint (LM Studio, Ollama, `llama-server`). The summary appears in a side panel below the editor and is stored **per note**: switching away does not lose it, and a × button dismisses it. The original note body, dirty state, and on-disk file are never modified. See [Local AI Summarize](#local-ai-summarize) below.
 - **AI Sessions favorites + grouped view (Stage S5)** — the AI Sessions filter now renders sessions as a grouped tree: **Favorites** (when any; rendered flat) → **Codex** → **Claude** → **Other**. The three agent groups are bucketed by the session's last-activity time (read from the importer's `source_mtime` frontmatter, falling back to file mtime): Today / Within 3 Days / Older Than 3 Days. Empty buckets are skipped. Click the ☆ on any session row to favorite it (★); favorites persist to `localStorage` and appear in a collapsible Favorites section at the top. Both group headers AND bucket headers collapse/expand on click; their state persists. Session row titles use the importer's `source_custom_title` / `source_ai_title` when present (falls back to the on-disk filename otherwise). Cross-session search results (Stage S4) show the ★ indicator for favorited sessions. Other filters (All / Drafts / Vault / AI Imports) keep their flat list — only AI Sessions gets the grouped view. AI Imports and AI Sessions are disjoint: imported sessions appear only under AI Sessions, not under AI Imports.
 
 ### Data-safety guarantees
@@ -218,6 +219,56 @@ npm run smoke
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
 
+## Local AI Summarize
+
+Summarize the currently-open note with a local AI model. The app sends the active note's Markdown body to a configurable OpenAI-compatible chat-completion endpoint, receives a plain-text summary, and shows it in a side panel below the editor. Nothing is uploaded to a remote service.
+
+- The original note's body, file on disk, and dirty state are **never** modified by this feature.
+- Each note has its own summary state. Switching to another note mid-flight does not show a stale summary; returning to a note that already has a stored summary restores it.
+- The × button on the panel dismisses the summary for the current note.
+- If the local server is unreachable, the panel shows a friendly inline error and the app stays interactive.
+
+### Setup
+
+1. Start a local OpenAI-compatible server. Examples:
+   - **LM Studio** → Server tab → Start. Default endpoint: `http://localhost:1234`. Load any text model.
+   - **Ollama** → `ollama serve` (the OpenAI-compatible path lives under `:11434/v1`). Pull a model first, e.g. `ollama pull llama3.1`.
+   - **llama.cpp `llama-server`** or any other OpenAI-compatible local server.
+2. Launch the editor: `cd apps/desktop && npm run dev`.
+3. Open a Markdown note and click **Summarize** in the toolbar.
+
+### Configuration
+
+All AI settings are read from environment variables when the app starts. There is no in-app settings UI in this stage.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MARKDOWN_AI_PROVIDER` | `openai-compatible` | Adapter selector. Only the OpenAI-compatible adapter ships today; the architecture allows additional adapters with a single new module. |
+| `MARKDOWN_AI_BASE_URL` | `http://localhost:1234/v1` | Must be `http://` or `https://`. A trailing slash is normalized away. |
+| `MARKDOWN_AI_MODEL` | `local-model` | LM Studio routes to the currently-loaded model regardless of name. Ollama requires the real model id (e.g. `llama3.1`). |
+| `MARKDOWN_AI_TEMPERATURE` | `0.2` | |
+| `MARKDOWN_AI_MAX_TOKENS` | `1024` | Bump higher for reasoning models (DeepSeek-R1, Gemma-thinking, etc.) whose `reasoning_content` eats the token budget before any visible content appears. |
+| `MARKDOWN_AI_TIMEOUT_MS` | `60000` | IPC-handler timeout. The handler resolves with reason `'timeout'` even if the model adapter hangs. |
+| `MARKDOWN_AI_MAX_INPUT_CHARS` | `48000` | Notes larger than this are rejected without a network call. |
+
+Example: point at Ollama with `llama3.1`:
+
+```bash
+cd apps/desktop
+MARKDOWN_AI_BASE_URL=http://localhost:11434/v1 \
+MARKDOWN_AI_MODEL=llama3.1 \
+  npm run dev
+```
+
+### Constraints (this stage)
+
+- No streaming — the panel shows the full reply after the call resolves.
+- No retrieval-augmented generation (RAG); only the active note's body is sent.
+- No auto-editing of the original note. The panel is read-only; copy/paste manually if you want to use the summary.
+- No persisted settings UI — env vars only.
+- No retries, no provider failover, no multi-provider concurrency.
+- Failure modes return one of a fixed set of typed reasons (`empty-input`, `input-too-large`, `server-unreachable`, `timeout`, `http-error`, `invalid-response`, `provider-error`, `unknown`) with canned, sanitized user-facing messages. Provider-supplied error text is **not** echoed to the UI.
+
 ## MCP Note Ingestion
 
 The `mcp-note-ingest` MCP server is installed as a Claude Code plugin via the `workflow-and-MCP-and-plugins` marketplace. Source for the plugin lives in this repo at `plugins/mcp-note-ingest/`.
@@ -318,6 +369,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
 - The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
+- **Local AI Summarize** is intentionally narrow this stage: no streaming, no RAG, no auto-edit of the original note, no in-app settings UI (env vars only), no retries, no provider failover. See the [Local AI Summarize](#local-ai-summarize) section for the full constraint list.
 
 ### Deferred items
 
