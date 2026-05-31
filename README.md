@@ -55,7 +55,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
 - **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
 - **AI Sessions are read-only (Stage S6)** — opening any session in the AI Sessions filter now renders the transcript directly (no Write / Preview / Read tabs). The tab bar above the editor is hidden for sessions; the right panel shows the rendered transcript only. Non-session notes (Drafts / Vault / AI Imports) keep their existing Write + Preview tabs. Rationale: AI Sessions are immutable transcripts of past conversations — the editing surfaces (CM6 / Toast UI) consume substantial memory on multi-MB transcripts (OOM risk) and were rarely the right tool for log content. If you want to annotate a session, create a separate companion note.
-- **Local AI Summarize** — one-click summarize of the active note via a configurable local OpenAI-compatible endpoint (LM Studio, Ollama, `llama-server`). The summary appears in a side panel below the editor and is stored **per note**: switching away does not lose it, and a × button dismisses it. The original note body, dirty state, and on-disk file are never modified. See [Local AI Summarize](#local-ai-summarize) below.
+- **Local AI: Summarize & Rewrite** — one-click **Summarize** the active note and one-click **Rewrite** a selection (or whole note) via a configurable local OpenAI-compatible endpoint (LM Studio, Ollama, `llama-server`). Results appear in a side panel below the editor, stored **per note**: switching away does not lose them, and a × button dismisses the current note's result. The original note body, dirty state, and on-disk file are never modified by either verb. See [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) below.
 - **AI Sessions favorites + grouped view (Stage S5)** — the AI Sessions filter now renders sessions as a grouped tree: **Favorites** (when any; rendered flat) → **Codex** → **Claude** → **Other**. The three agent groups are bucketed by the session's last-activity time (read from the importer's `source_mtime` frontmatter, falling back to file mtime): Today / Within 3 Days / Older Than 3 Days. Empty buckets are skipped. Click the ☆ on any session row to favorite it (★); favorites persist to `localStorage` and appear in a collapsible Favorites section at the top. Both group headers AND bucket headers collapse/expand on click; their state persists. Session row titles use the importer's `source_custom_title` / `source_ai_title` when present (falls back to the on-disk filename otherwise). Cross-session search results (Stage S4) show the ★ indicator for favorited sessions. Other filters (All / Drafts / Vault / AI Imports) keep their flat list — only AI Sessions gets the grouped view. AI Imports and AI Sessions are disjoint: imported sessions appear only under AI Sessions, not under AI Imports.
 
 ### Data-safety guarantees
@@ -219,14 +219,23 @@ npm run smoke
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
 
-## Local AI Summarize
+## Local AI: Summarize & Rewrite
 
-Summarize the currently-open note with a local AI model. The app sends the active note's Markdown body to a configurable OpenAI-compatible chat-completion endpoint, receives a plain-text summary, and shows it in a side panel below the editor. Nothing is uploaded to a remote service.
+Two one-click AI actions against a local OpenAI-compatible model — **Summarize** the active note, or **Rewrite** a selected passage (or the whole note) for clarity and concision. The app sends the active note's Markdown body (or your selection, for Rewrite) to the configured endpoint, receives plain text back, and shows it in the same side panel below the editor. Nothing is uploaded to a remote service.
 
-- The original note's body, file on disk, and dirty state are **never** modified by this feature.
-- Each note has its own summary state. Switching to another note mid-flight does not show a stale summary; returning to a note that already has a stored summary restores it.
-- The × button on the panel dismisses the summary for the current note.
+- The original note's body, file on disk, and dirty state are **never** modified by either verb. Copy/paste the result manually if you want to use it.
+- Each note has its own result state, shared between Summarize and Rewrite (most recent action wins). Switching to another note mid-flight does not show a stale result; returning to a note that already has a stored result restores it.
+- The × button on the panel dismisses the current note's result.
 - If the local server is unreachable, the panel shows a friendly inline error and the app stays interactive.
+
+### Rewrite — selection vs. whole note
+
+When you click **Rewrite**:
+
+- If you have a non-empty selection in the editor (Write mode, CM6 engine), Rewrite operates on **just that selection**.
+- Otherwise (no selection, or you're in Preview/Read mode, or the active note is an AI Session / read-only note), Rewrite falls back to the **whole note body**.
+
+This protects against rewriting text you cannot see: a stale CM6 selection from a previous note never leaks into the request.
 
 ### Setup
 
@@ -235,11 +244,11 @@ Summarize the currently-open note with a local AI model. The app sends the activ
    - **Ollama** → `ollama serve` (the OpenAI-compatible path lives under `:11434/v1`). Pull a model first, e.g. `ollama pull llama3.1`.
    - **llama.cpp `llama-server`** or any other OpenAI-compatible local server.
 2. Launch the editor: `cd apps/desktop && npm run dev`.
-3. Open a Markdown note and click **Summarize** in the toolbar.
+3. Open a Markdown note and click **Summarize** or **Rewrite** in the toolbar.
 
 ### Configuration
 
-All AI settings are read from environment variables when the app starts. There is no in-app settings UI in this stage.
+All AI settings are read from environment variables when the app starts and apply to **both** Summarize and Rewrite. There is no in-app settings UI in this stage.
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -262,9 +271,12 @@ MARKDOWN_AI_MODEL=llama3.1 \
 
 ### Constraints (this stage)
 
-- No streaming — the panel shows the full reply after the call resolves.
-- No retrieval-augmented generation (RAG); only the active note's body is sent.
-- No auto-editing of the original note. The panel is read-only; copy/paste manually if you want to use the summary.
+- **No streaming for either verb** — the panel shows "Summarizing…" / "Rewriting…" for the full duration, then the full reply at once.
+- No retrieval-augmented generation (RAG); only the active note's body (or the selected passage for Rewrite) is sent.
+- No auto-editing of the original note for either verb. The panel is read-only; copy/paste manually if you want to use the result.
+- The × button hides the panel and clears the note's stored result, but does **not** abort an in-flight request — the local model keeps generating until done.
+- Most-recent-action wins on the same note: running Summarize after Rewrite (or vice versa) overwrites the previous result. There is no separate history per verb in this stage.
+- Selection-aware Summarize is not implemented; Summarize always sends the whole note.
 - No persisted settings UI — env vars only.
 - No retries, no provider failover, no multi-provider concurrency.
 - Failure modes return one of a fixed set of typed reasons (`empty-input`, `input-too-large`, `server-unreachable`, `timeout`, `http-error`, `invalid-response`, `provider-error`, `unknown`) with canned, sanitized user-facing messages. Provider-supplied error text is **not** echoed to the UI.
@@ -369,7 +381,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
 - The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
-- **Local AI Summarize** is intentionally narrow this stage: no streaming, no RAG, no auto-edit of the original note, no in-app settings UI (env vars only), no retries, no provider failover. See the [Local AI Summarize](#local-ai-summarize) section for the full constraint list.
+- **Local AI: Summarize & Rewrite** is intentionally narrow this stage: no streaming for either verb, no RAG, no auto-edit of the original note, no in-app settings UI (env vars only), no retries, no provider failover, × does not abort an in-flight request, no per-verb history per note. See the [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) section for the full constraint list.
 
 ### Deferred items
 

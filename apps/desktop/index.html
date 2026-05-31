@@ -1841,6 +1841,7 @@
                 <button id="newNoteButton" class="action-button">New Note</button>
                 <button id="saveNoteButton" class="action-button">Save Note</button>
                 <button id="summarizeButton" class="action-button">Summarize</button>
+                <button id="rewriteButton" class="action-button">Rewrite</button>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
@@ -2262,6 +2263,13 @@
       let isSidebarHidden         = false;  // open by default
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
+      // Stage A diff loop 2: dedicated CM6-hydration tracker. Distinct from
+      // liveEditorLastNoteId (which is updated UNCONDITIONALLY on every
+      // note switch, including sessions where CM6 is NOT re-hydrated).
+      // cm6HydratedNoteId is set only when CM6 actually receives the new
+      // note's content; the AI bridge's getActiveSelection() uses it to
+      // detect stale CM6 selections after a switch to a read-only/session note.
+      let cm6HydratedNoteId       = '';
       let hasLoadedVaultNotes     = false;
 
       // Stage 13: editor text-size adjust. Renderer-local, CSS-only:
@@ -2425,6 +2433,38 @@
       window.markdownVault = {
         getActiveNoteBody: () => bodyForRead(getSelectedNote()),
         getActiveNoteId:   () => { const n = getSelectedNote(); return (n && n.id) || null; },
+        // Stage A: returns the active CM6 selection text (when the engine
+        // exposes .view AND the user has a non-empty, non-whitespace selection),
+        // or null. Legacy hybrid engine doesn't expose .view → always null →
+        // the Rewrite handler falls back to whole-note text.
+        //
+        // [Codex diff S1 loop-2 fix] Stale-CM6 guard: CM6 is hydrated only
+        // when renderEditor takes the non-session branch (i.e., for vault /
+        // draft notes). Session and read-only notes leave CM6 hidden and
+        // its selection still belongs to the previous CM6-hydrated note.
+        // cm6HydratedNoteId tracks WHICH note CM6 is currently hydrated for
+        // (set ONLY after liveEditorInstance.setText/setState — never on
+        // the session branch). Compare it to the active note id; if they
+        // differ, the selection is stale and must NOT be returned.
+        // (liveEditorLastNoteId is the wrong tracker — it's updated for
+        // session notes too, before the session branch.)
+        //
+        // [Codex diff S2 loop-3 fix] Visible-mode guard: even when CM6 is
+        // hydrated for the active note, the user can toggle to Preview/Read
+        // mode, in which case CM6 stays mounted but HIDDEN. The selection
+        // is no longer visible to the user, so we must NOT silently honor
+        // it — fall back to whole-note text. Only currentMode === 'write'
+        // makes the CM6 selection visible and therefore valid.
+        getActiveSelection: () => {
+          if (!selectedNoteId || selectedNoteId !== cm6HydratedNoteId) return null;
+          if (currentMode !== 'write') return null;
+          const inst = liveEditorInstance;
+          if (!inst || !inst.view) return null;
+          const sel = inst.view.state.selection.main;
+          if (sel.from === sel.to) return null;
+          const text = inst.view.state.sliceDoc(sel.from, sel.to);
+          return text.trim() === '' ? null : text;
+        },
       };
 
       function setStatus(mode, message) {
@@ -2631,6 +2671,13 @@
             if (!restored) {
               liveEditorInstance.setText(note.body);
             }
+            // Stage A diff loop 2: CM6 just received note.body (either via
+            // setState-from-cache or fresh setText). Update the dedicated
+            // CM6-hydration tracker so the AI bridge's getActiveSelection()
+            // knows the view is live for THIS note. The session branch above
+            // does NOT touch this tracker — CM6 stays whatever it was before
+            // the switch, and getActiveSelection() correctly returns null.
+            cm6HydratedNoteId = note.id;
 
             // Restore the INCOMING note's saved mode + scroll ratio.
             // Defaults to { mode: 'write', scrollRatio: 0 } for
@@ -3028,6 +3075,7 @@
           autoResizeTitleInput();
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
+          cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
           updateStatusReadouts('');
           // Stage 6.2: visually + functionally disable editing in the
           // no-selection state. The title input is disabled outright; the
@@ -3262,6 +3310,7 @@
             // for this note so Write/Preview re-hydrate with the
             // new body on demand.
             liveEditorLastNoteId = '';
+            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
             hydrationCache.drop(selectedNote.id);
           }
 
@@ -3765,6 +3814,11 @@
                 noteViewStates.delete(oldId);
               }
               liveEditorLastNoteId = newId;
+              // Stage A diff loop 4 / S3: migrate the CM6-hydration tracker
+              // alongside the editor-last-note tracker. Without this, a
+              // post-save visible CM6 selection would be silently dropped by
+              // getActiveSelection() because of the (now-stale) id mismatch.
+              if (cm6HydratedNoteId === oldId) cm6HydratedNoteId = newId;
             }
           }
 
@@ -4216,6 +4270,9 @@
                 if (selectedNoteId === note.id) {
                   selectedNoteId = newId;
                   liveEditorLastNoteId = newId;
+                  // Stage A diff loop 4 / S3: keep cm6HydratedNoteId paired
+                  // so post-save-all visible selections are still honored.
+                  if (cm6HydratedNoteId === note.id) cm6HydratedNoteId = newId;
                 }
                 note.id = newId;
               }
@@ -4372,6 +4429,11 @@
         // note-local across A → B → A switches: returning to a cached note
         // restores its history-bearing state instead of rebuilding via setText.
         liveEditorInstance = {
+          // Stage A R1: expose the underlying CM6 view so the bridge's
+          // getActiveSelection() can read the active selection. The wrapper
+          // intentionally doesn't proxy view methods — callers must use the
+          // documented getText/setText API. view is read-only escape hatch.
+          view: cm6Write.view,
           getText() { return cm6Write.getText(); },
           setText(text) {
             const raw = text || '';
@@ -4396,6 +4458,9 @@
         });
 
         liveEditorInstance = {
+          // Stage A R1: same as cm6 wrapper above — view is the read-only
+          // escape hatch the AI bridge uses to read selection.
+          view: cm6HybridWrite.view,
           getText() { return cm6HybridWrite.getText(); },
           setText(text) {
             const raw = text || '';
@@ -4829,6 +4894,7 @@
               scrollRatio: 1,
             });
             liveEditorLastNoteId = '';
+            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
             hydrationCache.drop(selectedNote.id);
           }
           // Mirror loadVaultNotes's status side-effect, then call

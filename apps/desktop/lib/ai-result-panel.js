@@ -69,11 +69,15 @@
     if (_root && _root.classList) _root.classList.remove('error');
   }
 
-  function showLoading() {
+  function showLoading(label) {
     if (!_root) return;
     show();
     clearError();
-    if (_status) _status.textContent = 'Summarizing…';
+    // Stage A: optional label so callers (Summarize / Rewrite / future verbs)
+    // can show the correct verb. Defaults to 'Summarizing…' to preserve v0.2.0
+    // behavior for any caller that omits the argument.
+    const text = typeof label === 'string' && label.length > 0 ? label : 'Summarizing…';
+    if (_status) _status.textContent = text;
     if (_body) _body.textContent = '';
   }
 

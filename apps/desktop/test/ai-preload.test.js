@@ -27,20 +27,21 @@ test('T8.2 summarizeNote routes to ipcRenderer.invoke("ai:summarize-note", { tex
   );
 });
 
-test('T8.3 only summarizeNote is exposed on the ai surface (no extra keys)', () => {
+test('T8.3 [Stage A Option α-2] exactly the documented keys are exposed on window.ai', () => {
+  // Stage A added rewriteText next to summarizeNote. Key count is now 2.
+  // Any additional key beyond these two would indicate scope creep on the
+  // A7 surface and must be intentional.
   const src = SRC();
-  // Capture the ai block: matches `exposeInMainWorld('ai', { … })`.
   const re = /exposeInMainWorld\(\s*['"]ai['"]\s*,\s*(\{[\s\S]*?\})\s*\)\s*;/m;
   const m = src.match(re);
   assert.ok(m, 'ai block must be present');
-  // Strip single- and double-quoted strings so identifier:value patterns
-  // inside string literals (e.g. 'ai:summarize-note') don't false-positive.
   const stripped = m[1]
     .replace(/'(?:\\.|[^'\\])*'/g, "''")
     .replace(/"(?:\\.|[^"\\])*"/g, '""');
-  const keys = stripped.match(/\b[A-Za-z_][A-Za-z_0-9]*\s*:/g) || [];
-  assert.equal(keys.length, 1, 'expected exactly one key on window.ai, got ' + keys.length);
-  assert.ok(/summarizeNote\s*:/.test(keys[0]));
+  const keys = (stripped.match(/\b[A-Za-z_][A-Za-z_0-9]*\s*:/g) || [])
+    .map((k) => k.match(/[A-Za-z_][A-Za-z_0-9]*/)[0])
+    .sort();
+  assert.deepEqual(keys, ['rewriteText', 'summarizeNote']);
 });
 
 test('T8.4 preload does NOT expose raw ipcRenderer or "electron" surface', () => {

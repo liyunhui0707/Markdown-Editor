@@ -39,10 +39,13 @@
   document.addEventListener('DOMContentLoaded', function () {
     const button = document.getElementById('summarizeButton');
     const panel = document.getElementById('aiSummaryPanel');
+    // Stage A: Rewrite button declared ONCE alongside the Summarize button +
+    // panel lookups, then included in the same defensive early-return guard.
+    const rewriteButton = document.getElementById('rewriteButton');
 
     // Defensive: if any required global is missing, do nothing rather than throw.
-    // The Summarize button stays unwired; the rest of the renderer is unaffected.
-    if (!button || !panel || !window.ai || !window.AiSummaryPanel || !window.markdownVault) {
+    // Both buttons stay unwired; the rest of the renderer is unaffected.
+    if (!button || !panel || !rewriteButton || !window.ai || !window.AiSummaryPanel || !window.markdownVault) {
       return;
     }
 
@@ -68,7 +71,9 @@
       const entry = noteState.get(id);
       if (!entry) { window.AiSummaryPanel.clear(); return; }
       if (entry.kind === 'loading') {
-        window.AiSummaryPanel.showLoading();
+        // Stage A: pass entry.label so Rewrite shows 'Rewriting…'.
+        // Summarize loading entries omit label → showLoading defaults to v0.2.0 'Summarizing…'.
+        window.AiSummaryPanel.showLoading(entry.label);
       } else if (entry.kind === 'summary') {
         window.AiSummaryPanel.showSummary(entry.text);
       } else if (entry.kind === 'error') {
@@ -105,6 +110,7 @@
         return;
       }
       button.disabled = true;
+      rewriteButton.disabled = true;   // Stage A: cooldown extends to both buttons.
       noteState.set(startedId, { kind: 'loading' });
       renderActive();
       try {
@@ -122,9 +128,44 @@
         noteState.set(startedId, { kind: 'error', text: 'Summarize failed.' });
       } finally {
         button.disabled = false;
+        rewriteButton.disabled = false;  // Stage A: re-enable both.
         // Refresh the panel — if the user is still on startedId, the new
         // summary/error appears; if they switched away, the panel reflects
         // whatever note they're now on (which may have its own state).
+        renderActive();
+      }
+    });
+
+    // Stage A — Rewrite click handler. Mirrors Path D LOOP-2 per-note Map
+    // pattern (always store under startedId; renderActive() reads active
+    // note's state). NO stale-discard branch.
+    rewriteButton.addEventListener('click', async function () {
+      const text = window.markdownVault.getActiveSelection() ?? window.markdownVault.getActiveNoteBody();
+      const startedId = window.markdownVault.getActiveNoteId();
+      if (!text || !startedId) {
+        window.AiSummaryPanel.showError('Open a note with content before rewriting.');
+        return;
+      }
+      button.disabled = true;
+      rewriteButton.disabled = true;
+      // Stage A: label distinguishes the verb for the panel's status text.
+      noteState.set(startedId, { kind: 'loading', label: 'Rewriting…' });
+      renderActive();
+      try {
+        const result = await window.ai.rewriteText(text);
+        if (result && result.ok) {
+          noteState.set(startedId, { kind: 'summary', text: result.summary });
+        } else {
+          noteState.set(startedId, {
+            kind: 'error',
+            text: (result && result.message) || 'Rewrite failed.',
+          });
+        }
+      } catch (_err) {
+        noteState.set(startedId, { kind: 'error', text: 'Rewrite failed.' });
+      } finally {
+        button.disabled = false;
+        rewriteButton.disabled = false;
         renderActive();
       }
     });

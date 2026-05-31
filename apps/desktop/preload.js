@@ -59,4 +59,5 @@ contextBridge.exposeInMainWorld('vaultApi', {
 // ipcRenderer is exposed (plan A7).
 contextBridge.exposeInMainWorld('ai', {
   summarizeNote: (text) => ipcRenderer.invoke('ai:summarize-note', { text }),
+  rewriteText:   (text) => ipcRenderer.invoke('ai:rewrite-text',   { text }),
 });
