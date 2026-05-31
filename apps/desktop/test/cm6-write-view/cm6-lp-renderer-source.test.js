@@ -235,3 +235,40 @@ test('Stage F WAVE 6-T-RWM-6: KaTeX CSS + JS + math modules each appear exactly 
   assert.equal(detect.length, 1, 'math detect script must appear exactly once');
   assert.equal(widget.length, 1, 'math widget script must appear exactly once');
 });
+
+// ── Stage G.1 WAVE 3 — highlight.js bundle + code-block widget ──────────
+
+test('Stage G.1 WAVE 3-T-RWC-1: index.html loads ./lib/vendor/highlight/hljs.css', () => {
+  assert.match(html, /<link\s+rel=["']stylesheet["']\s+href=["']\.\/lib\/vendor\/highlight\/hljs\.css["']/,
+    'index.html must include the highlight.js CSS theme link');
+});
+
+test('Stage G.1 WAVE 3-T-RWC-2: index.html loads ./lib/vendor/highlight/highlight.min.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/vendor\/highlight\/highlight\.min\.js["']/,
+    'index.html must include the highlight.js bundle script');
+});
+
+test('Stage G.1 WAVE 3-T-RWC-3: highlight.js JS loads BEFORE cm6-lp-code-widget.js (window.hljs dep)', () => {
+  const hljs   = tagOffset('./lib/vendor/highlight/highlight.min.js');
+  const widget = tagOffset('./lib/cm6-lp-code-widget.js');
+  assert.ok(hljs   >= 0, 'highlight.js tag present');
+  assert.ok(widget >= 0, 'code-widget tag present');
+  assert.ok(hljs < widget,
+    'highlight.js must load BEFORE cm6-lp-code-widget.js (widget reads window.hljs)');
+});
+
+test('Stage G.1 WAVE 3-T-RWC-4: cm6-lp-code-widget.js loads BEFORE cm6-lp-block.js', () => {
+  const widget = tagOffset('./lib/cm6-lp-code-widget.js');
+  const block  = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(widget < block,
+    'code-widget must load BEFORE cm6-lp-block.js (block plugin reads window.Cm6LpCodeWidget)');
+});
+
+test('Stage G.1 WAVE 3-T-RWC-5: hljs CSS + JS + widget each appear exactly once', () => {
+  const css    = html.match(/<link\s+rel=["']stylesheet["']\s+href=["']\.\/lib\/vendor\/highlight\/hljs\.css["']/g) || [];
+  const js     = html.match(/<script\s+src=["']\.\/lib\/vendor\/highlight\/highlight\.min\.js["']/g) || [];
+  const widget = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-code-widget\.js["']/g) || [];
+  assert.equal(css.length, 1,    'hljs CSS link must appear exactly once');
+  assert.equal(js.length, 1,     'hljs JS script must appear exactly once');
+  assert.equal(widget.length, 1, 'code-widget script must appear exactly once');
+});

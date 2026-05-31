@@ -143,13 +143,18 @@ test('Stage F WAVE 3-T-MR-9: display math uses block:true spec', () => {
   assert.equal(c.value.spec.block, true, 'display math replace must be block:true');
 });
 
-test('Stage F WAVE 3-T-MR-10: display math inside fenced code is NOT replaced', () => {
+test('Stage F WAVE 3-T-MR-10: display math inside fenced code is NOT replaced as math', () => {
+  // Stage G.1 added a FencedCode widget that DOES replace the entire
+  // ```...``` block. But the math inside must NOT trigger a SEPARATE
+  // math widget. We assert: no $-starting range appears in the
+  // replaced set (the FencedCode replace starts with `).
   const doc = 'top\n\n```\n$$\nx\n$$\n```\n\nend\n';
   const state = makeState(doc, 0);
   const out = lpBlock.buildLpBlockDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
-  assert.equal(replaced.length, 0,
-    'display math inside fenced code must NOT produce a math replace');
+  const mathR = replaced.find(r => doc.charAt(r.from) === '$');
+  assert.equal(mathR, undefined,
+    'display math inside fenced code must NOT produce a $-starting math replace');
 });
 
 test('Stage F WAVE 3-T-MR-11: round-trip — doc unchanged after build', () => {

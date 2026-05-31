@@ -373,3 +373,49 @@ test('Stage F WAVE 7-T-DF-7: docs/test-manual.md Stage F section preserves Stage
   assert.match(testManual, /MQ-F15[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D \+ E/,
     'docs/test-manual.md Stage F section must include a Stage A + B + C + D + E regression gate (MQ-F15)');
 });
+
+// ── Stage G.1 WAVE 4 — docs reflect Stage G.1 coverage ──────────────────
+
+test('Stage G.1 WAVE 4-T-DG-1: CLAUDE.md mentions Stage G.1 + highlight.js / fenced-code', () => {
+  assert.match(claudeMd, /Stage G\.1/, 'CLAUDE.md must mention "Stage G.1"');
+  assert.match(claudeMd, /highlight\.js|hljs/i, 'CLAUDE.md must reference highlight.js');
+  assert.match(claudeMd, /FencedCode|fenced[- ]?code/i, 'CLAUDE.md must reference fenced code');
+});
+
+test('Stage G.1 WAVE 4-T-DG-2: README.md hybrid-cm6-lp row mentions Stage G.1 coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,5500}Stage G\.1/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage G.1');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,6000}(highlight\.js|hljs|syntax)/i,
+    'README.md hybrid-cm6-lp row must mention highlight.js or syntax highlighting');
+});
+
+test('Stage G.1 WAVE 4-T-DG-3: README.md "Live styling" section mentions Stage G.1 coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*C\s*\+\s*D\s*\+\s*E\s*\+\s*F\s*\+\s*)?G\.1/,
+    'README.md "Live styling" subsection must mention Stage G.1');
+});
+
+test('Stage G.1 WAVE 4-T-DG-4: docs/stage-history.md has a Stage G.1 row referencing highlight.js + hybrid-cm6-lp', () => {
+  assert.match(stageHistory, /\|\s*G\.1\s*\|/,
+    'docs/stage-history.md must have a "| G.1 |" table row');
+  assert.match(stageHistory, /\|\s*G\.1\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage G.1 row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*G\.1\s*\|[\s\S]{0,3000}(highlight\.js|hljs)/,
+    'Stage G.1 row must reference highlight.js');
+});
+
+test('Stage G.1 WAVE 4-T-DG-5: docs/test-manual.md has a Stage G.1 section', () => {
+  assert.match(testManual, /##\s+Stage G\.1/,
+    'docs/test-manual.md must have a "## Stage G.1" section header');
+});
+
+test('Stage G.1 WAVE 4-T-DG-6: docs/test-manual.md Stage G.1 section includes load-bearing gates for highlighting + click-into + CSS + XSS', () => {
+  assert.match(testManual, /MQ-G2/, 'JS highlighting gate');
+  assert.match(testManual, /MQ-G3/, 'click-into walker source gate');
+  assert.match(testManual, /MQ-G4/, 'CSS pollution gate');
+  assert.match(testManual, /MQ-G6/, 'XSS-safety gate');
+});
+
+test('Stage G.1 WAVE 4-T-DG-7: docs/test-manual.md Stage G.1 section preserves Stage A + B + C + D + E + F regression check', () => {
+  assert.match(testManual, /MQ-G13[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D \+ E \+ F/,
+    'docs/test-manual.md Stage G.1 section must include a Stage A-F regression gate (MQ-G13)');
+});

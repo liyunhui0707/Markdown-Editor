@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
     <!-- Stage F — KaTeX CSS for math rendering in hybrid-cm6-lp. Fonts at fonts/ alongside. -->
     <link rel="stylesheet" href="./lib/vendor/katex/katex.min.css" />
+    <!-- Stage G.1 — highlight.js CSS theme for fenced-code rendering in hybrid-cm6-lp. -->
+    <link rel="stylesheet" href="./lib/vendor/highlight/hljs.css" />
     <style>
       /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ──
          Stage 6.13: theme shifted from warm-paper to neutral / off-white.
@@ -1880,6 +1882,11 @@
     <script src="./lib/cm6-lp-math-widget.js"></script>
     <script src="./lib/cm6-lp-inline.js"></script>
     <script src="./lib/cm6-lp-table-widget.js"></script>
+    <!-- Stage G.1 — highlight.js bundle + code-block widget module. Order:
+         hljs JS first (so window.hljs is available); widget module next;
+         lp-block consumes the widget. -->
+    <script src="./lib/vendor/highlight/highlight.min.js"></script>
+    <script src="./lib/cm6-lp-code-widget.js"></script>
     <script src="./lib/cm6-lp-block.js"></script>
     <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>

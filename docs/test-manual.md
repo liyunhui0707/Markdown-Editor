@@ -980,6 +980,120 @@ Invalid TeX: $\frac{$
 - Trust mode is `false` (KaTeX rejects `\href{javascript:...}{...}` etc.).
 - KaTeX bundle adds ~3 MB to the app (vendored at install time via `build:katex` script).
 
+## Stage G.1 — `hybrid-cm6-lp` fenced-code syntax highlighting via highlight.js
+
+Seventh stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. Second lp stage with a new npm dep (`highlight.js@^11`).
+
+**Behavioral additions over Stage F**: fenced code blocks ` ```lang\n...\n``` ` (and tilde-fenced `~~~lang\n...\n~~~`) off-active render as `<pre><code class="hljs language-{lang}">` with syntax-highlighted tokens via highlight.js. Caret on ANY line of the FencedCode block swaps the widget back to walker source. Unknown / missing language → plain `<code>` text fallback (no error). Mermaid (` ```mermaid `) NOT covered — deferred to Stage G.2.
+
+**Starting state**: `cd apps/desktop && npm install` + `npm run build:hljs` (vendor hljs bundle) + `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+````markdown
+JS:
+
+```js
+const x = 1;
+function add(a, b) { return a + b; }
+```
+
+Python:
+
+```python
+def hello(name):
+    return f"Hello, {name}!"
+```
+
+No language:
+
+```
+plain text
+no highlighting
+```
+
+Unknown language:
+
+```xyzlang123
+this should render as plain text
+```
+
+XSS test:
+
+```html
+<script>alert(1)</script>
+```
+
+Tilde-fenced:
+
+~~~js
+const tilde = true;
+~~~
+````
+
+**MQ-G1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-G2 — JS code block renders highlighted off-active (load-bearing)**
+- [ ] Click on a non-code line. The JS block renders with `const` / `function` keywords colored, strings colored, etc. per atom-one-light theme.
+- [ ] DevTools Elements panel: confirm `<pre class="cm-md-lp-code-block"><code class="hljs language-js">` and child `<span class="hljs-keyword">const</span>` (and similar tokens).
+- [ ] No raw `` ``` `` characters visible in the rendered DOM for the block.
+
+**MQ-G3 — click into code block → walker source returns (load-bearing)**
+- [ ] Click on the opening fence line, or on a code line, or on the closing fence line.
+- [ ] Confirm: the widget disappears; the raw Markdown source returns with the walker's existing styled fence delimiters + info string (Stage 28+).
+- [ ] Cursor moves between characters in source mode; edits propagate; click out → widget reflects edits.
+
+**MQ-G4 — hljs CSS doesn't pollute non-code regions (load-bearing)**
+- [ ] Compare a Markdown note WITHOUT any code blocks against the same note rendered in `hybrid-cm6` (default). Visually, paragraphs/headings/lists/quotes/inline-code should look identical.
+- [ ] DevTools: confirm `.hljs` and `.hljs-*` classes only appear inside `<code>` elements.
+
+**MQ-G5 — unknown language → plain text, no error**
+- [ ] The `xyzlang123` block above renders as plain monospace text inside the widget. No JavaScript error in DevTools console.
+
+**MQ-G6 — XSS-safe with `<script>` in code body (load-bearing)**
+- [ ] The HTML block containing `<script>alert(1)</script>`. Click off the line.
+- [ ] Confirm: NO alert fires. The text `<script>alert(1)</script>` displays as code (escaped + likely with HTML token coloring).
+- [ ] DevTools: the `<code>` element contains hljs token spans + text nodes; NO child `<script>` element.
+
+**MQ-G7 — empty code block doesn't crash**
+- [ ] Add ` ```js\n``` `. Click off. The widget renders an empty `<code>` element. No error.
+
+**MQ-G8 — tilde-fenced ~~~ works the same as backtick-fenced**
+- [ ] The tilde-fenced JS block above renders with the same highlighting as backtick-fenced.
+
+**MQ-G9 — frontmatter region — no code-block widget inside YAML**
+- [ ] A note with `---\nyaml: value\n---\n\n```js\n...\n```\n`. Frontmatter renders as plain text per Stage 14.9; the post-frontmatter code block still renders with highlighting.
+
+**MQ-G10 — multiple code blocks independent**
+- [ ] Click in one code block → walker source for THAT block; other blocks remain as widgets.
+
+**MQ-G11 — round-trip / `getText()` byte-identical**
+- [ ] After clicking in and out, edit cells, save (Cmd-S), close + reopen. Source on disk matches.
+
+**MQ-G12 — IME composition adjacent to code block**
+- [ ] Place caret on a paragraph line adjacent to a code block. Start IME composition. Composition completes normally; the code-block widget doesn't disrupt.
+
+**MQ-G13 — Stages A + B + C + D + E + F preserved (regression)**
+- [ ] Emphasis, inline code, strikethrough, links, images, block markers, tables, math all continue to work as in prior stages.
+
+**MQ-G14 — default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Code blocks render as plain monospace text (NO syntax highlighting). Stage 28 walker styling for fences + info string intact.
+
+**MQ-G15 — automated regression sweep after Stage G.1**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-G.1 baseline ~1914/1912/0/2; post-Stage-G.1 roughly 1948/1946/0/2 (+34 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (785/783/0/2 after Stage G.1).
+
+**Known limitations (intentional, deferred)**
+- Only fenced code (``` and `~~~`). Indented (4-space) code blocks NOT handled — Lezer emits `CodeBlock` rather than `FencedCode`; Stage G.1 scope is fenced only.
+- Only languages in the common bundle (~30 popular: JS, TS, Python, Rust, Go, Java, C, C++, Bash, JSON, YAML, HTML, CSS, SQL, and more). Unknown languages fall back to plain text.
+- No auto-detection of language when info string is missing. Plain text fallback.
+- No line numbers, no copy button, no diff view.
+- Mermaid blocks (` ```mermaid `) render as plain `mermaid` code (no diagram). Stage G.2 will add Mermaid.
+- One default theme (atom-one-light). No theme switching.
+- `trust:false` behavior matches hljs defaults.
+- hljs bundle adds ~157 KB to the app (vendored via `build:hljs` script).
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

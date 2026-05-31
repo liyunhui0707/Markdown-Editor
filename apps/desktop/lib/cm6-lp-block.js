@@ -80,6 +80,11 @@
       if (!globalThis.Cm6LpMathDetect) globalThis.Cm6LpMathDetect = lpMathDetect;
       if (!globalThis.Cm6LpMathWidget) globalThis.Cm6LpMathWidget = lpMathWidget;
     }
+    // Stage G.1 — bridge code widget module for the FencedCode branch.
+    const lpCodeWidget = require('./cm6-lp-code-widget.js');
+    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpCodeWidget) {
+      globalThis.Cm6LpCodeWidget = lpCodeWidget;
+    }
     module.exports = factory();
   } else {
     root.Cm6LpBlock = factory();
@@ -190,9 +195,48 @@
       ? tableMod.getTableWidgetClass()
       : null;
 
+    // Stage G.1 — fenced-code widget. Reads CodeInfo (language) and
+    // CodeText (body) from the Lezer FencedCode node and emits ONE
+    // block-level Decoration.replace covering [node.from, node.to].
+    // Whole-block active resolution mirrors Stage E tables.
+    const codeWidgetMod = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpCodeWidget : null;
+    const CodeBlockWidgetClass = (codeWidgetMod && typeof codeWidgetMod.getCodeBlockWidgetClass === 'function')
+      ? codeWidgetMod.getCodeBlockWidgetClass()
+      : null;
+
     const replacedRanges = [];
     tree.iterate({
       enter(node) {
+        // Stage G.1 — fenced code block: extract lang + code, emit
+        // ONE block widget covering the entire FencedCode range when
+        // off-active. On-active OR widget unavailable: descend (or
+        // not — the walker still emits cm-md-fenced-code-mark / -info
+        // on the inner nodes which Stage 28 hides off-construct-active).
+        if (node.name === 'FencedCode' && CodeBlockWidgetClass) {
+          if (node.from < fmEnd) return;
+          const fromLine = state.doc.lineAt(node.from).number;
+          const lastCharPos = Math.max(node.from, Math.min(node.to - 1, state.doc.length - 1));
+          const toLine = state.doc.lineAt(Math.max(lastCharPos, 0)).number;
+          if (!isWholeRangeOffActive(fromLine, toLine)) {
+            return;
+          }
+          // Walk FencedCode children to extract lang + code.
+          let lang = '';
+          let code = '';
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'CodeInfo' && !lang) {
+              lang = state.doc.sliceString(child.from, child.to).trim();
+            } else if (child.name === 'CodeText' && !code) {
+              code = state.doc.sliceString(child.from, child.to);
+            }
+          }
+          const codeWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: codeWidget, inclusive: false, block: true })
+              .range(node.from, node.to)
+          );
+          return false;  // do not descend into FencedCode children
+        }
         // Stage E — GFM table widget. Emits ONE Decoration.replace
         // covering the full Table range when no line in the table is
         // touched. Returns false to skip descent into the table's
