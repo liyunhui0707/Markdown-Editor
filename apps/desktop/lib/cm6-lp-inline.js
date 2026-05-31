@@ -41,6 +41,15 @@
     // pre-loads it; the browser path loads it via a <script> tag before
     // cm6-lp-inline.js (per cm6-lp-renderer-source.test.js).
     require('./cm6-lp-image-widget.js');
+    // Stage F — math detect + widget modules. CJS path bridges them onto
+    // globalThis for the inline-math branch's lookup; browser path loads
+    // them via <script> tags before cm6-lp-inline.js.
+    const lpMathDetect = require('./cm6-lp-math-detect.js');
+    const lpMathWidget = require('./cm6-lp-math-widget.js');
+    if (typeof globalThis !== 'undefined') {
+      if (!globalThis.Cm6LpMathDetect) globalThis.Cm6LpMathDetect = lpMathDetect;
+      if (!globalThis.Cm6LpMathWidget) globalThis.Cm6LpMathWidget = lpMathWidget;
+    }
     module.exports = factory();
   } else {
     root.Cm6LpInline = factory();
@@ -322,12 +331,57 @@
       },
     });
 
+    // Stage F — inline math `$x$`. `$` is not a CommonMark/GFM syntax
+    // char; Lezer doesn't emit Math nodes. Scan the document via
+    // parseMath, then for each 'inline' range:
+    //   - Skip if inside frontmatter.
+    //   - Skip if the Lezer ancestor at `from` is InlineCode or FencedCode
+    //     (math markup is plain text inside code spans / fenced blocks).
+    //   - Skip if the line is touched (on-active → walker source).
+    //   - Else: emit ONE Decoration.replace with an InlineMathWidget.
+    // Display math `$$...$$` is handled by cm6-lp-block.js (multi-line).
+    const mathDetect = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathDetect : null;
+    const mathWidget = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathWidget : null;
+    const InlineMathCls = (mathWidget && typeof mathWidget.getInlineMathWidgetClass === 'function')
+      ? mathWidget.getInlineMathWidgetClass()
+      : null;
+    if (mathDetect && typeof mathDetect.parseMath === 'function' && InlineMathCls) {
+      const docText = state.doc.toString();
+      const mathRanges = mathDetect.parseMath(docText);
+      for (let mi = 0; mi < mathRanges.length; mi++) {
+        const mr = mathRanges[mi];
+        if (mr.kind !== 'inline') continue;
+        if (mr.from < fmEnd) continue;
+        const mLine = state.doc.lineAt(mr.from).number;
+        if (touchedSet.has(mLine)) continue;
+        // Lezer-aware filter: skip if inside InlineCode / FencedCode.
+        const resolved = tree.resolveInner ? tree.resolveInner(mr.from, 1) : null;
+        let parent = resolved;
+        let insideCode = false;
+        while (parent) {
+          const pName = parent.name;
+          if (pName === 'InlineCode' || pName === 'FencedCode' || pName === 'CodeBlock') {
+            insideCode = true;
+            break;
+          }
+          parent = parent.parent;
+        }
+        if (insideCode) continue;
+        const w = new InlineMathCls(mr.source);
+        replacedRanges.push(
+          cm6.Decoration.replace({ widget: w, inclusive: false })
+            .range(mr.from, mr.to)
+        );
+      }
+    }
+
     if (replacedRanges.length === 0) {
       return { all: empty, replaced: empty };
     }
-    // Decoration.set requires the second argument true to indicate ranges
-    // are already sorted by `from`. Tree iteration is in-order, so the
-    // ranges array is naturally sorted.
+    // Math + Lezer-walker ranges may be interleaved; sort by `from`
+    // before constructing the RangeSet. The tree iteration was in-order
+    // but math ranges are appended afterward.
+    replacedRanges.sort(function (a, b) { return a.from - b.from; });
     const set = cm6.Decoration.set(replacedRanges, true);
     return { all: set, replaced: set };
   }

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown Vault App</title>
     <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
+    <!-- Stage F — KaTeX CSS for math rendering in hybrid-cm6-lp. Fonts at fonts/ alongside. -->
+    <link rel="stylesheet" href="./lib/vendor/katex/katex.min.css" />
     <style>
       /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ──
          Stage 6.13: theme shifted from warm-paper to neutral / off-white.
@@ -1870,6 +1872,12 @@
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
     <script src="./lib/cm6-lp-image-widget.js"></script>
+    <!-- Stage F — KaTeX JS bundle + math detect + math widget modules.
+         Order: KaTeX JS first (so window.katex is available); detect
+         and widget modules next; lp-inline + lp-block consume them. -->
+    <script src="./lib/vendor/katex/katex.min.js"></script>
+    <script src="./lib/cm6-lp-math-detect.js"></script>
+    <script src="./lib/cm6-lp-math-widget.js"></script>
     <script src="./lib/cm6-lp-inline.js"></script>
     <script src="./lib/cm6-lp-table-widget.js"></script>
     <script src="./lib/cm6-lp-block.js"></script>

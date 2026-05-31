@@ -71,6 +71,15 @@
     if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpTableWidget) {
       globalThis.Cm6LpTableWidget = lpTable;
     }
+    // Stage F — bridge math detect + widget modules for the Display
+    // math branch's lookup. Inline math is handled by cm6-lp-inline.js
+    // which has its own CJS bridge for these same modules.
+    const lpMathDetect = require('./cm6-lp-math-detect.js');
+    const lpMathWidget = require('./cm6-lp-math-widget.js');
+    if (typeof globalThis !== 'undefined') {
+      if (!globalThis.Cm6LpMathDetect) globalThis.Cm6LpMathDetect = lpMathDetect;
+      if (!globalThis.Cm6LpMathWidget) globalThis.Cm6LpMathWidget = lpMathWidget;
+    }
     module.exports = factory();
   } else {
     root.Cm6LpBlock = factory();
@@ -247,9 +256,57 @@
       },
     });
 
+    // Stage F — display math `$$...$$`. May span multiple lines. Scan
+    // the document via parseMath; for each 'display' range:
+    //   - Skip if inside frontmatter.
+    //   - Skip if ANY line of the range is touched (whole-block on-active).
+    //   - Skip if the Lezer ancestor at `from` is FencedCode / CodeBlock
+    //     (display math inside fenced code stays as raw text).
+    //   - Else: emit ONE Decoration.replace({block: true}) with a
+    //     DisplayMathWidget.
+    const mathDetect = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathDetect : null;
+    const mathWidget = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathWidget : null;
+    const DisplayMathCls = (mathWidget && typeof mathWidget.getDisplayMathWidgetClass === 'function')
+      ? mathWidget.getDisplayMathWidgetClass()
+      : null;
+    if (mathDetect && typeof mathDetect.parseMath === 'function' && DisplayMathCls) {
+      const docText = state.doc.toString();
+      const mathRanges = mathDetect.parseMath(docText);
+      for (let mi = 0; mi < mathRanges.length; mi++) {
+        const mr = mathRanges[mi];
+        if (mr.kind !== 'display') continue;
+        if (mr.from < fmEnd) continue;
+        const fromL = state.doc.lineAt(mr.from).number;
+        const toPos = Math.max(mr.from, Math.min(mr.to - 1, state.doc.length - 1));
+        const toL   = state.doc.lineAt(Math.max(toPos, 0)).number;
+        if (!isWholeRangeOffActive(fromL, toL)) continue;
+        // Lezer-aware filter: skip if inside FencedCode / CodeBlock.
+        const resolved = tree.resolveInner ? tree.resolveInner(mr.from, 1) : null;
+        let parent = resolved;
+        let insideCode = false;
+        while (parent) {
+          const pName = parent.name;
+          if (pName === 'FencedCode' || pName === 'CodeBlock') {
+            insideCode = true;
+            break;
+          }
+          parent = parent.parent;
+        }
+        if (insideCode) continue;
+        const w = new DisplayMathCls(mr.source);
+        replacedRanges.push(
+          cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
+            .range(mr.from, mr.to)
+        );
+      }
+    }
+
     if (replacedRanges.length === 0) {
       return { all: empty, replaced: empty };
     }
+    // Math ranges may interleave with Lezer-walker ranges; sort before
+    // building the RangeSet.
+    replacedRanges.sort(function (a, b) { return a.from - b.from; });
     const set = cm6.Decoration.set(replacedRanges, true);
     return { all: set, replaced: set };
   }

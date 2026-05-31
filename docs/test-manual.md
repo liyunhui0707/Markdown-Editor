@@ -881,6 +881,105 @@ After alignment.
 - A non-blank, non-pipe line immediately after a table (no separator blank line) is absorbed into the Lezer Table node as a single-cell trailing row. Convention: separate tables from the following paragraph with a blank line.
 - Cells cannot be edited inside the widget; must click into the table first (triggers source mode).
 
+## Stage F — `hybrid-cm6-lp` KaTeX math rendering
+
+Sixth stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. **First lp stage that adds a new npm dependency** (`katex@^0.16`).
+
+**Behavioral additions over Stage E**: inline math `$x$` and display math `$$x$$` source ranges off-active render via KaTeX as actual TeX. Caret on the same line as inline math, or any line of a display math block, swaps the widget back to raw `$...$` / `$$...$$` source visible. `$` is not in CommonMark; detection is regex-based with a Pandoc-style whitespace rule, `\$` escape handling, and Lezer-aware filtering (math inside `InlineCode` / `FencedCode` / frontmatter is NOT rendered).
+
+**Starting state**: `cd apps/desktop && npm install` (to bring katex), `npm run build:katex` (vendor KaTeX dist), `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+```markdown
+Inline math: $E=mc^2$ and $\alpha + \beta = \gamma$ on one line.
+
+Display math:
+
+$$
+\sum_{i=1}^n i = \frac{n(n+1)}{2}
+$$
+
+Inline code with dollars: `$x$` should stay as code.
+
+```code
+$x$ inside fenced code should stay as code.
+```
+
+Escaped: \$100 is a price, not math.
+
+Invalid TeX: $\frac{$
+```
+
+**MQ-F1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-F2 — inline math renders as KaTeX off-active (load-bearing)**
+- [ ] Click on a line OTHER than the inline math line.
+- [ ] Visually: `$E=mc^2$` is replaced by an actual rendered formula (italic E, italic m, superscript 2).
+- [ ] DevTools Elements panel: a `<span class="katex">` element is present at the math range; the `$` characters are absent from the rendered DOM.
+
+**MQ-F3 — display math renders as KaTeX off-active (load-bearing)**
+- [ ] Click off the display math block.
+- [ ] Visually: `$$\sum...$$` is replaced by a centered rendered equation.
+- [ ] DevTools: `<span class="katex-display">` (or `<div class="cm-md-lp-math-display">` wrapping a katex element).
+
+**MQ-F4 — KaTeX CSS doesn't pollute non-math regions (load-bearing)**
+- [ ] Compare a Markdown note WITHOUT math against the same note rendered in `hybrid-cm6` (default). Visually, paragraphs/headings/lists/quotes/code should look identical.
+- [ ] DevTools: confirm `.katex` class only appears on math elements.
+
+**MQ-F5 — Click into inline math line → source returns**
+- [ ] Click ON the line containing `$E=mc^2$`. The widget disappears; the literal `$E=mc^2$` text returns.
+
+**MQ-F6 — Click into display math block → source returns**
+- [ ] Click on the line `$$`, or inside the math content, or on the closing `$$`. The widget disappears; the multi-line `$$\nsum...\n$$` source returns. Cursor moves between characters in source mode.
+
+**MQ-F7 — Escaped \\$ stays as $ (no math)**
+- [ ] `\$100` line shows as `$100` with the backslash visible (or invisibly per Markdown escape). NO formula rendered.
+
+**MQ-F8 — Math inside inline code stays as code**
+- [ ] `` `$x$` `` shows as the literal code `$x$` (with code styling: monospace, background). NO KaTeX rendering inside.
+
+**MQ-F9 — Math inside fenced code stays as code**
+- [ ] Fenced code block containing `$x$` shows as raw text inside the code block.
+
+**MQ-F10 — Invalid TeX shows error placeholder, NOT a crash (load-bearing)**
+- [ ] `$\frac{$` (unclosed brace). Click off the line.
+- [ ] Visually: a red-bordered or visually distinct element appears showing the raw source `\frac{`.
+- [ ] DevTools: element has class `cm-md-lp-math-error` (or KaTeX's own error class with `errorColor: #cc0000` styling).
+- [ ] No JavaScript error in the DevTools console.
+
+**MQ-F11 — Multiple inline math on one line render independently**
+- [ ] `$\alpha$ and $\beta$` on a single line off-active. Both render as separate KaTeX spans.
+
+**MQ-F12 — Round-trip / `getText()` byte-identical**
+- [ ] Edit a note with math, save (Cmd-S), close + reopen. Source on disk matches what you typed.
+- [ ] DevTools: `window.markdownVaultLive.getText()` returns the raw `$...$` / `$$...$$` source.
+
+**MQ-F13 — Undo/redo through math edits**
+- [ ] Type a new `$x^2$`. Cmd-Z. Confirm the type is undone cleanly. Cmd-Shift-Z. Redo.
+
+**MQ-F14 — Long doc with many formulas — responsiveness**
+- [ ] Generate or paste a 100-formula document. Open it in lp engine. Scroll, click in/out. Confirm: no perceptible slowdown.
+
+**MQ-F15 — Stages A + B + C + D + E preserved (regression)**
+- [ ] Emphasis, inline code, strikethrough, inline links, inline images, block markers, GFM tables all continue to behave as in prior stages.
+
+**MQ-F16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] `$E=mc^2$` shows as the LITERAL characters `$E=mc^2$` (NO math rendering). Stage F's math layer is lp-only.
+
+**MQ-F17 — Automated regression sweep after Stage F**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-F baseline ~1862/1860/0/2; post-Stage-F roughly 1908/1906/0/2 (+46 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (751/749/0/2 after Stage F).
+
+**Known limitations (intentional, deferred)**
+- Only `$...$` and `$$...$$` delimiters (no `\(...\)` / `\[...\]`).
+- Math inside table cells: cells continue to render as plain text per Stage E (table cells are not parsed for inline math). To get math in a table, click into the table to enter source mode, OR use the math in the table's surrounding prose.
+- KaTeX macros via `\newcommand` work only inside a single formula (no global macro config in Stage F).
+- Trust mode is `false` (KaTeX rejects `\href{javascript:...}{...}` etc.).
+- KaTeX bundle adds ~3 MB to the app (vendored at install time via `build:katex` script).
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

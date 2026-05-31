@@ -326,3 +326,50 @@ test('Stage E WAVE 7-T-DE-7: docs/test-manual.md Stage E section preserves Stage
   assert.match(testManual, /MQ-E15[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D/,
     'docs/test-manual.md Stage E section must include a Stage A + B + C + D regression gate (MQ-E15)');
 });
+
+// ── Stage F WAVE 7 — docs reflect Stage F coverage ──────────────────────
+
+test('Stage F WAVE 7-T-DF-1: CLAUDE.md mentions Stage F + KaTeX math', () => {
+  assert.match(claudeMd, /Stage F/, 'CLAUDE.md must mention "Stage F"');
+  assert.match(claudeMd, /KaTeX|katex/i, 'CLAUDE.md must reference KaTeX');
+  assert.match(claudeMd, /parseMath|math.*detect|Pandoc/i,
+    'CLAUDE.md must describe the math syntax detector');
+});
+
+test('Stage F WAVE 7-T-DF-2: README.md hybrid-cm6-lp row mentions Stage F coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,4500}Stage F/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage F');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,5000}(KaTeX|katex|math)/,
+    'README.md hybrid-cm6-lp row must mention KaTeX/math');
+});
+
+test('Stage F WAVE 7-T-DF-3: README.md "Live styling" section mentions Stage F coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*C\s*\+\s*D\s*\+\s*E\s*\+\s*)?F/,
+    'README.md "Live styling" subsection must mention Stage F (or Stages A+B+C+D+E+F)');
+});
+
+test('Stage F WAVE 7-T-DF-4: docs/stage-history.md has a Stage F row referencing KaTeX + hybrid-cm6-lp', () => {
+  assert.match(stageHistory, /\|\s*F\s*\|/,
+    'docs/stage-history.md must have a "| F |" table row');
+  assert.match(stageHistory, /\|\s*F\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage F row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*F\s*\|[\s\S]{0,3000}(KaTeX|katex)/,
+    'Stage F row must reference KaTeX');
+});
+
+test('Stage F WAVE 7-T-DF-5: docs/test-manual.md has a Stage F section', () => {
+  assert.match(testManual, /##\s+Stage F/,
+    'docs/test-manual.md must have a "## Stage F" section header');
+});
+
+test('Stage F WAVE 7-T-DF-6: docs/test-manual.md Stage F section includes load-bearing gates for inline + display + CSS + error placeholder', () => {
+  assert.match(testManual, /MQ-F2/, 'inline math rendering gate');
+  assert.match(testManual, /MQ-F3/, 'display math rendering gate');
+  assert.match(testManual, /MQ-F4/, 'CSS-pollution gate');
+  assert.match(testManual, /MQ-F10/, 'invalid-TeX error placeholder gate');
+});
+
+test('Stage F WAVE 7-T-DF-7: docs/test-manual.md Stage F section preserves Stage A + B + C + D + E regression check', () => {
+  assert.match(testManual, /MQ-F15[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D \+ E/,
+    'docs/test-manual.md Stage F section must include a Stage A + B + C + D + E regression gate (MQ-F15)');
+});

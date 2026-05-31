@@ -185,3 +185,53 @@ test('Stage E WAVE 6-T-RWT-3: cm6-lp-table-widget.js script tag is not duplicate
   assert.equal(matches.length, 1,
     'cm6-lp-table-widget.js must be loaded exactly once');
 });
+
+// ── Stage F WAVE 6 — KaTeX JS + CSS + math modules ──────────────────────
+
+test('Stage F WAVE 6-T-RWM-1: index.html loads ./lib/vendor/katex/katex.min.css', () => {
+  assert.match(html, /<link\s+rel=["']stylesheet["']\s+href=["']\.\/lib\/vendor\/katex\/katex\.min\.css["']/,
+    'index.html must include the KaTeX stylesheet link');
+});
+
+test('Stage F WAVE 6-T-RWM-2: index.html loads ./lib/vendor/katex/katex.min.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/vendor\/katex\/katex\.min\.js["']/,
+    'index.html must include the KaTeX JS bundle script tag');
+});
+
+test('Stage F WAVE 6-T-RWM-3: KaTeX JS loads BEFORE cm6-lp-math-widget.js (window.katex dep)', () => {
+  const katex   = tagOffset('./lib/vendor/katex/katex.min.js');
+  const mathWid = tagOffset('./lib/cm6-lp-math-widget.js');
+  assert.ok(katex   >= 0, 'KaTeX JS tag present');
+  assert.ok(mathWid >= 0, 'math widget tag present');
+  assert.ok(katex < mathWid,
+    'KaTeX must load BEFORE cm6-lp-math-widget.js (widget reads window.katex)');
+});
+
+test('Stage F WAVE 6-T-RWM-4: cm6-lp-math-detect.js loads BEFORE cm6-lp-inline.js + cm6-lp-block.js', () => {
+  const detect = tagOffset('./lib/cm6-lp-math-detect.js');
+  const inline = tagOffset('./lib/cm6-lp-inline.js');
+  const block  = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(detect >= 0, 'math detect tag present');
+  assert.ok(detect < inline, 'math detect must load BEFORE lp-inline');
+  assert.ok(detect < block,  'math detect must load BEFORE lp-block');
+});
+
+test('Stage F WAVE 6-T-RWM-5: cm6-lp-math-widget.js loads BEFORE cm6-lp-inline.js + cm6-lp-block.js', () => {
+  const widget = tagOffset('./lib/cm6-lp-math-widget.js');
+  const inline = tagOffset('./lib/cm6-lp-inline.js');
+  const block  = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(widget >= 0, 'math widget tag present');
+  assert.ok(widget < inline, 'math widget must load BEFORE lp-inline');
+  assert.ok(widget < block,  'math widget must load BEFORE lp-block');
+});
+
+test('Stage F WAVE 6-T-RWM-6: KaTeX CSS + JS + math modules each appear exactly once', () => {
+  const css     = html.match(/<link\s+rel=["']stylesheet["']\s+href=["']\.\/lib\/vendor\/katex\/katex\.min\.css["']/g) || [];
+  const js      = html.match(/<script\s+src=["']\.\/lib\/vendor\/katex\/katex\.min\.js["']/g) || [];
+  const detect  = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-math-detect\.js["']/g) || [];
+  const widget  = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-math-widget\.js["']/g) || [];
+  assert.equal(css.length, 1,    'KaTeX CSS link must appear exactly once');
+  assert.equal(js.length, 1,     'KaTeX JS script must appear exactly once');
+  assert.equal(detect.length, 1, 'math detect script must appear exactly once');
+  assert.equal(widget.length, 1, 'math widget script must appear exactly once');
+});
