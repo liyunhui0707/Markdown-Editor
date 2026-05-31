@@ -223,3 +223,57 @@ test('Stage C WAVE 7-T-DC-7: docs/test-manual.md Stage C section preserves Stage
   assert.match(testManual, /MQ-C17[\s\S]{0,500}Stage A \+ B/,
     'docs/test-manual.md Stage C section must include a Stage A + B regression gate (MQ-C17)');
 });
+
+// ── Stage D WAVE 8 — docs reflect Stage D coverage ──────────────────────
+
+test('Stage D WAVE 8-T-DD-1: CLAUDE.md mentions Stage D + block-level marker hiding', () => {
+  assert.match(claudeMd, /Stage D/,
+    'CLAUDE.md must mention "Stage D"');
+  // Stage D explicit categories.
+  assert.match(claudeMd, /HeaderMark|ATX heading/i, 'mentions ATX heading');
+  assert.match(claudeMd, /ListMark|list bullet/i,   'mentions list bullets');
+  assert.match(claudeMd, /QuoteMark|blockquote/i,   'mentions blockquote marker');
+});
+
+test('Stage D WAVE 8-T-DD-2: README.md hybrid-cm6-lp row mentions Stage D coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,3000}Stage D/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage D');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,3500}block-level/i,
+    'README.md hybrid-cm6-lp row must mention block-level markers for Stage D');
+});
+
+test('Stage D WAVE 8-T-DD-3: README.md "Live styling" section mentions Stage D coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*C\s*\+\s*)?D/,
+    'README.md "Live styling" subsection must mention Stage D (or Stages A + B + C + D)');
+});
+
+test('Stage D WAVE 8-T-DD-4: docs/stage-history.md has a Stage D row referencing hybrid-cm6-lp + block markers', () => {
+  assert.match(stageHistory, /\|\s*D\s*\|/,
+    'docs/stage-history.md must have a "| D |" table row');
+  assert.match(stageHistory, /\|\s*D\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage D row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*D\s*\|[\s\S]{0,2000}(HeaderMark|ListMark|QuoteMark|block-level)/,
+    'Stage D row must reference block-marker categories');
+});
+
+test('Stage D WAVE 8-T-DD-5: docs/test-manual.md has a Stage D section', () => {
+  assert.match(testManual, /##\s+Stage D/,
+    'docs/test-manual.md must have a "## Stage D" section header');
+});
+
+test('Stage D WAVE 8-T-DD-6: docs/test-manual.md Stage D section includes load-bearing gates for block markers + exclusions', () => {
+  // MQ-D2..D4 are the per-construct load-bearing DOM-overlap gates.
+  // MQ-D7 (Setext exclusion), MQ-D8 (HR exclusion), MQ-D9 (task marker
+  // preservation) are the no-regression gates for the explicit exclusions.
+  assert.match(testManual, /MQ-D2/, 'ATX HeaderMark DOM-overlap gate');
+  assert.match(testManual, /MQ-D3/, 'ListMark DOM-overlap gate');
+  assert.match(testManual, /MQ-D4/, 'QuoteMark DOM-overlap gate');
+  assert.match(testManual, /MQ-D7/, 'Setext exclusion gate');
+  assert.match(testManual, /MQ-D8/, 'HR exclusion gate');
+  assert.match(testManual, /MQ-D9/, 'TaskMarker preservation gate');
+});
+
+test('Stage D WAVE 8-T-DD-7: docs/test-manual.md Stage D section preserves Stage A + B + C regression check', () => {
+  assert.match(testManual, /MQ-D15[\s\S]{0,500}Stage[s]? A \+ B \+ C/,
+    'docs/test-manual.md Stage D section must include a Stage A + B + C regression gate (MQ-D15)');
+});

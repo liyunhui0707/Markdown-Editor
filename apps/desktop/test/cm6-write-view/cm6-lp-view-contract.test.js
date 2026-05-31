@@ -132,7 +132,7 @@ test('Stage A WAVE 2-A2: Cm6LpView adapter exposes the same key set as Cm6Hybrid
 
 // ── Group B — extension parity (R2-MAJOR 2) ──────────────────────────────
 
-test('Stage A WAVE 2-B1: lp extensions array length === hybrid extensions array length + 1', () => {
+test('Stage A WAVE 2-B1: lp extensions array length === hybrid extensions array length + N (N=1 Stage A, +1 Stage D lp-block)', () => {
   withClearedHooks(() => {
     const Hybrid = loadHybridView();
     const Lp     = loadLpView();
@@ -142,8 +142,9 @@ test('Stage A WAVE 2-B1: lp extensions array length === hybrid extensions array 
     Lp.createCm6LpView({},        { initialDoc: '', cm6: cm6B });
     const hybridLen = capA.lastExtensions.length;
     const lpLen     = capB.lastExtensions.length;
-    assert.equal(lpLen, hybridLen + 1,
-      'lp must add exactly one extension on top of hybrid (lp-emphasis); hybrid=' + hybridLen + ' lp=' + lpLen);
+    // Stage A: +1 (lp-inline). Stage D: +1 (lp-block). Total: +2.
+    assert.equal(lpLen, hybridLen + 2,
+      'lp must add 2 extensions on top of hybrid (lp-inline + lp-block); hybrid=' + hybridLen + ' lp=' + lpLen);
   });
 });
 

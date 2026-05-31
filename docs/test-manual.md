@@ -690,6 +690,105 @@ Third stage of the option-2 Live Preview migration. Same opt-in mechanism as Sta
 - [ ] Image inside a link `[![inner-alt](inner-url)](outer-url)` — confirm image is rendered as `<img>` + outer link markers are atomically replaced (5 link ranges + 1 image widget = 6 replaced ranges total).
 - [ ] Default engine `hybrid-cm6` unchanged: `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Images render as text + URL markup (no `<img>` inline). All Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact.
 
+## Stage D — `hybrid-cm6-lp` block-level marker hiding (heading `#`, list bullets, blockquote `>`)
+
+Fourth stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B + C (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage C**: extends `Decoration.replace` + `EditorView.atomicRanges` off-active to THREE block-level marker categories — ATX heading prefix (`#` … `######`), list bullets (`-`, `*`, `+`, `1.`, `1)`), and blockquote `>`. Setext underlines (`===`/`---` after text), HorizontalRule (`---` on its own line), TaskMarker (`[ ]`, `[x]`), and fenced-code fences (` ``` `, `~~~`) are explicitly preserved unchanged.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-D1 — engine opt-in works (unchanged from Stages A + B + C)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-D2 — ATX HeaderMark DOM overlap (load-bearing)**
+- [ ] Open a note with `alpha`, then `# Heading One`, then `beta` on three separate lines. Click on the `alpha` line.
+- [ ] Visually: the heading line shows just "Heading One" with H1 styling; no `#` visible.
+- [ ] DevTools Elements panel: the rendered DOM for the heading line contains "Heading One" but NOT the `#` character.
+- [ ] Click on the heading line. Confirm: `#` reveals dimmed (Stage 27 behavior preserved).
+- [ ] Repeat for `## H2`, `### H3`, …, `###### H6`. All reveal/hide correctly.
+
+**MQ-D3 — ListMark DOM overlap (load-bearing)**
+- [ ] Note with three list items: `- a`, `- b`, `- c`. Click on a different line.
+- [ ] Visually + DevTools: the `-` characters are absent from the rendered DOM; the list text is still indented per CSS rules. Click on one item line; confirm `-` reveals dimmed for that item only.
+- [ ] Repeat the check for ordered (`1.`, `2.`, `3.`), `*`, `+`, `1)` variants.
+
+**MQ-D4 — QuoteMark DOM overlap (load-bearing)**
+- [ ] Note with `> line1`, `> line2`, `> line3`. Click off the blockquote.
+- [ ] Visually + DevTools: NO `>` characters in the rendered DOM for any line.
+- [ ] Click on line 2 only. Confirm: line 2's `>` reveals dimmed; lines 1 and 3 remain hidden.
+
+**MQ-D5 — Atomic cursor motion across block markers**
+- [ ] Click immediately AFTER the visible text on a heading line that is OFF-ACTIVE (or use Shift+Click to extend selection without entering the line). Press Left arrow once.
+- [ ] Confirm: cursor advances past the hidden `#` characters in ONE keystroke (no pause on invisible positions).
+- [ ] Repeat for list bullets and blockquote `>`.
+
+**MQ-D6 — Multi-line blockquote per-line reveal**
+- [ ] Note with `> a`, `> b`, `> c`. Click on the `> b` line.
+- [ ] Confirm: only line 2's `>` reveals dimmed. Lines 1 and 3 stay hidden. Mouse-click to lines 1 / 3 in turn; reveal follows the active line.
+
+**MQ-D7 — Setext H1 + H2 underlines NOT replaced (parent guard)**
+- [ ] Note with `Title\n=====` (Setext H1) and below that `Subtitle\n---` (Setext H2). Click on a different line.
+- [ ] Visually: both `=====` and `---` underlines are still visible (Stage 29 reveal). NO Decoration.replace was applied to them.
+- [ ] DevTools: confirm the `=====` and `---` text is present in the rendered DOM.
+
+**MQ-D8 — HorizontalRule `---` NOT replaced**
+- [ ] Note with `paragraph 1\n\n---\n\nparagraph 2`. The `---` line is a standalone HR. Click off it.
+- [ ] Visually: the `---` characters remain VISIBLE (dimmed + letter-spaced via `.cm-md-hr` — Stage 14.1 behavior). They are NOT hidden by Stage D.
+- [ ] DevTools: confirm the `---` text is present in the rendered DOM.
+
+**MQ-D9 — Task list ListMark hidden, TaskMarker preserved + clickable**
+- [ ] Note with `- [ ] task one\n- [x] task two`. Click off the list.
+- [ ] Visually: the `-` bullet is hidden (Stage D); the `[ ]` / `[x]` is still visible (Stage 23 contract).
+- [ ] Click on the `[ ]` of task one. Confirm: it toggles to `[x]` per Stage 23 (and the saved source contains `[x]`).
+- [ ] Press Cmd-Shift-X with caret on task two. Confirm: `[x]` toggles to `[ ]` per Stage 23 keymap.
+
+**MQ-D10 — Frontmatter region — block markers inside YAML NOT replaced**
+- [ ] Note with `---\ntitle: Test\ntags:\n  - tag1\n  - tag2\n---\n# Real Heading`. Click off the frontmatter.
+- [ ] Confirm: the YAML lines render as plain text (Stage 14.9 frontmatter contract). The `# Real Heading` line below has its `#` hidden per Stage D MQ-D2.
+
+**MQ-D11 — Nested constructs replace correctly**
+- [ ] Note with `- > quoted item` (blockquote inside list item). Click off.
+- [ ] Confirm: both `-` and `>` are hidden in DOM; the line shows just "quoted item".
+- [ ] Note with `> - listed quote` (list item inside blockquote). Confirm same.
+- [ ] Note with `> # quoted heading`. Confirm both `>` and `#` hidden.
+
+**MQ-D12 — Chinese IME composition near block markers**
+- [ ] Place caret at the end of a `# 标题` line. Start IME composition for a new Chinese word.
+- [ ] Confirm: composition completes normally; no first-character drop; no caret jump.
+- [ ] Try the same near a list `- ` and blockquote `> `.
+
+**MQ-D13 — Undo / redo for block-marker inserts/deletes**
+- [ ] Type a new line starting with `# `. Confirm the `#` hides immediately when you press Enter (off-active).
+- [ ] Cmd-Z. Confirm the entire heading line is undone cleanly.
+- [ ] Cmd-Shift-Z. Confirm the heading reappears.
+- [ ] Repeat for new list items and blockquotes.
+
+**MQ-D14 — Save / reload round-trip per block-marker type**
+- [ ] Edit a note with mixed headings + list items + blockquotes. Save (Cmd-S). Close + reopen.
+- [ ] Confirm source on disk is byte-identical at LF level. `window.markdownVaultLive.getText()` in DevTools matches source.
+
+**MQ-D15 — Stages A + B + C preserved (regression)**
+- [ ] Confirm: emphasis, inline code, strikethrough, inline links, and inline images continue to behave exactly as in Stages A + B + C. Image rendering via `<img>` still works.
+
+**MQ-D16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] Confirm: block markers in `hybrid-cm6` still hide via CSS `display: none` (the rendered DOM contains the `#`/`-`/`>` characters but they're invisible). Cursor motion may pause on invisible positions (the Stage D atomic-cursor improvement is lp-only).
+- [ ] All Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact.
+
+**MQ-D17 — Long-document responsiveness**
+- [ ] Open a 500+ line document with mix of headings, lists, blockquotes. Type in the middle and arrow-key around. Confirm: no perceptible slowdown vs. default engine.
+
+**MQ-D18 — Automated regression sweep after Stage D**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-D baseline was approximately 1739/1737/0/2; post-Stage-D should be roughly 1810/1808/0/2 (+45 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (660/658/0/2 after Stage D).
+
+**Edge-case extras (optional)**
+- [ ] `#` characters inside fenced code blocks → still render as plain code text (parser: not HeaderMark inside FencedCode).
+- [ ] Empty document / document with only newlines → no crash, no replaces.
+- [ ] Drag-select across multiple block-marker lines — every touched line reveals (Stage 26 active-range contract preserved).
+- [ ] Cmd-click on a link inside a heading or list item — still works per Stage 25.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

@@ -135,3 +135,32 @@ test('Stage C WAVE 8-T-RW-5: lp dispatch case uses window.vaultApi.resolveImageP
   assert.match(html, /window\.vaultApi\.resolveImagePath/,
     'lp dispatch case must call window.vaultApi.resolveImagePath for vault-relative resolution');
 });
+
+// ── Stage D WAVE 7 — lp-block script tag + ordering ─────────────────────
+
+test('Stage D WAVE 7-T-RWB-1: index.html loads ./lib/cm6-lp-block.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-block\.js["']/,
+    'index.html must include <script src="./lib/cm6-lp-block.js">');
+});
+
+test('Stage D WAVE 7-T-RWB-2: cm6-lp-block.js loads AFTER cm6-lp-inline.js (shared widget dep)', () => {
+  const lpInline = tagOffset('./lib/cm6-lp-inline.js');
+  const lpBlock  = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(lpInline >= 0, 'cm6-lp-inline.js script tag must be present');
+  assert.ok(lpBlock  >= 0, 'cm6-lp-block.js script tag must be present');
+  assert.ok(lpInline < lpBlock,
+    'cm6-lp-block.js must load AFTER cm6-lp-inline.js (reuses shared empty-widget instance)');
+});
+
+test('Stage D WAVE 7-T-RWB-3: cm6-lp-block.js loads BEFORE cm6-lp-view.js (composition dep)', () => {
+  const lpBlock = tagOffset('./lib/cm6-lp-block.js');
+  const lpView  = tagOffset('./lib/cm6-lp-view.js');
+  assert.ok(lpBlock < lpView,
+    'cm6-lp-block.js must load BEFORE cm6-lp-view.js (adapter composes block plugin)');
+});
+
+test('Stage D WAVE 7-T-RWB-4: lp-block script tag is not duplicated', () => {
+  const matches = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-block\.js["']/g) || [];
+  assert.equal(matches.length, 1,
+    'cm6-lp-block.js must be loaded exactly once');
+});

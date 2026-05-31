@@ -38,11 +38,13 @@
     // factory finds the module via globalThis uniformly. Same for
     // cm6-lp-inline.js (which does set its own globalThis via the
     // pattern matched on cm6-line-utils.js, but we bridge defensively).
-    const hybrid = require('./cm6-hybrid-view.js');
-    const lpEmph = require('./cm6-lp-inline.js');
+    const hybrid  = require('./cm6-hybrid-view.js');
+    const lpEmph  = require('./cm6-lp-inline.js');
+    const lpBlock = require('./cm6-lp-block.js');
     if (typeof globalThis !== 'undefined') {
       if (!globalThis.Cm6HybridView)  globalThis.Cm6HybridView  = hybrid;
-      if (!globalThis.Cm6LpInline)  globalThis.Cm6LpInline  = lpEmph;
+      if (!globalThis.Cm6LpInline)    globalThis.Cm6LpInline    = lpEmph;
+      if (!globalThis.Cm6LpBlock)     globalThis.Cm6LpBlock     = lpBlock;
     }
     module.exports = factory();
   } else {
@@ -63,6 +65,13 @@
   function getLpInlineModule() {
     if (typeof globalThis !== 'undefined' && globalThis.Cm6LpInline) {
       return globalThis.Cm6LpInline;
+    }
+    return null;
+  }
+
+  function getLpBlockModule() {
+    if (typeof globalThis !== 'undefined' && globalThis.Cm6LpBlock) {
+      return globalThis.Cm6LpBlock;
     }
     return null;
   }
@@ -105,6 +114,14 @@
         'Cm6LpInline.createLpInlineExtension missing — load cm6-lp-inline.js before cm6-lp-view.js'
       );
     }
+
+    // Stage D — lp-block plugin is optional. When the module is not loaded
+    // (legacy browser path without the script tag), the lp engine degrades
+    // gracefully: block markers continue to render via the walker's
+    // existing Decoration.mark + CSS display:none mechanism — same as
+    // hybrid-cm6's behavior. The Stage D atomic-cursor-motion improvement
+    // is the only thing skipped.
+    const lpBlockModule = getLpBlockModule();
 
     // The heading walker plugin. Identical shape to cm6-hybrid-view.js:604-616:
     // rebuild on docChanged | viewportChanged; selection changes do NOT rebuild
@@ -178,6 +195,14 @@
         resolveImagePath: resolveImagePath,
       });
       if (lpInlineExt != null) extensions.push(lpInlineExt);
+
+      // Stage D — block-marker plugin. Optional module; sentinel returns
+      // null if any cm6 surface is missing, in which case the lp engine
+      // degrades to walker-only block-marker rendering.
+      if (lpBlockModule && typeof lpBlockModule.createLpBlockExtension === 'function') {
+        const lpBlockExt = lpBlockModule.createLpBlockExtension(cm6);
+        if (lpBlockExt != null) extensions.push(lpBlockExt);
+      }
 
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
     }
