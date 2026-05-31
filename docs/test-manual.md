@@ -521,6 +521,86 @@ First stage of the option-2 Obsidian-style Live Preview migration. The default e
 - [ ] `cd apps/desktop && npm test` — pre-edit baseline was 1566 pass / 0 fail / 2 skip; post-Stage-A delta is +68 new tests (5 new test files for the lp engine). Confirm full suite stays green.
 - [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green.
 
+## Stage B — `hybrid-cm6-lp` extended to inline code, strikethrough, links, images
+
+Second stage of the option-2 Live Preview migration. Same opt-in mechanism as Stage A (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage A**: extends `Decoration.replace` + `EditorView.atomicRanges` off-active to FOUR additional inline marker categories — inline-code backticks, strikethrough `~~`, inline-link brackets/parens/URL/title, inline-image markup. Link TEXT and image ALT ranges stay visible. Reference-style links/images and autolinks are intentionally NOT replaced.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-B1 — engine opt-in works (unchanged from Stage A)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-B2 — inline code DOM overlap (load-bearing)**
+- [ ] Open a note with `prefix \`code\` suffix` on its own line. Click on a different line.
+- [ ] Visually: backticks are absent; "code" reads with monospace + muted background.
+- [ ] DevTools Elements panel: the rendered DOM for the inline-code line contains the word "code" but NOT the `` ` `` characters.
+- [ ] Click on the inline-code line. Confirm: backticks reveal dimmed.
+
+**MQ-B3 — strikethrough DOM overlap (load-bearing)**
+- [ ] Note with `prefix ~~old~~ suffix`. Click on a different line.
+- [ ] Visually + DevTools: `~~` characters are absent; "old" still has line-through.
+- [ ] Click on the strikethrough line. Confirm: `~~` reveals dimmed.
+
+**MQ-B4 — inline link DOM overlap (load-bearing)**
+- [ ] Note with `prefix [link text](https://example.com "title") suffix`. Click on a different line.
+- [ ] Visually: only `link text` is visible (underlined per existing `cm-md-link-text`). No `[`, `]`, `(`, URL, `"title"`, `)` visible.
+- [ ] DevTools: rendered DOM for the link line contains "link text" but NOT the bracket/paren/URL/title characters.
+- [ ] Click on the link line. Confirm: all 6 hidden marker ranges reveal dimmed.
+
+**MQ-B5 — inline image DOM overlap (load-bearing)**
+- [ ] Note with `prefix ![alt text](https://example.com/img.png) suffix`. Click on a different line.
+- [ ] Visually: only `alt text` is visible (italic + muted per existing `cm-md-image-alt`). No `![`, `]`, `(`, URL, `)` visible. **NO `<img>` rendered** (that's Stage C, not Stage B).
+- [ ] DevTools: rendered DOM contains "alt text" but NOT the image markup characters.
+- [ ] Click on the image line. Confirm: markup reveals dimmed.
+
+**MQ-B6 — atomic cursor motion over inline-code backticks**
+- [ ] Click immediately AFTER the visible "code" on an off-active line. Press Left arrow once. Confirm: cursor advances past the closing backtick in ONE keystroke (no pause on invisible position).
+- [ ] Click immediately BEFORE "code". Press Right arrow. Same.
+
+**MQ-B7 — atomic cursor motion over strikethrough delimiters**
+- [ ] Same arrow-key test around `~~old~~`. Each `~~` is traversed atomically (one keystroke skips both `~`).
+
+**MQ-B8 — atomic cursor motion over inline-link markers**
+- [ ] On an off-active line containing `[text](url)`, position cursor immediately after the visible "text". Press Left arrow once. Confirm: cursor jumps past the `]` in one keystroke.
+- [ ] Continue pressing Left through the link — each hidden marker traversed atomically.
+
+**MQ-B9 — atomic cursor motion over inline-image markup**
+- [ ] Same test around `![alt](url)`. Each hidden marker atomically traversed.
+
+**MQ-B10 — Cmd-click link preservation (Stage 25 must still work)**
+- [ ] Click on a non-link line so the link line is off-active. Cmd-click on the visible link text.
+- [ ] Confirm: URL opens via Stage 25 path (allowlist `https:` and `mailto:`). The source offsets are unchanged by `Decoration.replace`, so the click handler still resolves the link correctly.
+
+**MQ-B11 — Chinese IME composition (CLAUDE.md focus area)**
+- [ ] Start an IME composition with caret inside any of the 4 new marker types (e.g., inside a backtick-wrapped code span, inside link text, inside image alt).
+- [ ] Confirm: composition completes normally; no first-character drop; no caret jump; markers reveal/hide correctly around composition.
+
+**MQ-B12 — Undo/redo per marker type**
+- [ ] Type new `\`text\``, `~~text~~`, `[text](url)`, `![alt](url)` snippets in a fresh line. Press Cmd-Z then Cmd-Shift-Z. Confirm: each undo step reverses the edit cleanly; decoration state remains consistent.
+
+**MQ-B13 — Save / reload round-trip per marker type**
+- [ ] Edit a note containing all 4 new marker types. Save (Cmd-S). Close + reopen.
+- [ ] Confirm: source on disk matches what you typed (byte-identical at LF level); `getText()` in DevTools returns the same source.
+
+**MQ-B14 — Stage A emphasis still works**
+- [ ] Confirm `**bold**`, `*italic*`, `_italic_`, `__bold__` continue to hide off-active and reveal on-active — Stage A behavior preserved through the lp-emphasis → lp-inline rename.
+
+**MQ-B15 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label is "CM6 Hybrid".
+- [ ] Confirm: all Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact. Inline code / strikethrough / links / images in hybrid-cm6 still hide via CSS `display: none` on `.cm-md-syntax` (NOT replaced; same as before Stage B).
+
+**MQ-B16 — Automated regression sweep after Stage B**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-B baseline was 1648/1646/0/2; post-Stage-B should be roughly 1685/1683/0/2 (+37 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (535/533/0/2 after Stage B).
+
+**Edge-case extras (optional)**
+- [ ] Frontmatter containing inline code / strikethrough / link / image — confirm those markers render as plain text (not replaced) per Stage 14.9 frontmatter contract.
+- [ ] Reference-style link `[text][ref]` and reference-style image `![alt][1]` — confirm NOT replaced (markers stay visible).
+- [ ] Autolink `<https://example.com>` — confirm NOT replaced (Stage 25 Cmd-click continues to work).
+- [ ] Nested emphasis inside link text or image alt (e.g., `[**bold** text](url)`) — inner `**` still replaced (Stage A behavior preserved through Stage B's iteration).
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

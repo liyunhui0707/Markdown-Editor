@@ -28,9 +28,9 @@ const html      = fs.readFileSync(HTML_PATH, 'utf8');
 
 // ── Script tag presence ──────────────────────────────────────────────────
 
-test('Stage A WAVE 12-S1: index.html loads ./lib/cm6-lp-emphasis.js', () => {
-  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-emphasis\.js["']/,
-    'index.html must include <script src="./lib/cm6-lp-emphasis.js">');
+test('Stage A WAVE 12-S1: index.html loads ./lib/cm6-lp-inline.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-inline\.js["']/,
+    'index.html must include <script src="./lib/cm6-lp-inline.js">');
 });
 
 test('Stage A WAVE 12-S2: index.html loads ./lib/cm6-lp-view.js', () => {
@@ -44,13 +44,13 @@ function tagOffset(tagSubstring) {
   return html.indexOf(tagSubstring);
 }
 
-test('Stage A WAVE 12-S3: cm6-lp-emphasis.js loads AFTER cm6-line-utils.js (delegation dep)', () => {
+test('Stage A WAVE 12-S3: cm6-lp-inline.js loads AFTER cm6-line-utils.js (delegation dep)', () => {
   const lineUtils = tagOffset('./lib/cm6-line-utils.js');
-  const lpEmph    = tagOffset('./lib/cm6-lp-emphasis.js');
+  const lpEmph    = tagOffset('./lib/cm6-lp-inline.js');
   assert.ok(lineUtils >= 0, 'cm6-line-utils.js script tag must be present');
-  assert.ok(lpEmph    >= 0, 'cm6-lp-emphasis.js script tag must be present');
+  assert.ok(lpEmph    >= 0, 'cm6-lp-inline.js script tag must be present');
   assert.ok(lineUtils < lpEmph,
-    'cm6-lp-emphasis.js must load AFTER cm6-line-utils.js (lp-emphasis reads Cm6LineUtils.resolveTouchedLines)');
+    'cm6-lp-inline.js must load AFTER cm6-line-utils.js (lp-emphasis reads Cm6LineUtils.resolveTouchedLines)');
 });
 
 test('Stage A WAVE 12-S4: cm6-lp-view.js loads AFTER cm6-hybrid-view.js (walker-reuse dep)', () => {
@@ -62,11 +62,11 @@ test('Stage A WAVE 12-S4: cm6-lp-view.js loads AFTER cm6-hybrid-view.js (walker-
     'cm6-lp-view.js must load AFTER cm6-hybrid-view.js (lp adapter reads Cm6HybridView.buildHeadingDecorations)');
 });
 
-test('Stage A WAVE 12-S5: cm6-lp-view.js loads AFTER cm6-lp-emphasis.js', () => {
-  const lpEmph = tagOffset('./lib/cm6-lp-emphasis.js');
+test('Stage A WAVE 12-S5: cm6-lp-view.js loads AFTER cm6-lp-inline.js', () => {
+  const lpEmph = tagOffset('./lib/cm6-lp-inline.js');
   const lpView = tagOffset('./lib/cm6-lp-view.js');
   assert.ok(lpEmph < lpView,
-    'cm6-lp-view.js must load AFTER cm6-lp-emphasis.js (adapter reads Cm6LpEmphasis.createLpEmphasisExtension)');
+    'cm6-lp-view.js must load AFTER cm6-lp-inline.js (adapter reads Cm6LpInline.createLpInlineExtension)');
 });
 
 // ── Engine dispatch chain ────────────────────────────────────────────────

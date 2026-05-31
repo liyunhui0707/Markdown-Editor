@@ -22,7 +22,7 @@
    existing reveal mechanism.
 
    Stage A WAVE 2 skeleton: surface guards + UMD wrapper + factory wiring
-   are in place. WAVE 4 fills in the real buildLpEmphasisDecorations
+   are in place. WAVE 4 fills in the real buildLpInlineDecorations
    body (currently a stub that returns empty RangeSets).
 
    The CommonJS path requires ./cm6-line-utils.js so Node tests don't
@@ -30,17 +30,43 @@
    cm6-active-range.js and cm6-construct-reveal.js, Stage 29 D5).
 
    Public exports:
-     buildLpEmphasisDecorations  — pure (state, cm6) → {all, replaced}|null.
-     createLpEmphasisExtension   — factory; (cm6) → Extension|null. */
+     buildLpInlineDecorations  — pure (state, cm6) → {all, replaced}|null.
+     createLpInlineExtension   — factory; (cm6) → Extension|null. */
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     require('./cm6-line-utils.js');
     module.exports = factory();
   } else {
-    root.Cm6LpEmphasis = factory();
+    root.Cm6LpInline = factory();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+
+  // ── isInlineLinkAncestor / isInlineImageAncestor ──────────────────────
+  // Mirror the walker's isInlineLinkNode / isInlineImageNode predicates
+  // (cm6-hybrid-view.js:31-37, 62-68). Used by the inline-link / inline-
+  // image branch to skip reference-style links/images (which have no
+  // direct URL child) and autolinks (parent name is 'Autolink', not
+  // 'Link'). Takes a SyntaxNode (the LinkMark/URL/LinkTitle); checks
+  // node.parent for the right shape.
+  function isInlineLinkAncestor(synNode) {
+    if (!synNode) return false;
+    const parent = synNode.parent;
+    if (!parent || parent.name !== 'Link') return false;
+    for (let child = parent.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') return true;
+    }
+    return false;
+  }
+  function isInlineImageAncestor(synNode) {
+    if (!synNode) return false;
+    const parent = synNode.parent;
+    if (!parent || parent.name !== 'Image') return false;
+    for (let child = parent.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') return true;
+    }
+    return false;
+  }
 
   // ── frontmatterEnd(doc) — defensive guard ──────────────────────────────
   // Mirrors cm6-construct-reveal.js's D8 helper. Returns the exclusive end
@@ -85,7 +111,7 @@
     return _emptyMarkerWidget;
   }
 
-  // ── buildLpEmphasisDecorations(state, cm6) ─────────────────────────────
+  // ── buildLpInlineDecorations(state, cm6) ─────────────────────────────
   // Returns { all: RangeSet, replaced: RangeSet } | null.
   //   all       — full decoration set for ViewPlugin.decorations.
   //   replaced  — subset of `all` containing only Decoration.replace ranges,
@@ -107,7 +133,7 @@
   //          the marker dimmed.
   //   5. Frontmatter guard: skip emphasis nodes inside the strict
   //      '---'…'---' frontmatter region (Stage 14.9 parity).
-  function buildLpEmphasisDecorations(state, cm6) {
+  function buildLpInlineDecorations(state, cm6) {
     if (!cm6 || !cm6.Decoration) return null;
     if (typeof cm6.Decoration.set !== 'function') return null;
     const empty = cm6.Decoration.set([], true);
@@ -146,17 +172,68 @@
       return { all: empty, replaced: empty };
     }
 
+    // Per-node helper: returns true if this node should be replaced (off-active,
+    // outside frontmatter). Caller decides emission based on node type.
+    function shouldReplace(node) {
+      if (node.from < fmEnd) return false;
+      const lineNumber = state.doc.lineAt(node.from).number;
+      return !touchedSet.has(lineNumber);
+    }
+
     const replacedRanges = [];
     tree.iterate({
       enter(node) {
-        if (node.name !== 'EmphasisMark') return;
-        if (node.from < fmEnd) return;
-        const lineNumber = state.doc.lineAt(node.from).number;
-        if (touchedSet.has(lineNumber)) return; // on-active: no-op
-        replacedRanges.push(
-          cm6.Decoration.replace({ widget: widget, inclusive: false })
-            .range(node.from, node.to)
-        );
+        // Stage A — emphasis markers (* / _ / ** / __).
+        if (node.name === 'EmphasisMark') {
+          if (!shouldReplace(node)) return;
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: widget, inclusive: false })
+              .range(node.from, node.to)
+          );
+          return;
+        }
+        // Stage B — inline-code backticks. Parent must be InlineCode, NOT
+        // FencedCode (Lezer reuses CodeMark for both; same disambiguation
+        // the walker uses at cm6-hybrid-view.js:267-272).
+        if (node.name === 'CodeMark') {
+          const parent = node.node.parent;
+          if (!parent || parent.name !== 'InlineCode') return;
+          if (!shouldReplace(node)) return;
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: widget, inclusive: false })
+              .range(node.from, node.to)
+          );
+          return;
+        }
+        // Stage B — strikethrough delimiters (~~). StrikethroughMark only
+        // appears as a child of Strikethrough per the GFM @lezer/markdown
+        // extension; no parent disambiguation needed.
+        if (node.name === 'StrikethroughMark') {
+          if (!shouldReplace(node)) return;
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: widget, inclusive: false })
+              .range(node.from, node.to)
+          );
+          return;
+        }
+        // Stage B — inline link / image markers. LinkMark/URL/LinkTitle
+        // appear in three contexts: inline Link (with URL child), inline
+        // Image (with URL child), reference-style Link/Image (no URL
+        // child), autolink (parent name is Autolink). Only the first two
+        // are in scope for Stage B. The link TEXT range (between the two
+        // bracket LinkMarks) is NOT replaced — it stays visible per the
+        // existing cm-md-link-text / cm-md-image-alt walker styling.
+        if (node.name === 'LinkMark' || node.name === 'URL' || node.name === 'LinkTitle') {
+          const inLink  = isInlineLinkAncestor(node.node);
+          const inImage = isInlineImageAncestor(node.node);
+          if (!inLink && !inImage) return;
+          if (!shouldReplace(node)) return;
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: widget, inclusive: false })
+              .range(node.from, node.to)
+          );
+          return;
+        }
       },
     });
 
@@ -170,13 +247,13 @@
     return { all: set, replaced: set };
   }
 
-  // ── createLpEmphasisExtension(cm6) ──────────────────────────────────────
+  // ── createLpInlineExtension(cm6) ──────────────────────────────────────
   // Factory returning a CodeMirror ViewPlugin extension, or null when any
   // required surface is missing (M1 sentinel from Stage 26 createActiveRange-
   // Extension). The lp engine needs four surfaces that hybrid-cm6 doesn't:
   // Decoration.replace, WidgetType, EditorView.atomicRanges, and
   // Decoration.none (atomicRanges fallback).
-  function createLpEmphasisExtension(cm6) {
+  function createLpInlineExtension(cm6) {
     if (!cm6 || !cm6.ViewPlugin) return null;
     if (typeof cm6.ViewPlugin.fromClass !== 'function') return null;
     if (!cm6.Decoration) return null;
@@ -189,13 +266,13 @@
 
     return cm6.ViewPlugin.fromClass(class {
       constructor(view) {
-        const built = buildLpEmphasisDecorations(view.state, cm6);
+        const built = buildLpInlineDecorations(view.state, cm6);
         this.decorations    = built ? built.all      : cm6.Decoration.none;
         this.replacedRanges = built ? built.replaced : cm6.Decoration.none;
       }
       update(update) {
         if (update.selectionSet || update.docChanged || update.viewportChanged) {
-          const built = buildLpEmphasisDecorations(update.state, cm6);
+          const built = buildLpInlineDecorations(update.state, cm6);
           this.decorations    = built ? built.all      : cm6.Decoration.none;
           this.replacedRanges = built ? built.replaced : cm6.Decoration.none;
         }
@@ -209,8 +286,8 @@
   }
 
   return {
-    buildLpEmphasisDecorations: buildLpEmphasisDecorations,
-    createLpEmphasisExtension:  createLpEmphasisExtension,
+    buildLpInlineDecorations: buildLpInlineDecorations,
+    createLpInlineExtension:  createLpInlineExtension,
     // Exposed for WAVE 4 internal use; not part of the public lp surface.
     _frontmatterEnd:            frontmatterEnd,
     _getEmptyMarkerWidget:      getEmptyMarkerWidget,

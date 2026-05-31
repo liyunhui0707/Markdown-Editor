@@ -1,8 +1,8 @@
-/* Stage A WAVE 2 — cm6-lp-emphasis.js UMD wrapper isolation contract.
+/* Stage A WAVE 2 — cm6-lp-inline.js UMD wrapper isolation contract.
    Run focused:
      node --test test/cm6-write-view/cm6-lp-emphasis-isolation.test.js
 
-   Round-2 Codex review (R2-MAJOR 4) flagged that cm6-lp-emphasis.js
+   Round-2 Codex review (R2-MAJOR 4) flagged that cm6-lp-inline.js
    depends on globalThis.Cm6LineUtils.resolveTouchedLines — the same
    pattern as cm6-active-range.js and cm6-construct-reveal.js. Those
    existing modules require('./cm6-line-utils.js') on the CommonJS path
@@ -16,7 +16,7 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
-const LP_EMPH_REL = '../../lib/cm6-lp-emphasis.js';
+const LP_EMPH_REL = '../../lib/cm6-lp-inline.js';
 const LINE_UTILS_REL = '../../lib/cm6-line-utils.js';
 
 function freshRequireLpEmph() {
@@ -30,7 +30,7 @@ function freshRequireLpEmph() {
   return require(LP_EMPH_REL);
 }
 
-test('Stage A WAVE 2-D1: loading cm6-lp-emphasis.js in isolation populates globalThis.Cm6LineUtils', () => {
+test('Stage A WAVE 2-D1: loading cm6-lp-inline.js in isolation populates globalThis.Cm6LineUtils', () => {
   const lp = freshRequireLpEmph();
   assert.ok(lp, 'module must export an object');
   assert.ok(globalThis.Cm6LineUtils,
@@ -39,25 +39,25 @@ test('Stage A WAVE 2-D1: loading cm6-lp-emphasis.js in isolation populates globa
     'Cm6LineUtils.resolveTouchedLines must be callable');
 });
 
-test('Stage A WAVE 2-D2: cm6-lp-emphasis exports buildLpEmphasisDecorations and createLpEmphasisExtension', () => {
+test('Stage A WAVE 2-D2: cm6-lp-emphasis exports buildLpInlineDecorations and createLpInlineExtension', () => {
   const lp = freshRequireLpEmph();
-  assert.equal(typeof lp.buildLpEmphasisDecorations, 'function',
-    'buildLpEmphasisDecorations must be exported');
-  assert.equal(typeof lp.createLpEmphasisExtension, 'function',
-    'createLpEmphasisExtension must be exported');
+  assert.equal(typeof lp.buildLpInlineDecorations, 'function',
+    'buildLpInlineDecorations must be exported');
+  assert.equal(typeof lp.createLpInlineExtension, 'function',
+    'createLpInlineExtension must be exported');
 });
 
-test('Stage A WAVE 2-D3: createLpEmphasisExtension returns null when cm6 is missing', () => {
+test('Stage A WAVE 2-D3: createLpInlineExtension returns null when cm6 is missing', () => {
   const lp = freshRequireLpEmph();
-  assert.equal(lp.createLpEmphasisExtension(null), null,
+  assert.equal(lp.createLpInlineExtension(null), null,
     'null cm6 must return null (M1 sentinel pattern)');
-  assert.equal(lp.createLpEmphasisExtension(undefined), null,
+  assert.equal(lp.createLpInlineExtension(undefined), null,
     'undefined cm6 must return null');
-  assert.equal(lp.createLpEmphasisExtension({}), null,
+  assert.equal(lp.createLpInlineExtension({}), null,
     'empty cm6 must return null (no ViewPlugin)');
 });
 
-test('Stage A WAVE 2-D4: createLpEmphasisExtension returns null when Decoration.replace is missing', () => {
+test('Stage A WAVE 2-D4: createLpInlineExtension returns null when Decoration.replace is missing', () => {
   const lp = freshRequireLpEmph();
   const partial = {
     ViewPlugin: { fromClass: () => ({}) },
@@ -65,11 +65,11 @@ test('Stage A WAVE 2-D4: createLpEmphasisExtension returns null when Decoration.
     WidgetType: class {},
     EditorView: { atomicRanges: { of: () => ({}) } },
   };
-  assert.equal(lp.createLpEmphasisExtension(partial), null,
+  assert.equal(lp.createLpInlineExtension(partial), null,
     'missing Decoration.replace must return null');
 });
 
-test('Stage A WAVE 2-D5: createLpEmphasisExtension returns null when WidgetType is missing', () => {
+test('Stage A WAVE 2-D5: createLpInlineExtension returns null when WidgetType is missing', () => {
   const lp = freshRequireLpEmph();
   const partial = {
     ViewPlugin: { fromClass: () => ({}) },
@@ -77,11 +77,11 @@ test('Stage A WAVE 2-D5: createLpEmphasisExtension returns null when WidgetType 
     /* no WidgetType */
     EditorView: { atomicRanges: { of: () => ({}) } },
   };
-  assert.equal(lp.createLpEmphasisExtension(partial), null,
+  assert.equal(lp.createLpInlineExtension(partial), null,
     'missing WidgetType must return null');
 });
 
-test('Stage A WAVE 2-D6: createLpEmphasisExtension returns null when EditorView.atomicRanges is missing', () => {
+test('Stage A WAVE 2-D6: createLpInlineExtension returns null when EditorView.atomicRanges is missing', () => {
   const lp = freshRequireLpEmph();
   const partial = {
     ViewPlugin: { fromClass: () => ({}) },
@@ -89,11 +89,11 @@ test('Stage A WAVE 2-D6: createLpEmphasisExtension returns null when EditorView.
     WidgetType: class {},
     EditorView: { /* no atomicRanges */ },
   };
-  assert.equal(lp.createLpEmphasisExtension(partial), null,
+  assert.equal(lp.createLpInlineExtension(partial), null,
     'missing EditorView.atomicRanges must return null');
 });
 
-test('Stage A WAVE 2-D7: createLpEmphasisExtension returns an extension when all surfaces are present', () => {
+test('Stage A WAVE 2-D7: createLpInlineExtension returns an extension when all surfaces are present', () => {
   const lp = freshRequireLpEmph();
   const full = {
     ViewPlugin: { fromClass: (cls, spec) => ({ _ext: 'view-plugin', cls, spec }) },
@@ -101,25 +101,25 @@ test('Stage A WAVE 2-D7: createLpEmphasisExtension returns an extension when all
     WidgetType: class {},
     EditorView: { atomicRanges: { of: (fn) => ({ _ext: 'atomic-ranges', fn }) } },
   };
-  const ext = lp.createLpEmphasisExtension(full);
+  const ext = lp.createLpInlineExtension(full);
   assert.ok(ext, 'must return a non-null extension when all surfaces present');
   assert.equal(ext._ext, 'view-plugin', 'extension shape is a ViewPlugin (mocked)');
 });
 
-test('Stage A WAVE 2-D8: buildLpEmphasisDecorations returns null when cm6 is missing', () => {
+test('Stage A WAVE 2-D8: buildLpInlineDecorations returns null when cm6 is missing', () => {
   const lp = freshRequireLpEmph();
-  assert.equal(lp.buildLpEmphasisDecorations(null, null), null);
-  assert.equal(lp.buildLpEmphasisDecorations(null, {}), null);
+  assert.equal(lp.buildLpInlineDecorations(null, null), null);
+  assert.equal(lp.buildLpInlineDecorations(null, {}), null);
 });
 
-test('Stage A WAVE 2-D9: buildLpEmphasisDecorations returns {all,replaced} sentinel when state is missing', () => {
+test('Stage A WAVE 2-D9: buildLpInlineDecorations returns {all,replaced} sentinel when state is missing', () => {
   const lp = freshRequireLpEmph();
   const cm6 = {
     Decoration: {
       set: (arr) => ({ size: (arr || []).length, _ranges: arr || [] }),
     },
   };
-  const out = lp.buildLpEmphasisDecorations(null, cm6);
+  const out = lp.buildLpInlineDecorations(null, cm6);
   assert.ok(out, 'must return non-null when cm6 is present even with no state');
   assert.equal(out.all.size, 0,      'all RangeSet is empty when state is missing');
   assert.equal(out.replaced.size, 0, 'replaced RangeSet is empty when state is missing');

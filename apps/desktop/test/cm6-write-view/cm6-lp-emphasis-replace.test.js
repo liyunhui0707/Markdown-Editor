@@ -29,10 +29,10 @@ const { syntaxTree }                   = require('@codemirror/language');
 const { markdown, markdownLanguage }   = require('@codemirror/lang-markdown');
 
 // Load the lp emphasis module (UMD CJS path requires cm6-line-utils.js).
-delete require.cache[require.resolve('../../lib/cm6-lp-emphasis.js')];
-const lpEmphasis = require('../../lib/cm6-lp-emphasis.js');
+delete require.cache[require.resolve('../../lib/cm6-lp-inline.js')];
+const lpInline = require('../../lib/cm6-lp-inline.js');
 
-// Real cm6 namespace — the surface buildLpEmphasisDecorations consumes.
+// Real cm6 namespace — the surface buildLpInlineDecorations consumes.
 // WidgetType is included so the empty marker widget can be constructed
 // when the plugin emits Decoration.replace.
 const { WidgetType } = require('@codemirror/view');
@@ -71,7 +71,7 @@ const BOLD_CLOSE_TO   = 14;
 
 test('Stage A WAVE 4-1: off-active **bold** markers are replaced (caret on line 1)', () => {
   const state = makeStateWithCursor(FIXTURE_BOLD, 0); // line 1, not touching line 2
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   assert.ok(out, 'must return non-null {all, replaced}');
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 2,
@@ -85,7 +85,7 @@ test('Stage A WAVE 4-1: off-active **bold** markers are replaced (caret on line 
 
 test('Stage A WAVE 4-2: word "bold" itself is NOT replaced (only the markers)', () => {
   const state = makeStateWithCursor(FIXTURE_BOLD, 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   for (const r of replaced) {
     assert.ok(r.from < BOLD_OPEN_TO || r.from >= BOLD_CLOSE_FROM,
@@ -95,7 +95,7 @@ test('Stage A WAVE 4-2: word "bold" itself is NOT replaced (only the markers)', 
 
 test('Stage A WAVE 4-3: replaced ranges match all ranges (on-active emits nothing this wave)', () => {
   const state = makeStateWithCursor(FIXTURE_BOLD, 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const all      = collectRanges(out.all);
   const replaced = collectRanges(out.replaced);
   assert.equal(all.length, replaced.length,
@@ -108,7 +108,7 @@ test('Stage A WAVE 4-4: *italic* off-active produces 2 single-character replaced
   // EmphasisMark ranges: [6,7) and [13,14).
   const fixture = 'line1\n*italic*\nline3\n';
   const state = makeStateWithCursor(fixture, 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 2);
   replaced.sort((a, b) => a.from - b.from);
@@ -119,7 +119,7 @@ test('Stage A WAVE 4-4: *italic* off-active produces 2 single-character replaced
 test('Stage A WAVE 4-5: _italic_ off-active uses underscore variant (same replace behavior)', () => {
   const fixture = 'line1\n_italic_\nline3\n';
   const state = makeStateWithCursor(fixture, 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 2);
 });
@@ -127,7 +127,7 @@ test('Stage A WAVE 4-5: _italic_ off-active uses underscore variant (same replac
 test('Stage A WAVE 4-6: __bold__ underscore variant also handled', () => {
   const fixture = 'line1\n__bold__\nline3\n';
   const state = makeStateWithCursor(fixture, 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 2);
 });
@@ -137,7 +137,7 @@ test('Stage A WAVE 4-6: __bold__ underscore variant also handled', () => {
 test('Stage A WAVE 5-1: caret on line 2 → no replace for that line\'s emphasis markers', () => {
   // Place caret inside the word "bold" on line 2.
   const state = makeStateWithCursor(FIXTURE_BOLD, 9); // 9 is inside "bold"
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 0,
     'caret on the emphasis line must produce zero replaced ranges (no-op on-active)');
@@ -146,7 +146,7 @@ test('Stage A WAVE 5-1: caret on line 2 → no replace for that line\'s emphasis
 test('Stage A WAVE 5-2: caret at exactly the boundary of an emphasis marker still considered active', () => {
   // Caret at offset 6 — the very start of "**bold**". Same line, considered active.
   const state = makeStateWithCursor(FIXTURE_BOLD, 6);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 0,
     'caret on the same line as an emphasis marker → no replace (active-line includes the whole line)');
@@ -160,7 +160,7 @@ test('Stage A WAVE 5-3: multi-line selection covering both line 1 and line 2 →
     selection: { anchor: 0, head: 10 },
     extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
   });
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 0,
     'multi-line selection touching line 2 must reveal markers there');
@@ -172,8 +172,8 @@ test('Stage A WAVE 6-1: changing selection from line 1 to line 2 changes the rep
   const stateA = makeStateWithCursor(FIXTURE_BOLD, 0); // line 1
   const stateB = makeStateWithCursor(FIXTURE_BOLD, 9); // line 2
 
-  const outA = lpEmphasis.buildLpEmphasisDecorations(stateA, cm6);
-  const outB = lpEmphasis.buildLpEmphasisDecorations(stateB, cm6);
+  const outA = lpInline.buildLpInlineDecorations(stateA, cm6);
+  const outB = lpInline.buildLpInlineDecorations(stateB, cm6);
 
   const replacedA = collectRanges(outA.replaced);
   const replacedB = collectRanges(outB.replaced);
@@ -188,14 +188,14 @@ test('Stage A WAVE 6-1: changing selection from line 1 to line 2 changes the rep
 
 test('Stage A WAVE 4-7: no emphasis in document → empty replaced set', () => {
   const state = makeStateWithCursor('plain paragraph\nanother\n', 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
   assert.equal(replaced.length, 0);
 });
 
 test('Stage A WAVE 4-8: empty document → null-safe', () => {
   const state = makeStateWithCursor('', 0);
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   assert.ok(out);
   assert.equal(collectRanges(out.replaced).length, 0);
 });

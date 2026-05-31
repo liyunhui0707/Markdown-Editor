@@ -16,13 +16,13 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
-const { EditorState }                = require('@codemirror/state');
+const { EditorState, EditorSelection } = require('@codemirror/state');
 const { Decoration, WidgetType }     = require('@codemirror/view');
 const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 
-delete require.cache[require.resolve('../../lib/cm6-lp-emphasis.js')];
-const lpEmphasis = require('../../lib/cm6-lp-emphasis.js');
+delete require.cache[require.resolve('../../lib/cm6-lp-inline.js')];
+const lpInline = require('../../lib/cm6-lp-inline.js');
 
 const cm6 = { Decoration, syntaxTree, WidgetType };
 
@@ -35,7 +35,7 @@ function makeState(doc, cursorPos) {
 }
 
 function countReplaced(state) {
-  const out = lpEmphasis.buildLpEmphasisDecorations(state, cm6);
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
   if (!out || !out.replaced || typeof out.replaced.iter !== 'function') return 0;
   let n = 0;
   const cur = out.replaced.iter();
@@ -72,8 +72,12 @@ test('Stage A WAVE 10-T-INLINE-CODE: emphasis-looking text inside `inline code` 
   const fixture = 'line1\nprefix `**not bold**` suffix\n';
   const state = makeState(fixture, 0);
   const replaced = countReplaced(state);
-  assert.equal(replaced, 0,
-    'no EmphasisMark inside inline code → no replace');
+  // Updated for Stage B: the parser does NOT emit EmphasisMark inside
+  // inline code (so no `**` ranges replaced), BUT Stage B's inline-code
+  // branch now replaces the two backticks themselves. Net: 2 ranges (the
+  // backticks), not 0 as in Stage A.
+  assert.equal(replaced, 2,
+    'no EmphasisMark inside inline code; Stage B replaces the 2 backticks themselves');
 });
 
 test('Stage A WAVE 10-T-NESTED: ***bold-italic*** off-active produces multiple replaces', () => {
@@ -93,7 +97,7 @@ test('Stage A WAVE 10-T-EMPTY: **** off-active does not crash', () => {
   // handle it without error.
   const fixture = 'line1\n****\nbody\n';
   const state = makeState(fixture, 0);
-  assert.doesNotThrow(() => lpEmphasis.buildLpEmphasisDecorations(state, cm6),
+  assert.doesNotThrow(() => lpInline.buildLpInlineDecorations(state, cm6),
     'four-asterisk run must not crash the walker');
 });
 
@@ -137,4 +141,85 @@ test('Stage A WAVE 10-T-FRONTMATTER-ONLY: doc that is only frontmatter has no em
   const replaced = countReplaced(state);
   assert.equal(replaced, 0,
     'frontmatter-only doc produces zero replaced ranges');
+});
+
+// ── Stage B WAVE 6 — cross-cutting edge cases for new marker types ──────
+
+test('Stage B WAVE 6-T-X-1a: inline code inside frontmatter is NOT replaced', () => {
+  const fixture = '---\ntitle: `code` here\n---\n\nBody `code`\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2,
+    'frontmatter `code` skipped; only body backticks (2) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1b: strikethrough inside frontmatter is NOT replaced', () => {
+  const fixture = '---\ntag: ~~old~~ value\n---\n\nBody ~~strike~~\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2, 'frontmatter ~~ skipped; only body strikethrough (2) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1c: inline link inside frontmatter is NOT replaced', () => {
+  const fixture = '---\nlink: [t](https://x.test)\n---\n\nBody [text](https://x.test)\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 5, 'frontmatter link skipped; only body link (5) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1d: inline image inside frontmatter is NOT replaced', () => {
+  const fixture = '---\nimg: ![a](https://x.test/i.png)\n---\n\nBody ![alt](https://x.test/i.png)\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 5, 'frontmatter image skipped; only body image (5) replaced');
+});
+
+test('Stage B WAVE 6-T-X-2: getText() round-trip preserved with all 5 marker types', () => {
+  const fixture = '# H\n\n**b** `c` ~~s~~ [l](https://x.test) ![i](https://x.test/i.png)\n';
+  const state = makeState(fixture, 0);
+  lpInline.buildLpInlineDecorations(state, cm6);
+  assert.equal(state.doc.toString(), fixture,
+    'getText() preserves source character-identical');
+});
+
+test('Stage B WAVE 6-T-X-3: whole-doc selection reveals all marker types', () => {
+  const fixture = 'line1\n**b**\nline3\n`c`\nline5\n[l](https://x.test)\nline7\n';
+  const state = EditorState.create({
+    doc: fixture,
+    selection: { anchor: 0, head: fixture.length },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
+  });
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  let n = 0;
+  if (out && out.replaced && typeof out.replaced.iter === 'function') {
+    const cur = out.replaced.iter();
+    while (cur.value) { n++; cur.next(); }
+  }
+  assert.equal(n, 0, 'whole-doc selection reveals all markers — no replace');
+});
+
+test('Stage B WAVE 6-T-X-4: multi-cursor reveals only touched lines', () => {
+  // Two cursors on lines 2 and 6; line 4's backticks stay replaced.
+  // EditorState.allowMultipleSelections must be enabled or the state
+  // collapses multi-cursor to the main cursor only.
+  const fixture = 'line1\n**b**\nline3\n`c`\nline5\n[l](https://x.test)\nline7\n';
+  const state = EditorState.create({
+    doc: fixture,
+    selection: EditorSelection.create([
+      EditorSelection.cursor(8),
+      EditorSelection.cursor(31),
+    ], 0),
+    extensions: [
+      EditorState.allowMultipleSelections.of(true),
+      markdown({ base: markdownLanguage, codeLanguages: [] }),
+    ],
+  });
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  let n = 0;
+  if (out && out.replaced && typeof out.replaced.iter === 'function') {
+    const cur = out.replaced.iter();
+    while (cur.value) { n++; cur.next(); }
+  }
+  assert.equal(n, 2,
+    'multi-cursor: lines 2 and 6 revealed; only line 4 (`c`, 2 backticks) replaced');
 });

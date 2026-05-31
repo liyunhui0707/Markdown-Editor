@@ -111,3 +111,57 @@ test('Stage A WAVE 13-T15f: docs/test-manual.md Stage A section includes Chinese
   assert.match(testManual, /Stage A[\s\S]+IME/,
     'docs/test-manual.md Stage A section must cover Chinese IME (CLAUDE.md focus area)');
 });
+
+// ── Stage B WAVE 7 — docs reflect Stage B coverage ──────────────────────
+
+test('Stage B WAVE 7-T-D-1: CLAUDE.md mentions Stage B + four new marker types', () => {
+  assert.match(claudeMd, /Stage B/,
+    'CLAUDE.md must mention "Stage B"');
+  // The four new categories should appear in the lp-engine description.
+  assert.match(claudeMd, /inline.code/i,    'mentions inline code');
+  assert.match(claudeMd, /strikethrough/i,  'mentions strikethrough');
+  assert.match(claudeMd, /inline.link/i,    'mentions inline link');
+  assert.match(claudeMd, /inline.image/i,   'mentions inline image');
+});
+
+test('Stage B WAVE 7-T-D-2: README.md hybrid-cm6-lp row mentions Stage B coverage', () => {
+  // Find the engine table row and verify it covers Stage B.
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,1000}Stage B/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage B');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,1500}(inline.code|strikethrough|inline.link|inline.image)/i,
+    'README.md hybrid-cm6-lp row must mention at least one Stage B marker category');
+});
+
+test('Stage B WAVE 7-T-D-3: README.md Live styling section mentions Stage B coverage', () => {
+  // The Live styling section header or body should reference Stage B
+  // either directly ("Stage B") or via the "Stages A + B" phrasing the
+  // updated section header uses.
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*)?B/,
+    'README.md "Live styling" subsection must mention Stage B (or Stages A + B)');
+});
+
+test('Stage B WAVE 7-T-D-4: docs/stage-history.md has a Stage B row', () => {
+  assert.match(stageHistory, /\|\s*B\s*\|/,
+    'docs/stage-history.md must have a "| B |" table row');
+  assert.match(stageHistory, /\|\s*B\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage B row must reference hybrid-cm6-lp');
+});
+
+test('Stage B WAVE 7-T-D-5: docs/test-manual.md has a Stage B section', () => {
+  assert.match(testManual, /##\s+Stage B/,
+    'docs/test-manual.md must have a "## Stage B" section header');
+});
+
+test('Stage B WAVE 7-T-D-6: docs/test-manual.md Stage B section includes DOM-overlap gates for new marker types', () => {
+  // MQ-B2..B5 are the per-construct load-bearing gates.
+  assert.match(testManual, /MQ-B2/, 'inline-code DOM overlap gate');
+  assert.match(testManual, /MQ-B3/, 'strikethrough DOM overlap gate');
+  assert.match(testManual, /MQ-B4/, 'inline link DOM overlap gate');
+  assert.match(testManual, /MQ-B5/, 'inline image DOM overlap gate');
+});
+
+test('Stage B WAVE 7-T-D-7: docs/test-manual.md Stage B section preserves Stage A regression check', () => {
+  // MQ-B14 verifies Stage A emphasis still works.
+  assert.match(testManual, /MQ-B14[\s\S]{0,500}Stage A emphasis/,
+    'docs/test-manual.md Stage B section must include a Stage A regression gate');
+});

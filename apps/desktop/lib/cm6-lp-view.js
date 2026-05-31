@@ -30,19 +30,19 @@
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    // The lp adapter looks up Cm6HybridView and Cm6LpEmphasis from
+    // The lp adapter looks up Cm6HybridView and Cm6LpInline from
     // globalThis at construction time so the browser path (script-tag
     // ordering) and CJS path (Node tests) share the same lookup logic.
     // cm6-hybrid-view.js's CJS wrapper sets module.exports only — it
     // does NOT set root.Cm6HybridView. Bridge it here so the inner
     // factory finds the module via globalThis uniformly. Same for
-    // cm6-lp-emphasis.js (which does set its own globalThis via the
+    // cm6-lp-inline.js (which does set its own globalThis via the
     // pattern matched on cm6-line-utils.js, but we bridge defensively).
     const hybrid = require('./cm6-hybrid-view.js');
-    const lpEmph = require('./cm6-lp-emphasis.js');
+    const lpEmph = require('./cm6-lp-inline.js');
     if (typeof globalThis !== 'undefined') {
       if (!globalThis.Cm6HybridView)  globalThis.Cm6HybridView  = hybrid;
-      if (!globalThis.Cm6LpEmphasis)  globalThis.Cm6LpEmphasis  = lpEmph;
+      if (!globalThis.Cm6LpInline)  globalThis.Cm6LpInline  = lpEmph;
     }
     module.exports = factory();
   } else {
@@ -60,9 +60,9 @@
     return null;
   }
 
-  function getLpEmphasisModule() {
-    if (typeof globalThis !== 'undefined' && globalThis.Cm6LpEmphasis) {
-      return globalThis.Cm6LpEmphasis;
+  function getLpInlineModule() {
+    if (typeof globalThis !== 'undefined' && globalThis.Cm6LpInline) {
+      return globalThis.Cm6LpInline;
     }
     return null;
   }
@@ -88,10 +88,10 @@
     }
     const buildHeadingDecorations = hybridModule.buildHeadingDecorations;
 
-    const lpEmphasisModule = getLpEmphasisModule();
-    if (!lpEmphasisModule || typeof lpEmphasisModule.createLpEmphasisExtension !== 'function') {
+    const lpInlineModule = getLpInlineModule();
+    if (!lpInlineModule || typeof lpInlineModule.createLpInlineExtension !== 'function') {
       throw new Error(
-        'Cm6LpEmphasis.createLpEmphasisExtension missing — load cm6-lp-emphasis.js before cm6-lp-view.js'
+        'Cm6LpInline.createLpInlineExtension missing — load cm6-lp-inline.js before cm6-lp-view.js'
       );
     }
 
@@ -162,8 +162,8 @@
       // real behavior. The factory returns null if any required cm6
       // surface is missing, in which case the lp engine degrades to
       // hybrid-cm6 behavior with no atomic-range stepping.
-      const lpEmphasisExt = lpEmphasisModule.createLpEmphasisExtension(cm6);
-      if (lpEmphasisExt != null) extensions.push(lpEmphasisExt);
+      const lpInlineExt = lpInlineModule.createLpInlineExtension(cm6);
+      if (lpInlineExt != null) extensions.push(lpInlineExt);
 
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
     }
