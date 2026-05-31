@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('vaultApi', {
   deleteNoteFile: (payload) => ipcRenderer.invoke('delete-note-file', payload),
   loadVaultNotes: (payload) => ipcRenderer.invoke('load-vault-notes', payload),
   openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
+  // Stage C — lp engine inline-image rendering: resolve a vault-relative
+  // image path to a safe file:// URL. Returns the typed-reason shape
+  // documented at apps/desktop/lib/image-path-ipc.js.
+  resolveImagePath: (noteDir, relPath) =>
+    ipcRenderer.invoke('resolve-image-path', { noteDir, relPath }),
   refreshSessions: (vaultPath) => ipcRenderer.invoke('sessionViewer:import', { vaultPath }),
   onVaultChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);

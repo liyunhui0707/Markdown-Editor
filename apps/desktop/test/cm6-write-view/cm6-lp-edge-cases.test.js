@@ -168,10 +168,12 @@ test('Stage B WAVE 6-T-X-1c: inline link inside frontmatter is NOT replaced', ()
 });
 
 test('Stage B WAVE 6-T-X-1d: inline image inside frontmatter is NOT replaced', () => {
+  // Stage C contract change: body image now emits 1 widget range (not 5
+  // sub-replacements). Frontmatter image still skipped. Expected: 1.
   const fixture = '---\nimg: ![a](https://x.test/i.png)\n---\n\nBody ![alt](https://x.test/i.png)\n';
   const state = makeState(fixture, 0);
   const replaced = countReplaced(state);
-  assert.equal(replaced, 5, 'frontmatter image skipped; only body image (5) replaced');
+  assert.equal(replaced, 1, 'frontmatter image skipped; only body image (1 widget per Stage C) replaced');
 });
 
 test('Stage B WAVE 6-T-X-2: getText() round-trip preserved with all 5 marker types', () => {

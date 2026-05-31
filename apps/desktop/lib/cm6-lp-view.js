@@ -72,6 +72,17 @@
     const initialDoc = o.initialDoc != null ? String(o.initialDoc) : '';
     const onChange   = typeof o.onChange === 'function' ? o.onChange : null;
     const cm6        = o.cm6;
+    // Stage C — optional renderer hooks for vault-relative image resolution.
+    // getNoteDir   : () => string|null    — current note's directory, called
+    //                                       at decoration build time so a note
+    //                                       switch reflects in the next paint.
+    // resolveImagePath : (noteDir, relPath) => Promise<{ok,fileUrl}|{ok:false,reason}>
+    //                                       — the vaultApi.resolveImagePath
+    //                                       IPC client (or a test stub).
+    // Both fields are optional. When absent, vault-relative images fall back
+    // to the rejected placeholder (the widget can't resolve them).
+    const getNoteDir       = typeof o.getNoteDir       === 'function' ? o.getNoteDir       : null;
+    const resolveImagePath = typeof o.resolveImagePath === 'function' ? o.resolveImagePath : null;
 
     if (!cm6 || !cm6.EditorState || !cm6.EditorView) {
       throw new Error('cm6 backend missing (pass opts.cm6 from the bundled namespace)');
@@ -162,7 +173,10 @@
       // real behavior. The factory returns null if any required cm6
       // surface is missing, in which case the lp engine degrades to
       // hybrid-cm6 behavior with no atomic-range stepping.
-      const lpInlineExt = lpInlineModule.createLpInlineExtension(cm6);
+      const lpInlineExt = lpInlineModule.createLpInlineExtension(cm6, {
+        getNoteDir:       getNoteDir,
+        resolveImagePath: resolveImagePath,
+      });
       if (lpInlineExt != null) extensions.push(lpInlineExt);
 
       return cm6.EditorState.create({ doc: doc, extensions: extensions });

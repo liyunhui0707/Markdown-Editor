@@ -778,6 +778,37 @@ ipcMain.handle('open-external-link', async (_event, payload) => {
   return processOpenExternalLink(payload, shell);
 });
 
+// Stage C: resolve-image-path IPC. The renderer (hybrid-cm6-lp engine)
+// calls `window.vaultApi.resolveImagePath(noteDir, relPath)` to safely
+// resolve a vault-relative image path to a file:// URL before rendering
+// an <img> for it. Returns `{ok: true, fileUrl}` or
+// `{ok: false, reason: <code>}` with reason in
+// {no-vault, invalid-path, outside-vault, not-a-file,
+//  platform-unsupported, resolution-failed}. The pure resolver lives in
+// apps/desktop/lib/image-path-ipc.js and mirrors the security pattern of
+// tools/session-import/lib/safe-read.mjs (O_NOFOLLOW open + fdStat
+// identity check + realpath containment). err.message is dropped at the
+// IPC boundary — only the typed reason reaches the renderer.
+const { resolveImagePath } = require('./lib/image-path-ipc');
+const fsPromises = require('node:fs/promises');
+const fsConstantsAll = require('node:fs').constants;
+ipcMain.handle('resolve-image-path', async (_event, payload) => {
+  // Renderer passes noteDir as a path relative to the vault root (e.g., 'notes/'
+  // for `vault/notes/foo.md`) or empty for root-level notes. We join with the
+  // main-process vault path before handing to the pure resolver, which needs
+  // an absolute noteDir for path.resolve(noteDir, relPath) to work correctly.
+  const noteDirRel = (payload && payload.noteDir) ? String(payload.noteDir) : '';
+  const relPath    = (payload && payload.relPath) ? String(payload.relPath) : null;
+  const noteDirAbs = currentWatchedVaultPath
+    ? path.join(currentWatchedVaultPath, noteDirRel)
+    : null;
+  return resolveImagePath(noteDirAbs, relPath, {
+    fs: fsPromises,
+    fsConstants: fsConstantsAll,
+    vaultPath: currentWatchedVaultPath,
+  });
+});
+
 app.whenReady().then(() => {
   createWindow();
 

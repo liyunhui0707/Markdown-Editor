@@ -36,19 +36,22 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     require('./cm6-line-utils.js');
+    // Stage C — image widget is read at runtime via globalThis.Cm6LpImageWidget.
+    // Require it on the CJS path so Node tests don't depend on whoever
+    // pre-loads it; the browser path loads it via a <script> tag before
+    // cm6-lp-inline.js (per cm6-lp-renderer-source.test.js).
+    require('./cm6-lp-image-widget.js');
     module.exports = factory();
   } else {
     root.Cm6LpInline = factory();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
-  // ── isInlineLinkAncestor / isInlineImageAncestor ──────────────────────
-  // Mirror the walker's isInlineLinkNode / isInlineImageNode predicates
-  // (cm6-hybrid-view.js:31-37, 62-68). Used by the inline-link / inline-
-  // image branch to skip reference-style links/images (which have no
-  // direct URL child) and autolinks (parent name is 'Autolink', not
-  // 'Link'). Takes a SyntaxNode (the LinkMark/URL/LinkTitle); checks
-  // node.parent for the right shape.
+  // ── isInlineLinkAncestor (Stage B) ─────────────────────────────────────
+  // Mirrors the walker's isInlineLinkNode predicate (cm6-hybrid-view.js:
+  // 31-37). Used by the inline-link branch to skip reference-style links
+  // (no direct URL child) and autolinks (parent name is 'Autolink', not
+  // 'Link'). Takes a SyntaxNode (LinkMark/URL/LinkTitle); checks node.parent.
   function isInlineLinkAncestor(synNode) {
     if (!synNode) return false;
     const parent = synNode.parent;
@@ -58,14 +61,40 @@
     }
     return false;
   }
-  function isInlineImageAncestor(synNode) {
-    if (!synNode) return false;
-    const parent = synNode.parent;
-    if (!parent || parent.name !== 'Image') return false;
-    for (let child = parent.firstChild; child; child = child.nextSibling) {
+
+  // ── isInlineImageNode (Stage C) ────────────────────────────────────────
+  // Stage C image-widget branch fires at the Image NODE level (not at its
+  // LinkMark children). This predicate takes an Image SyntaxNode directly
+  // and checks for a URL child. Reference-style images (no URL child) are
+  // excluded — they continue to render walker-styled.
+  function isInlineImageNode(imageNode) {
+    if (!imageNode || imageNode.name !== 'Image') return false;
+    for (let child = imageNode.firstChild; child; child = child.nextSibling) {
       if (child.name === 'URL') return true;
     }
     return false;
+  }
+
+  // ── getInlineImageUrl / getInlineImageAlt (Stage C) ────────────────────
+  // Read the URL and alt text from an inline Image node. Mirrors the
+  // walker's inlineImageAltRange (cm6-hybrid-view.js:74-88). Alt range is
+  // between the closing of the first LinkMark ('![') and the start of the
+  // second LinkMark (']'). URL is the URL child's text.
+  function getInlineImageUrl(imageNode, doc) {
+    for (let child = imageNode.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') return doc.sliceString(child.from, child.to);
+    }
+    return '';
+  }
+  function getInlineImageAlt(imageNode, doc) {
+    let first = null, second = null;
+    for (let child = imageNode.firstChild; child; child = child.nextSibling) {
+      if (child.name !== 'LinkMark') continue;
+      if (!first) first = child;
+      else if (!second) { second = child; break; }
+    }
+    if (!first || !second) return '';
+    return doc.sliceString(first.to, second.from);
   }
 
   // ── frontmatterEnd(doc) — defensive guard ──────────────────────────────
@@ -133,7 +162,11 @@
   //          the marker dimmed.
   //   5. Frontmatter guard: skip emphasis nodes inside the strict
   //      '---'…'---' frontmatter region (Stage 14.9 parity).
-  function buildLpInlineDecorations(state, cm6) {
+  function buildLpInlineDecorations(state, cm6, opts) {
+    // Stage C — opts is optional. opts.noteDir / opts.resolveImagePath
+    // enable the InlineImageWidget to call IPC for vault-relative paths.
+    // When opts is missing OR the image URL is https/data, neither is used.
+    opts = opts || {};
     if (!cm6 || !cm6.Decoration) return null;
     if (typeof cm6.Decoration.set !== 'function') return null;
     const empty = cm6.Decoration.set([], true);
@@ -216,23 +249,75 @@
           );
           return;
         }
-        // Stage B — inline link / image markers. LinkMark/URL/LinkTitle
-        // appear in three contexts: inline Link (with URL child), inline
-        // Image (with URL child), reference-style Link/Image (no URL
-        // child), autolink (parent name is Autolink). Only the first two
-        // are in scope for Stage B. The link TEXT range (between the two
-        // bracket LinkMarks) is NOT replaced — it stays visible per the
-        // existing cm-md-link-text / cm-md-image-alt walker styling.
+        // Stage B — inline link markers (LinkMark/URL/LinkTitle parented
+        // by an inline Link with URL child). Stage C narrowed this branch
+        // to inline-link ONLY; the image case moved to its own Image
+        // branch below that emits a single InlineImageWidget covering
+        // the entire `![alt](url)` range.
         if (node.name === 'LinkMark' || node.name === 'URL' || node.name === 'LinkTitle') {
-          const inLink  = isInlineLinkAncestor(node.node);
-          const inImage = isInlineImageAncestor(node.node);
-          if (!inLink && !inImage) return;
+          if (!isInlineLinkAncestor(node.node)) return;
           if (!shouldReplace(node)) return;
           replacedRanges.push(
             cm6.Decoration.replace({ widget: widget, inclusive: false })
               .range(node.from, node.to)
           );
           return;
+        }
+        // Stage C — inline image: emit ONE widget per Image node covering
+        // the entire `![alt](url)` range. The widget owns the <img>
+        // rendering + URL allowlist check + load-failure fallback. We
+        // return false to prevent the iterator from descending into the
+        // Image's children (the LinkMark/URL/LinkTitle would otherwise
+        // need to be re-skipped). Reference-style images (no URL child)
+        // are excluded via isInlineImageNode.
+        if (node.name === 'Image' && isInlineImageNode(node.node)) {
+          if (node.from < fmEnd) return false;
+          const lineNumber = state.doc.lineAt(node.from).number;
+          if (touchedSet.has(lineNumber)) return false;  // on-active no-op
+          const url = getInlineImageUrl(node.node, state.doc);
+          const rawAlt = getInlineImageAlt(node.node, state.doc);
+          // Lazy-load the image widget module via globalThis (set on the
+          // browser path by the script tag at index.html; set on the CJS
+          // path by the lp-view bridge before this plugin runs).
+          const widgetModule =
+            (typeof globalThis !== 'undefined') ? globalThis.Cm6LpImageWidget : null;
+          if (!widgetModule || !widgetModule.isSafeImageUrl
+              || !widgetModule.InlineImageWidget
+              || !widgetModule.RejectedImageWidget) {
+            // Widget module unavailable — silently skip; the walker's
+            // existing decorations will render the markup. This protects
+            // against script-load-order issues.
+            return false;
+          }
+          const safety = widgetModule.isSafeImageUrl(url);
+          const sizing = widgetModule.parseAltForSizing(rawAlt);
+          let imageWidget;
+          if (safety.safe) {
+            // For vault-relative URLs, pass the IPC client + noteDir so the
+            // widget can asynchronously resolve to a safe file:// URL at
+            // toDOM time. For https/data URLs, no IPC needed — widget uses
+            // src directly.
+            const vaultCtx = (safety.kind === 'vault-relative')
+              ? { noteDir: opts.noteDir, resolveImagePath: opts.resolveImagePath, relPath: url }
+              : null;
+            imageWidget = new widgetModule.InlineImageWidget({
+              src: url,
+              alt: sizing.cleanedAlt,
+              width: sizing.width,
+              height: sizing.height,
+              kind: safety.kind,
+              vaultRelativeContext: vaultCtx,
+            });
+          } else {
+            imageWidget = new widgetModule.RejectedImageWidget({
+              alt: sizing.cleanedAlt,
+            });
+          }
+          replacedRanges.push(
+            cm6.Decoration.replace({ widget: imageWidget, inclusive: false })
+              .range(node.from, node.to)
+          );
+          return false;  // do not descend into Image children
         }
       },
     });
@@ -253,7 +338,7 @@
   // Extension). The lp engine needs four surfaces that hybrid-cm6 doesn't:
   // Decoration.replace, WidgetType, EditorView.atomicRanges, and
   // Decoration.none (atomicRanges fallback).
-  function createLpInlineExtension(cm6) {
+  function createLpInlineExtension(cm6, opts) {
     if (!cm6 || !cm6.ViewPlugin) return null;
     if (typeof cm6.ViewPlugin.fromClass !== 'function') return null;
     if (!cm6.Decoration) return null;
@@ -264,15 +349,32 @@
     if (!cm6.EditorView || !cm6.EditorView.atomicRanges) return null;
     if (typeof cm6.EditorView.atomicRanges.of !== 'function') return null;
 
+    // Stage C — opts is optional. When present, opts.getNoteDir is a
+    // callback returning the current note's directory (used to resolve
+    // vault-relative image paths via IPC). opts.resolveImagePath is the
+    // IPC client (`window.vaultApi.resolveImagePath` or a test stub).
+    const o = opts || {};
+    const getNoteDir       = (typeof o.getNoteDir       === 'function') ? o.getNoteDir       : null;
+    const resolveImagePath = (typeof o.resolveImagePath === 'function') ? o.resolveImagePath : null;
+
+    function decorationOpts() {
+      // Resolved at build time so a note switch reflects in the next
+      // decoration recompute (which fires on selectionSet / docChanged).
+      return {
+        noteDir:           getNoteDir ? getNoteDir() : null,
+        resolveImagePath:  resolveImagePath,
+      };
+    }
+
     return cm6.ViewPlugin.fromClass(class {
       constructor(view) {
-        const built = buildLpInlineDecorations(view.state, cm6);
+        const built = buildLpInlineDecorations(view.state, cm6, decorationOpts());
         this.decorations    = built ? built.all      : cm6.Decoration.none;
         this.replacedRanges = built ? built.replaced : cm6.Decoration.none;
       }
       update(update) {
         if (update.selectionSet || update.docChanged || update.viewportChanged) {
-          const built = buildLpInlineDecorations(update.state, cm6);
+          const built = buildLpInlineDecorations(update.state, cm6, decorationOpts());
           this.decorations    = built ? built.all      : cm6.Decoration.none;
           this.replacedRanges = built ? built.replaced : cm6.Decoration.none;
         }

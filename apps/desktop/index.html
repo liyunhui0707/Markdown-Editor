@@ -1869,6 +1869,7 @@
     <script src="./lib/cm6-active-range.js"></script>
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
+    <script src="./lib/cm6-lp-image-widget.js"></script>
     <script src="./lib/cm6-lp-inline.js"></script>
     <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
@@ -4328,16 +4329,34 @@
           exitWriteMode() { cm6HybridWrite.exitWriteMode(); },
         };
       } else if (selectedWriteEngine === 'hybrid-cm6-lp') {
-        // Stage A live-preview engine. Reuses the hybrid walker for every
-        // construct except emphasis markers (*, _, **, __) which the
-        // lp-emphasis plugin replaces with empty widgets off-active-line
-        // and lets the walker's existing Decoration.mark + CSS reveal on-
-        // active-line. Replaced ranges are atomic via EditorView.atomicRanges
-        // so arrow-key cursor motion steps over hidden markers as one unit.
+        // Stages A + B + C live-preview engine. Reuses the hybrid walker for
+        // most constructs. Inline marker categories (emphasis, inline code,
+        // strikethrough, inline links) are replaced with empty widgets off-
+        // active-line and revealed via the walker's existing decorations +
+        // CSS on-active-line. Stage C: inline IMAGES render as actual <img>
+        // elements via WidgetType when off-active; vault-relative paths
+        // resolve through window.vaultApi.resolveImagePath (IPC). Replaced
+        // ranges are atomic via EditorView.atomicRanges so arrow-key cursor
+        // motion steps over hidden markers / image widgets as one unit.
         // getText() returns raw Markdown — no document mutation.
         const cm6LpWrite = window.Cm6LpView.createCm6LpView(hybridWritePane, {
           onChange: handleWriteChange,
           cm6: window.CM6Production,
+          // Stage C: getNoteDir is called at decoration build time so a
+          // note switch reflects in the next paint. Returns the current
+          // note's directory relative to the vault root (empty string for
+          // root-level notes). The IPC handler joins it with the vault
+          // path on the main side.
+          getNoteDir: () => {
+            const sel = getSelectedNote();
+            if (!sel || !sel.relativePath) return '';
+            const lastSlash = sel.relativePath.lastIndexOf('/');
+            return lastSlash >= 0 ? sel.relativePath.slice(0, lastSlash) : '';
+          },
+          // Stage C: vault-relative image paths resolve via the new IPC
+          // contract. Returns {ok: true, fileUrl} or {ok: false, reason}.
+          resolveImagePath: (noteDir, relPath) =>
+            window.vaultApi.resolveImagePath(noteDir, relPath),
         });
 
         liveEditorInstance = {

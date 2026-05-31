@@ -601,6 +601,95 @@ Second stage of the option-2 Live Preview migration. Same opt-in mechanism as St
 - [ ] Autolink `<https://example.com>` — confirm NOT replaced (Stage 25 Cmd-click continues to work).
 - [ ] Nested emphasis inside link text or image alt (e.g., `[**bold** text](url)`) — inner `**` still replaced (Stage A behavior preserved through Stage B's iteration).
 
+## Stage C — `hybrid-cm6-lp` renders inline images as actual `<img>` elements (with URL allowlist + vault-relative IPC)
+
+Third stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage B**: inline image markup `![alt](url)` is no longer just 5–6 empty-widget hides — it is now ONE `WidgetType` widget per image that renders an actual `<img>` element off-active. URL must pass `isSafeImageUrl` (allowed: `https:`, `data:image/<mime>` where mime ∈ {png, jpeg, jpg, gif, webp, svg+xml, bmp, apng, avif, x-icon, vnd.microsoft.icon}, and vault-relative paths). Vault-relative paths resolve via a new IPC contract `window.vaultApi.resolveImagePath(noteDir, relPath)`. Rejected URLs render a styled-alt placeholder (NEVER an `<img>` with a disallowed URL). On-active behavior unchanged: markup characters reveal dimmed with alt text styled per Stage B.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-C1 — engine opt-in works (unchanged from Stages A + B)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-C2 — `https:` inline image renders as `<img>` off-active (load-bearing)**
+- [ ] Open a note with `prefix ![cat](https://placekitten.com/200/200) suffix`. Click on a different line.
+- [ ] Visually: an actual `<img>` is rendered inline (no `![cat](...)` markup visible).
+- [ ] DevTools Elements panel: the rendered DOM contains exactly one `<img>` element with `src="https://placekitten.com/200/200"` and `alt="cat"` (or empty alt if `cat` was sized away).
+- [ ] Click on the image line. Confirm: `<img>` disappears; the markup characters reveal dimmed; "cat" appears styled (italic + muted).
+
+**MQ-C3 — `data:image/...` inline image renders as `<img>` off-active**
+- [ ] Note with a small `data:image/png;base64,iVBORw0KGgoAAAANSU...` image. Click off the line.
+- [ ] Visually + DevTools: actual `<img>` rendered with the `data:` URL as `src`.
+
+**MQ-C4 — rejected URL schemes show placeholder, NEVER render `<img>` (security — load-bearing)**
+- [ ] For each of these URLs, place the markup `![alt](URL)` in a note and click off the line:
+  - `http://example.com/img.png` (insecure)
+  - `javascript:alert(1)` (XSS)
+  - `file:///etc/passwd` (local file)
+  - `chrome-extension://abc/x.png`
+  - `blob:https://example.com/abc`
+- [ ] For each: DevTools confirms NO `<img>` element rendered for that range; "alt" text shown styled (italic + muted) per `RejectedImageWidget`.
+
+**MQ-C5 — vault-relative path resolves to actual `<img>` (positive case)**
+- [ ] In the current note's directory, place an image file e.g. `./assets/test.png` (PNG or any supported MIME). In the note: `![local](./assets/test.png)`. Click off the line.
+- [ ] Visually + DevTools: `<img>` renders with `src` starting `file://` and pointing to the resolved vault file. The image loads.
+- [ ] In main-process logs: confirm one `resolve-image-path` IPC call with `{ok: true, fileUrl: 'file://...'}`.
+
+**MQ-C6 — vault-relative path OUTSIDE vault is rejected (security — load-bearing)**
+- [ ] In a note inside the vault, add `![out](../../../etc/hosts)` (or any escape attempt to a real file outside the vault root). Click off the line.
+- [ ] Visually + DevTools: NO `<img>` rendered; rejected placeholder shown.
+- [ ] Main-process logs: IPC returns `{ok: false, reason: 'outside-vault'}` (or similar typed reason); sanitized — does NOT leak absolute paths to renderer.
+
+**MQ-C7 — vault-relative path through symlink rejected (safe-read invariant)**
+- [ ] Create a symlink inside the vault that points to a file outside the vault: `ln -s /etc/hosts vault/dir/leak.png`. Add `![leak](dir/leak.png)`.
+- [ ] Confirm: rejected (symlinks are blocked by `O_NOFOLLOW` open). Placeholder shown.
+
+**MQ-C8 — missing vault-relative file rejected gracefully**
+- [ ] `![ghost](./does-not-exist.png)`. Confirm: placeholder rendered (no thrown error, no broken `<img>` icon).
+
+**MQ-C9 — `<img>` load failure swaps to placeholder**
+- [ ] `![404](https://example.com/definitely-404.png)`. Confirm: initially `<img>` element attempted; when the load fails, the DOM swaps to the rejected placeholder showing "404".
+
+**MQ-C10 — Obsidian-style sizing `![alt|400](url)`**
+- [ ] `![bigcat|400](https://placekitten.com/800/800)`. Confirm rendered `<img>` has `width: 400` (or 400px) inline style applied; aspect ratio preserved (height auto).
+- [ ] `![bigcat|400x300](...)`: confirm both width 400 + height 300 applied; alt text "bigcat" (sizing stripped).
+
+**MQ-C11 — default sizing constraints**
+- [ ] Place an unsized image with very large natural dimensions. Confirm: `<img>` is capped by `max-width: 100%` (fits container) and `max-height: 400px` (doesn't blow up vertically).
+
+**MQ-C12 — on-active toggle (Stage B behavior preserved)**
+- [ ] On an off-active image line, the `<img>` is shown. Click on the same line.
+- [ ] Confirm: `<img>` disappears; the source markup `![alt](url)` reveals — alt styled (italic + muted) per `cm-md-image-alt`, brackets/parens/url marked dimmed per `cm-md-image-mark`.
+- [ ] Click off the line again. `<img>` returns. Repeat several times — no flicker, no leaked widgets.
+
+**MQ-C13 — round-trip / `getText()` preservation**
+- [ ] Edit a note with several image lines (mix of https, data, vault-relative, rejected). Save (Cmd-S). Close + reopen.
+- [ ] Confirm source on disk is byte-identical at LF level to what you typed — no `<img>` HTML, no mutated alt, no URL rewrites.
+- [ ] DevTools: `window.markdownVaultLive.getText()` returns raw Markdown identical to source.
+
+**MQ-C14 — undo/redo per image edit**
+- [ ] Type a new `![cat](https://...)` line. Cmd-Z. Confirm: edit reversed cleanly; widget removed. Cmd-Shift-Z. Confirm: edit reapplied; widget re-rendered.
+
+**MQ-C15 — Chinese IME composition near image markup**
+- [ ] Place caret adjacent to an image (just before `!` or just after `)`). Start IME composition. Confirm: composition completes normally; no first-character drop; the widget doesn't disrupt the composition.
+
+**MQ-C16 — multi-cursor / drag-select touches reveal source**
+- [ ] Drag-select across several lines that include image lines. Confirm: every touched image line switches to source view (per Stage 26 active-range contract); `<img>` widgets disappear on the touched lines and reveal markup.
+
+**MQ-C17 — Stage A + B behavior preserved (regression)**
+- [ ] Confirm: emphasis (`**bold**`, `*italic*`), inline code, strikethrough, inline links continue to hide off-active and reveal on-active — Stages A + B behavior preserved through Stage C's image-branch contract change.
+
+**MQ-C18 — Automated regression sweep after Stage C**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-C baseline was approximately 1685/1683/0/2; post-Stage-C should be roughly 1756/1754/0/2 (+71 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (615/613/0/2 after Stage C).
+
+**Edge-case extras (optional)**
+- [ ] Frontmatter containing an image — confirm markup renders as plain text (not replaced) per Stage 14.9 frontmatter contract.
+- [ ] Reference-style image `![alt][1]` — confirm NOT replaced (markers stay visible).
+- [ ] Image inside a link `[![inner-alt](inner-url)](outer-url)` — confirm image is rendered as `<img>` + outer link markers are atomically replaced (5 link ranges + 1 image widget = 6 replaced ranges total).
+- [ ] Default engine `hybrid-cm6` unchanged: `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Images render as text + URL markup (no `<img>` inline). All Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

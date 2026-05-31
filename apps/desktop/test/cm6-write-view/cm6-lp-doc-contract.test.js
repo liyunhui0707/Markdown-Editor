@@ -165,3 +165,61 @@ test('Stage B WAVE 7-T-D-7: docs/test-manual.md Stage B section preserves Stage 
   assert.match(testManual, /MQ-B14[\s\S]{0,500}Stage A emphasis/,
     'docs/test-manual.md Stage B section must include a Stage A regression gate');
 });
+
+// ── Stage C WAVE 7 — docs reflect Stage C coverage ──────────────────────
+
+test('Stage C WAVE 7-T-DC-1: CLAUDE.md mentions Stage C + WidgetType image rendering + URL allowlist + IPC', () => {
+  assert.match(claudeMd, /Stage C/,
+    'CLAUDE.md must mention "Stage C"');
+  // Stage C introduces actual WidgetType-based image rendering.
+  assert.match(claudeMd, /InlineImageWidget|inline image[s]?[\s\S]{0,200}WidgetType|WidgetType[\s\S]{0,400}<img>/i,
+    'CLAUDE.md must describe Stage C as rendering actual <img> via WidgetType');
+  // URL allowlist surface.
+  assert.match(claudeMd, /isSafeImageUrl|URL[ -]?allowlist|allowlist/i,
+    'CLAUDE.md must describe the URL/path security allowlist');
+  // IPC contract.
+  assert.match(claudeMd, /resolve-image-path|resolveImagePath/,
+    'CLAUDE.md must reference the resolve-image-path IPC contract');
+});
+
+test('Stage C WAVE 7-T-DC-2: README.md hybrid-cm6-lp row mentions Stage C coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,2000}Stage C/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage C');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,2500}<img>/,
+    'README.md hybrid-cm6-lp row must mention <img> rendering for Stage C');
+});
+
+test('Stage C WAVE 7-T-DC-3: README.md "Live styling" section mentions Stage C coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*)?C/,
+    'README.md "Live styling" subsection must mention Stage C (or Stages A + B + C)');
+});
+
+test('Stage C WAVE 7-T-DC-4: docs/stage-history.md has a Stage C row referencing hybrid-cm6-lp + WidgetType', () => {
+  assert.match(stageHistory, /\|\s*C\s*\|/,
+    'docs/stage-history.md must have a "| C |" table row');
+  assert.match(stageHistory, /\|\s*C\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage C row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*C\s*\|[\s\S]{0,2000}WidgetType/,
+    'Stage C row must reference WidgetType (the new rendering surface)');
+});
+
+test('Stage C WAVE 7-T-DC-5: docs/test-manual.md has a Stage C section', () => {
+  assert.match(testManual, /##\s+Stage C/,
+    'docs/test-manual.md must have a "## Stage C" section header');
+});
+
+test('Stage C WAVE 7-T-DC-6: docs/test-manual.md Stage C section includes load-bearing gates for image rendering + security', () => {
+  // MQ-C2 (https <img>), MQ-C4 (rejected URL security), MQ-C5 (vault-relative),
+  // MQ-C6 (outside-vault rejection), MQ-C12 (on-active toggle) are the
+  // load-bearing per-construct gates.
+  assert.match(testManual, /MQ-C2/, 'https image rendering gate');
+  assert.match(testManual, /MQ-C4/, 'rejected URL security gate');
+  assert.match(testManual, /MQ-C5/, 'vault-relative resolution gate');
+  assert.match(testManual, /MQ-C6/, 'outside-vault rejection gate');
+  assert.match(testManual, /MQ-C12/, 'on-active toggle gate');
+});
+
+test('Stage C WAVE 7-T-DC-7: docs/test-manual.md Stage C section preserves Stage A + B regression check', () => {
+  assert.match(testManual, /MQ-C17[\s\S]{0,500}Stage A \+ B/,
+    'docs/test-manual.md Stage C section must include a Stage A + B regression gate (MQ-C17)');
+});

@@ -104,3 +104,34 @@ test('Stage A WAVE 12-S10: lp-view script tag is not duplicated', () => {
   assert.equal(matches.length, 1,
     'cm6-lp-view.js must be loaded exactly once');
 });
+
+// ── Stage C WAVE 8 — image-widget script tag + renderer wiring ─────────
+
+test('Stage C WAVE 8-T-RW-1: index.html loads ./lib/cm6-lp-image-widget.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-image-widget\.js["']/,
+    'index.html must include <script src="./lib/cm6-lp-image-widget.js">');
+});
+
+test('Stage C WAVE 8-T-RW-2: cm6-lp-image-widget.js loads BEFORE cm6-lp-inline.js (script-tag order)', () => {
+  const imgWidget = tagOffset('./lib/cm6-lp-image-widget.js');
+  const lpInline  = tagOffset('./lib/cm6-lp-inline.js');
+  assert.ok(imgWidget >= 0, 'cm6-lp-image-widget.js script tag must be present');
+  assert.ok(imgWidget < lpInline,
+    'cm6-lp-image-widget.js must load BEFORE cm6-lp-inline.js (lp-inline reads window.Cm6LpImageWidget)');
+});
+
+test('Stage C WAVE 8-T-RW-3: lp dispatch case passes getNoteDir callback', () => {
+  // Look for the getNoteDir field in the lp dispatch case.
+  assert.match(html, /selectedWriteEngine\s*===\s*['"]hybrid-cm6-lp['"][\s\S]{0,4000}getNoteDir\s*:/,
+    'lp dispatch case must pass a getNoteDir callback');
+});
+
+test('Stage C WAVE 8-T-RW-4: lp dispatch case passes resolveImagePath callback', () => {
+  assert.match(html, /selectedWriteEngine\s*===\s*['"]hybrid-cm6-lp['"][\s\S]{0,4000}resolveImagePath\s*:/,
+    'lp dispatch case must pass a resolveImagePath callback');
+});
+
+test('Stage C WAVE 8-T-RW-5: lp dispatch case uses window.vaultApi.resolveImagePath', () => {
+  assert.match(html, /window\.vaultApi\.resolveImagePath/,
+    'lp dispatch case must call window.vaultApi.resolveImagePath for vault-relative resolution');
+});
