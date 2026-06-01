@@ -1893,6 +1893,12 @@
     <script src="./lib/vendor/mermaid/mermaid.min.js"></script>
     <script src="./lib/cm6-lp-mermaid-widget.js"></script>
     <script src="./lib/cm6-lp-block.js"></script>
+    <!-- Stage G.3 — block-widget StateField. Loads AFTER all widget
+         modules it consumes (image, table, math, code, mermaid) and
+         AFTER cm6-lp-block.js so dependencies are in place. Owns the
+         block:true Decoration.replace emissions that CM6 forbids in
+         ViewPlugins. -->
+    <script src="./lib/cm6-lp-block-widgets.js"></script>
     <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>

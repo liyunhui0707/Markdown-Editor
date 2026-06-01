@@ -26736,6 +26736,7 @@
     Decoration,
     WidgetType,
     RangeSetBuilder,
+    StateField,
     syntaxTree,
     history,
     markdown: () => markdown({

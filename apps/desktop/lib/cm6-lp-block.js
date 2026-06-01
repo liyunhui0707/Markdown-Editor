@@ -64,33 +64,11 @@
     if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpInline) {
       globalThis.Cm6LpInline = lpInline;
     }
-    // Stage E — bridge cm6-lp-table-widget.js onto globalThis for the
-    // Table branch's parseTableNode + TableWidget lookup. Browser path
-    // loads it via <script> tag before cm6-lp-block.js.
-    const lpTable = require('./cm6-lp-table-widget.js');
-    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpTableWidget) {
-      globalThis.Cm6LpTableWidget = lpTable;
-    }
-    // Stage F — bridge math detect + widget modules for the Display
-    // math branch's lookup. Inline math is handled by cm6-lp-inline.js
-    // which has its own CJS bridge for these same modules.
-    const lpMathDetect = require('./cm6-lp-math-detect.js');
-    const lpMathWidget = require('./cm6-lp-math-widget.js');
-    if (typeof globalThis !== 'undefined') {
-      if (!globalThis.Cm6LpMathDetect) globalThis.Cm6LpMathDetect = lpMathDetect;
-      if (!globalThis.Cm6LpMathWidget) globalThis.Cm6LpMathWidget = lpMathWidget;
-    }
-    // Stage G.1 — bridge code widget module for the FencedCode branch.
-    const lpCodeWidget = require('./cm6-lp-code-widget.js');
-    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpCodeWidget) {
-      globalThis.Cm6LpCodeWidget = lpCodeWidget;
-    }
-    // Stage G.2 — bridge mermaid widget module for the FencedCode
-    // lang-dispatch (when lang === 'mermaid').
-    const lpMermaidWidget = require('./cm6-lp-mermaid-widget.js');
-    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpMermaidWidget) {
-      globalThis.Cm6LpMermaidWidget = lpMermaidWidget;
-    }
+    // Stage G.3 — Stage E/F/G.1/G.2 block widgets moved to the new
+    // cm6-lp-block-widgets.js StateField module (block:true Decoration.
+    // replace from a ViewPlugin throws at runtime). lp-block.js retains
+    // ONLY Stage D's line-internal HeaderMark/ListMark/QuoteMark
+    // replaces, which are inline decorations and remain ViewPlugin-safe.
     module.exports = factory();
   } else {
     root.Cm6LpBlock = factory();
@@ -181,113 +159,14 @@
       return !touchedSet.has(lineNumber);
     }
 
-    // Stage E — Table-level active resolution: a Table node spans
-    // multiple lines. Return true if NO line in the [fromLine, toLine]
-    // closed interval is in the touched set. Used by the Table branch.
-    function isWholeRangeOffActive(fromLine, toLine) {
-      for (let n = fromLine; n <= toLine; n++) {
-        if (touchedSet.has(n)) return false;
-      }
-      return true;
-    }
-
-    // Stage E — Table widget lookup. Browser path: script tag before
-    // cm6-lp-block.js sets globalThis.Cm6LpTableWidget. CJS path: the
-    // UMD wrapper above bridges it. If unavailable, silently skip the
-    // Table branch (table renders via walker as before — Stage 31+33).
-    const tableMod =
-      (typeof globalThis !== 'undefined') ? globalThis.Cm6LpTableWidget : null;
-    const TableWidgetClass = (tableMod && typeof tableMod.getTableWidgetClass === 'function')
-      ? tableMod.getTableWidgetClass()
-      : null;
-
-    // Stage G.1 — fenced-code widget. Reads CodeInfo (language) and
-    // CodeText (body) from the Lezer FencedCode node and emits ONE
-    // block-level Decoration.replace covering [node.from, node.to].
-    // Whole-block active resolution mirrors Stage E tables.
-    const codeWidgetMod = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpCodeWidget : null;
-    const CodeBlockWidgetClass = (codeWidgetMod && typeof codeWidgetMod.getCodeBlockWidgetClass === 'function')
-      ? codeWidgetMod.getCodeBlockWidgetClass()
-      : null;
-
-    // Stage G.2 — Mermaid widget. Dispatched from the FencedCode branch
-    // when lang === 'mermaid' (in preference to the Stage G.1
-    // CodeBlockWidget). Available iff the script tag loaded.
-    const mermaidWidgetMod = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMermaidWidget : null;
-    const MermaidWidgetClass = (mermaidWidgetMod && typeof mermaidWidgetMod.getMermaidWidgetClass === 'function')
-      ? mermaidWidgetMod.getMermaidWidgetClass()
-      : null;
+    // Stage G.3 — block widgets (Stage E table, Stage F display math,
+    // Stage G.1+G.2 fenced code) moved to cm6-lp-block-widgets.js
+    // StateField. Only the line-internal Stage D markers remain in
+    // this ViewPlugin.
 
     const replacedRanges = [];
     tree.iterate({
       enter(node) {
-        // Stage G.1 — fenced code block: extract lang + code, emit
-        // ONE block widget covering the entire FencedCode range when
-        // off-active. On-active OR widget unavailable: descend (or
-        // not — the walker still emits cm-md-fenced-code-mark / -info
-        // on the inner nodes which Stage 28 hides off-construct-active).
-        if (node.name === 'FencedCode' && (CodeBlockWidgetClass || MermaidWidgetClass)) {
-          if (node.from < fmEnd) return;
-          const fromLine = state.doc.lineAt(node.from).number;
-          const lastCharPos = Math.max(node.from, Math.min(node.to - 1, state.doc.length - 1));
-          const toLine = state.doc.lineAt(Math.max(lastCharPos, 0)).number;
-          if (!isWholeRangeOffActive(fromLine, toLine)) {
-            return;
-          }
-          // Walk FencedCode children to extract lang + code.
-          let lang = '';
-          let code = '';
-          for (let child = node.node.firstChild; child; child = child.nextSibling) {
-            if (child.name === 'CodeInfo' && !lang) {
-              lang = state.doc.sliceString(child.from, child.to).trim();
-            } else if (child.name === 'CodeText' && !code) {
-              code = state.doc.sliceString(child.from, child.to);
-            }
-          }
-          // Stage G.2 — lang dispatch: when lang === 'mermaid' and the
-          // MermaidWidget is available, emit it instead of the Stage G.1
-          // CodeBlockWidget. Other languages (or no language) continue
-          // to use the CodeBlockWidget hljs path.
-          let chosenWidget = null;
-          if (lang === 'mermaid' && MermaidWidgetClass) {
-            chosenWidget = new MermaidWidgetClass(code);
-          } else if (CodeBlockWidgetClass) {
-            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
-          }
-          if (!chosenWidget) return;  // defensive: neither widget loaded
-          replacedRanges.push(
-            cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
-              .range(node.from, node.to)
-          );
-          return false;  // do not descend into FencedCode children
-        }
-        // Stage E — GFM table widget. Emits ONE Decoration.replace
-        // covering the full Table range when no line in the table is
-        // touched. Returns false to skip descent into the table's
-        // children (we don't want HeaderMark/ListMark/etc. branches to
-        // fire inside the table since the widget replaces the whole
-        // range). On-active OR widget-unavailable: descend naturally so
-        // other lp branches (none expected inside a table) can run.
-        if (node.name === 'Table' && TableWidgetClass && tableMod && typeof tableMod.parseTableNode === 'function') {
-          if (node.from < fmEnd) return;
-          const fromLine = state.doc.lineAt(node.from).number;
-          // node.to is exclusive end. Subtract 1 so we read the LAST
-          // character's line, not the next line's first character.
-          const lastCharPos = Math.max(node.from, Math.min(node.to - 1, state.doc.length - 1));
-          const toLine = state.doc.lineAt(Math.max(lastCharPos, 0)).number;
-          if (!isWholeRangeOffActive(fromLine, toLine)) {
-            // On-active table: emit nothing; walker renders source.
-            return;
-          }
-          const parsed = tableMod.parseTableNode(node.node, state.doc);
-          if (!parsed) return;  // malformed table; let walker handle
-          const tableWidget = new TableWidgetClass(parsed);
-          replacedRanges.push(
-            cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
-              .range(node.from, node.to)
-          );
-          return false;  // do not descend into Table children
-        }
         // Stage D — ATX HeaderMark (`#` … `######` and optional trailing `#`).
         // Parent guard excludes SetextHeading1/2 underlines.
         if (node.name === 'HeaderMark') {
@@ -324,57 +203,10 @@
       },
     });
 
-    // Stage F — display math `$$...$$`. May span multiple lines. Scan
-    // the document via parseMath; for each 'display' range:
-    //   - Skip if inside frontmatter.
-    //   - Skip if ANY line of the range is touched (whole-block on-active).
-    //   - Skip if the Lezer ancestor at `from` is FencedCode / CodeBlock
-    //     (display math inside fenced code stays as raw text).
-    //   - Else: emit ONE Decoration.replace({block: true}) with a
-    //     DisplayMathWidget.
-    const mathDetect = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathDetect : null;
-    const mathWidget = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMathWidget : null;
-    const DisplayMathCls = (mathWidget && typeof mathWidget.getDisplayMathWidgetClass === 'function')
-      ? mathWidget.getDisplayMathWidgetClass()
-      : null;
-    if (mathDetect && typeof mathDetect.parseMath === 'function' && DisplayMathCls) {
-      const docText = state.doc.toString();
-      const mathRanges = mathDetect.parseMath(docText);
-      for (let mi = 0; mi < mathRanges.length; mi++) {
-        const mr = mathRanges[mi];
-        if (mr.kind !== 'display') continue;
-        if (mr.from < fmEnd) continue;
-        const fromL = state.doc.lineAt(mr.from).number;
-        const toPos = Math.max(mr.from, Math.min(mr.to - 1, state.doc.length - 1));
-        const toL   = state.doc.lineAt(Math.max(toPos, 0)).number;
-        if (!isWholeRangeOffActive(fromL, toL)) continue;
-        // Lezer-aware filter: skip if inside FencedCode / CodeBlock.
-        const resolved = tree.resolveInner ? tree.resolveInner(mr.from, 1) : null;
-        let parent = resolved;
-        let insideCode = false;
-        while (parent) {
-          const pName = parent.name;
-          if (pName === 'FencedCode' || pName === 'CodeBlock') {
-            insideCode = true;
-            break;
-          }
-          parent = parent.parent;
-        }
-        if (insideCode) continue;
-        const w = new DisplayMathCls(mr.source);
-        replacedRanges.push(
-          cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
-            .range(mr.from, mr.to)
-        );
-      }
-    }
-
     if (replacedRanges.length === 0) {
       return { all: empty, replaced: empty };
     }
-    // Math ranges may interleave with Lezer-walker ranges; sort before
-    // building the RangeSet.
-    replacedRanges.sort(function (a, b) { return a.from - b.from; });
+    // Tree iteration is in-order so the ranges array is naturally sorted.
     const set = cm6.Decoration.set(replacedRanges, true);
     return { all: set, replaced: set };
   }

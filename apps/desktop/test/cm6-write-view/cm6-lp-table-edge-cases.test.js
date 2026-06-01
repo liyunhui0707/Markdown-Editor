@@ -16,8 +16,11 @@ const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 const { GFM }                        = require('@lezer/markdown');
 
-delete require.cache[require.resolve('../../lib/cm6-lp-block.js')];
-const lpBlock = require('../../lib/cm6-lp-block.js');
+// Stage G.3 — see cm6-lp-table-render.test.js header.
+delete require.cache[require.resolve('../../lib/cm6-lp-block-widgets.js')];
+const lpBlock = {
+  buildLpBlockDecorations: require('../../lib/cm6-lp-block-widgets.js').buildBlockWidgetDecorations,
+};
 
 const cm6 = { Decoration, syntaxTree, WidgetType };
 

@@ -17,8 +17,14 @@ const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 const { GFM }                        = require('@lezer/markdown');
 
-delete require.cache[require.resolve('../../lib/cm6-lp-block.js')];
-const lpBlock = require('../../lib/cm6-lp-block.js');
+// Stage G.3 — Table block widgets now live in cm6-lp-block-widgets.js
+// (StateField source) per the CM6 "block decorations may not be specified
+// via plugins" rule. The pure builder shape is preserved as
+// buildBlockWidgetDecorations(state, cm6) → {all, replaced}.
+delete require.cache[require.resolve('../../lib/cm6-lp-block-widgets.js')];
+const lpBlock = {
+  buildLpBlockDecorations: require('../../lib/cm6-lp-block-widgets.js').buildBlockWidgetDecorations,
+};
 
 const cm6 = { Decoration, syntaxTree, WidgetType };
 

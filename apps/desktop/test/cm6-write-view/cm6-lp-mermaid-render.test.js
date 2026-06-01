@@ -19,10 +19,14 @@ const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 const { GFM }                        = require('@lezer/markdown');
 
-delete require.cache[require.resolve('../../lib/cm6-lp-block.js')];
+// Stage G.3 — FencedCode block widget (which dispatches to MermaidWidget
+// vs CodeBlockWidget on lang) now lives in cm6-lp-block-widgets.js.
+delete require.cache[require.resolve('../../lib/cm6-lp-block-widgets.js')];
 delete require.cache[require.resolve('../../lib/cm6-lp-mermaid-widget.js')];
 delete require.cache[require.resolve('../../lib/cm6-lp-code-widget.js')];
-const lpBlock      = require('../../lib/cm6-lp-block.js');
+const lpBlock = {
+  buildLpBlockDecorations: require('../../lib/cm6-lp-block-widgets.js').buildBlockWidgetDecorations,
+};
 const mermaidMod   = require('../../lib/cm6-lp-mermaid-widget.js');
 const codeMod      = require('../../lib/cm6-lp-code-widget.js');
 

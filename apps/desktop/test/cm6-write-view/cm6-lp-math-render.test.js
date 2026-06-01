@@ -18,10 +18,15 @@ const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 const { GFM }                        = require('@lezer/markdown');
 
+// Stage G.3 — display math (block:true) moved from cm6-lp-block.js to
+// cm6-lp-block-widgets.js (StateField source). Inline math (Stage F)
+// stays in cm6-lp-inline.js.
 delete require.cache[require.resolve('../../lib/cm6-lp-inline.js')];
-delete require.cache[require.resolve('../../lib/cm6-lp-block.js')];
+delete require.cache[require.resolve('../../lib/cm6-lp-block-widgets.js')];
 const lpInline = require('../../lib/cm6-lp-inline.js');
-const lpBlock  = require('../../lib/cm6-lp-block.js');
+const lpBlock  = {
+  buildLpBlockDecorations: require('../../lib/cm6-lp-block-widgets.js').buildBlockWidgetDecorations,
+};
 
 const cm6 = { Decoration, syntaxTree, WidgetType };
 

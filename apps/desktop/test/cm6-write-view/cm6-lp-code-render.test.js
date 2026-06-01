@@ -18,8 +18,13 @@ const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 const { GFM }                        = require('@lezer/markdown');
 
-delete require.cache[require.resolve('../../lib/cm6-lp-block.js')];
-const lpBlock = require('../../lib/cm6-lp-block.js');
+// Stage G.3 — FencedCode block widget now lives in cm6-lp-block-widgets.js
+// (StateField source) per the CM6 "block decorations may not be specified
+// via plugins" rule.
+delete require.cache[require.resolve('../../lib/cm6-lp-block-widgets.js')];
+const lpBlock = {
+  buildLpBlockDecorations: require('../../lib/cm6-lp-block-widgets.js').buildBlockWidgetDecorations,
+};
 
 const cm6 = { Decoration, syntaxTree, WidgetType };
 

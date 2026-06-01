@@ -38,13 +38,15 @@
     // factory finds the module via globalThis uniformly. Same for
     // cm6-lp-inline.js (which does set its own globalThis via the
     // pattern matched on cm6-line-utils.js, but we bridge defensively).
-    const hybrid  = require('./cm6-hybrid-view.js');
-    const lpEmph  = require('./cm6-lp-inline.js');
-    const lpBlock = require('./cm6-lp-block.js');
+    const hybrid     = require('./cm6-hybrid-view.js');
+    const lpEmph     = require('./cm6-lp-inline.js');
+    const lpBlock    = require('./cm6-lp-block.js');
+    const lpBlockW   = require('./cm6-lp-block-widgets.js');
     if (typeof globalThis !== 'undefined') {
-      if (!globalThis.Cm6HybridView)  globalThis.Cm6HybridView  = hybrid;
-      if (!globalThis.Cm6LpInline)    globalThis.Cm6LpInline    = lpEmph;
-      if (!globalThis.Cm6LpBlock)     globalThis.Cm6LpBlock     = lpBlock;
+      if (!globalThis.Cm6HybridView)      globalThis.Cm6HybridView      = hybrid;
+      if (!globalThis.Cm6LpInline)        globalThis.Cm6LpInline        = lpEmph;
+      if (!globalThis.Cm6LpBlock)         globalThis.Cm6LpBlock         = lpBlock;
+      if (!globalThis.Cm6LpBlockWidgets)  globalThis.Cm6LpBlockWidgets  = lpBlockW;
     }
     module.exports = factory();
   } else {
@@ -72,6 +74,13 @@
   function getLpBlockModule() {
     if (typeof globalThis !== 'undefined' && globalThis.Cm6LpBlock) {
       return globalThis.Cm6LpBlock;
+    }
+    return null;
+  }
+
+  function getLpBlockWidgetsModule() {
+    if (typeof globalThis !== 'undefined' && globalThis.Cm6LpBlockWidgets) {
+      return globalThis.Cm6LpBlockWidgets;
     }
     return null;
   }
@@ -202,6 +211,16 @@
       if (lpBlockModule && typeof lpBlockModule.createLpBlockExtension === 'function') {
         const lpBlockExt = lpBlockModule.createLpBlockExtension(cm6);
         if (lpBlockExt != null) extensions.push(lpBlockExt);
+      }
+
+      // Stage G.3 — block-widget StateField. Owns Stage E table + Stage F
+      // display math + Stage G.1/G.2 fenced code (all block:true). CM6
+      // rejects block decorations from ViewPlugins, so this MUST be a
+      // StateField. Sentinel: returns null if cm6.StateField is missing.
+      const lpBlockWidgetsModule = getLpBlockWidgetsModule();
+      if (lpBlockWidgetsModule && typeof lpBlockWidgetsModule.createLpBlockWidgetExtension === 'function') {
+        const lpBlockWidgetsExt = lpBlockWidgetsModule.createLpBlockWidgetExtension(cm6);
+        if (lpBlockWidgetsExt != null) extensions.push(lpBlockWidgetsExt);
       }
 
       return cm6.EditorState.create({ doc: doc, extensions: extensions });
