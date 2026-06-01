@@ -1094,6 +1094,110 @@ const tilde = true;
 - `trust:false` behavior matches hljs defaults.
 - hljs bundle adds ~157 KB to the app (vendored via `build:hljs` script).
 
+## Stage G.2 — `hybrid-cm6-lp` Mermaid diagram rendering
+
+Eighth stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. First lp stage with async-render widget. Third new-dep stage (after F's KaTeX and G.1's hljs).
+
+**Behavioral additions over Stage G.1**: ` ```mermaid ` fenced-code blocks off-active render as actual SVG diagrams via Mermaid. Lang dispatch in `cm6-lp-block.js`'s FencedCode branch: `mermaid` → MermaidWidget; everything else → Stage G.1's hljs CodeBlockWidget (unchanged). Async render: the widget returns a sync placeholder `<div class="cm-md-lp-mermaid">`, then `mermaid.render()` (Promise) patches in the SVG when it resolves (~100ms typical). Async safety via destroyed-flag (mirrors Stage C image widget).
+
+**Starting state**: `cd apps/desktop && npm install` + `npm run build:hljs && npm run build:mermaid` + `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+````markdown
+Flowchart:
+
+```mermaid
+graph TD
+    A[Start] --> B{Decision?}
+    B -->|Yes| C[Do thing]
+    B -->|No| D[Skip]
+    C --> E[End]
+    D --> E
+```
+
+Sequence:
+
+```mermaid
+sequenceDiagram
+    Alice->>Bob: Hello Bob
+    Bob-->>Alice: Hi Alice
+```
+
+Non-mermaid (Stage G.1 hljs path):
+
+```js
+const x = 1;
+```
+
+Invalid mermaid (should NOT crash):
+
+```mermaid
+not a real diagram
+syntax garbage
+```
+````
+
+**MQ-G2.1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-G2.2 — flowchart renders as SVG off-active (load-bearing)**
+- [ ] Click on a non-mermaid line. After a brief flash (<200 ms), the flowchart appears as an actual diagram with rounded boxes, arrows, and labels.
+- [ ] DevTools Elements panel: the widget contains `<div class="cm-md-lp-mermaid">` whose innerHTML is `<svg>...</svg>` (Mermaid's output).
+
+**MQ-G2.3 — click into mermaid block → walker source returns (load-bearing)**
+- [ ] Click on the opening ` ```mermaid ` line, or inside `graph TD`, or on the closing ` ``` `.
+- [ ] Confirm: the widget disappears; raw Markdown source returns with Stage 28 walker styling (fence delimiters + `mermaid` info string).
+
+**MQ-G2.4 — multiple diagram types render**
+- [ ] Both flowchart AND sequence diagram in the test note render correctly off-active.
+
+**MQ-G2.5 — invalid mermaid syntax → styled error, no crash (load-bearing)**
+- [ ] The "Invalid mermaid" block: after a brief flash, the widget shows a red-bordered (or visually distinct) box containing the raw `not a real diagram\nsyntax garbage` text.
+- [ ] DevTools: element has class `cm-md-lp-mermaid cm-md-lp-mermaid-error`; the title attribute contains a Mermaid error message.
+- [ ] No JavaScript error in the DevTools console.
+
+**MQ-G2.6 — non-mermaid blocks still use Stage G.1 hljs (regression)**
+- [ ] The ` ```js ` block renders with syntax highlighting per Stage G.1 (NOT a Mermaid error / NOT a Mermaid render attempt).
+- [ ] DevTools: `<code class="hljs language-js">` (NOT `<div class="cm-md-lp-mermaid">`).
+
+**MQ-G2.7 — multiple mermaid blocks independent**
+- [ ] Add a second mermaid block. Both render independently. Click in one → only that one returns to source.
+
+**MQ-G2.8 — frontmatter region — no mermaid widget inside YAML**
+- [ ] Frontmatter `---\nyaml: value\n---\n\n```mermaid\n...\n```\n` — post-frontmatter block still renders; frontmatter region unaffected.
+
+**MQ-G2.9 — round-trip / `getText()` byte-identical**
+- [ ] After clicking in and out, save (Cmd-S), close + reopen. Source on disk matches.
+
+**MQ-G2.10 — IME composition adjacent**
+- [ ] Caret on a paragraph adjacent to a mermaid block. IME composition completes normally; the widget doesn't disrupt.
+
+**MQ-G2.11 — Stages A + B + C + D + E + F + G.1 preserved (regression)**
+- [ ] All prior stages still work: emphasis, inline code, strikethrough, links, images, block markers, tables, math, syntax-highlighted code blocks.
+
+**MQ-G2.12 — default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] ` ```mermaid ` block renders as plain text in a `<pre>` block (NO diagram). Stage 28 walker styling for fences intact.
+
+**MQ-G2.13 — long doc with many diagrams — responsiveness**
+- [ ] 10+ mermaid blocks in one doc. Open in lp engine. Scroll, click in/out. Confirm: no perceptible lag beyond initial paint.
+
+**MQ-G2.14 — destroy / scroll safety**
+- [ ] Open a doc with mermaid blocks. Scroll rapidly so widgets are constructed + destroyed quickly. No console errors about late Promise updates after destroy.
+
+**MQ-G2.15 — automated regression sweep after Stage G.2**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-G.2 baseline ~1947/1945/0/2; post-Stage-G.2 roughly 1986/1984/0/2 (+39 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (824/822/0/2 after Stage G.2).
+
+**Known limitations (intentional, deferred)**
+- Only ` ```mermaid ` fences. No alternate language identifiers.
+- `securityLevel: 'strict'` rejects diagrams with user-provided HTML (e.g., `\href` to non-safe URLs).
+- Pre-rendered SVG NOT cached across edits — re-renders every time the widget is created.
+- No click-to-zoom / interactive diagrams / export buttons.
+- One theme (Mermaid's `default` theme); no theme switching.
+- Mermaid bundle adds ~3 MB to the app.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

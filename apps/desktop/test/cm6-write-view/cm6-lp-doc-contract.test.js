@@ -419,3 +419,49 @@ test('Stage G.1 WAVE 4-T-DG-7: docs/test-manual.md Stage G.1 section preserves S
   assert.match(testManual, /MQ-G13[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D \+ E \+ F/,
     'docs/test-manual.md Stage G.1 section must include a Stage A-F regression gate (MQ-G13)');
 });
+
+// ── Stage G.2 WAVE 4 — docs reflect Stage G.2 coverage ──────────────────
+
+test('Stage G.2 WAVE 4-T-DG2-1: CLAUDE.md mentions Stage G.2 + Mermaid + async-render', () => {
+  assert.match(claudeMd, /Stage G\.2/, 'CLAUDE.md must mention "Stage G.2"');
+  assert.match(claudeMd, /Mermaid|mermaid/i, 'CLAUDE.md must reference Mermaid');
+  assert.match(claudeMd, /async|Promise/i, 'CLAUDE.md must reference the async-render surface');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-2: README.md hybrid-cm6-lp row mentions Stage G.2 coverage', () => {
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,6500}Stage G\.2/,
+    'README.md engine table row for hybrid-cm6-lp must mention Stage G.2');
+  assert.match(readmeMd, /hybrid-cm6-lp[\s\S]{0,7000}(Mermaid|mermaid)/,
+    'README.md hybrid-cm6-lp row must mention Mermaid');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-3: README.md "Live styling" section mentions Stage G.2 coverage', () => {
+  assert.match(readmeMd, /Live styling[\s\S]{0,2000}Stages?\s+(A\s*\+\s*B\s*\+\s*C\s*\+\s*D\s*\+\s*E\s*\+\s*F\s*\+\s*G\.1\s*\+\s*)?G\.2/,
+    'README.md "Live styling" subsection must mention Stage G.2');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-4: docs/stage-history.md has a Stage G.2 row referencing Mermaid + hybrid-cm6-lp', () => {
+  assert.match(stageHistory, /\|\s*G\.2\s*\|/,
+    'docs/stage-history.md must have a "| G.2 |" table row');
+  assert.match(stageHistory, /\|\s*G\.2\s*\|[\s\S]{0,500}hybrid-cm6-lp/,
+    'Stage G.2 row must reference hybrid-cm6-lp');
+  assert.match(stageHistory, /\|\s*G\.2\s*\|[\s\S]{0,3000}(Mermaid|mermaid)/,
+    'Stage G.2 row must reference Mermaid');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-5: docs/test-manual.md has a Stage G.2 section', () => {
+  assert.match(testManual, /##\s+Stage G\.2/,
+    'docs/test-manual.md must have a "## Stage G.2" section header');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-6: docs/test-manual.md Stage G.2 section includes load-bearing gates for SVG render + click-into + invalid syntax + non-mermaid fallthrough', () => {
+  assert.match(testManual, /MQ-G2\.2/, 'flowchart SVG render gate');
+  assert.match(testManual, /MQ-G2\.3/, 'click-into walker source gate');
+  assert.match(testManual, /MQ-G2\.5/, 'invalid syntax error placeholder gate');
+  assert.match(testManual, /MQ-G2\.6/, 'non-mermaid fallthrough gate');
+});
+
+test('Stage G.2 WAVE 4-T-DG2-7: docs/test-manual.md Stage G.2 section preserves Stage A + B + C + D + E + F + G.1 regression check', () => {
+  assert.match(testManual, /MQ-G2\.11[\s\S]{0,500}Stage[s]? A \+ B \+ C \+ D \+ E \+ F \+ G\.1/,
+    'docs/test-manual.md Stage G.2 section must include a Stage A-G.1 regression gate (MQ-G2.11)');
+});

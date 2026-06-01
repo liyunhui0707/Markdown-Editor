@@ -272,3 +272,38 @@ test('Stage G.1 WAVE 3-T-RWC-5: hljs CSS + JS + widget each appear exactly once'
   assert.equal(js.length, 1,     'hljs JS script must appear exactly once');
   assert.equal(widget.length, 1, 'code-widget script must appear exactly once');
 });
+
+// ── Stage G.2 WAVE 3 — Mermaid bundle + widget module ───────────────────
+
+test('Stage G.2 WAVE 3-T-RWM2-1: index.html loads ./lib/vendor/mermaid/mermaid.min.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/vendor\/mermaid\/mermaid\.min\.js["']/,
+    'index.html must include the Mermaid bundle script');
+});
+
+test('Stage G.2 WAVE 3-T-RWM2-2: index.html loads ./lib/cm6-lp-mermaid-widget.js', () => {
+  assert.match(html, /<script\s+src=["']\.\/lib\/cm6-lp-mermaid-widget\.js["']/,
+    'index.html must include the mermaid widget module');
+});
+
+test('Stage G.2 WAVE 3-T-RWM2-3: mermaid JS loads BEFORE cm6-lp-mermaid-widget.js (window.mermaid dep)', () => {
+  const mer    = tagOffset('./lib/vendor/mermaid/mermaid.min.js');
+  const widget = tagOffset('./lib/cm6-lp-mermaid-widget.js');
+  assert.ok(mer    >= 0, 'mermaid bundle tag present');
+  assert.ok(widget >= 0, 'mermaid widget tag present');
+  assert.ok(mer < widget,
+    'mermaid bundle must load BEFORE widget (widget reads window.mermaid)');
+});
+
+test('Stage G.2 WAVE 3-T-RWM2-4: cm6-lp-mermaid-widget.js loads BEFORE cm6-lp-block.js', () => {
+  const widget = tagOffset('./lib/cm6-lp-mermaid-widget.js');
+  const block  = tagOffset('./lib/cm6-lp-block.js');
+  assert.ok(widget < block,
+    'mermaid widget must load BEFORE cm6-lp-block.js (block plugin reads window.Cm6LpMermaidWidget)');
+});
+
+test('Stage G.2 WAVE 3-T-RWM2-5: mermaid bundle + widget each appear exactly once', () => {
+  const mer    = html.match(/<script\s+src=["']\.\/lib\/vendor\/mermaid\/mermaid\.min\.js["']/g) || [];
+  const widget = html.match(/<script\s+src=["']\.\/lib\/cm6-lp-mermaid-widget\.js["']/g) || [];
+  assert.equal(mer.length, 1,    'mermaid bundle script must appear exactly once');
+  assert.equal(widget.length, 1, 'mermaid widget script must appear exactly once');
+});

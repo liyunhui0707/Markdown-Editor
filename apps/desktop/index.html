@@ -1887,6 +1887,11 @@
          lp-block consumes the widget. -->
     <script src="./lib/vendor/highlight/highlight.min.js"></script>
     <script src="./lib/cm6-lp-code-widget.js"></script>
+    <!-- Stage G.2 — Mermaid bundle + mermaid widget module. Same shape
+         as Stage G.1: mermaid JS first so window.mermaid is available;
+         widget module next; lp-block dispatches on lang === 'mermaid'. -->
+    <script src="./lib/vendor/mermaid/mermaid.min.js"></script>
+    <script src="./lib/cm6-lp-mermaid-widget.js"></script>
     <script src="./lib/cm6-lp-block.js"></script>
     <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>

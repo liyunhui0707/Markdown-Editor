@@ -85,6 +85,12 @@
     if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpCodeWidget) {
       globalThis.Cm6LpCodeWidget = lpCodeWidget;
     }
+    // Stage G.2 — bridge mermaid widget module for the FencedCode
+    // lang-dispatch (when lang === 'mermaid').
+    const lpMermaidWidget = require('./cm6-lp-mermaid-widget.js');
+    if (typeof globalThis !== 'undefined' && !globalThis.Cm6LpMermaidWidget) {
+      globalThis.Cm6LpMermaidWidget = lpMermaidWidget;
+    }
     module.exports = factory();
   } else {
     root.Cm6LpBlock = factory();
@@ -204,6 +210,14 @@
       ? codeWidgetMod.getCodeBlockWidgetClass()
       : null;
 
+    // Stage G.2 — Mermaid widget. Dispatched from the FencedCode branch
+    // when lang === 'mermaid' (in preference to the Stage G.1
+    // CodeBlockWidget). Available iff the script tag loaded.
+    const mermaidWidgetMod = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpMermaidWidget : null;
+    const MermaidWidgetClass = (mermaidWidgetMod && typeof mermaidWidgetMod.getMermaidWidgetClass === 'function')
+      ? mermaidWidgetMod.getMermaidWidgetClass()
+      : null;
+
     const replacedRanges = [];
     tree.iterate({
       enter(node) {
@@ -212,7 +226,7 @@
         // off-active. On-active OR widget unavailable: descend (or
         // not — the walker still emits cm-md-fenced-code-mark / -info
         // on the inner nodes which Stage 28 hides off-construct-active).
-        if (node.name === 'FencedCode' && CodeBlockWidgetClass) {
+        if (node.name === 'FencedCode' && (CodeBlockWidgetClass || MermaidWidgetClass)) {
           if (node.from < fmEnd) return;
           const fromLine = state.doc.lineAt(node.from).number;
           const lastCharPos = Math.max(node.from, Math.min(node.to - 1, state.doc.length - 1));
@@ -230,9 +244,19 @@
               code = state.doc.sliceString(child.from, child.to);
             }
           }
-          const codeWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
+          // Stage G.2 — lang dispatch: when lang === 'mermaid' and the
+          // MermaidWidget is available, emit it instead of the Stage G.1
+          // CodeBlockWidget. Other languages (or no language) continue
+          // to use the CodeBlockWidget hljs path.
+          let chosenWidget = null;
+          if (lang === 'mermaid' && MermaidWidgetClass) {
+            chosenWidget = new MermaidWidgetClass(code);
+          } else if (CodeBlockWidgetClass) {
+            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
+          }
+          if (!chosenWidget) return;  // defensive: neither widget loaded
           replacedRanges.push(
-            cm6.Decoration.replace({ widget: codeWidget, inclusive: false, block: true })
+            cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
               .range(node.from, node.to)
           );
           return false;  // do not descend into FencedCode children
