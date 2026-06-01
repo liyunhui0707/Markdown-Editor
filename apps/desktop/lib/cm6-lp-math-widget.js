@@ -70,6 +70,13 @@
         throwOnError:  false,
         errorColor:    '#cc0000',
         trust:         false,
+        // Stage G.5 — silence KaTeX strict-mode console warnings (e.g.,
+        // "In LaTeX, \\ or \newline does nothing in display mode" for
+        // Obsidian-style notes that use \\ informally inside $$...$$).
+        // KaTeX still renders the input correctly — only the warn-level
+        // diagnostic is suppressed. The throwOnError:false above already
+        // ensures parse failures fall through to our error placeholder.
+        strict:        'ignore',
       });
       return true;
     } catch (e) {

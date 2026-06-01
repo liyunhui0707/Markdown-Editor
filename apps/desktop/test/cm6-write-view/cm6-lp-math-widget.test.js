@@ -45,7 +45,13 @@ let lastRenderCalls = [];
 function installStubKatex() {
   globalThis.katex = {
     render: function (latex, element, options) {
-      lastRenderCalls.push({ latex: latex, displayMode: options && options.displayMode });
+      lastRenderCalls.push({
+        latex: latex,
+        displayMode: options && options.displayMode,
+        strict:      options && options.strict,
+        throwOnError: options && options.throwOnError,
+        trust:       options && options.trust,
+      });
       element.textContent = 'KaTeX(' + latex + ')';
     },
   };
@@ -136,6 +142,22 @@ test('Stage F WAVE 2-T-MW-8: getInlineMathWidgetClass cached', () => {
   const a = mwMod.getInlineMathWidgetClass();
   const b = mwMod.getInlineMathWidgetClass();
   assert.equal(a, b, 'class is cached');
+});
+
+test('Stage G.5 T-MW-9: katex.render called with strict:"ignore" (silence \\\\ in display warnings)', () => {
+  // Stage G.5 silences KaTeX's strict-mode console warnings so notes
+  // using Obsidian-style `\\` inside `$$...$$` don't pollute the
+  // console. Verify the option flows through both inline + display.
+  installStubKatex();
+  lastRenderCalls = [];
+  new InlineCls('x').toDOM();
+  new DisplayCls('y').toDOM();
+  assert.equal(lastRenderCalls.length, 2);
+  for (const call of lastRenderCalls) {
+    assert.equal(call.strict,       'ignore', 'strict option must be "ignore"');
+    assert.equal(call.throwOnError, false,    'throwOnError must remain false');
+    assert.equal(call.trust,        false,    'trust must remain false (XSS-safe)');
+  }
 });
 
 process.on('exit', () => { globalThis.document = origDoc; uninstallKatex(); });
