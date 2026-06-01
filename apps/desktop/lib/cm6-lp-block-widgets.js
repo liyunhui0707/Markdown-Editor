@@ -125,6 +125,24 @@
       return true;
     }
 
+    // Stage G.4 — snap a [from, to) range to whole-line boundaries.
+    // CM6's tile system requires block-replace decorations to start at
+    // a Line.from (the position immediately after the prior \n, or 0)
+    // and end at a Line.to (the position immediately before the next \n,
+    // or doc.length). Lezer node positions are usually line-aligned but
+    // not guaranteed — defensively snap so the range is always valid.
+    // Returns {from, to} both inclusive in line terms (to is the line's
+    // .to, which is the position BEFORE the trailing newline).
+    function snapToLineBoundaries(rawFrom, rawTo) {
+      const docLen = state.doc.length;
+      const safeFrom = Math.max(0, Math.min(rawFrom, docLen));
+      const safeTo   = Math.max(safeFrom, Math.min(rawTo, docLen));
+      const fromLine = state.doc.lineAt(safeFrom);
+      const lastCharPos = (safeTo > safeFrom) ? safeTo - 1 : safeFrom;
+      const toLine = state.doc.lineAt(Math.max(0, Math.min(lastCharPos, docLen - 1)));
+      return { from: fromLine.from, to: toLine.to };
+    }
+
     // Widget class lookups (same as cm6-lp-block.js had).
     const tableMod  = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpTableWidget : null;
     const TableWidgetClass = (tableMod && typeof tableMod.getTableWidgetClass === 'function')
@@ -167,9 +185,11 @@
             chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
           }
           if (!chosenWidget) return;
+          // Stage G.4 — snap range to whole-line boundaries.
+          const snapped = snapToLineBoundaries(node.from, node.to);
           replacedRanges.push(
             cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
-              .range(node.from, node.to)
+              .range(snapped.from, snapped.to)
           );
           return false;
         }
@@ -183,9 +203,11 @@
           const parsed = tableMod.parseTableNode(node.node, state.doc);
           if (!parsed) return;
           const tableWidget = new TableWidgetClass(parsed);
+          // Stage G.4 — snap range to whole-line boundaries.
+          const snappedT = snapToLineBoundaries(node.from, node.to);
           replacedRanges.push(
             cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
-              .range(node.from, node.to)
+              .range(snappedT.from, snappedT.to)
           );
           return false;
         }
@@ -223,9 +245,11 @@
         }
         if (insideCode) continue;
         const w = new DisplayMathCls(mr.source);
+        // Stage G.4 — snap range to whole-line boundaries.
+        const snappedM = snapToLineBoundaries(mr.from, mr.to);
         replacedRanges.push(
           cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
-            .range(mr.from, mr.to)
+            .range(snappedM.from, snappedM.to)
         );
       }
     }

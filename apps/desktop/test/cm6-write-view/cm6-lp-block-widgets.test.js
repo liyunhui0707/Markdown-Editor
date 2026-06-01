@@ -152,6 +152,64 @@ test('Stage G.3 WAVE 1-T-BW-6: state field re-runs on selection change (off-acti
   assert.equal(count2, 0, 'caret in code block → 0 block widgets');
 });
 
+// ── Stage G.4 — widget.block getter regression ──────────────────────────
+
+test('Stage G.4 T-BW-8: all 4 block widgets report widget.block === true', () => {
+  // CM6's tile system reads widget.block to know whether to treat the
+  // widget as block-level. Defaulting to false (the WidgetType default)
+  // causes "No tile at position X" + "Cannot destructure property tile"
+  // errors when CM6 computes coordinates. Every WidgetType used with
+  // Decoration.replace({block: true}) MUST override this getter.
+  const tableMod   = require('../../lib/cm6-lp-table-widget.js');
+  const mathMod    = require('../../lib/cm6-lp-math-widget.js');
+  const codeMod    = require('../../lib/cm6-lp-code-widget.js');
+  const mermaidMod = require('../../lib/cm6-lp-mermaid-widget.js');
+
+  const TableCls   = tableMod.getTableWidgetClass();
+  const DispCls    = mathMod.getDisplayMathWidgetClass();
+  const CodeCls    = codeMod.getCodeBlockWidgetClass();
+  const MermaidCls = mermaidMod.getMermaidWidgetClass();
+
+  const t = new TableCls({ headers: ['A'], alignments: [null], rows: [] });
+  const d = new DispCls('x');
+  const c = new CodeCls({ lang: 'js', code: 'const x;' });
+  const m = new MermaidCls('graph TD\nA-->B');
+
+  assert.equal(t.block, true, 'TableWidget.block must be true');
+  assert.equal(d.block, true, 'DisplayMathWidget.block must be true');
+  assert.equal(c.block, true, 'CodeBlockWidget.block must be true');
+  assert.equal(m.block, true, 'MermaidWidget.block must be true');
+});
+
+test('Stage G.4 T-BW-9: snapToLineBoundaries produces line-aligned ranges (via integration)', () => {
+  // The pure snap helper is closure-private. Test via integration: verify
+  // that the replaced ranges from a real doc come out with from/to that
+  // match Line.from and Line.to of their containing lines.
+  const lpBW = require('../../lib/cm6-lp-block-widgets.js');
+  const { EditorState } = require('@codemirror/state');
+  const { Decoration, WidgetType } = require('@codemirror/view');
+  const { syntaxTree } = require('@codemirror/language');
+  const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
+  const { GFM } = require('@lezer/markdown');
+  const cm6 = { Decoration, WidgetType, syntaxTree };
+
+  const doc = 'top\n\n```js\nconst x = 1;\n```\n\nend\n';
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: 0, head: 0 },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [], extensions: [GFM] })],
+  });
+  const out = lpBW.buildBlockWidgetDecorations(state, cm6);
+  const cursor = out.replaced.iter();
+  assert.ok(cursor.value, 'must have at least one block widget replace');
+  const from = cursor.from;
+  const to   = cursor.to;
+  const fromLine = state.doc.lineAt(from);
+  const toLine   = state.doc.lineAt(to > from ? to - 1 : from);
+  assert.equal(from, fromLine.from, 'replace.from must equal Line.from');
+  assert.equal(to,   toLine.to,     'replace.to must equal Line.to');
+});
+
 test('Stage G.3 WAVE 1-T-BW-7: NO "block decorations may not be specified via plugins" RangeError on state init', () => {
   // This is the actual regression test for the bug manual QA caught.
   // If the field accidentally gets converted back into a ViewPlugin-

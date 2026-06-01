@@ -124,6 +124,8 @@
         super();
         this.source = source;
       }
+      // Stage G.4 — block-widget contract (see cm6-lp-table-widget.js).
+      get block() { return true; }
       eq(other) {
         return (other instanceof _DisplayMathWidget) && (other.source === this.source);
       }

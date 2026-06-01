@@ -170,6 +170,13 @@
         this.rows       = payload.rows;
       }
 
+      // Stage G.4 — block-widget contract. CM6's tile system reads
+      // widget.block to know whether to treat the widget as block-
+      // level. Without this getter the default `false` propagates and
+      // CM6 throws "No tile at position X" / "Cannot destructure
+      // property 'tile' of 'parents.pop(...)'" when computing coords.
+      get block() { return true; }
+
       eq(other) {
         if (!(other instanceof _TableWidget)) return false;
         if (this.headers.length !== other.headers.length) return false;

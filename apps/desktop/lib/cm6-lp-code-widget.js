@@ -85,6 +85,8 @@
         this.lang = (payload && payload.lang) ? String(payload.lang) : '';
         this.code = (payload && payload.code != null) ? String(payload.code) : '';
       }
+      // Stage G.4 — block-widget contract (see cm6-lp-table-widget.js).
+      get block() { return true; }
       eq(other) {
         return (other instanceof _CodeBlockWidget)
           && other.lang === this.lang
