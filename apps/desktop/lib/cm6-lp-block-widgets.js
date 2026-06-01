@@ -153,6 +153,48 @@
       return { from: snappedFrom, to: snappedTo };
     }
 
+    // ── Stage G.8 — emitBlockWidget helper ────────────────────────────
+    // Pushes (widget + N line-hide decorations) into the `replacedRanges`
+    // array for ONE block-widget candidate. Replaces the prior pattern
+    // of a single multi-line Decoration.replace({block: true}) which
+    // crashed CM6's tile-tracking on cursor interaction. The new pattern:
+    //   1. Decoration.widget({widget, block: true, side: -1}) at the
+    //      FIRST line's .from — CM6 inserts the widget as a block BEFORE
+    //      that line.
+    //   2. Decoration.line({class: 'cm-md-lp-block-hidden'}) on EACH
+    //      line in the source range — CSS `display: none` (added in
+    //      index.html alongside the existing cm-md-lp-* rules) hides the
+    //      source visually.
+    // Lines remain as real CM6 lines (cursor positions valid; tile map
+    // unchanged). The widget is a POINT insertion at one position (no
+    // multi-line decoration spans). Result: CM6's measure cycle doesn't
+    // crash on cursor interactions near block widgets.
+    function emitBlockWidget(snapped, widget) {
+      const docLen = state.doc.length;
+      if (!snapped || snapped.from < 0 || snapped.to > docLen) return false;
+      const fromLineObj = state.doc.lineAt(snapped.from);
+      const toLineObj   = state.doc.lineAt(Math.max(0, Math.min(snapped.to, docLen)));
+      // Insert the widget as a block BEFORE the first line of the range.
+      // Tracked separately so the StateField can expose a widget-only
+      // RangeSet for tests + atomicRanges that don't want line decos.
+      widgetRanges.push(
+        cm6.Decoration.widget({ widget: widget, block: true, side: -1 })
+          .range(fromLineObj.from)
+      );
+      // Mark each line in the range as hidden via class. CSS in
+      // index.html applies `display: none` to .cm-md-lp-block-hidden.
+      const fromLineNum = fromLineObj.number;
+      const toLineNum   = toLineObj.number;
+      for (let n = fromLineNum; n <= toLineNum; n++) {
+        const line = state.doc.line(n);
+        lineRanges.push(
+          cm6.Decoration.line({ class: 'cm-md-lp-block-hidden' })
+            .range(line.from)
+        );
+      }
+      return true;
+    }
+
     // Widget class lookups (same as cm6-lp-block.js had).
     const tableMod  = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpTableWidget : null;
     const TableWidgetClass = (tableMod && typeof tableMod.getTableWidgetClass === 'function')
@@ -169,7 +211,18 @@
       ? mermaidWidgetMod.getMermaidWidgetClass()
       : null;
 
-    const replacedRanges = [];
+    // Stage G.8 — separate buckets:
+    //   widgetRanges — Decoration.widget({block:true,side:-1}) point
+    //                  insertions, ONE per block. Goes to `widgets` in
+    //                  the return value; preserves the old test contract
+    //                  of "N widgets visible per N off-active blocks".
+    //   lineRanges   — Decoration.line({class:'cm-md-lp-block-hidden'})
+    //                  per source line. Goes to `all` only.
+    // After iteration we combine into a single sorted-by-from RangeSet
+    // for the decorations facet, and a widget-only RangeSet for tests/
+    // atomicRanges.
+    const widgetRanges = [];
+    const lineRanges   = [];
     tree.iterate({
       enter(node) {
         // Stage G.1+G.2 — fenced code (CodeBlockWidget or MermaidWidget).
@@ -204,10 +257,10 @@
             chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code, lineBreaks: fcLineBreaks });
           }
           if (!chosenWidget) return;
-          replacedRanges.push(
-            cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
-              .range(snapped.from, snapped.to)
-          );
+          // Stage G.8 — emit widget + line-hide decorations (replaces
+          // the prior Decoration.replace({block:true}) which crashed
+          // CM6's tile-tracking on cursor interaction).
+          emitBlockWidget(snapped, chosenWidget);
           return false;
         }
         // Stage E — GFM table widget.
@@ -227,10 +280,8 @@
           const tLineBreaks = (tSrc.match(/\n/g) || []).length;
           parsed.lineBreaks = tLineBreaks;
           const tableWidget = new TableWidgetClass(parsed);
-          replacedRanges.push(
-            cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
-              .range(snappedT.from, snappedT.to)
-          );
+          // Stage G.8 — emit widget + line-hide decorations.
+          emitBlockWidget(snappedT, tableWidget);
           return false;
         }
       },
@@ -273,19 +324,27 @@
         const mSrc = state.doc.sliceString(snappedM.from, snappedM.to);
         const mLineBreaks = (mSrc.match(/\n/g) || []).length;
         const w = new DisplayMathCls(mr.source, mLineBreaks);
-        replacedRanges.push(
-          cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
-            .range(snappedM.from, snappedM.to)
-        );
+        // Stage G.8 — emit widget + line-hide decorations.
+        emitBlockWidget(snappedM, w);
       }
     }
 
-    if (replacedRanges.length === 0) {
+    // Stage G.8 — combine widget + line buckets into a single sorted
+    // RangeSet for the decorations facet; keep widget-only set for the
+    // `replaced` return field (preserves old test contract: one entry
+    // in `replaced` per off-active block).
+    if (widgetRanges.length === 0 && lineRanges.length === 0) {
       return { all: empty, replaced: empty };
     }
-    replacedRanges.sort(function (a, b) { return a.from - b.from; });
-    const set = cm6.Decoration.set(replacedRanges, true);
-    return { all: set, replaced: set };
+    const combined = widgetRanges.concat(lineRanges);
+    combined.sort(function (a, b) { return a.from - b.from; });
+    const all      = cm6.Decoration.set(combined, true);
+    // widgetRanges are naturally in document order (one per block,
+    // emitted as the tree.iterate visits blocks in order; display math
+    // appended after). Sort defensively in case ordering changes later.
+    widgetRanges.sort(function (a, b) { return a.from - b.from; });
+    const widgets  = cm6.Decoration.set(widgetRanges, true);
+    return { all: all, replaced: widgets };
   }
 
   // ── createLpBlockWidgetExtension(cm6) ──────────────────────────────────

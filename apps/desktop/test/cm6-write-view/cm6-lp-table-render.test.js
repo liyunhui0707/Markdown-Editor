@@ -53,14 +53,19 @@ function collectRanges(rangeSet) {
 // Line numbers: 1=alpha, 2=blank, 3=header, 4=delim, 5=row1, 6=blank, 7=beta
 const DOC = 'alpha\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nbeta\n';
 
-test('Stage E WAVE 3-T-R-1: off-active table produces exactly 1 Decoration.replace covering full Table range', () => {
-  const state = makeState(DOC, 0); // caret on line 1 (alpha) — table off-active
+test('Stage E WAVE 3-T-R-1: off-active table produces exactly 1 widget at Table line.from (Stage G.8 pattern)', () => {
+  // Stage G.8 changed from Decoration.replace({block:true}) over a
+  // multi-line range to Decoration.widget({block:true,side:-1}) at
+  // the first source line's .from + line-hide decorations on each
+  // source line. The widget appears as ONE point decoration in
+  // `out.replaced`.
+  const state = makeState(DOC, 0);
   const out = lpBlock.buildLpBlockDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
-  assert.equal(replaced.length, 1, 'expected exactly 1 replace for the entire table');
-  // Table is at [7, 36] after the blank-line convention.
-  assert.equal(replaced[0].from, 7, 'replace starts at Table.from');
-  assert.equal(replaced[0].to, 36,  'replace ends at Table.to');
+  assert.equal(replaced.length, 1, 'expected exactly 1 block-widget for the table');
+  // Table is at [7, 36]; widget is inserted at the first line's .from = 7.
+  assert.equal(replaced[0].from, 7, 'widget at first-line .from');
+  assert.equal(replaced[0].to, 7,   'widget is a point decoration (from === to)');
 });
 
 test('Stage E WAVE 3-T-R-2: caret on header line → table on-active → 0 replaces', () => {
@@ -92,15 +97,18 @@ test('Stage E WAVE 3-T-R-5: caret AFTER the table → table off-active → 1 rep
   assert.equal(replaced.length, 1, 'caret past the table: table off-active');
 });
 
-test('Stage E WAVE 3-T-R-6: Decoration.replace uses block:true for multi-line table', () => {
-  // Inspect the resulting decoration spec by walking the RangeSet's value.
+test('Stage E WAVE 3-T-R-6: Decoration.widget uses block:true + side:-1 (Stage G.8 pattern)', () => {
+  // After Stage G.8 the table is emitted as a Decoration.widget point
+  // insertion (not a multi-line Decoration.replace). The widget still
+  // sets block:true so CM6 renders it as a block element. side:-1
+  // positions it BEFORE the first source line.
   const state = makeState(DOC, 0);
   const out = lpBlock.buildLpBlockDecorations(state, cm6);
   const cursor = out.replaced.iter();
   const spec = cursor.value && cursor.value.spec;
-  assert.ok(spec, 'replace decoration must have a spec');
-  assert.equal(spec.block, true, 'multi-line table replace must be block:true');
-  assert.equal(spec.inclusive, false, 'inclusive should be false');
+  assert.ok(spec, 'widget decoration must have a spec');
+  assert.equal(spec.block, true, 'table widget must be block:true');
+  assert.equal(spec.side, -1, 'side:-1 places widget BEFORE the first source line');
   assert.ok(spec.widget, 'widget must be present');
 });
 

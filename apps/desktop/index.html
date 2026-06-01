@@ -1708,6 +1708,18 @@
       .toastui-editor-defaultUI .toastui-editor-main {
         border: none;
       }
+
+      /* Stage G.8 — hide source lines of block widgets in hybrid-cm6-lp.
+         Each source line of a Stage E table / Stage F display math /
+         Stage G.1 fenced code / Stage G.2 mermaid block gets the
+         cm-md-lp-block-hidden class via Decoration.line; this rule
+         removes them from layout. The block widget itself (inserted
+         via Decoration.widget({block: true, side: -1}) at the first
+         source line's .from) renders in their place. Off-active only
+         — when the caret enters any line of the block, the StateField
+         re-runs and removes both the widget AND the line decorations,
+         so the walker-styled raw source becomes visible. */
+      .cm-md-lp-block-hidden { display: none; }
     </style>
   </head>
   <body>

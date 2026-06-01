@@ -261,10 +261,12 @@ test('Stage G.6 T-BW-12: createLpBlockWidgetExtension returns a single StateFiel
     'extension must be a single StateField, not an array');
 });
 
-test('Stage G.4 T-BW-9: snapToLineBoundaries produces line-aligned ranges (via integration)', () => {
-  // The pure snap helper is closure-private. Test via integration: verify
-  // that the replaced ranges from a real doc come out with from/to that
-  // match Line.from and Line.to of their containing lines.
+test('Stage G.4 T-BW-9: widget point decoration emitted at Line.from of first source line (Stage G.8 pattern)', () => {
+  // Stage G.8 changed the emission pattern from multi-line replace to
+  // widget-at-line.from + line-hide decorations. The widget point is
+  // at exactly Line.from of the first source line. The original snap-
+  // to-line-boundaries helper still computes the underlying range; the
+  // widget is then emitted at its `.from`.
   const lpBW = require('../../lib/cm6-lp-block-widgets.js');
   const { EditorState } = require('@codemirror/state');
   const { Decoration, WidgetType } = require('@codemirror/view');
@@ -281,13 +283,14 @@ test('Stage G.4 T-BW-9: snapToLineBoundaries produces line-aligned ranges (via i
   });
   const out = lpBW.buildBlockWidgetDecorations(state, cm6);
   const cursor = out.replaced.iter();
-  assert.ok(cursor.value, 'must have at least one block widget replace');
+  assert.ok(cursor.value, 'must have at least one block widget');
   const from = cursor.from;
   const to   = cursor.to;
-  const fromLine = state.doc.lineAt(from);
-  const toLine   = state.doc.lineAt(to > from ? to - 1 : from);
-  assert.equal(from, fromLine.from, 'replace.from must equal Line.from');
-  assert.equal(to,   toLine.to,     'replace.to must equal Line.to');
+  // Widget is a POINT decoration: from === to.
+  assert.equal(from, to, 'widget is a point insertion (from === to)');
+  // The position must equal Line.from of some line — verifies line-aligned.
+  const line = state.doc.lineAt(from);
+  assert.equal(from, line.from, 'widget point must equal Line.from of containing line');
 });
 
 test('Stage G.3 WAVE 1-T-BW-7: NO "block decorations may not be specified via plugins" RangeError on state init', () => {

@@ -48,15 +48,23 @@ function collectRanges(rangeSet) {
 //  0     6          10           25      30
 const DOC = 'alpha\n```js\nconst x = 1;\n```\nbeta\n';
 
-test('Stage G.1 WAVE 2-T-CR-1: off-active fenced code → 1 block replace covering FencedCode', () => {
+test('Stage G.1 WAVE 2-T-CR-1: off-active fenced code → 1 widget at FencedCode line.from (Stage G.8 pattern)', () => {
+  // Stage G.8 changed the block-widget pattern from Decoration.replace
+  // ({block:true}) over a multi-line range to Decoration.widget(
+  // {block:true,side:-1}) inserted at the FIRST line's .from + line-hide
+  // decorations on each source line. `out.replaced` now contains only
+  // the widget point decoration (zero-length range at line.from), one
+  // per block.
   const state = makeState(DOC, 0); // caret on "alpha"
   const out = lpBlock.buildLpBlockDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
-  assert.equal(replaced.length, 1, 'expected exactly 1 replace for the fenced code');
-  // FencedCode starts at the opening ``` (position 6) and ends at the
-  // closing ``` (Lezer's exact range matters less than non-zero coverage).
-  assert.equal(replaced[0].from, 6, 'replace starts at opening ```');
-  assert.ok(replaced[0].to >= 26, 'replace covers through closing ```');
+  assert.equal(replaced.length, 1, 'expected exactly 1 block-widget for the fenced code');
+  // Widget is inserted at the FIRST line of the FencedCode range.
+  // For "alpha\n```js\n..." the first line of the fence is line 2,
+  // which starts at position 6 (after "alpha\n").
+  assert.equal(replaced[0].from, 6, 'widget at first-line .from');
+  // Widget is a POINT insertion: from === to.
+  assert.equal(replaced[0].to, replaced[0].from, 'widget is a point decoration (from === to)');
 });
 
 test('Stage G.1 WAVE 2-T-CR-2: caret on opening fence line → on-active → 0 replaces', () => {
