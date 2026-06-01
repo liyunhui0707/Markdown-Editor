@@ -26730,6 +26730,7 @@
   ];
   window.CM6Production = {
     EditorState,
+    EditorSelection,
     EditorView,
     Annotation,
     ViewPlugin,

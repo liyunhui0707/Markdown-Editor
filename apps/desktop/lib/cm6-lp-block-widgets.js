@@ -125,14 +125,15 @@
       return true;
     }
 
-    // Stage G.4 — snap a [from, to) range to whole-line boundaries.
+    // Stage G.4 + G.6 — snap a [from, to) range to whole-line boundaries.
     // CM6's tile system requires block-replace decorations to start at
-    // a Line.from (the position immediately after the prior \n, or 0)
-    // and end at a Line.to (the position immediately before the next \n,
-    // or doc.length). Lezer node positions are usually line-aligned but
-    // not guaranteed — defensively snap so the range is always valid.
-    // Returns {from, to} both inclusive in line terms (to is the line's
-    // .to, which is the position BEFORE the trailing newline).
+    // a Line.from and end at a Line.to. Returns null when the range
+    // would extend to doc.length AND the doc has no trailing newline —
+    // CM6 cannot position the cursor past a block widget that abuts
+    // strict doc-end (no buffer), producing "No tile at position X"
+    // errors at coordsAtPos(doc.length). Callers must skip emission
+    // when this helper returns null and let the walker render the
+    // source as a fallback.
     function snapToLineBoundaries(rawFrom, rawTo) {
       const docLen = state.doc.length;
       const safeFrom = Math.max(0, Math.min(rawFrom, docLen));
@@ -140,7 +141,16 @@
       const fromLine = state.doc.lineAt(safeFrom);
       const lastCharPos = (safeTo > safeFrom) ? safeTo - 1 : safeFrom;
       const toLine = state.doc.lineAt(Math.max(0, Math.min(lastCharPos, docLen - 1)));
-      return { from: fromLine.from, to: toLine.to };
+      const snappedFrom = fromLine.from;
+      const snappedTo   = toLine.to;
+      // Doc-end guard: if the range ends at strict doc-end AND the doc
+      // does NOT end with a newline (no buffer past the widget), skip
+      // emission. The walker will render the raw source for this block.
+      if (snappedTo >= docLen && docLen > 0) {
+        const lastChar = state.doc.sliceString(docLen - 1, docLen);
+        if (lastChar !== '\n') return null;
+      }
+      return { from: snappedFrom, to: snappedTo };
     }
 
     // Widget class lookups (same as cm6-lp-block.js had).
@@ -185,8 +195,11 @@
             chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
           }
           if (!chosenWidget) return;
-          // Stage G.4 — snap range to whole-line boundaries.
+          // Stage G.4 + G.6 — snap range to whole-line boundaries;
+          // skip widget if snap returns null (doc-end without trailing
+          // newline).
           const snapped = snapToLineBoundaries(node.from, node.to);
+          if (!snapped) return false;
           replacedRanges.push(
             cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
               .range(snapped.from, snapped.to)
@@ -203,8 +216,9 @@
           const parsed = tableMod.parseTableNode(node.node, state.doc);
           if (!parsed) return;
           const tableWidget = new TableWidgetClass(parsed);
-          // Stage G.4 — snap range to whole-line boundaries.
+          // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
           const snappedT = snapToLineBoundaries(node.from, node.to);
+          if (!snappedT) return false;
           replacedRanges.push(
             cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
               .range(snappedT.from, snappedT.to)
@@ -245,8 +259,9 @@
         }
         if (insideCode) continue;
         const w = new DisplayMathCls(mr.source);
-        // Stage G.4 — snap range to whole-line boundaries.
+        // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
         const snappedM = snapToLineBoundaries(mr.from, mr.to);
+        if (!snappedM) continue;
         replacedRanges.push(
           cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
             .range(snappedM.from, snappedM.to)
@@ -265,7 +280,16 @@
   // ── createLpBlockWidgetExtension(cm6) ──────────────────────────────────
   // Factory returning a CodeMirror Extension (StateField + facet wiring).
   // The StateField is REQUIRED for block decorations — ViewPlugin sources
-  // throw "Block decorations may not be specified via plugins" at runtime.
+  // throw "Block decorations may not be specified via plugins" at runtime
+  // (fixed in Stage G.3). Stage G.4 added widget.block:true getter + line-
+  // aligned ranges. Stage G.6 added the "skip block widget when range ends
+  // at doc.length without trailing newline" guard in buildBlockWidget-
+  // Decorations (CM6 can't position past a widget that abuts doc-end).
+  //
+  // Stage G.6 also originally tried a transactionFilter to snap cursor
+  // out of block ranges, but discovered CM6's atomicRanges facet ALREADY
+  // handles this for block:true replaces (verified via diagnostic). The
+  // filter was removed as redundant.
   function createLpBlockWidgetExtension(cm6) {
     if (!cm6) return null;
     if (!cm6.StateField || typeof cm6.StateField.define !== 'function') return null;
@@ -308,6 +332,6 @@
   return {
     buildBlockWidgetDecorations: buildBlockWidgetDecorations,
     createLpBlockWidgetExtension: createLpBlockWidgetExtension,
-    _frontmatterEnd: frontmatterEnd,
+    _frontmatterEnd:              frontmatterEnd,
   };
 });

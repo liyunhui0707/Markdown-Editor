@@ -59,14 +59,28 @@ test('Stage E WAVE 4-T-EE-2: header-only table (no body) produces 1 replace', ()
   assert.equal(replaced.length, 1, 'header-only table emits 1 replace');
 });
 
-test('Stage E WAVE 4-T-EE-3: table at end of document with no trailing newline', () => {
-  // Note: still need blank-line after table for it to be considered closed.
-  // Real-world edge: doc ends right after the table.
+test('Stage E WAVE 4-T-EE-3: table at strict doc-end without trailing newline is SKIPPED (Stage G.6 guard)', () => {
+  // Stage G.6 added a guard: block widgets whose range ends at exactly
+  // doc.length AND the doc has no trailing newline are SKIPPED, because
+  // CM6 cannot position the cursor past a block widget that abuts
+  // strict doc-end (coordsAtPos(docLen) throws "No tile at position X").
+  // The walker renders the source as a fallback. To restore widget
+  // rendering, add a trailing newline (T-EE-3b below).
   const doc = 'pre\n\n| A | B |\n|---|---|\n| 1 | 2 |';
   const state = makeState(doc, 0);
   const out = lpBlock.buildLpBlockDecorations(state, cm6);
   const replaced = collectRanges(out.replaced);
-  assert.equal(replaced.length, 1, 'eof-table emits 1 replace');
+  assert.equal(replaced.length, 0,
+    'table at strict doc-end without trailing newline must be SKIPPED per Stage G.6 guard');
+});
+
+test('Stage E WAVE 4-T-EE-3b: table at doc-end WITH trailing newline emits normally (Stage G.6)', () => {
+  const doc = 'pre\n\n| A | B |\n|---|---|\n| 1 | 2 |\n';
+  const state = makeState(doc, 0);
+  const out = lpBlock.buildLpBlockDecorations(state, cm6);
+  const replaced = collectRanges(out.replaced);
+  assert.equal(replaced.length, 1,
+    'table with trailing newline emits 1 replace (G.6 guard does not fire)');
 });
 
 test('Stage E WAVE 4-T-EE-4: multiple tables — each independently off-active', () => {

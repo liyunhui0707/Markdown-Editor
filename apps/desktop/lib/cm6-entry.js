@@ -9,7 +9,7 @@
    This entry is production-only. The throwaway spike entry
    (lib/spike-cm6-entry.js) and its bundle remain in place for spike
    reproducibility but are not consumed at runtime by the production app. */
-import { EditorState, Annotation, RangeSetBuilder, StateField } from '@codemirror/state';
+import { EditorState, EditorSelection, Annotation, RangeSetBuilder, StateField } from '@codemirror/state';
 import {
   EditorView,
   ViewPlugin,
@@ -53,6 +53,7 @@ const chrome = [
 
 window.CM6Production = {
   EditorState,
+  EditorSelection,
   EditorView,
   Annotation,
   ViewPlugin,

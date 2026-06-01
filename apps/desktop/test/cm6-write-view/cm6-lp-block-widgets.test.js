@@ -29,7 +29,7 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
-const { EditorState, StateField } = require('@codemirror/state');
+const { EditorState, EditorSelection, StateField } = require('@codemirror/state');
 const { Decoration, WidgetType, EditorView, ViewPlugin } = require('@codemirror/view');
 const { syntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
@@ -40,6 +40,7 @@ const lpBlockWidgets = require('../../lib/cm6-lp-block-widgets.js');
 
 const cm6 = {
   Decoration, WidgetType, EditorView, ViewPlugin, syntaxTree, StateField,
+  EditorState, EditorSelection,
 };
 
 test('Stage G.3 WAVE 1-T-BW-1: createLpBlockWidgetExtension returns non-null when StateField + facets present', () => {
@@ -179,6 +180,57 @@ test('Stage G.4 T-BW-8: all 4 block widgets report widget.block === true', () =>
   assert.equal(d.block, true, 'DisplayMathWidget.block must be true');
   assert.equal(c.block, true, 'CodeBlockWidget.block must be true');
   assert.equal(m.block, true, 'MermaidWidget.block must be true');
+});
+
+// ── Stage G.6 — cursor-snap transactionFilter regression ────────────────
+
+test('Stage G.6 T-BW-10: block widget at strict doc-end WITHOUT trailing newline is SKIPPED', () => {
+  // Without a trailing newline, CM6 can't position the cursor past a
+  // block widget that ends at exactly doc.length -- coordsAtPos(docLen)
+  // throws "No tile at position X". The fix: skip widget emission for
+  // such ranges; the walker renders the source instead (degraded but
+  // not broken).
+  const lpBW = require('../../lib/cm6-lp-block-widgets.js');
+  // Fenced code at strict doc-end, no trailing \n after closing ```.
+  const doc = 'pre\n\n```js\nconst x = 1;\n```';
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: 0, head: 0 },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [], extensions: [GFM] })],
+  });
+  const out = lpBW.buildBlockWidgetDecorations(state, cm6);
+  let count = 0;
+  const c = out.replaced.iter();
+  while (c.value) { count++; c.next(); }
+  assert.equal(count, 0, 'block at strict doc-end without trailing newline must be skipped');
+});
+
+test('Stage G.6 T-BW-11: block widget at doc-end WITH trailing newline is emitted normally', () => {
+  const lpBW = require('../../lib/cm6-lp-block-widgets.js');
+  const doc = 'pre\n\n```js\nconst x = 1;\n```\n';
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: 0, head: 0 },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [], extensions: [GFM] })],
+  });
+  const out = lpBW.buildBlockWidgetDecorations(state, cm6);
+  let count = 0;
+  const c = out.replaced.iter();
+  while (c.value) { count++; c.next(); }
+  assert.equal(count, 1, 'block with trailing newline must emit normally');
+});
+
+test('Stage G.6 T-BW-12: createLpBlockWidgetExtension returns a single StateField (no filter array)', () => {
+  // Stage G.6 first added a transactionFilter for cursor-snap but
+  // discovered CM6 atomicRanges already handles snapping for block:true
+  // replaces. Filter removed. This test pins that the factory returns a
+  // single extension (the StateField), not an array -- guard against
+  // re-adding a redundant filter.
+  const lpBW = require('../../lib/cm6-lp-block-widgets.js');
+  const ext = lpBW.createLpBlockWidgetExtension(cm6);
+  assert.ok(ext, 'extension non-null');
+  assert.equal(Array.isArray(ext), false,
+    'extension must be a single StateField, not an array');
 });
 
 test('Stage G.4 T-BW-9: snapToLineBoundaries produces line-aligned ranges (via integration)', () => {
