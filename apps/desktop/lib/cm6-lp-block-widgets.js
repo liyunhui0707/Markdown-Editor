@@ -188,18 +188,22 @@
               code = state.doc.sliceString(child.from, child.to);
             }
           }
-          let chosenWidget = null;
-          if (lang === 'mermaid' && MermaidWidgetClass) {
-            chosenWidget = new MermaidWidgetClass(code);
-          } else if (CodeBlockWidgetClass) {
-            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
-          }
-          if (!chosenWidget) return;
-          // Stage G.4 + G.6 — snap range to whole-line boundaries;
-          // skip widget if snap returns null (doc-end without trailing
-          // newline).
+          // Stage G.4 + G.6 — snap range first so we know the actual
+          // covered line span before constructing the widget.
           const snapped = snapToLineBoundaries(node.from, node.to);
           if (!snapped) return false;
+          // Stage G.7 — count source-range newlines; pass to widget as
+          // `lineBreaks` so CM6 reserves the right amount of vertical
+          // layout space and the tile map stays consistent.
+          const fcSrc = state.doc.sliceString(snapped.from, snapped.to);
+          const fcLineBreaks = (fcSrc.match(/\n/g) || []).length;
+          let chosenWidget = null;
+          if (lang === 'mermaid' && MermaidWidgetClass) {
+            chosenWidget = new MermaidWidgetClass(code, fcLineBreaks);
+          } else if (CodeBlockWidgetClass) {
+            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code, lineBreaks: fcLineBreaks });
+          }
+          if (!chosenWidget) return;
           replacedRanges.push(
             cm6.Decoration.replace({ widget: chosenWidget, inclusive: false, block: true })
               .range(snapped.from, snapped.to)
@@ -215,10 +219,14 @@
           if (!isWholeRangeOffActive(fromLine, toLine)) return;
           const parsed = tableMod.parseTableNode(node.node, state.doc);
           if (!parsed) return;
-          const tableWidget = new TableWidgetClass(parsed);
           // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
           const snappedT = snapToLineBoundaries(node.from, node.to);
           if (!snappedT) return false;
+          // Stage G.7 — pass source-range newline count for layout.
+          const tSrc = state.doc.sliceString(snappedT.from, snappedT.to);
+          const tLineBreaks = (tSrc.match(/\n/g) || []).length;
+          parsed.lineBreaks = tLineBreaks;
+          const tableWidget = new TableWidgetClass(parsed);
           replacedRanges.push(
             cm6.Decoration.replace({ widget: tableWidget, inclusive: false, block: true })
               .range(snappedT.from, snappedT.to)
@@ -258,10 +266,13 @@
           parent = parent.parent;
         }
         if (insideCode) continue;
-        const w = new DisplayMathCls(mr.source);
         // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
         const snappedM = snapToLineBoundaries(mr.from, mr.to);
         if (!snappedM) continue;
+        // Stage G.7 — pass source-range newline count for layout.
+        const mSrc = state.doc.sliceString(snappedM.from, snappedM.to);
+        const mLineBreaks = (mSrc.match(/\n/g) || []).length;
+        const w = new DisplayMathCls(mr.source, mLineBreaks);
         replacedRanges.push(
           cm6.Decoration.replace({ widget: w, inclusive: false, block: true })
             .range(snappedM.from, snappedM.to)

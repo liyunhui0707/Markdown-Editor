@@ -155,6 +155,34 @@ test('Stage G.3 WAVE 1-T-BW-6: state field re-runs on selection change (off-acti
 
 // ── Stage G.4 — widget.block getter regression ──────────────────────────
 
+test('Stage G.7 T-BW-13: all 4 block widgets report widget.lineBreaks matching source range', () => {
+  // CM6 reserves layout space based on widget.lineBreaks for block
+  // widgets. Default 0 -> CM6 thinks the widget occupies 1 line, but
+  // our source range spans many lines, causing tile-map drift and
+  // "No tile at position X" errors. The emission site in cm6-lp-block-
+  // widgets.js computes newlines in the source range and passes via
+  // constructor; each widget exposes the value via get lineBreaks().
+  const lpBW = require('../../lib/cm6-lp-block-widgets.js');
+  // 4-line fenced code block: ```js\nconst x = 1;\n```\n -> 3 newlines.
+  const doc = 'pre\n\n```js\nconst x = 1;\n```\n\nend\n';
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: 0, head: 0 },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [], extensions: [GFM] })],
+  });
+  const out = lpBW.buildBlockWidgetDecorations(state, cm6);
+  const cursor = out.replaced.iter();
+  assert.ok(cursor.value, 'must have at least one widget');
+  const widget = cursor.value.spec.widget;
+  assert.equal(widget.block, true, 'widget.block === true');
+  // The fenced code source range ```js\nconst x = 1;\n``` has 2 newlines.
+  // Per Stage G.7 lineBreaks should match that count.
+  assert.ok(typeof widget.lineBreaks === 'number',
+    'widget.lineBreaks must be a number');
+  assert.ok(widget.lineBreaks >= 2,
+    'widget.lineBreaks must reflect the multi-line source range (>= 2 for a 3-line fence)');
+});
+
 test('Stage G.4 T-BW-8: all 4 block widgets report widget.block === true', () => {
   // CM6's tile system reads widget.block to know whether to treat the
   // widget as block-level. Defaulting to false (the WidgetType default)
