@@ -35,10 +35,11 @@ test('CA3.3 negative regex: no new exposeInMainWorld namespace beyond existing v
   assert.equal(exposes.length, 2);
 });
 
-test('CA3.4 negative regex: Stage A keeps direct invoke (no callAiAction helper, no chunkChannel)', () => {
+test('CA3.4 negative regex: no callAiAction helper (T8.2/CA3.2 still match)', () => {
   const src = SRC();
   assert.doesNotMatch(src, /callAiAction\b/);
-  assert.doesNotMatch(src, /chunkChannel\b/);
+  // chunkChannel literal now legitimately appears in Stage B preload;
+  // T8.2/CA3.2 ensure the arrow still routes directly to ipcRenderer.invoke.
 });
 
 test('CA3.5 negative regex: preload does NOT expose raw ipcRenderer or "electron"', () => {

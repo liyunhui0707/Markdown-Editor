@@ -105,5 +105,34 @@
     if (_body) _body.textContent = '';
   }
 
-  return { mount, showLoading, showSummary, showError, clear };
+  // Stage B D11: incremental render for the active stream. Appends to
+  // body.textContent; flips status to 'Streaming…' only when status is
+  // empty or one of the known loading labels (preserves any custom label
+  // a caller may have set). XSS-safe via textContent.
+  function appendChunk(text) {
+    if (!_root) return;
+    if (typeof text !== 'string') return;
+    show();
+    clearError();
+    if (_status) {
+      const cur = _status.textContent || '';
+      if (cur === '' || cur === 'Summarizing…' || cur === 'Rewriting…') {
+        _status.textContent = 'Streaming…';
+      }
+    }
+    if (_body) _body.textContent = _body.textContent + text;
+  }
+
+  // Stage B D11: batch resync used when the user switches back to a note
+  // whose stream is still in flight. Replaces body (not appends) with the
+  // accumulator the renderer has been collecting in noteState. XSS-safe.
+  function showStreamingText(text) {
+    if (!_root) return;
+    show();
+    clearError();
+    if (_status) _status.textContent = 'Streaming…';
+    if (_body) _body.textContent = typeof text === 'string' ? text : '';
+  }
+
+  return { mount, showLoading, showSummary, showError, clear, appendChunk, showStreamingText };
 });

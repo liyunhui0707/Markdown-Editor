@@ -196,7 +196,10 @@ test('T9.6e [QA bug C / QA loop 2] active-note watcher RENDERS the new note stat
 });
 
 test('T9.7 handler calls window.ai.summarizeNote with the text', () => {
-  assert.match(readBoot(), /window\.ai\.summarizeNote\(\s*[A-Za-z_][A-Za-z_0-9]*\s*\)/);
+  // Stage B Option α-2: regex relaxed from `\)` to `[,)]` so the two-arg
+  // streaming form `summarizeNote(text, { onChunk, signal })` matches too.
+  // Intent unchanged: the call goes through with `text` as the first arg.
+  assert.match(readBoot(), /window\.ai\.summarizeNote\(\s*[A-Za-z_][A-Za-z_0-9]*\s*[,)]/);
 });
 
 test('T9.8 handler routes ok branch to AiSummaryPanel.showSummary', () => {

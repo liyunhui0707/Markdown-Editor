@@ -11,6 +11,7 @@
 
 const { aiError, REASON_MESSAGES } = require('./ai-errors');
 const { parseOpenAIChatResponse } = require('./ai-response-parser');
+const { createSseParser } = require('./ai-sse-parser');
 
 // [J1] Walk the err.cause chain (cap depth as a safety net) — undici can
 // wrap an aborted fetch as `TypeError('fetch failed')` with an
@@ -95,7 +96,119 @@ function createOpenAiCompatibleProvider(deps) {
     return parseOpenAIChatResponse(json);
   }
 
-  return { summarize };
+  async function streamSummarize(args) {
+    const { baseUrl, model, messages, temperature, maxTokens, signal, onChunk } = args || {};
+    const url = joinUrl(baseUrl, '/chat/completions');
+    const body = JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: true,
+    });
+
+    let res;
+    try {
+      res = await fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+        body,
+        signal,
+      });
+    } catch (err) {
+      if (isAbortError(err) || (signal && signal.aborted)) {
+        throw aiError('timeout', REASON_MESSAGES['timeout']);
+      }
+      if (isUnreachable(err)) {
+        throw aiError('server-unreachable', REASON_MESSAGES['server-unreachable']);
+      }
+      throw aiError('server-unreachable', REASON_MESSAGES['server-unreachable']);
+    }
+
+    if (!res || res.ok !== true) {
+      const status = res && Number.isInteger(res.status) ? res.status : undefined;
+      throw aiError('http-error', REASON_MESSAGES['http-error'], { status });
+    }
+
+    const ct = (res.headers && typeof res.headers.get === 'function')
+      ? (res.headers.get('content-type') || '')
+      : '';
+    if (!ct || !ct.toLowerCase().includes('text/event-stream')) {
+      throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+    }
+
+    if (!res.body || typeof res.body.getReader !== 'function') {
+      throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+    }
+
+    const reader = res.body.getReader();
+
+    // QA fix: signal-abort doesn't reliably reject a pending reader.read()
+    // in undici on Node 20 — the loop would keep draining chunks for the
+    // model's full duration after a user cancel. Explicit reader.cancel()
+    // on signal-abort destroys the stream synchronously; the pending
+    // read then resolves with { done: true }, and we re-check signal.aborted
+    // below to convert that into a typed timeout error rather than a
+    // silent successful completion.
+    let onSignalAbort = null;
+    if (signal && typeof signal.addEventListener === 'function') {
+      onSignalAbort = () => {
+        try {
+          // reader.cancel() returns a Promise. If the stream is already
+          // errored by another listener (e.g., in tests), the promise
+          // rejects — swallow to avoid an unhandled rejection.
+          const p = reader.cancel();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch (_e) { /* sync throw — ignore */ }
+      };
+      signal.addEventListener('abort', onSignalAbort, { once: true });
+    }
+
+    try {
+      const parser = createSseParser();
+      let accumulated = '';
+      let done = false;
+      while (!done) {
+        let chunk;
+        try {
+          chunk = await reader.read();
+        } catch (err) {
+          if (isAbortError(err) || (signal && signal.aborted)) {
+            throw aiError('timeout', REASON_MESSAGES['timeout']);
+          }
+          throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+        }
+        // Post-read signal check: reader.cancel() (fired by our abort
+        // listener above) resolves the pending read with { done: true }
+        // rather than rejecting it, so the catch block above is not
+        // guaranteed to fire on a user cancel.
+        if (signal && signal.aborted) {
+          throw aiError('timeout', REASON_MESSAGES['timeout']);
+        }
+        if (chunk.done) break;
+        const events = parser.feed(chunk.value);
+        for (const ev of events) {
+          if (ev.kind === 'content') {
+            accumulated += ev.text;
+            if (typeof onChunk === 'function') onChunk(ev.text);
+          } else if (ev.kind === 'done') {
+            done = true;
+            break;
+          } else if (ev.kind === 'error') {
+            throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+          }
+        }
+      }
+
+      return { summary: accumulated };
+    } finally {
+      if (signal && onSignalAbort && typeof signal.removeEventListener === 'function') {
+        signal.removeEventListener('abort', onSignalAbort);
+      }
+    }
+  }
+
+  return { summarize, streamSummarize };
 }
 
 module.exports = { createOpenAiCompatibleProvider };

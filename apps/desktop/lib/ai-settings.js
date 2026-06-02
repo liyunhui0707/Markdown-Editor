@@ -69,7 +69,7 @@ function normalizeBaseUrl(raw, fallback) {
 
 function loadAiSettings({ env } = { env: {} }) {
   const envMap = env || {};
-  return {
+  const settings = {
     provider:      readString(envMap, 'MARKDOWN_AI_PROVIDER', DEFAULTS.provider),
     baseUrl:       normalizeBaseUrl(envMap.MARKDOWN_AI_BASE_URL, DEFAULTS.baseUrl),
     model:         readString(envMap, 'MARKDOWN_AI_MODEL', DEFAULTS.model),
@@ -82,6 +82,14 @@ function loadAiSettings({ env } = { env: {} }) {
     timeoutMs:     readPositiveNumber(envMap, 'MARKDOWN_AI_TIMEOUT_MS', DEFAULTS.timeoutMs),
     maxInputChars: readPositiveNumber(envMap, 'MARKDOWN_AI_MAX_INPUT_CHARS', DEFAULTS.maxInputChars),
   };
+  // Stage B D9: MARKDOWN_AI_STREAMING is conditional. Field is ABSENT
+  // when env key is unset/empty/whitespace so v0.2.0 T1.1 deepEqual on
+  // the 7-default shape stays green. Only literal 'false' (case-insensitive)
+  // opts out; consumer pattern is `settings.streaming ?? true`.
+  if (isNonEmptyString(envMap.MARKDOWN_AI_STREAMING)) {
+    settings.streaming = envMap.MARKDOWN_AI_STREAMING.trim().toLowerCase() !== 'false';
+  }
+  return settings;
 }
 
 module.exports = { loadAiSettings, DEFAULTS };

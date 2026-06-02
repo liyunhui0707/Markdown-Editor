@@ -333,7 +333,10 @@ test('CA4.11 startedId captured pre-await (Path D H4 invariant)', () => {
 });
 
 test('CA4.12 window.ai.rewriteText called with the text identifier', () => {
-  assert.match(readBoot(), /window\.ai\.rewriteText\(\s*[A-Za-z_]+\s*\)/);
+  // Stage B Option α-2: regex relaxed from `\)` to `[,)]` so the two-arg
+  // streaming form `rewriteText(text, { onChunk, signal })` matches too.
+  // Intent unchanged: the call goes through with `text` as the first arg.
+  assert.match(readBoot(), /window\.ai\.rewriteText\(\s*[A-Za-z_]+\s*[,)]/);
 });
 
 test('CA4.13 [Q1] BOTH buttons disabled in Rewrite handler', () => {

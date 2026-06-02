@@ -12,6 +12,7 @@ const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
 SessionImportIpc.register(ipcMain);
 AiIpc.register(ipcMain);
 AiIpc.registerRewrite(ipcMain);
+AiIpc.registerCancel(ipcMain);
 
 let mainWindow = null;
 let currentVaultWatcher = null;

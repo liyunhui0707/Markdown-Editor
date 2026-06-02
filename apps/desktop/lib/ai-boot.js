@@ -1,31 +1,38 @@
 /* lib/ai-boot.js
-   Renderer-side wiring for the AI Summarize button.
+   Renderer-side wiring for the AI Summarize + Rewrite buttons.
 
    Why this file lives outside the inline boot script:
    apps/desktop/test/renderer-boot.test.js executes the inline boot script
    against a hard-coded DOM-id allow-list (line 319 asserts
    `assert.ok(elements.has(id), 'unexpected document.getElementById(${id})')`).
-   Adding getElementById calls for 'summarizeButton' / 'aiSummaryPanel'
-   inside the boot script would break that test, and the project rule is
-   to NOT modify pre-existing tests. ai-boot.js is loaded via <script src>;
-   the boot test's getBootScript() only matches inline scripts containing
-   "Boot the Markdown editor", so this file is ignored by the harness.
+   Adding getElementById calls for 'summarizeButton' / 'aiSummaryPanel' /
+   'rewriteButton' inside the boot script would break that test, and the
+   project rule is to NOT modify pre-existing tests. ai-boot.js is loaded
+   via <script src>; the boot test's getBootScript() only matches inline
+   scripts containing "Boot the Markdown editor", so this file is ignored
+   by the harness.
 
    Behavior:
-   - On DOMContentLoaded: look up the button + panel, mount AiSummaryPanel.
-   - Each note has its OWN summary state (loading / summary / error),
-     stored in a Map keyed by note id. The single shared panel renders
-     the *active* note's state. (QA loop 2: the panel is per-note, not
-     a global last-action display. Returning to a note that already
-     has a settled summary restores it; switching away while in-flight
-     restores the loading indicator on return; an out-of-band resolve
-     stores the result under the started id so it appears next time
-     the user comes back.)
-   - On click: capture startedId pre-await (H4), set per-note loading,
-     call window.ai.summarizeNote, store the resolution keyed by
-     startedId (success or error), then render the *currently active*
-     note's state.
-   - try / catch / finally — never leave the panel stuck on "Summarizing…".
+   - On DOMContentLoaded: look up the buttons + panel, mount AiSummaryPanel.
+   - Each note has its OWN action state in a Map keyed by note id. Entry
+     shape: { kind: 'loading' | 'streaming' | 'summary' | 'error', label,
+     text, token }. The single shared panel renders the *active* note's
+     state. (Path D loop-2: per-note, not a global last-action display.
+     Returning to a note that already has a settled summary restores it;
+     switching away while in-flight restores the loading or streaming
+     marker on return; an out-of-band resolve stores the result under the
+     started id so it appears next time the user comes back.)
+   - Stage B per-request token: each click bumps nextRequestToken. The
+     per-note entry stores the active token; settle handlers FIRST check
+     entry.token before any state write, so a stale cancelled request's
+     late settle cannot overwrite a fresh request's entry.
+   - Stage B cross-process abort: the click handler holds an AbortController
+     keyed by startedId in inflightAborts. The × (onCloseHandler) calls
+     the stored abort callback before deleting the note's entry.
+   - The two click handlers are duplicated (per Stage A D1 discipline) so
+     each verb's handler can be inspected as a self-contained block by the
+     CA4.* / T9.* source-shape probes.
+   - try / catch / finally — never leave the panel stuck on a loading state.
    - Never mutates note state (A8).
 */
 
@@ -49,21 +56,40 @@
       return;
     }
 
-    // QA loop 3: dismiss (×) button. onClose removes the active note's
-    // entry from the per-note map and clears the panel, so the summary
-    // does NOT come back when the user revisits the note.
+    // Per-note action state. Keys are note ids (vault:rel/path.md, draft:N).
+    // Values: { kind, label?, text, token }. The panel renders the ACTIVE
+    // note's entry.
+    const noteState = new Map();
+
+    // Stage B D8: monotonic per-request token. Each click bumps this and
+    // stamps the new value on the per-note entry. Settle handlers (and
+    // onChunk closures) compare against their captured token before any
+    // state write, so a cancelled request's late settle is silently
+    // discarded even if it arrives after a fresh request has started.
+    let nextRequestToken = 0;
+
+    // Stage B: per-startedId abort callbacks. The × (onCloseHandler) reads
+    // this map to abort the currently-in-flight request for the active
+    // note before deleting state.
+    const inflightAborts = new Map();
+
+    // onClose — × button. Aborts (entry is {token,abort}), drops state, F3 release.
     function onCloseHandler() {
       const id = window.markdownVault.getActiveNoteId();
-      if (id) noteState.delete(id);
+      if (id) {
+        const entry = inflightAborts.get(id);
+        if (entry && typeof entry.abort === 'function') { try { entry.abort(); } catch (_e) { /* ignore */ } }
+        inflightAborts.delete(id);
+        noteState.delete(id);
+      }
       window.AiSummaryPanel.clear();
+      if (inflightAborts.size === 0) {
+        button.disabled = false;
+        rewriteButton.disabled = false;
+      }
     }
 
     window.AiSummaryPanel.mount(panel, { onClose: onCloseHandler });
-
-    // Per-note summary state. Keys are note ids (vault:rel/path.md, draft:N).
-    // Values are { kind: 'loading' | 'summary' | 'error', text } objects.
-    // The panel is rendered as a function of the ACTIVE note's entry.
-    const noteState = new Map();
 
     function renderActive() {
       const id = window.markdownVault.getActiveNoteId();
@@ -74,6 +100,9 @@
         // Stage A: pass entry.label so Rewrite shows 'Rewriting…'.
         // Summarize loading entries omit label → showLoading defaults to v0.2.0 'Summarizing…'.
         window.AiSummaryPanel.showLoading(entry.label);
+      } else if (entry.kind === 'streaming') {
+        // Stage B: resync to the accumulator built up by onChunk so far.
+        window.AiSummaryPanel.showStreamingText(entry.text || '');
       } else if (entry.kind === 'summary') {
         window.AiSummaryPanel.showSummary(entry.text);
       } else if (entry.kind === 'error') {
@@ -111,24 +140,63 @@
       }
       button.disabled = true;
       rewriteButton.disabled = true;   // Stage A: cooldown extends to both buttons.
-      noteState.set(startedId, { kind: 'loading' });
+      const token = ++nextRequestToken;
+      noteState.set(startedId, { kind: 'loading', text: '', token });
       renderActive();
       try {
-        const result = await window.ai.summarizeNote(text);
+        // Stage B D3'' — registerAbort callback. AbortSignal can't carry
+        // its addEventListener across Electron's contextBridge, so the
+        // renderer hands the preload a slot to deposit an abort function
+        // in. The preload calls back synchronously inside subscribe();
+        // by the time the await resumes, inflightAborts[startedId] holds
+        // the preload-side cancel hook. × → onCloseHandler reads and
+        // calls it. main receives 'ai:cancel' and aborts the stream.
+        const result = await window.ai.summarizeNote(text, {
+          registerAbort: (abortFn) => { inflightAborts.set(startedId, { token, abort: abortFn }); },
+          onChunk: (chunk) => {
+            // Stage B D8: token guard FIRST. Stale chunks dropped silently.
+            const e = noteState.get(startedId);
+            if (!e || e.token !== token) return;
+            if (typeof chunk !== 'string' || chunk.length === 0) return;
+            if (e.kind === 'loading') {
+              e.kind = 'streaming';
+              e.label = 'Streaming…';
+            }
+            e.text = (e.text || '') + chunk;
+            if (window.markdownVault.getActiveNoteId() === startedId) {
+              window.AiSummaryPanel.appendChunk(chunk);
+            }
+          },
+        });
+        const e = noteState.get(startedId);
+        if (!e || e.token !== token) return;
         if (result && result.ok) {
-          noteState.set(startedId, { kind: 'summary', text: result.summary });
+          noteState.set(startedId, { kind: 'summary', text: result.summary, token });
         } else {
           noteState.set(startedId, {
             kind: 'error',
             text: (result && result.message) || 'Summarize failed.',
+            token,
           });
         }
       } catch (_err) {
+        const e = noteState.get(startedId);
+        if (!e || e.token !== token) return;
         // [G6] Never leave the panel stuck on the loading state.
-        noteState.set(startedId, { kind: 'error', text: 'Summarize failed.' });
+        noteState.set(startedId, { kind: 'error', text: 'Summarize failed.', token });
       } finally {
-        button.disabled = false;
-        rewriteButton.disabled = false;  // Stage A: re-enable both.
+        // F1 (Codex): only delete OUR entry. A fresh request for the same
+        // note may have replaced it with a different token; deleting it
+        // would orphan the new request's × handler.
+        const cur = inflightAborts.get(startedId);
+        if (cur && cur.token === token) inflightAborts.delete(startedId);
+        // F3 (Codex): only re-enable buttons when nothing else is pending.
+        // A late stale settle of a cancelled / replaced request must not
+        // re-enable buttons while a fresh request is still in-flight.
+        if (inflightAborts.size === 0) {
+          button.disabled = false;
+          rewriteButton.disabled = false;
+        }
         // Refresh the panel — if the user is still on startedId, the new
         // summary/error appears; if they switched away, the panel reflects
         // whatever note they're now on (which may have its own state).
@@ -148,24 +216,51 @@
       }
       button.disabled = true;
       rewriteButton.disabled = true;
+      const token = ++nextRequestToken;
       // Stage A: label distinguishes the verb for the panel's status text.
-      noteState.set(startedId, { kind: 'loading', label: 'Rewriting…' });
+      noteState.set(startedId, { kind: 'loading', label: 'Rewriting…', text: '', token });
       renderActive();
       try {
-        const result = await window.ai.rewriteText(text);
+        const result = await window.ai.rewriteText(text, {
+          registerAbort: (abortFn) => { inflightAborts.set(startedId, { token, abort: abortFn }); },
+          onChunk: (chunk) => {
+            const e = noteState.get(startedId);
+            if (!e || e.token !== token) return;
+            if (typeof chunk !== 'string' || chunk.length === 0) return;
+            if (e.kind === 'loading') {
+              e.kind = 'streaming';
+              e.label = 'Streaming…';
+            }
+            e.text = (e.text || '') + chunk;
+            if (window.markdownVault.getActiveNoteId() === startedId) {
+              window.AiSummaryPanel.appendChunk(chunk);
+            }
+          },
+        });
+        const e = noteState.get(startedId);
+        if (!e || e.token !== token) return;
         if (result && result.ok) {
-          noteState.set(startedId, { kind: 'summary', text: result.summary });
+          noteState.set(startedId, { kind: 'summary', text: result.summary, token });
         } else {
           noteState.set(startedId, {
             kind: 'error',
             text: (result && result.message) || 'Rewrite failed.',
+            token,
           });
         }
       } catch (_err) {
-        noteState.set(startedId, { kind: 'error', text: 'Rewrite failed.' });
+        const e = noteState.get(startedId);
+        if (!e || e.token !== token) return;
+        noteState.set(startedId, { kind: 'error', text: 'Rewrite failed.', token });
       } finally {
-        button.disabled = false;
-        rewriteButton.disabled = false;
+        // F1 (Codex): token-guarded cleanup — see Summarize handler note.
+        const cur = inflightAborts.get(startedId);
+        if (cur && cur.token === token) inflightAborts.delete(startedId);
+        // F3 (Codex): gate button re-enable on no-other-pending.
+        if (inflightAborts.size === 0) {
+          button.disabled = false;
+          rewriteButton.disabled = false;
+        }
         renderActive();
       }
     });
