@@ -124,7 +124,7 @@
       eq(other) {
         return (other instanceof _MermaidWidget) && (other.source === this.source);
       }
-      toDOM() {
+      toDOM(view) {
         if (typeof document === 'undefined') return { nodeType: 1 };
         const container = document.createElement('div');
         container.className = 'cm-md-lp-mermaid';
@@ -135,6 +135,13 @@
         // Kick off async render. The widget reference lets the resolve
         // callback skip DOM updates after CM6 has destroyed the widget.
         renderMermaidInto(container, this.source, this);
+        // Stage G.12 — route widget clicks to source line. Listener is
+        // attached on the outer container; async-injected SVG inherits
+        // via bubbling (capture-phase listener on container fires first).
+        const router = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpWidgetClickRouting : null;
+        if (router && typeof router.attachSourceClickRouter === 'function') {
+          router.attachSourceClickRouter(view, container);
+        }
         return container;
       }
       destroy(_dom) {

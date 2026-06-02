@@ -202,7 +202,7 @@
         return true;
       }
 
-      toDOM() {
+      toDOM(view) {
         if (typeof document === 'undefined') {
           // Test-environment fallback. Tests inspect the widget via the
           // payload directly; toDOM not called.
@@ -243,6 +243,14 @@
             tbody.appendChild(tr);
           }
           table.appendChild(tbody);
+        }
+
+        // Stage G.12 — route widget clicks to source line so clicking
+        // the table reveals its source instead of landing the cursor
+        // on the line above.
+        const router = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpWidgetClickRouting : null;
+        if (router && typeof router.attachSourceClickRouter === 'function') {
+          router.attachSourceClickRouter(view, table);
         }
 
         return table;

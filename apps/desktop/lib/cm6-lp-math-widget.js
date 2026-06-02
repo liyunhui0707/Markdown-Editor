@@ -137,11 +137,16 @@
       eq(other) {
         return (other instanceof _DisplayMathWidget) && (other.source === this.source);
       }
-      toDOM() {
+      toDOM(view) {
         if (typeof document === 'undefined') return { nodeType: 1 };
         const div = document.createElement('div');
         div.className = 'cm-md-lp-math-display';
         renderInto(div, this.source, true);
+        // Stage G.12 — route widget clicks to source line.
+        const router = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpWidgetClickRouting : null;
+        if (router && typeof router.attachSourceClickRouter === 'function') {
+          router.attachSourceClickRouter(view, div);
+        }
         return div;
       }
       ignoreEvent() { return false; }

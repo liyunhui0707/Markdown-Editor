@@ -1912,6 +1912,10 @@
     <script src="./lib/cm6-active-range.js"></script>
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
+    <!-- Stage G.12 — widget click→source-line router. Must load BEFORE
+         the block-widget classes (table, math, code, mermaid) that
+         consume it at toDOM time. Tiny utility (no deps). -->
+    <script src="./lib/cm6-lp-widget-click-routing.js"></script>
     <script src="./lib/cm6-lp-image-widget.js"></script>
     <!-- Stage F — KaTeX JS bundle + math detect + math widget modules.
          Order: KaTeX JS first (so window.katex is available); detect

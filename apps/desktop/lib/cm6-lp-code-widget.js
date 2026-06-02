@@ -93,7 +93,7 @@
           && other.lang === this.lang
           && other.code === this.code;
       }
-      toDOM() {
+      toDOM(view) {
         if (typeof document === 'undefined') return { nodeType: 1 };
         const pre = document.createElement('pre');
         pre.className = 'cm-md-lp-code-block';
@@ -101,6 +101,11 @@
         code.className = 'hljs' + (this.lang ? (' language-' + this.lang) : '');
         applyHljs(code, this.lang, this.code);
         pre.appendChild(code);
+        // Stage G.12 — route widget clicks to source line.
+        const router = (typeof globalThis !== 'undefined') ? globalThis.Cm6LpWidgetClickRouting : null;
+        if (router && typeof router.attachSourceClickRouter === 'function') {
+          router.attachSourceClickRouter(view, pre);
+        }
         return pre;
       }
       ignoreEvent() { return false; }
