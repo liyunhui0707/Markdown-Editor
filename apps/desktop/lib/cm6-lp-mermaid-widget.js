@@ -113,17 +113,14 @@
     if (!WidgetType) return null;
 
     class _MermaidWidget extends WidgetType {
-      constructor(source, lineBreaks) {
+      constructor(source) {
         super();
         this.source = (source != null) ? String(source) : '';
         this._destroyed = false;
-        // Stage G.7 — CM6 layout-space reservation (see cm6-lp-table-widget.js).
-        this._lineBreaks = (typeof lineBreaks === 'number') ? lineBreaks : 0;
+        // Stage G.10 — G.7's _lineBreaks removed (see cm6-lp-table-widget.js).
       }
       // Stage G.4 — block-widget contract (see cm6-lp-table-widget.js).
       get block() { return true; }
-      // Stage G.7 — see constructor.
-      get lineBreaks() { return this._lineBreaks; }
       eq(other) {
         return (other instanceof _MermaidWidget) && (other.source === this.source);
       }

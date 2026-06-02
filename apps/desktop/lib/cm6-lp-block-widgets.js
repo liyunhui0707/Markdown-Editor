@@ -245,16 +245,16 @@
           // covered line span before constructing the widget.
           const snapped = snapToLineBoundaries(node.from, node.to);
           if (!snapped) return false;
-          // Stage G.7 — count source-range newlines; pass to widget as
-          // `lineBreaks` so CM6 reserves the right amount of vertical
-          // layout space and the tile map stays consistent.
-          const fcSrc = state.doc.sliceString(snapped.from, snapped.to);
-          const fcLineBreaks = (fcSrc.match(/\n/g) || []).length;
+          // Stage G.10 — Stage G.7's lineBreaks computation removed.
+          // For the G.8 widget+line-hide architecture the widget is a
+          // point insertion (not a multi-line replace), so its CM6
+          // lineBreaks property is 0 (default) — the widget contains
+          // no newlines INSIDE its rendered DOM.
           let chosenWidget = null;
           if (lang === 'mermaid' && MermaidWidgetClass) {
-            chosenWidget = new MermaidWidgetClass(code, fcLineBreaks);
+            chosenWidget = new MermaidWidgetClass(code);
           } else if (CodeBlockWidgetClass) {
-            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code, lineBreaks: fcLineBreaks });
+            chosenWidget = new CodeBlockWidgetClass({ lang: lang, code: code });
           }
           if (!chosenWidget) return;
           // Stage G.8 — emit widget + line-hide decorations (replaces
@@ -275,10 +275,8 @@
           // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
           const snappedT = snapToLineBoundaries(node.from, node.to);
           if (!snappedT) return false;
-          // Stage G.7 — pass source-range newline count for layout.
-          const tSrc = state.doc.sliceString(snappedT.from, snappedT.to);
-          const tLineBreaks = (tSrc.match(/\n/g) || []).length;
-          parsed.lineBreaks = tLineBreaks;
+          // Stage G.10 — Stage G.7's lineBreaks pass-through removed
+          // (see FencedCode branch above for rationale).
           const tableWidget = new TableWidgetClass(parsed);
           // Stage G.8 — emit widget + line-hide decorations.
           emitBlockWidget(snappedT, tableWidget);
@@ -320,10 +318,8 @@
         // Stage G.4 + G.6 — snap range; skip if doc-end without newline.
         const snappedM = snapToLineBoundaries(mr.from, mr.to);
         if (!snappedM) continue;
-        // Stage G.7 — pass source-range newline count for layout.
-        const mSrc = state.doc.sliceString(snappedM.from, snappedM.to);
-        const mLineBreaks = (mSrc.match(/\n/g) || []).length;
-        const w = new DisplayMathCls(mr.source, mLineBreaks);
+        // Stage G.10 — Stage G.7's lineBreaks pass-through removed.
+        const w = new DisplayMathCls(mr.source);
         // Stage G.8 — emit widget + line-hide decorations.
         emitBlockWidget(snappedM, w);
       }

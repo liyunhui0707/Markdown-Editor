@@ -84,15 +84,10 @@
         super();
         this.lang = (payload && payload.lang) ? String(payload.lang) : '';
         this.code = (payload && payload.code != null) ? String(payload.code) : '';
-        // Stage G.7 — CM6 layout-space reservation (see cm6-lp-table-widget.js).
-        this._lineBreaks = (payload && typeof payload.lineBreaks === 'number')
-          ? payload.lineBreaks
-          : 0;
+        // Stage G.10 — G.7's _lineBreaks removed (see cm6-lp-table-widget.js).
       }
       // Stage G.4 — block-widget contract (see cm6-lp-table-widget.js).
       get block() { return true; }
-      // Stage G.7 — see constructor.
-      get lineBreaks() { return this._lineBreaks; }
       eq(other) {
         return (other instanceof _CodeBlockWidget)
           && other.lang === this.lang

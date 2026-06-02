@@ -168,14 +168,14 @@
         this.headers    = payload.headers;
         this.alignments = payload.alignments;
         this.rows       = payload.rows;
-        // Stage G.7 — CM6 reserves layout space based on widget.lineBreaks
-        // for block widgets. Without it CM6 thinks the widget occupies
-        // ONE line, but our source range spans many lines, causing tile-
-        // map drift and "No tile at position X" errors. Passed in by the
-        // caller from the source range's newline count.
-        this._lineBreaks = (payload && typeof payload.lineBreaks === 'number')
-          ? payload.lineBreaks
-          : 0;
+        // Stage G.10 — the Stage G.7 `_lineBreaks` field is removed.
+        // It passed the source-range newline count, which was the wrong
+        // semantic for the G.8 widget+line-hide architecture (CM6's
+        // lineBreaks means "newlines visible INSIDE the rendered
+        // widget", not "source span the widget represents"). With G.8
+        // the widget is a point insertion + source lines hidden via
+        // CSS; widget renders as ONE visual block; lineBreaks=0 (the
+        // default) is the correct value.
       }
 
       // Stage G.4 — block-widget contract. CM6's tile system reads
@@ -184,9 +184,6 @@
       // CM6 throws "No tile at position X" / "Cannot destructure
       // property 'tile' of 'parents.pop(...)'" when computing coords.
       get block() { return true; }
-
-      // Stage G.7 — see constructor.
-      get lineBreaks() { return this._lineBreaks; }
 
       eq(other) {
         if (!(other instanceof _TableWidget)) return false;

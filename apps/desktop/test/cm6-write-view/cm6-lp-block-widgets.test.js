@@ -155,15 +155,15 @@ test('Stage G.3 WAVE 1-T-BW-6: state field re-runs on selection change (off-acti
 
 // ── Stage G.4 — widget.block getter regression ──────────────────────────
 
-test('Stage G.7 T-BW-13: all 4 block widgets report widget.lineBreaks matching source range', () => {
-  // CM6 reserves layout space based on widget.lineBreaks for block
-  // widgets. Default 0 -> CM6 thinks the widget occupies 1 line, but
-  // our source range spans many lines, causing tile-map drift and
-  // "No tile at position X" errors. The emission site in cm6-lp-block-
-  // widgets.js computes newlines in the source range and passes via
-  // constructor; each widget exposes the value via get lineBreaks().
+test('Stage G.10 T-BW-13: block widgets report widget.lineBreaks=0 (default — widget+line-hide pattern)', () => {
+  // Stage G.10 reverted G.7's lineBreaks getter. For the G.8 widget+
+  // line-hide architecture, CM6's lineBreaks semantic ("newlines visible
+  // INSIDE the rendered widget") doesn't match the source range we hide
+  // separately via Decoration.line. Each widget renders as ONE visual
+  // block element; lineBreaks=0 (default) matches actual rendered shape.
+  // Setting it to N caused click-position offset that compounded per
+  // widget (CM6 reserved extra vertical space that didn't render).
   const lpBW = require('../../lib/cm6-lp-block-widgets.js');
-  // 4-line fenced code block: ```js\nconst x = 1;\n```\n -> 3 newlines.
   const doc = 'pre\n\n```js\nconst x = 1;\n```\n\nend\n';
   const state = EditorState.create({
     doc,
@@ -174,13 +174,13 @@ test('Stage G.7 T-BW-13: all 4 block widgets report widget.lineBreaks matching s
   const cursor = out.replaced.iter();
   assert.ok(cursor.value, 'must have at least one widget');
   const widget = cursor.value.spec.widget;
-  assert.equal(widget.block, true, 'widget.block === true');
-  // The fenced code source range ```js\nconst x = 1;\n``` has 2 newlines.
-  // Per Stage G.7 lineBreaks should match that count.
-  assert.ok(typeof widget.lineBreaks === 'number',
-    'widget.lineBreaks must be a number');
-  assert.ok(widget.lineBreaks >= 2,
-    'widget.lineBreaks must reflect the multi-line source range (>= 2 for a 3-line fence)');
+  assert.equal(widget.block, true, 'widget.block === true (G.4 contract preserved)');
+  // Stage G.10 contract: lineBreaks should be the default 0, NOT the
+  // source-range newline count. If a future regression adds a non-zero
+  // getter, this test catches it.
+  const lb = widget.lineBreaks;
+  assert.ok(lb === 0 || lb == null || lb === undefined,
+    'widget.lineBreaks must be 0/null/undefined; non-zero values cause click-position offset (Stage G.10 regression)');
 });
 
 test('Stage G.4 T-BW-8: all 4 block widgets report widget.block === true', () => {
