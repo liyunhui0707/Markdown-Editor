@@ -1718,8 +1718,22 @@
          source line's .from) renders in their place. Off-active only
          — when the caret enters any line of the block, the StateField
          re-runs and removes both the widget AND the line decorations,
-         so the walker-styled raw source becomes visible. */
-      .cm-md-lp-block-hidden { display: none; }
+         so the walker-styled raw source becomes visible.
+
+         Stage G.9 — CSS specificity fix. CM6 ships built-in styles
+         like `.cm-content .cm-line { display: block; … }` which are
+         more specific than a single-class rule (specificity 0,1,1 vs
+         0,1,0). The original Stage G.8 rule `.cm-md-lp-block-hidden
+         { display: none }` was losing the specificity battle, so
+         source lines + widget both rendered (manual QA bugs #1, #3,
+         #4, #5). Fix: bump specificity AND add !important. The rule
+         is load-bearing for the entire widget+line-hide architecture
+         — without it the pattern degenerates. */
+      .cm-md-lp-block-hidden,
+      .cm-content .cm-md-lp-block-hidden,
+      .cm-editor .cm-md-lp-block-hidden {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
