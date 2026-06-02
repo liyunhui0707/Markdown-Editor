@@ -149,7 +149,12 @@
         }
         return div;
       }
-      ignoreEvent() { return false; }
+      ignoreEvent(event) {
+        // Stage G.13 — see cm6-lp-table-widget.js for full rationale.
+        if (!event) return true;
+        const t = event.type;
+        return t === 'mousedown' || t === 'mouseup' || t === 'click';
+      }
     }
 
     DisplayMathWidget = _DisplayMathWidget;

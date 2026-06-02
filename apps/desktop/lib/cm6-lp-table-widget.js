@@ -256,7 +256,17 @@
         return table;
       }
 
-      ignoreEvent() { return false; }
+      ignoreEvent(event) {
+        // Stage G.13 — ignore click-related events so CM6's default
+        // selection-on-click logic doesn't re-dispatch AFTER our router's
+        // dispatch (which would land the cursor on the post-rebuild Y
+        // coordinate, re-mounting the widget). The router's DOM-level
+        // mousedown listener handles routing the click to the widget's
+        // source line. See .workflow/artifacts/06-investigation-log.md.
+        if (!event) return true;
+        const t = event.type;
+        return t === 'mousedown' || t === 'mouseup' || t === 'click';
+      }
     }
 
     TableWidget = _TableWidget;

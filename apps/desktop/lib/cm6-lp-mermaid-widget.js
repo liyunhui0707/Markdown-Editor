@@ -150,7 +150,12 @@
         // mutating DOM after the container has been detached.
         this._destroyed = true;
       }
-      ignoreEvent() { return false; }
+      ignoreEvent(event) {
+        // Stage G.13 — see cm6-lp-table-widget.js for full rationale.
+        if (!event) return true;
+        const t = event.type;
+        return t === 'mousedown' || t === 'mouseup' || t === 'click';
+      }
     }
 
     MermaidWidget = _MermaidWidget;
