@@ -4897,6 +4897,92 @@
         groupedListRenderer = null;
       }
 
+      // Dictionary lookup (⌘⇧D). We capture the selection plus its
+      // surrounding block so the local Dictionary app can translate in
+      // context. The main process holds the token and does the POST; here
+      // we only gather text and surface a status pill.
+      const DICTIONARY_BLOCK_TAGS = {
+        P: 1, ARTICLE: 1, LI: 1, BLOCKQUOTE: 1, SECTION: 1, DIV: 1, TD: 1,
+        DD: 1, DT: 1, FIGCAPTION: 1, PRE: 1,
+        H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1
+      };
+
+      // Find the single sentence in `context` that contains `target`, so the
+      // popup can show the source sentence. Mirrors the Dictionary extensions.
+      function dictionarySentenceAround(context, target) {
+        try {
+          const idx = context.indexOf(target);
+          if (idx < 0) return null;
+          const seg = new Intl.Segmenter(navigator.language || 'en', { granularity: 'sentence' });
+          for (const piece of seg.segment(context)) {
+            if (piece.index <= idx && idx < piece.index + piece.segment.length) {
+              return piece.segment.trim();
+            }
+          }
+        } catch (_e) { /* Intl.Segmenter unavailable — skip the sentence row */ }
+        return null;
+      }
+
+      // Read the current DOM selection and walk up to the nearest block
+      // ancestor for paragraph context. Returns { empty } when nothing is
+      // selected.
+      function captureDictionarySelection() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return { empty: true };
+        const target = sel.toString().trim();
+        if (!target) return { empty: true };
+
+        let node = sel.anchorNode;
+        if (node && node.nodeType !== 1) node = node.parentNode;
+        let block = null;
+        while (node) {
+          if (node.nodeType === 1 && DICTIONARY_BLOCK_TAGS[node.tagName]
+              && (node.textContent || '').trim().length > 0) {
+            block = node;
+            break;
+          }
+          node = node.parentNode;
+        }
+
+        let context = target;
+        if (block) {
+          let raw = (block.textContent || '').replace(/\s+/g, ' ').trim();
+          if (raw.length > 2000) {
+            const idx = raw.indexOf(target);
+            if (idx >= 0) {
+              raw = raw.slice(Math.max(0, idx - 1000), Math.min(raw.length, idx + target.length + 1000));
+            } else {
+              raw = raw.slice(0, 2000);
+            }
+          }
+          context = raw;
+        }
+        return { empty: false, target, context, containingSentence: dictionarySentenceAround(context, target) };
+      }
+
+      async function triggerDictionaryLookup() {
+        if (!window.vaultApi || !window.vaultApi.dictionaryLookup) return;
+        const payload = captureDictionarySelection();
+        if (payload.empty) {
+          setStatus('error', 'Dictionary: select a word first');
+          setTimeout(() => setStatusFromSelectedNote(), 2000);
+          return;
+        }
+        setStatus('saving', 'Translating...');
+        let result;
+        try {
+          result = await window.vaultApi.dictionaryLookup(payload);
+        } catch (_e) {
+          result = { ok: false, error: 'Dictionary lookup failed.' };
+        }
+        if (result && result.ok) {
+          setStatusFromSelectedNote();
+        } else {
+          setStatus('error', (result && result.error) || 'Dictionary lookup failed.');
+          setTimeout(() => setStatusFromSelectedNote(), 3000);
+        }
+      }
+
       document.addEventListener('keydown', async (e) => {
         if (e.isComposing) return;
         const mod = e.metaKey || e.ctrlKey;
@@ -4930,6 +5016,7 @@
         }
         if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
         if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
+        if (mod && e.shiftKey && !e.altKey && key === 'd') { e.preventDefault(); await triggerDictionaryLookup(); return; }
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
           const focused = document.activeElement;

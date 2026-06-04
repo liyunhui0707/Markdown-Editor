@@ -210,6 +210,7 @@ npm run smoke
 | `Cmd/Ctrl + 0` | Reset editor text size to default (18px) |
 | `Cmd/Ctrl + Z` / `Cmd/Ctrl + Shift + Z` | Undo / redo in CM6 Write mode |
 | `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
+| `Cmd/Ctrl + Shift + D` | Translate the selected word in context via the local Dictionary macOS app (see [Dictionary lookup](#dictionary-lookup)) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
 | `Enter` | (Stage S4) In the in-transcript search input — jump to next match |
 | `Shift + Enter` | (Stage S4) In the in-transcript search input — jump to previous match |
@@ -217,6 +218,28 @@ npm run smoke
 | `Enter` / `Space` | (Stage S5) On a focused AI Sessions star button — toggle favorite; on a focused group header — collapse / expand the group |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
+
+## Dictionary lookup
+
+`Cmd/Ctrl + Shift + D` translates the currently-selected word using the local
+[Dictionary macOS app](https://github.com/) (a separate menu-bar app). The app
+captures your selection plus the surrounding paragraph so the translation is
+context-aware (e.g. "bank" as a riverbank vs. a financial institution), then
+shows its own popup with the result.
+
+This is optional and requires the Dictionary app to be installed and running:
+
+- The Dictionary app runs a loopback HTTP server on `127.0.0.1:49152` and writes
+  a bearer token to `~/Library/Application Support/DictionaryApp/token` (mode
+  `0600`). This app reads that token in the **main process** and POSTs the
+  selection there — never over the network, never from the renderer (a renderer
+  fetch to `127.0.0.1` would be CORS-blocked).
+- If the Dictionary app is not running, or the token is missing, pressing
+  `Cmd/Ctrl + Shift + D` shows a short status message in the bottom-right pill
+  instead of translating. No note content is ever modified.
+
+If you do not use the Dictionary app, simply ignore this shortcut — it has no
+effect on normal editing.
 
 ## MCP Note Ingestion
 

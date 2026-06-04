@@ -1,10 +1,13 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const http = require('http');
 
 const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
+const { performDictionaryLookup } = require('./lib/dictionary-lookup');
 const SessionImportIpc = require('./lib/session-import-ipc');
 const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
 
@@ -776,6 +779,14 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
 // helper module's top-of-file comment.
 ipcMain.handle('open-external-link', async (_event, payload) => {
   return processOpenExternalLink(payload, shell);
+});
+
+// Dictionary lookup. The renderer captures the selection + surrounding
+// paragraph and hands it here; we read the local Dictionary.app token and
+// POST to its loopback server (the Dictionary app shows the popup). Done in
+// the main process because a renderer fetch to 127.0.0.1 would be CORS-blocked.
+ipcMain.handle('dictionary:lookup', async (_event, payload) => {
+  return performDictionaryLookup({ payload, http, fs, os, path });
 });
 
 app.whenReady().then(() => {
