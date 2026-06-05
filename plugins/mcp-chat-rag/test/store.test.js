@@ -82,6 +82,30 @@ test('T4.3 re-inserting the same session replaces prior rows', () => {
   store.close();
 });
 
+test('T4.5 re-indexing the same source_path under a NEW session_id replaces the old row (no UNIQUE crash)', () => {
+  const { file } = tmpDb();
+  const store = openStore(file);
+  const sharedPath = '/Users/x/.claude/projects/foo/file.jsonl';
+  const embeddings = sampleChunks('OLD').map(() => new Float32Array(768).fill(0.02));
+  store.insertSession(sampleMeta({ session_id: 'OLD', source_path: sharedPath }), sampleChunks('OLD'), embeddings);
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM sessions').get().c, 1);
+
+  // Same file path, different session_id (e.g., the JSONL's recorded id changed).
+  assert.doesNotThrow(() => {
+    store.insertSession(
+      sampleMeta({ session_id: 'NEW', source_path: sharedPath, source_mtime: 1717299999 }),
+      sampleChunks('NEW'),
+      sampleChunks('NEW').map(() => new Float32Array(768).fill(0.03))
+    );
+  });
+  const sessions = store.db.prepare('SELECT session_id FROM sessions ORDER BY session_id').all().map(r => r.session_id);
+  assert.deepEqual(sessions, ['NEW'], 'old session purged, only NEW remains');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM chunks').get().c, 3, 'only NEW chunks');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM chunks_fts').get().c, 3, 'no orphan FTS rows');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM vec_chunks').get().c, 3, 'no orphan vec rows');
+  store.close();
+});
+
 test('T4.4 getSessionByPath returns row when present, null otherwise', () => {
   const { file } = tmpDb();
   const store = openStore(file);

@@ -102,6 +102,18 @@ points the host at `${CLAUDE_PLUGIN_ROOT}/server.js`.
   scoped for a future minor release.
 - No cross-encoder reranker. Pure BM25 + sqlite-vec with RRF fusion.
 - No filesystem watcher; re-scan happens on server start (mtime-gated).
+- Source-deletion: a session's chunks are not purged when its source
+  JSONL file is deleted outright, because the indexer only visits
+  files that still exist on disk. (A file that is *edited* — including
+  one whose turns now all redact away to zero chunks — IS reconciled
+  on the next pass: its prior session is replaced or purged.) Recovery
+  for outright deletions: `rm ~/.cache/mcp-chat-rag/index.db` to reset.
+  v0.2 will add a deletion sweep.
+- BM25 query syntax: queries containing FTS5 operator characters
+  (hyphens, quotes, AND/OR/NEAR) may fail FTS5 MATCH and silently
+  return 0 BM25 hits. When Ollama is up, vector retrieval still
+  works; when Ollama is down, such queries return empty results.
+  v0.2 will tokenize/escape queries before MATCH.
 
 ## Architecture
 

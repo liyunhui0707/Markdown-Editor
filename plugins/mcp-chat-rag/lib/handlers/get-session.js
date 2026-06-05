@@ -55,7 +55,7 @@ function createHandler(ctx) {
       `).all(a.session_id, window * 2 + 1);
     }
 
-    return {
+    const structuredContent = {
       session_id: a.session_id,
       project: session.project,
       started_at: new Date(session.started_at * 1000).toISOString(),
@@ -66,6 +66,11 @@ function createHandler(ctx) {
         ts: new Date(r.ts * 1000).toISOString(),
         text: r.text
       }))
+    };
+    const summary = `Session ${a.session_id} in ${session.project}: returned ${structuredContent.turns.length} turn(s).`;
+    return {
+      content: [{ type: 'text', text: summary }],
+      structuredContent
     };
   };
 }

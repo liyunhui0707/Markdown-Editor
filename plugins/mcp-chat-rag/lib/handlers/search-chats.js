@@ -46,7 +46,13 @@ function createHandler(ctx) {
     if (ctx.isIndexing && ctx.isIndexing() && result.results.length === 0) {
       result.warnings.push('indexing_in_progress');
     }
-    return result;
+    const summary = result.results.length === 0
+      ? `No results.${result.warnings.length ? ` Warnings: ${result.warnings.join(', ')}.` : ''}`
+      : `Found ${result.results.length} result(s).${result.warnings.length ? ` Warnings: ${result.warnings.join(', ')}.` : ''}`;
+    return {
+      content: [{ type: 'text', text: summary }],
+      structuredContent: result
+    };
   };
 }
 

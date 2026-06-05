@@ -46,14 +46,23 @@ function makeRegistry(store) {
   });
 }
 
-test('T8.1 search_chats returns documented shape with a valid citation', async () => {
+test('T8.1 search_chats returns MCP CallToolResult shape with content + structuredContent', async () => {
   const store = openStore(tmpDbFile());
   seed(store, '8d53688c-ad6c-4055-a818-92b833dc669c', '/proj/A', ['CRLF normalization story']);
   const reg = makeRegistry(store);
   const out = await reg.handlers.search_chats({ query: 'CRLF', k: 3 });
-  assert.ok(Array.isArray(out.results));
-  assert.ok(out.results.length >= 1);
-  const r = out.results[0];
+
+  // MCP CallToolResult envelope
+  assert.ok(Array.isArray(out.content), 'expected MCP content array');
+  assert.equal(out.content[0].type, 'text');
+  assert.ok(typeof out.content[0].text === 'string' && out.content[0].text.length > 0);
+
+  // Structured payload preserves the previous shape
+  const sc = out.structuredContent;
+  assert.ok(sc, 'expected structuredContent');
+  assert.ok(Array.isArray(sc.results));
+  assert.ok(sc.results.length >= 1);
+  const r = sc.results[0];
   for (const k of ['chunk_id', 'session_id', 'project', 'ts', 'role', 'text', 'score', 'citation']) {
     assert.ok(k in r, `missing ${k}`);
   }
@@ -71,17 +80,22 @@ test('T8.2 search_chats with empty query throws ToolError (maps to -32602)', asy
   store.close();
 });
 
-test('T8.3 get_session returns a window centered on the target chunk', async () => {
+test('T8.3 get_session returns CallToolResult with a window centered on the target chunk', async () => {
   const store = openStore(tmpDbFile());
   seed(store, 'sess-X', '/proj/A', ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
   const reg = makeRegistry(store);
   const all = store.db.prepare('SELECT chunk_id FROM chunks ORDER BY chunk_id').all();
   const centerId = all[3].chunk_id;
   const out = await reg.handlers.get_session({ session_id: 'sess-X', around_chunk_id: centerId, window: 2 });
-  assert.equal(out.session_id, 'sess-X');
-  assert.ok(out.turns.length <= 5);
-  // Centered: turn at chunk centerId should be in the result
-  assert.ok(out.turns.some(t => t.text === 't3'));
+
+  assert.ok(Array.isArray(out.content));
+  assert.equal(out.content[0].type, 'text');
+
+  const sc = out.structuredContent;
+  assert.ok(sc);
+  assert.equal(sc.session_id, 'sess-X');
+  assert.ok(sc.turns.length <= 5);
+  assert.ok(sc.turns.some(t => t.text === 't3'));
   store.close();
 });
 
@@ -96,17 +110,23 @@ test('T8.4 get_session with unknown id throws ToolError (UNKNOWN_SESSION)', asyn
   store.close();
 });
 
-test('T8.5 list_recent_sessions returns ≤ limit, sorted by started_at DESC, preview ≤ 200 chars', async () => {
+test('T8.5 list_recent_sessions returns CallToolResult, sorted DESC, preview ≤ 200 chars', async () => {
   const store = openStore(tmpDbFile());
   seed(store, 'sess-1', '/proj/A', ['first sess intro'], 1000);
   seed(store, 'sess-2', '/proj/A', ['second sess intro'], 2000);
   seed(store, 'sess-3', '/proj/A', ['third sess intro'], 3000);
   const reg = makeRegistry(store);
   const out = await reg.handlers.list_recent_sessions({ limit: 2 });
-  assert.equal(out.sessions.length, 2);
-  assert.equal(out.sessions[0].session_id, 'sess-3');
-  assert.equal(out.sessions[1].session_id, 'sess-2');
-  for (const s of out.sessions) {
+
+  assert.ok(Array.isArray(out.content));
+  assert.equal(out.content[0].type, 'text');
+
+  const sc = out.structuredContent;
+  assert.ok(sc);
+  assert.equal(sc.sessions.length, 2);
+  assert.equal(sc.sessions[0].session_id, 'sess-3');
+  assert.equal(sc.sessions[1].session_id, 'sess-2');
+  for (const s of sc.sessions) {
     assert.ok(s.first_user_turn_preview.length <= 200);
   }
   store.close();

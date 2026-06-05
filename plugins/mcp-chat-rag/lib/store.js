@@ -80,7 +80,14 @@ function openStore(filePath) {
       VALUES (@session_id, @turn_index, @role, @ts, @text, @token_est)
     `),
     insertFts: db.prepare('INSERT INTO chunks_fts(rowid, text) VALUES (?, ?)'),
-    insertVec: db.prepare('INSERT INTO vec_chunks(rowid, embedding) VALUES (?, ?)')
+    insertVec: db.prepare('INSERT INTO vec_chunks(rowid, embedding) VALUES (?, ?)'),
+    getMissingEmbeddings: db.prepare(`
+      SELECT c.chunk_id, c.text
+      FROM chunks c
+      WHERE c.session_id = ?
+        AND NOT EXISTS (SELECT 1 FROM vec_chunks v WHERE v.rowid = c.chunk_id)
+      ORDER BY c.chunk_id
+    `)
   };
 
   function getMeta(key) {
@@ -105,7 +112,16 @@ function openStore(filePath) {
     stmts.deleteSession.run(sessionId); // ON DELETE CASCADE clears chunks rows
   }
 
+  function purgeSessionRefsByPath(sourcePath) {
+    const prior = stmts.getSessionByPath.get(sourcePath);
+    if (prior) purgeSessionRefs(prior.session_id);
+  }
+
   const insertSessionTx = db.transaction((meta, chunks, embeddings) => {
+    // source_path is UNIQUE: a prior pass may have indexed this same file under
+    // a different session_id. Purge by path first, or the INSERT below throws a
+    // UNIQUE-constraint error and the stale session lingers.
+    purgeSessionRefsByPath(meta.source_path);
     purgeSessionRefs(meta.session_id);
     stmts.insertSession.run(meta);
     for (let i = 0; i < chunks.length; i++) {
@@ -132,6 +148,32 @@ function openStore(filePath) {
     insertSessionTx(meta, chunks, embeddings);
   }
 
+  function getChunksMissingEmbeddings(sessionId) {
+    return stmts.getMissingEmbeddings.all(sessionId).map(r => ({
+      chunk_id: typeof r.chunk_id === 'bigint' ? Number(r.chunk_id) : r.chunk_id,
+      text: r.text
+    }));
+  }
+
+  const backfillTx = db.transaction((pairs) => {
+    for (const p of pairs) {
+      if (!(p.embedding instanceof Float32Array)) continue;
+      stmts.insertVec.run(BigInt(p.chunk_id), Buffer.from(p.embedding.buffer));
+    }
+  });
+
+  function backfillEmbeddings(pairs) {
+    backfillTx(pairs);
+  }
+
+  const purgeByPathTx = db.transaction((sourcePath) => {
+    purgeSessionRefsByPath(sourcePath);
+  });
+
+  function purgeSessionByPath(sourcePath) {
+    purgeByPathTx(sourcePath);
+  }
+
   function close() {
     db.close();
   }
@@ -142,6 +184,9 @@ function openStore(filePath) {
     setMeta,
     getSessionByPath,
     insertSession,
+    getChunksMissingEmbeddings,
+    backfillEmbeddings,
+    purgeSessionByPath,
     close
   };
 }

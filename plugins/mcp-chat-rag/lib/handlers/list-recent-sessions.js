@@ -36,7 +36,7 @@ function createHandler(ctx) {
       LIMIT 1
     `);
 
-    return {
+    const structuredContent = {
       sessions: sessions.map(s => {
         const firstUser = previewStmt.get(s.session_id);
         const preview = firstUser ? firstUser.text.slice(0, 200) : '';
@@ -48,6 +48,12 @@ function createHandler(ctx) {
           first_user_turn_preview: preview
         };
       })
+    };
+    const scopeLabel = crossProject ? 'all projects' : (project || 'unknown project');
+    const summary = `${structuredContent.sessions.length} session(s) for ${scopeLabel}.`;
+    return {
+      content: [{ type: 'text', text: summary }],
+      structuredContent
     };
   };
 }

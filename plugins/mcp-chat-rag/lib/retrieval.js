@@ -80,7 +80,17 @@ function vecRows(db, embedding, filters) {
   `;
   const allParams = [Buffer.from(embedding.buffer)];
   if (where) {
-    sql += ` AND ${where}`;
+    // Push project/date scoping INTO the KNN as a rowid pre-filter. Filtering
+    // after `k = N` would first take the global-nearest N rows and only then
+    // drop out-of-scope ones, which can leave zero in-scope hits even when
+    // matches exist. sqlite-vec applies `rowid IN (...)` before the top-k cut.
+    sql += `
+      AND v.rowid IN (
+        SELECT c.chunk_id
+        FROM chunks c
+        JOIN sessions s ON c.session_id = s.session_id
+        WHERE ${where}
+      )`;
     allParams.push(...params);
   }
   sql += ` ORDER BY v.distance`;

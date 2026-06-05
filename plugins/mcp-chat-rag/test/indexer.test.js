@@ -143,6 +143,102 @@ test('T7.5 session whose chunks are all dropped by redactor yields no session ro
   store.close();
 });
 
+test('T7.6 missing embeddings are back-filled on next pass even when mtime is unchanged', async () => {
+  const root = tmpRoot();
+  const proj = path.join(root, 'proj-1');
+  fs.mkdirSync(proj, { recursive: true });
+  writeJsonl(path.join(proj, 'a.jsonl'), mkSession('A', '/x/proj', [
+    { role: 'user',      content: 'hello A' },
+    { role: 'assistant', content: 'reply A' }
+  ]));
+
+  const dbFile = path.join(tmpRoot(), 'index.db');
+  const store = openStore(dbFile);
+
+  const throwing = { isAvailable: true, async embedBatch() { throw new Error('ollama down'); } };
+  const first = await indexAll({ store, embedder: throwing, root });
+  assert.equal(first.sessions_indexed, 1);
+  assert.equal(
+    store.db.prepare('SELECT COUNT(*) AS c FROM vec_chunks').get().c, 0,
+    'no vec rows after throwing embedder'
+  );
+
+  // Re-run with working embedder; file mtime is unchanged.
+  const working = makeStubEmbedder();
+  const second = await indexAll({ store, embedder: working, root });
+  assert.equal(second.sessions_indexed, 0, 'mtime-unchanged → not re-indexed');
+  assert.equal(second.sessions_backfilled, 1, 'session should be back-filled');
+  const vecCount = store.db.prepare('SELECT COUNT(*) AS c FROM vec_chunks').get().c;
+  assert.ok(vecCount > 0, `expected vec_chunks > 0 after backfill, got ${vecCount}`);
+  // Embedded text count should equal indexed chunk count.
+  const chunkCount = store.db.prepare('SELECT COUNT(*) AS c FROM chunks').get().c;
+  assert.equal(vecCount, chunkCount, 'backfill should populate all missing vec rows');
+
+  store.close();
+});
+
+test('T7.7 a changed-mtime reindex that now redacts to zero chunks purges the prior session', async () => {
+  const root = tmpRoot();
+  const proj = path.join(root, 'proj-1');
+  fs.mkdirSync(proj, { recursive: true });
+  const file = path.join(proj, 'a.jsonl');
+  writeJsonl(file, mkSession('A', '/x/proj', [
+    { role: 'user',      content: 'hello A meaningful content here' },
+    { role: 'assistant', content: 'reply A meaningful content here' }
+  ]));
+
+  const dbFile = path.join(tmpRoot(), 'index.db');
+  const store = openStore(dbFile);
+
+  const first = await indexAll({ store, embedder: makeStubEmbedder(), root });
+  assert.equal(first.sessions_indexed, 1);
+  assert.ok(store.db.prepare('SELECT COUNT(*) AS c FROM chunks').get().c > 0);
+  assert.ok(store.db.prepare('SELECT COUNT(*) AS c FROM vec_chunks').get().c > 0);
+
+  // Rewrite the file to all-secret content the redactor drops entirely (>50% masked).
+  const secret = 'sk-ant-' + 'X'.repeat(120);
+  writeJsonl(file, mkSession('A', '/x/proj', [
+    { role: 'user', content: 'k=' + secret }
+  ]));
+  // Force a strictly later mtime so the mtime gate does not skip the file.
+  const later = Math.floor(Date.now() / 1000) + 10;
+  fs.utimesSync(file, later, later);
+
+  const second = await indexAll({ store, embedder: makeStubEmbedder(), root });
+  assert.equal(second.sessions_indexed, 0, 'no new session indexed');
+  assert.equal(second.sessions_purged, 1, 'prior session counted as purged');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM sessions').get().c, 0, 'prior session purged');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM chunks').get().c, 0, 'prior chunks purged');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM chunks_fts').get().c, 0, 'prior FTS purged');
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS c FROM vec_chunks').get().c, 0, 'prior vectors purged');
+  store.close();
+});
+
+test('T7.8 session started_at/ended_at use min/max of valid turn timestamps regardless of order', async () => {
+  const root = tmpRoot();
+  const proj = path.join(root, 'proj-1');
+  fs.mkdirSync(proj, { recursive: true });
+  // Turns deliberately out of chronological order; turns[0] is the MIDDLE time.
+  const objs = mkSession('A', '/x/proj', [
+    { role: 'user',      content: 'middle turn content here' },
+    { role: 'assistant', content: 'latest turn content here' },
+    { role: 'user',      content: 'earliest turn content here' }
+  ]);
+  objs[0].timestamp = '2026-05-30T22:30:00.000Z'; // middle
+  objs[1].timestamp = '2026-05-30T22:45:00.000Z'; // latest
+  objs[2].timestamp = '2026-05-30T22:15:00.000Z'; // earliest
+  writeJsonl(path.join(proj, 'a.jsonl'), objs);
+
+  const dbFile = path.join(tmpRoot(), 'index.db');
+  const store = openStore(dbFile);
+  await indexAll({ store, embedder: makeStubEmbedder(), root });
+  const row = store.db.prepare('SELECT started_at, ended_at FROM sessions WHERE session_id = ?').get('A');
+  const toUnix = iso => Math.floor(new Date(iso).getTime() / 1000);
+  assert.equal(row.started_at, toUnix('2026-05-30T22:15:00.000Z'), 'started_at = earliest valid ts');
+  assert.equal(row.ended_at,   toUnix('2026-05-30T22:45:00.000Z'), 'ended_at = latest valid ts');
+  store.close();
+});
+
 test('A2 the embedder never receives raw secret text (redactor runs before embedder)', async () => {
   const root = tmpRoot();
   const proj = path.join(root, 'proj-1');

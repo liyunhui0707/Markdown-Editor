@@ -116,6 +116,56 @@ test('T5.5 embedder failure falls back to BM25 with ollama_unavailable warning',
   store.close();
 });
 
+function vecOf(values) {
+  const a = new Float32Array(EMBEDDING_DIM);
+  for (let i = 0; i < values.length; i++) a[i] = values[i];
+  return a;
+}
+
+function seedStoreEmb(store, sessionId, project, items, ts = 1717200000) {
+  store.insertSession({
+    session_id: sessionId,
+    project,
+    started_at: ts,
+    ended_at: ts + items.length,
+    turn_count: items.length,
+    source_path: `/fake/${sessionId}.jsonl`,
+    source_mtime: ts
+  }, items.map((it, i) => ({
+    session_id: sessionId,
+    turn_index: i,
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    ts: ts + i,
+    text: it.text,
+    token_est: Math.ceil(it.text.length / 4)
+  })), items.map(it => it.embedding));
+}
+
+test('T5.7 project-scoped vector search returns in-scope hits even when global-nearest are out of scope', async () => {
+  const store = openStore(tmpDbFile());
+  // Out-of-scope project A: > POOL_SIZE chunks whose vectors are nearest to the query.
+  const near = vecOf([1, 0, 0]);
+  const far  = vecOf([0, 1, 0]);
+  const aItems = [];
+  for (let i = 0; i < 60; i++) aItems.push({ text: `noise alpha ${i}`, embedding: near });
+  seedStoreEmb(store, 'A', '/proj/A', aItems);
+  // In-scope project B: one chunk whose vector is FAR from the query and whose
+  // text does NOT contain the query term, so BM25 cannot rescue it.
+  seedStoreEmb(store, 'B', '/proj/B', [{ text: 'zzzq unrelated wording', embedding: far }]);
+
+  // Embedder returns the query vector = `near`, so global-nearest are all project A.
+  const embedder = {
+    isAvailable: true,
+    async embedBatch() { return [vecOf([1, 0, 0])]; }
+  };
+
+  const r = await search({ store, embedder, query: 'alpha', project: '/proj/B', k: 8 });
+  assert.ok(r.results.length >= 1, 'scoped vector search must return the in-scope chunk');
+  for (const x of r.results) assert.equal(x.project, '/proj/B');
+  assert.ok(r.results.some(x => x.session_id === 'B'));
+  store.close();
+});
+
 test('T5.6 empty DB returns empty results with index_empty warning', async () => {
   const store = openStore(tmpDbFile());
   const r = await search({ store, embedder: noopEmbedder(), query: 'anything', k: 5 });

@@ -85,8 +85,12 @@ async function main() {
     const search = await readUntil(child.stdout, m => m.id === 3);
     if (!search.result) fail('search_chats: missing result, error=' + JSON.stringify(search.error));
     else {
-      if (!Array.isArray(search.result.results)) fail('search_chats: results not an array');
-      if (!Array.isArray(search.result.warnings) || !search.result.warnings.includes('index_empty')) {
+      if (!Array.isArray(search.result.content) || search.result.content[0].type !== 'text') {
+        fail('search_chats: missing MCP content array');
+      }
+      const sc = search.result.structuredContent;
+      if (!sc || !Array.isArray(sc.results)) fail('search_chats: structuredContent.results not an array');
+      else if (!Array.isArray(sc.warnings) || !sc.warnings.includes('index_empty')) {
         fail('search_chats: expected index_empty warning on empty DB');
       }
     }
