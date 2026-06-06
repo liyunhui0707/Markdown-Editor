@@ -26,10 +26,12 @@ class FakeProc:
         self.terminated = False
         self.killed = False
         self.passed_input: str | None = None
+        self.passed_timeout: float | None = None
         self.captured_argv: list[str] | None = None
 
     def communicate(self, input=None, timeout=None):
         self.passed_input = input
+        self.passed_timeout = timeout
         if self.timeout_on_communicate:
             raise subprocess.TimeoutExpired(cmd="codex", timeout=timeout or 0)
         return self.stdout_value, self.stderr_value
@@ -65,6 +67,42 @@ def test_invocation_shape_and_stdin(tmp_path):
     assert proc.captured_argv is not None
     assert proc.captured_argv[0] == "codex"
     assert proc.captured_argv[-1] == "-"
+
+
+def test_default_timeout_resolves_to_900(tmp_path, monkeypatch):
+    monkeypatch.delenv("CODEX_BRIDGE_TIMEOUT_SECONDS", raising=False)
+    schema = tmp_path / "s.json"; schema.write_text("{}")
+    out = tmp_path / "o.json"
+    proc = FakeProc(stdout="{}")
+    run_codex(
+        repo=tmp_path, schema=schema, out_message=out,
+        payload="", runner=_runner(proc),
+    )
+    assert proc.passed_timeout == 900
+
+
+def test_timeout_env_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_BRIDGE_TIMEOUT_SECONDS", "1234")
+    schema = tmp_path / "s.json"; schema.write_text("{}")
+    out = tmp_path / "o.json"
+    proc = FakeProc(stdout="{}")
+    run_codex(
+        repo=tmp_path, schema=schema, out_message=out,
+        payload="", runner=_runner(proc),
+    )
+    assert proc.passed_timeout == 1234
+
+
+def test_explicit_timeout_beats_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_BRIDGE_TIMEOUT_SECONDS", "1234")
+    schema = tmp_path / "s.json"; schema.write_text("{}")
+    out = tmp_path / "o.json"
+    proc = FakeProc(stdout="{}")
+    run_codex(
+        repo=tmp_path, schema=schema, out_message=out,
+        payload="", timeout=5, runner=_runner(proc),
+    )
+    assert proc.passed_timeout == 5
 
 
 def test_invalid_cwd(tmp_path):

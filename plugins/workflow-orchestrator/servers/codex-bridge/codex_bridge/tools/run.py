@@ -30,7 +30,7 @@ def codex_run(
     *,
     prompt: str,
     cwd: str,
-    timeout: int = 300,
+    timeout: int | None = None,
     runner: Callable | None = None,
 ) -> dict:
     fd, tmp = tempfile.mkstemp(suffix=".json", prefix="codex-out-")

@@ -44,8 +44,8 @@ def codex_review_text(skill_id: str,
 
 
 @mcp.tool(name="codex_run")
-def codex_run(prompt: str, cwd: str, timeout: int = 300) -> dict:
-    """FALLBACK ONLY. Direct Codex invocation; prefer typed review tools."""
+def codex_run(prompt: str, cwd: str, timeout: int | None = None) -> dict:
+    """FALLBACK ONLY. Direct Codex invocation; prefer typed review tools. timeout defaults to CODEX_BRIDGE_TIMEOUT_SECONDS or 900s."""
     return _codex_run(prompt=prompt, cwd=cwd, timeout=timeout)
 
 
