@@ -1,6 +1,6 @@
 {
   "name": "mcp-note-ingest",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MCP server for ingesting chat notes into the Markdown Vault",
   "main": "server.js",
   "scripts": {

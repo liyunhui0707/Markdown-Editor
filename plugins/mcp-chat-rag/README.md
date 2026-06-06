@@ -1,6 +1,6 @@
 # mcp-chat-rag
 
-Status: alpha (v0.1.0)
+Status: alpha (v0.1.1)
 
 A local MCP server that indexes your Claude Code session JSONL files
 (`~/.claude/projects/<slug>/*.jsonl`) into a single SQLite + `sqlite-vec`
