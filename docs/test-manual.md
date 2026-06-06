@@ -434,6 +434,12 @@ Use a Stage-14-rich note covering frontmatter, ATX + Setext headings, bold, ital
 - [x] Cmd+= / Cmd+- / Cmd+0 (font-size) work in `hybrid-cm6` and `cm6`; preference persists across reload.
 - [x] Arrow-Up / Arrow-Down navigate the note list when focus is outside text inputs.
 
+**Dictionary lookup (`Cmd+Shift+D`)** — requires the local Dictionary macOS app running.
+- [ ] Select a word in Write or Preview mode, press `Cmd+Shift+D` → Dictionary app popup shows a context-aware translation; the bottom-right pill briefly shows "Translating..." then returns to its prior state.
+- [ ] Press `Cmd+Shift+D` with nothing selected → pill shows "Dictionary: select a word first" for ~2s, no popup, no note change.
+- [ ] Quit the Dictionary app, then press `Cmd+Shift+D` on a selection → pill shows a "not running" error for ~3s; note content unchanged.
+- [ ] Confirm the surrounding sentence/paragraph reaches the popup (e.g. a word with two meanings translates differently in two different sentences).
+
 **IME / Chinese input**
 - [x] Compose `中文标题` inside `# `, `**`, `~~`, and inside frontmatter under the new default. Confirm composition not interrupted; no first-character drop; no caret jump.
 

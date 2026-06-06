@@ -1,6 +1,6 @@
 {
   "name": "mcp-note-ingest",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MCP server for ingesting chat notes and artifacts into a Markdown vault (Inbox/...).",
   "author": {
     "name": "liyunhui"
