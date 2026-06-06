@@ -36,7 +36,7 @@
 const { aiError, REASON_MESSAGES, isKnownReason } = require('./ai-errors');
 const { buildSummaryPrompt } = require('./ai-prompt-builder');
 const { buildRewritePrompt } = require('./ai-rewrite-prompt-builder');
-const { loadAiSettings } = require('./ai-settings');
+const { loadAiSettings, isLoopbackBaseUrl } = require('./ai-settings');
 const { resolveProvider } = require('./ai-provider');
 
 const CHANNEL = 'ai:summarize-note';
@@ -180,6 +180,11 @@ function register(ipc, options) {
   }
 
   ipc.handle(CHANNEL, async (event, payload) => {
+    // Stage F: privacy pre-flight. Non-loopback baseUrl + no opt-in →
+    // refuse before any other work (no provider call, no info leak).
+    if (!isLoopbackBaseUrl(settings.baseUrl) && (settings.allowRemote ?? false) !== true) {
+      return failure('remote-blocked');
+    }
     const text = payload && payload.text;
     if (typeof text !== 'string' || text.trim() === '') return failure('empty-input');
     if (text.length > settings.maxInputChars) return failure('input-too-large');
@@ -248,6 +253,10 @@ function registerRewrite(ipc, options) {
   }
 
   ipc.handle(REWRITE_CHANNEL, async (event, payload) => {
+    // Stage F: same pre-flight as Summarize handler.
+    if (!isLoopbackBaseUrl(settings.baseUrl) && (settings.allowRemote ?? false) !== true) {
+      return failure('remote-blocked');
+    }
     const text = payload && payload.text;
     if (typeof text !== 'string' || text.trim() === '') return failure('empty-input');
     if (text.length > settings.maxInputChars) return failure('input-too-large');

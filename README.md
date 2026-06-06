@@ -221,7 +221,7 @@ The Write/Preview toggle is mouse-only — there is currently no global keyboard
 
 ## Local AI: Summarize & Rewrite
 
-Two one-click AI actions against a local OpenAI-compatible model — **Summarize** the active note, or **Rewrite** a selected passage (or the whole note) for clarity and concision. The app sends the active note's Markdown body (or your selection, for Rewrite) to the configured endpoint, **streams the response back token-by-token**, and shows it in the same side panel below the editor. Nothing is uploaded to a remote service.
+Two one-click AI actions against a local OpenAI-compatible model — **Summarize** the active note, or **Rewrite** a selected passage (or the whole note) for clarity and concision. The app sends the active note's Markdown body (or your selection, for Rewrite) to the configured endpoint, **streams the response back token-by-token**, and shows it in the same side panel below the editor. By default the endpoint must be a **loopback** address (`localhost` / `127.x` / `::1`), so nothing leaves your machine; pointing at a remote server requires an explicit opt-in (see [Remote endpoints & privacy](#remote-endpoints--privacy) below).
 
 - The original note's body, file on disk, and dirty state are **never** modified by either verb. Copy/paste the result manually if you want to use it.
 - Each note has its own result state, shared between Summarize and Rewrite (most recent action wins). Switching to another note mid-flight does not show a stale result; returning to a note while it is still streaming restores the accumulated text so far.
@@ -253,7 +253,8 @@ All AI settings are read from environment variables when the app starts and appl
 | Variable | Default | Notes |
 |---|---|---|
 | `MARKDOWN_AI_PROVIDER` | `openai-compatible` | Adapter selector. Only the OpenAI-compatible adapter ships today; the architecture allows additional adapters with a single new module. |
-| `MARKDOWN_AI_BASE_URL` | `http://localhost:1234/v1` | Must be `http://` or `https://`. A trailing slash is normalized away. |
+| `MARKDOWN_AI_BASE_URL` | `http://localhost:1234/v1` | Must be `http://` or `https://`. A trailing slash is normalized away. Must be **loopback** unless `MARKDOWN_AI_ALLOW_REMOTE=true` (see below). |
+| `MARKDOWN_AI_ALLOW_REMOTE` | _unset_ (treated as `false`) | Gate for non-loopback endpoints. By default a base URL that isn't `localhost` / `127.x` / `::1` is rejected before any network call (reason `remote-blocked`). Set to `true` (case-insensitive) to permit a remote/LAN endpoint; a **Remote AI** badge then appears in the toolbar. |
 | `MARKDOWN_AI_MODEL` | `local-model` | LM Studio routes to the currently-loaded model regardless of name. Ollama requires the real model id (e.g. `llama3.1`). |
 | `MARKDOWN_AI_TEMPERATURE` | `0.2` | |
 | `MARKDOWN_AI_MAX_TOKENS` | `1024` | Bump higher for reasoning models (DeepSeek-R1, Gemma-thinking, etc.) whose `reasoning_content` eats the token budget before any visible content appears. |
@@ -269,6 +270,12 @@ MARKDOWN_AI_BASE_URL=http://localhost:11434/v1 \
 MARKDOWN_AI_MODEL=llama3.1 \
   npm run dev
 ```
+
+### Remote endpoints & privacy
+
+By default the AI verbs only talk to a **loopback** endpoint — `localhost`, any `127.x.x.x`, or `::1`. This keeps note content on your machine. A non-loopback `MARKDOWN_AI_BASE_URL` (a LAN IP, a hostname, a public server) is **rejected before any network call** with the typed reason `remote-blocked`; the panel shows _"Remote AI server blocked. Set MARKDOWN_AI_ALLOW_REMOTE=true to allow."_
+
+To send notes to a non-loopback server, set `MARKDOWN_AI_ALLOW_REMOTE=true`. When a remote endpoint is both configured **and** allowed, a **Remote AI** badge appears next to the AI buttons in the toolbar (its tooltip shows the destination hostname) so you always know note content is leaving your machine. The badge stays hidden for loopback endpoints and whenever the allow flag is off.
 
 ### Constraints (this stage)
 

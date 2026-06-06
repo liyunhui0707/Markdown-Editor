@@ -1562,6 +1562,31 @@
         background: var(--danger-bg) !important;
       }
 
+      /* Stage F — non-loopback baseUrl indicator. Yellow/orange chip,
+         compact, in the toolbar next to the AI buttons. Title attribute
+         carries the hostname; renderer (lib/ai-boot.js) toggles `hidden`. */
+      .ai-remote-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        margin: 0 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #92400e;
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 4px;
+        user-select: none;
+        cursor: default;
+      }
+      /* The `display` above is author-origin and beats the UA stylesheet's
+         `[hidden] { display: none }`, so the hidden attribute alone would NOT
+         hide the badge. Re-assert it with matching origin + higher specificity
+         so badge.hidden = true actually hides the chip. */
+      .ai-remote-badge[hidden] {
+        display: none;
+      }
+
       /* ── Top chrome removal ──────────────────────────────────────────── */
 
       /* Panel headers become invisible rails — only the toggle icon shows */
@@ -1842,6 +1867,7 @@
                 <button id="saveNoteButton" class="action-button">Save Note</button>
                 <button id="summarizeButton" class="action-button">Summarize</button>
                 <button id="rewriteButton" class="action-button">Rewrite</button>
+                <span id="aiRemoteBadge" class="ai-remote-badge" hidden>Remote AI</span>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>

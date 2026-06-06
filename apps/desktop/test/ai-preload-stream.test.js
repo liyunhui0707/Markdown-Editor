@@ -151,9 +151,22 @@ function evalPreloadWithStubs() {
     '/* electron require stripped for test */',
   );
   // Wrap in a function so `contextBridge` and `ipcRenderer` are in scope.
-  const wrappedSrc = `(function(contextBridge, ipcRenderer) {\n${stripped}\n});`;
+  // Stage F: preload now `require()`s lib/ai-settings for badge state
+  // computation, so provide require + __dirname so the eval'd preload
+  // can resolve sibling modules. Also pass a fake process with empty env
+  // (Stage F adds env-driven badge state at load time).
+  const Module = require('node:module');
+  const fakeProcess = { ...process, env: {} };
+  const wrappedSrc = `(function(contextBridge, ipcRenderer, process, require, __dirname, __filename) {\n${stripped}\n});`;
   const fn = (0, eval)(wrappedSrc); // eslint-disable-line no-eval
-  fn(contextBridge, ipcRenderer);
+  fn(
+    contextBridge,
+    ipcRenderer,
+    fakeProcess,
+    Module.createRequire(PRELOAD_PATH),
+    path.dirname(PRELOAD_PATH),
+    PRELOAD_PATH,
+  );
 
   return {
     ai: exposedSurfaces.ai,

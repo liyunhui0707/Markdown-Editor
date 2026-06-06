@@ -50,6 +50,30 @@
     // panel lookups, then included in the same defensive early-return guard.
     const rewriteButton = document.getElementById('rewriteButton');
 
+    // Stage F: privacy badge wiring. Reads the badge state computed at
+    // preload load time (vaultApi.getAiBadgeState). Shows the badge ONLY
+    // when remote AI is actively used (non-loopback baseUrl + allowRemote).
+    // The non-loopback + no-allow case is blocked at the IPC layer and
+    // surfaces as an error message on click; the badge in that state
+    // would mislead the user about live traffic, so it stays hidden.
+    const badge = document.getElementById('aiRemoteBadge');
+    if (badge && window.vaultApi && typeof window.vaultApi.getAiBadgeState === 'function') {
+      try {
+        const s = window.vaultApi.getAiBadgeState();
+        if (s && s.isRemote && s.allowRemote) {
+          badge.textContent = 'Remote AI';
+          if (typeof s.hostname === 'string' && s.hostname.length > 0) {
+            badge.title = 'AI requests are going to ' + s.hostname + ' (off this machine).';
+          }
+          badge.hidden = false;
+        } else {
+          badge.hidden = true;
+        }
+      } catch (_e) {
+        badge.hidden = true;
+      }
+    }
+
     // Defensive: if any required global is missing, do nothing rather than throw.
     // Both buttons stay unwired; the rest of the renderer is unaffected.
     if (!button || !panel || !rewriteButton || !window.ai || !window.AiSummaryPanel || !window.markdownVault) {

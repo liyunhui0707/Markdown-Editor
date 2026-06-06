@@ -16,6 +16,10 @@ const REASON_MESSAGES = Object.freeze({
   'http-error':        'Local AI server responded with an error.',
   'invalid-response':  'Local AI server returned an unexpected response.',
   'provider-error':    'AI provider is not available.',
+  // Stage F: refused because baseUrl is not loopback and the user has
+  // not opted in via MARKDOWN_AI_ALLOW_REMOTE=true. Canned text is
+  // intentionally URL-free (G4: no leak of the configured host).
+  'remote-blocked':    'Remote AI server blocked. Set MARKDOWN_AI_ALLOW_REMOTE=true to allow.',
   'unknown':           'Could not complete summarize. Please try again.',
 });
 

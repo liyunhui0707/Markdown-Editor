@@ -32,6 +32,32 @@ function isNonEmptyString(v) {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+// Stage F: strict loopback detection. Only literal local-host forms are
+// "loopback"; LAN, public, 0.0.0.0, Tailscale CGNAT etc. are remote.
+// URL must already be http/https — matches normalizeBaseUrl's whitelist.
+function isLoopbackBaseUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || rawUrl.length === 0) return false;
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch (_e) {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'localhost') return true;
+  // Node's WHATWG URL keeps the brackets for IPv6 hostname; check both forms.
+  if (host === '::1' || host === '[::1]') return true;
+  if (/^127(\.\d{1,3}){3}$/.test(host)) {
+    // Validate each octet 0–255 to avoid 127.999.999.999 false positives.
+    return host.split('.').every((o) => {
+      const n = Number(o);
+      return Number.isInteger(n) && n >= 0 && n <= 255;
+    });
+  }
+  return false;
+}
+
 function readString(env, key, fallback) {
   const v = env[key];
   return isNonEmptyString(v) ? v : fallback;
@@ -89,7 +115,13 @@ function loadAiSettings({ env } = { env: {} }) {
   if (isNonEmptyString(envMap.MARKDOWN_AI_STREAMING)) {
     settings.streaming = envMap.MARKDOWN_AI_STREAMING.trim().toLowerCase() !== 'false';
   }
+  // Stage F: MARKDOWN_AI_ALLOW_REMOTE is the explicit opt-in for non-
+  // loopback baseUrl. Absent when env unset; only literal 'true' enables.
+  // Consumer pattern: settings.allowRemote ?? false.
+  if (isNonEmptyString(envMap.MARKDOWN_AI_ALLOW_REMOTE)) {
+    settings.allowRemote = envMap.MARKDOWN_AI_ALLOW_REMOTE.trim().toLowerCase() === 'true';
+  }
   return settings;
 }
 
-module.exports = { loadAiSettings, DEFAULTS };
+module.exports = { loadAiSettings, DEFAULTS, isLoopbackBaseUrl };
