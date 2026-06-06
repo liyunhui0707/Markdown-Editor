@@ -31,6 +31,19 @@ function isUnreachable(err) {
   return false;
 }
 
+// The chunker budgets by len/4, but dense content (logs, code, separators, CJK)
+// tokenizes much denser, so a within-char-budget chunk can still exceed the
+// embed model's token context and 500. Halve-and-retry recovers an embedding
+// for the chunk instead of failing it (and, via embedBatch, the whole session's
+// vectors). The full text is still stored for BM25 + display; only the embedded
+// slice shrinks.
+const MAX_OVERFLOW_RETRIES = 8;
+const MIN_PROMPT_CHARS = 64;
+
+function isContextOverflow(body) {
+  return /context length|input length|exceeds/i.test(body || '');
+}
+
 function createEmbedder({
   baseUrl = 'http://localhost:11434',
   model = 'nomic-embed-text',
@@ -38,7 +51,7 @@ function createEmbedder({
 } = {}) {
   const endpoint = baseUrl.replace(/\/$/, '') + '/api/embeddings';
 
-  async function embedOne(text) {
+  async function embedOne(text, attempt = 0) {
     let res;
     try {
       res = await fetch(endpoint, {
@@ -52,6 +65,13 @@ function createEmbedder({
     }
 
     if (!res.ok) {
+      if (res.status === 500 && attempt < MAX_OVERFLOW_RETRIES && text.length > MIN_PROMPT_CHARS) {
+        let errBody = '';
+        try { errBody = await res.text(); } catch (_) { /* ignore */ }
+        if (isContextOverflow(errBody)) {
+          return embedOne(text.slice(0, Math.floor(text.length / 2)), attempt + 1);
+        }
+      }
       throw new OllamaHttpError(`Ollama HTTP ${res.status}`, res.status);
     }
 

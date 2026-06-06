@@ -89,8 +89,13 @@ points the host at `${CLAUDE_PLUGIN_ROOT}/server.js`.
 ## Known limitations (v0.1.0)
 
 - Token estimation uses `Math.ceil(text.length / 4)` — overshoots for
-  ASCII and undershoots for CJK. Acceptable for chunk-budget purposes;
-  not a substitute for a real tokenizer.
+  ASCII prose and undershoots for dense content (logs, code, separators,
+  CJK), where a within-char-budget chunk can still exceed the embed
+  model's token context. The embedder guards this: on a context-overflow
+  error it halves the prompt and retries, so the chunk still gets a
+  (slightly truncated) vector instead of the whole session silently
+  falling back to BM25-only. The full chunk text is unchanged for BM25
+  and display. Still not a substitute for a real tokenizer.
 - FTS5's default tokenizer has imperfect CJK recall. Vector retrieval
   helps cover the gap.
 - The `cwd` value baked into each session is the value Claude Code
