@@ -7,7 +7,7 @@ const { createRegistry } = require('./lib/handler-registry');
 const { mapToolErrorToJsonRpc } = require('./lib/tool-error');
 const { logToStderr } = require('./lib/logger');
 
-const SERVER_INFO = { name: 'mcp-chat-rag', version: '0.1.0' };
+const SERVER_INFO = { name: 'mcp-chat-rag', version: '0.1.1' };
 
 function log(message) { logToStderr('mcp-chat-rag', message); }
 
@@ -53,7 +53,10 @@ function init() {
   }
 }
 
-let inputBuffer = '';
+// Read-path buffer is a raw Buffer, not a string: Content-Length is a BYTE
+// count, but a UTF-8-decoded string measures UTF-16 code units, so any CJK or
+// emoji body would desync framing (hang or truncate). Frame by bytes here.
+let inputBuffer = Buffer.alloc(0);
 let protocol = null;
 
 function writeMessage(message) {
@@ -74,30 +77,32 @@ function writeError(id, code, message, data = null) {
 
 function tryReadMessage() {
   if (protocol === null) {
-    if (inputBuffer.startsWith('Content-Length:')) { protocol = 'lsp'; }
-    else if (inputBuffer.trimStart().startsWith('{')) { protocol = 'ndjson'; }
+    if (inputBuffer.length === 0) return null;
+    if (inputBuffer.indexOf('Content-Length:') === 0) { protocol = 'lsp'; }
+    else if (inputBuffer.toString('utf8').trimStart().startsWith('{')) { protocol = 'ndjson'; }
     else return null;
   }
 
   if (protocol === 'lsp') {
     const sep = '\r\n\r\n';
-    const sepIdx = inputBuffer.indexOf(sep);
+    const sepLen = Buffer.byteLength(sep);
+    const sepIdx = inputBuffer.indexOf(sep);       // byte offset
     if (sepIdx === -1) return null;
-    const headers = inputBuffer.slice(0, sepIdx);
+    const headers = inputBuffer.subarray(0, sepIdx).toString('utf8');
     const m = headers.match(/Content-Length:\s*(\d+)/i);
     if (!m) throw new Error('missing Content-Length');
-    const len = Number(m[1]);
-    const start = sepIdx + sep.length;
-    if (inputBuffer.length < start + len) return null;
-    const body = inputBuffer.slice(start, start + len);
-    inputBuffer = inputBuffer.slice(start + len);
+    const len = Number(m[1]);                      // byte length of body
+    const start = sepIdx + sepLen;
+    if (inputBuffer.length < start + len) return null;  // both are byte counts
+    const body = inputBuffer.subarray(start, start + len).toString('utf8');
+    inputBuffer = inputBuffer.subarray(start + len);
     return JSON.parse(body);
   }
 
-  const nl = inputBuffer.indexOf('\n');
+  const nl = inputBuffer.indexOf(0x0a);            // '\n' byte; safe in UTF-8
   if (nl === -1) return null;
-  const line = inputBuffer.slice(0, nl).trim();
-  inputBuffer = inputBuffer.slice(nl + 1);
+  const line = inputBuffer.subarray(0, nl).toString('utf8').trim();
+  inputBuffer = inputBuffer.subarray(nl + 1);
   if (!line) return null;
   return JSON.parse(line);
 }
@@ -139,13 +144,13 @@ async function handleRequest(message) {
 }
 
 async function processInputChunk(chunk) {
-  inputBuffer += chunk.toString('utf8');
+  inputBuffer = Buffer.concat([inputBuffer, chunk]);
   while (true) {
     let message;
     try { message = tryReadMessage(); }
     catch (err) {
       writeError(null, -32700, 'Parse error', { detail: err.message });
-      inputBuffer = ''; protocol = null;
+      inputBuffer = Buffer.alloc(0); protocol = null;
       return;
     }
     if (!message) return;
