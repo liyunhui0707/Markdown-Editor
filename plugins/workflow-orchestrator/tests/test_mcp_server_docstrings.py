@@ -56,7 +56,7 @@ _EXPECTED_SIGNATURES = {
         "params": [
             ("prompt",  False, None),
             ("cwd",     False, None),
-            ("timeout", True,  "300"),
+            ("timeout", True,  "None"),
         ],
     },
 }
