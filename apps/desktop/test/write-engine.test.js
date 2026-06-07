@@ -88,7 +88,7 @@ test('URL param wins over localStorage when both are set (URL=hybrid, LS=cm6)', 
 test('invalid URL value falls back to localStorage', () => {
   const storage = makeStorage({ 'markdownVault.writeEngine': 'cm6' });
   assert.equal(
-    resolveWriteEngine({ search: '?writeEngine=tiptap', storage }),
+    resolveWriteEngine({ search: '?writeEngine=bogus-engine', storage }),
     'cm6'
   );
 });

@@ -2145,6 +2145,9 @@
          ViewPlugins. -->
     <script src="./lib/cm6-lp-block-widgets.js"></script>
     <script src="./lib/cm6-lp-view.js"></script>
+    <!-- ProseMirror/Tiptap WYSIWYG engine (post-G.13 pivot). Bundled IIFE
+         exposing window.TiptapView; rebuild with `npm run build:tiptap`. -->
+    <script src="./lib/tiptap-bundle.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
@@ -4574,6 +4577,7 @@
       docEngine.textContent = selectedWriteEngine === 'cm6'           ? 'CM6'
                             : selectedWriteEngine === 'hybrid-cm6'    ? 'CM6 Hybrid'
                             : selectedWriteEngine === 'hybrid-cm6-lp' ? 'CM6 Hybrid LP'
+                            : selectedWriteEngine === 'tiptap'        ? 'Tiptap WYSIWYG'
                             :                                           'Hybrid';
 
       if (window.console && typeof window.console.debug === 'function') {
@@ -4724,6 +4728,32 @@
             _toastuiInstance.setMarkdown(cm6LpWrite.getText());
           },
           exitWriteMode() { cm6LpWrite.exitWriteMode(); },
+        };
+      } else if (selectedWriteEngine === 'tiptap') {
+        // ProseMirror/Tiptap WYSIWYG engine (post-G.13 pivot). Unlike the CM6
+        // engines, this edits a rich-text ProseMirror document directly — no
+        // raw-marker reveal, no decoration toggling. Markdown stays the source
+        // of truth: setText() loads a Markdown string (parsed by tiptap-
+        // markdown) and getText() serializes the document back to Markdown
+        // (NORMALIZED, not byte-identical — the accepted tradeoff of this model).
+        const tiptapWrite = window.TiptapView.createTiptapView(hybridWritePane, {
+          onChange: handleWriteChange,
+        });
+
+        liveEditorInstance = {
+          view: tiptapWrite.view,
+          getText() { return tiptapWrite.getText(); },
+          setText(text) {
+            const raw = text || '';
+            tiptapWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return tiptapWrite.getState(); },
+          setState(state) {
+            tiptapWrite.setState(state);
+            _toastuiInstance.setMarkdown(tiptapWrite.getText());
+          },
+          exitWriteMode() { tiptapWrite.exitWriteMode(); },
         };
       } else {
         const hybridWrite = new window.HybridWriteView(hybridWritePane, {

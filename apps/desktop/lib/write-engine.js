@@ -27,10 +27,13 @@
   const STORAGE_KEY = 'markdownVault.writeEngine';
   const QUERY_KEY   = 'writeEngine';
   const DEFAULT     = 'hybrid-cm6';
-  // Stage A: 'hybrid-cm6-lp' is the live-preview engine — opt-in via
+  // Stage A: 'hybrid-cm6-lp' is the CM6 live-preview engine — opt-in via
   // ?writeEngine=hybrid-cm6-lp or localStorage.markdownVault.writeEngine.
-  // Default remains 'hybrid-cm6'; lp is a peer engine, not a replacement.
-  const VALID       = new Set(['hybrid', 'cm6', 'hybrid-cm6', 'hybrid-cm6-lp']);
+  // 'tiptap' is the new ProseMirror/Tiptap WYSIWYG engine (post-G.13 pivot —
+  // see memory project_wysiwyg_prosemirror_pivot): a true rich-text surface
+  // that round-trips Markdown via tiptap-markdown. Both are opt-in peers;
+  // default remains 'hybrid-cm6' while the WYSIWYG engine is built out.
+  const VALID       = new Set(['hybrid', 'cm6', 'hybrid-cm6', 'hybrid-cm6-lp', 'tiptap']);
 
   function readQuery(search) {
     if (search == null) return null;
