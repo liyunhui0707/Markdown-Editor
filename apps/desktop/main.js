@@ -11,6 +11,7 @@ const { performDictionaryLookup } = require('./lib/dictionary-lookup');
 const SessionImportIpc = require('./lib/session-import-ipc');
 const AiIpc = require('./lib/ai-ipc');
 const AiSettingsIpc = require('./lib/ai-settings-ipc');
+const AiConnectionIpc = require('./lib/ai-connection-ipc');
 const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
 
 // Stage C: AI settings persist to userData/ai-settings.json. The same path is
@@ -22,6 +23,7 @@ AiIpc.register(ipcMain, { settingsPath: aiSettingsPath });
 AiIpc.registerRewrite(ipcMain, { settingsPath: aiSettingsPath });
 AiIpc.registerCancel(ipcMain);
 AiSettingsIpc.registerSettings(ipcMain, { settingsPath: aiSettingsPath });
+AiConnectionIpc.registerTestConnection(ipcMain, { settingsPath: aiSettingsPath });
 
 let mainWindow = null;
 let currentVaultWatcher = null;

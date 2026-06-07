@@ -21,11 +21,12 @@ const SRC = () => fs.readFileSync(PRELOAD_PATH, 'utf8');
 
 // ===== CF4.A — source-shape =====
 
-test('CF4.A1 vaultApi exposes getAiBadgeState + getAiSettings + saveAiSettings', () => {
+test('CF4.A1 vaultApi exposes getAiBadgeState + getAiSettings + saveAiSettings + testAiConnection', () => {
   const src = SRC();
   assert.match(src, /getAiBadgeState\s*:/);
   assert.match(src, /getAiSettings\s*:/);
   assert.match(src, /saveAiSettings\s*:/);
+  assert.match(src, /testAiConnection\s*:/);
 });
 
 test('CF4.A1b [QA fix] preload does NOT require any relative module (sandbox-safe)', () => {
@@ -114,4 +115,13 @@ test('CF4.B5 saveAiSettings invokes ai:save-settings with the partial payload', 
   const res = await exposed.vaultApi.saveAiSettings({ model: 'qwen' });
   assert.equal(res.ok, true);
   assert.deepEqual(calls.find((c) => c.channel === 'ai:save-settings').payload, { model: 'qwen' });
+});
+
+test('CF4.B6 testAiConnection invokes ai:test-connection with the pending payload', async () => {
+  const { exposed, calls } = evalPreload((ch) => ch === 'ai:test-connection'
+    ? Promise.resolve({ ok: true, models: ['a'] }) : Promise.resolve());
+  const res = await exposed.vaultApi.testAiConnection({ baseUrl: 'http://localhost:1234/v1', allowRemote: false });
+  assert.deepEqual(res, { ok: true, models: ['a'] });
+  assert.deepEqual(calls.find((c) => c.channel === 'ai:test-connection').payload,
+    { baseUrl: 'http://localhost:1234/v1', allowRemote: false });
 });

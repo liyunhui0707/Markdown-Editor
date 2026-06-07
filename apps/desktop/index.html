@@ -1644,6 +1644,15 @@
         font-size: 12px;
         color: #92400e;
       }
+      .ai-settings-testrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: -4px 0 12px;
+      }
+      .ai-settings-teststatus { font-size: 12px; color: #6b7280; }
+      .ai-settings-teststatus.ok { color: #047857; }
+      .ai-settings-teststatus.err { color: #991b1b; }
       .ai-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
       /* ── Top chrome removal ──────────────────────────────────────────── */
@@ -2006,9 +2015,14 @@
             <input id="aiSettingsBaseUrl" type="text" class="ai-settings-input" placeholder="http://localhost:1234/v1" spellcheck="false" autocomplete="off" />
             <span id="aiSettingsBaseUrlHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_BASE_URL environment variable.</span>
           </label>
+          <div class="ai-settings-testrow">
+            <button id="aiSettingsTest" class="action-button" type="button">Test connection</button>
+            <span id="aiSettingsTestStatus" class="ai-settings-teststatus" aria-live="polite"></span>
+          </div>
           <label class="ai-settings-field">
             <span class="ai-settings-label">Model</span>
-            <input id="aiSettingsModel" type="text" class="ai-settings-input" placeholder="local-model" spellcheck="false" autocomplete="off" />
+            <input id="aiSettingsModel" type="text" class="ai-settings-input" placeholder="local-model" spellcheck="false" autocomplete="off" list="aiSettingsModelList" />
+            <datalist id="aiSettingsModelList"></datalist>
             <span id="aiSettingsModelHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_MODEL environment variable.</span>
           </label>
           <label class="ai-settings-field ai-settings-field--check">

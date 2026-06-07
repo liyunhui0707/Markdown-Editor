@@ -94,3 +94,40 @@ test('CS5.B5 ai-boot settings wiring is XSS-safe (no innerHTML)', () => {
 test('CS5.B6 ai-boot is defensive when modal elements are missing', () => {
   assert.match(readBoot(), /setupAiSettingsPanel[\s\S]{0,1500}if\s*\(\s*!settingsButton/);
 });
+
+// ===== CS8 — test connection + model picker =====
+
+test('CS8.A1 modal has a Test connection button + status + model datalist', () => {
+  const html = readHtml();
+  assert.match(html, /id=["']aiSettingsTest["']/);
+  assert.match(html, /id=["']aiSettingsTestStatus["']/);
+  assert.match(html, /<datalist[^>]*id=["']aiSettingsModelList["']/);
+});
+
+test('CS8.A2 Model input is wired to the datalist', () => {
+  assert.match(readHtml(), /id=["']aiSettingsModel["'][^>]*list=["']aiSettingsModelList["']/);
+});
+
+test('CS8.B1 ai-boot calls vaultApi.testAiConnection', () => {
+  assert.match(readBoot(), /vaultApi\.testAiConnection\(/);
+});
+
+test('CS8.B2 ai-boot sends the pending baseUrl + allowRemote (test before save)', () => {
+  const src = readBoot();
+  assert.match(src, /baseUrl:\s*inputBaseUrl\.value/);
+  assert.match(src, /allowRemote:\s*checkAllowRemote\.checked/);
+});
+
+test('CS8.B3 ai-boot populates the model datalist XSS-safely (createElement, no innerHTML)', () => {
+  const src = readBoot();
+  assert.match(src, /createElement\(\s*['"]option['"]\s*\)/);
+  const region = src.match(/populateModelList[\s\S]{0,400}/);
+  assert.ok(region);
+  assert.doesNotMatch(region[0], /\.innerHTML\s*=/);
+});
+
+test('CS8.B4 ai-boot reports the model count + error via textContent (status)', () => {
+  const src = readBoot();
+  assert.match(src, /Connected —/);
+  assert.match(src, /testStatus\.textContent\s*=/);
+});

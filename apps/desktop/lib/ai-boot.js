@@ -60,6 +60,11 @@
     const errorBox = document.getElementById('aiSettingsError');
     const saveBtn = document.getElementById('aiSettingsSave');
     const cancelBtn = document.getElementById('aiSettingsCancel');
+    // Stage C-2: test-connection controls are optional (the panel still works
+    // without them) — looked up but NOT in the required-elements guard below.
+    const testBtn = document.getElementById('aiSettingsTest');
+    const testStatus = document.getElementById('aiSettingsTestStatus');
+    const modelList = document.getElementById('aiSettingsModelList');
     if (!settingsButton || !overlay || !inputBaseUrl || !inputModel || !checkAllowRemote
         || !saveBtn || !cancelBtn || !window.vaultApi
         || typeof window.vaultApi.getAiSettings !== 'function'
@@ -92,6 +97,7 @@
           applyLock(inputModel, hintModel, ov.model === true);
           checkAllowRemote.disabled = ov.allowRemote === true;
           if (hintAllowRemote) hintAllowRemote.hidden = ov.allowRemote !== true;
+          setTestStatus('', '');
           overlay.hidden = false;
         })
         .catch(function () { showError('Could not load settings.'); overlay.hidden = false; });
@@ -116,9 +122,44 @@
         .catch(function () { showError('Could not save settings.'); });
     }
 
+    // Stage C-2: test connection + model list. Uses the PENDING panel values so
+    // the user can test before saving. XSS-safe: status via textContent, model
+    // options via createElement (never innerHTML).
+    function setTestStatus(msg, kind) {
+      if (!testStatus) return;
+      testStatus.textContent = msg || '';
+      testStatus.className = 'ai-settings-teststatus' + (kind ? ' ' + kind : '');
+    }
+    function populateModelList(models) {
+      if (!modelList) return;
+      modelList.textContent = '';
+      (models || []).forEach(function (id) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        modelList.appendChild(opt);
+      });
+    }
+    function testConnection() {
+      setTestStatus('Testing…', '');
+      const payload = { baseUrl: inputBaseUrl.value.trim(), allowRemote: checkAllowRemote.checked };
+      Promise.resolve()
+        .then(function () { return window.vaultApi.testAiConnection(payload); })
+        .then(function (res) {
+          if (res && res.ok) {
+            const n = (res.models || []).length;
+            populateModelList(res.models);
+            setTestStatus('Connected — ' + n + ' model' + (n === 1 ? '' : 's') + ' available', 'ok');
+          } else {
+            setTestStatus((res && res.error) || 'Could not connect.', 'err');
+          }
+        })
+        .catch(function () { setTestStatus('Could not connect.', 'err'); });
+    }
+
     settingsButton.addEventListener('click', openModal);
     cancelBtn.addEventListener('click', closeModal);
     saveBtn.addEventListener('click', save);
+    if (testBtn) testBtn.addEventListener('click', testConnection);
     overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
   }
 

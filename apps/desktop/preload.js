@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('vaultApi', {
   // save that takes a partial { baseUrl?, model?, allowRemote? }.
   getAiSettings: () => ipcRenderer.invoke('ai:get-settings'),
   saveAiSettings: (partial) => ipcRenderer.invoke('ai:save-settings', partial),
+  // Stage C-2: ping {baseUrl}/models with the PENDING panel values so the user
+  // can test/list models before saving. Returns { ok, models?, error? }.
+  testAiConnection: (payload) => ipcRenderer.invoke('ai:test-connection', payload),
   chooseVaultFolder: () => ipcRenderer.invoke('choose-vault-folder'),
   watchVaultFolder: (payload) => ipcRenderer.invoke('watch-vault-folder', payload),
   unwatchVaultFolder: () => ipcRenderer.invoke('unwatch-vault-folder'),

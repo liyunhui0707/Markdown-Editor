@@ -280,6 +280,8 @@ Click **AI Settings** in the toolbar to edit the most common settings without a 
 - **Model** — the model id.
 - **Allow a remote (off-machine) server** — the privacy opt-in (see below).
 
+**Test connection** pings the endpoint's `/models` (respecting the loopback/allow-remote gate) and reports *"Connected — N models available"* or a friendly error. On success the **Model** field becomes a pick-from-list (a dropdown populated from the server's models; free-typing still works). The test uses the values currently in the panel, so you can verify a URL before saving.
+
 Saved values persist to `ai-settings.json` in Electron's app-data directory and survive restarts. Changes take effect **immediately** — no relaunch — including the **Remote AI** badge, which updates live when you toggle allow-remote or change the URL. If a setting is controlled by an environment variable, its field is shown **disabled** with a hint, because the env var takes precedence. The tuning knobs (temperature, max tokens, timeout, max input chars, streaming, provider) remain environment-only for now.
 
 ### Remote endpoints & privacy
