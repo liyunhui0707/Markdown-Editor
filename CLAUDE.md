@@ -63,10 +63,11 @@ npm run pack             # dir build to apps/desktop/dist/
 npm run dist:mac         # zip build
 ```
 
-MCP ingest plugin smoke test:
+MCP ingest plugin smoke test (plugins now live in the standalone
+`~/Liyunhui/Codes/claude-plugins` repo — see "## Plugins"):
 
 ```bash
-cd plugins/mcp-note-ingest && npm run smoke
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest && npm run smoke
 ```
 
 ## Architecture
@@ -103,8 +104,15 @@ Task list `[ ]` ↔ `[x]` toggle (primary click on marker, or `Cmd-Shift-X` on m
 
 ## Plugins
 
-- `plugins/mcp-note-ingest/` — MCP server that writes AI chat notes into a fixed local Inbox directory. Target overridable via `MCP_INGEST_TARGET_DIR` env var. Distributed via the `workflow-and-MCP-and-plugins` Claude Code marketplace.
-- `plugins/workflow-orchestrator/` — engineering-workflow orchestrator plugin (skills + bin + servers).
+The Claude Code plugins that used to live in this repo's `plugins/` were
+**extracted to a standalone repo at `~/Liyunhui/Codes/claude-plugins`** (2026-06-07)
+because they are cross-project tooling; history was preserved via `git subtree
+split`. Claude Code loads them via the `workflow-and-MCP-and-plugins` directory
+marketplace, which now points at that path (not this repo).
+
+- `mcp-note-ingest` — MCP server that writes AI chat notes into a fixed local Inbox directory. Target overridable via `MCP_INGEST_TARGET_DIR` env var. Distributed via the `workflow-and-MCP-and-plugins` marketplace.
+- `workflow-orchestrator` — engineering-workflow orchestrator plugin (skills + bin + servers, including the bundled `codex-bridge` MCP).
+- `mcp-chat-rag` — MCP server for local RAG over Claude Code session history; registered separately at project scope (not via the marketplace).
 
 ## Stage history
 
@@ -137,7 +145,7 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
   - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
   - Internal refactor with no behavior change → no bump
 - After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
-- `plugins/*/package.json` have **independent** versions. Do not bump them in lockstep with the app.
+- The extracted plugins (now in `~/Liyunhui/Codes/claude-plugins`) have **independent** versions. Do not bump them in lockstep with the app.
 
 ### AI workflow
 - Claude may implement.
