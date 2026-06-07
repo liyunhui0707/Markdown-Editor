@@ -148,6 +148,18 @@
         border-color: var(--border);
       }
 
+      .action-button:disabled,
+      .action-button[disabled] {
+        opacity: 0.5;
+        cursor: progress;
+      }
+      .action-button:disabled:hover,
+      .action-button[disabled]:hover {
+        background: var(--surface);
+        color: var(--text-muted);
+        border-color: var(--border);
+      }
+
       .search-input {
         width: 100%;
         font-weight: 400;
@@ -1554,6 +1566,99 @@
         background: var(--danger-bg) !important;
       }
 
+      /* Stage F — non-loopback baseUrl indicator. Yellow/orange chip,
+         compact, in the toolbar next to the AI buttons. Title attribute
+         carries the hostname; renderer (lib/ai-boot.js) toggles `hidden`. */
+      .ai-remote-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        margin: 0 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #92400e;
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 4px;
+        user-select: none;
+        cursor: default;
+      }
+      /* The `display` above is author-origin and beats the UA stylesheet's
+         `[hidden] { display: none }`, so the hidden attribute alone would NOT
+         hide the badge. Re-assert it with matching origin + higher specificity
+         so badge.hidden = true actually hides the chip. */
+      .ai-remote-badge[hidden] {
+        display: none;
+      }
+
+      /* ── Stage C: AI settings modal ──────────────────────────────────── */
+      .ai-settings-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .ai-settings-overlay[hidden] { display: none; }
+      .ai-settings-modal {
+        background: #ffffff;
+        color: #111827;
+        width: 420px;
+        max-width: calc(100vw - 48px);
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+        padding: 20px 22px;
+        font-size: 13px;
+      }
+      .ai-settings-title { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+      .ai-settings-error {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        background: #fef2f2;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        color: #991b1b;
+      }
+      .ai-settings-error[hidden] { display: none; }
+      .ai-settings-field { display: block; margin: 0 0 12px; }
+      .ai-settings-field--check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .ai-settings-label { display: block; font-weight: 600; margin-bottom: 4px; }
+      .ai-settings-field--check .ai-settings-label { margin-bottom: 0; font-weight: 500; }
+      .ai-settings-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      .ai-settings-input:disabled { background: #f3f4f6; color: #6b7280; cursor: not-allowed; }
+      .ai-settings-hint { display: block; margin-top: 4px; font-size: 11px; color: #6b7280; }
+      .ai-settings-hint[hidden] { display: none; }
+      .ai-settings-warning {
+        margin: 4px 0 16px;
+        font-size: 12px;
+        color: #92400e;
+      }
+      .ai-settings-testrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: -4px 0 12px;
+      }
+      .ai-settings-teststatus { font-size: 12px; color: #6b7280; }
+      .ai-settings-teststatus.ok { color: #047857; }
+      .ai-settings-teststatus.err { color: #991b1b; }
+      .ai-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
       /* ── Top chrome removal ──────────────────────────────────────────── */
 
       /* Panel headers become invisible rails — only the toggle icon shows */
@@ -1747,6 +1852,59 @@
         margin: 0 !important;
         border: 0 !important;
       }
+
+      /* Path D — AI Summarize result panel. Empty shell is in HTML;
+         .ai-summary-status, .ai-summary-body, and (when wired) the
+         .ai-summary-close × button are created by mount(). */
+      .ai-summary-panel {
+        position: relative;
+        padding: 12px 16px;
+        padding-right: 36px; /* leave room for the × button */
+        border-top: 1px solid var(--border, #d0d0d0);
+        background: var(--surface-chrome, #f3f3f3);
+        max-height: 240px;
+        overflow: auto;
+      }
+      .ai-summary-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        width: 22px;
+        height: 22px;
+        line-height: 18px;
+        font-size: 18px;
+        text-align: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm, 4px);
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        padding: 0;
+      }
+      .ai-summary-close:hover {
+        background: var(--surface-muted, #eee);
+        color: var(--text, #222);
+        border-color: var(--border, #d0d0d0);
+      }
+      .ai-summary-panel.error {
+        background: #fff4f4;
+        border-top-color: #d99;
+      }
+      .ai-summary-status {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .ai-summary-panel.error .ai-summary-status {
+        color: #c33;
+      }
+      .ai-summary-body {
+        white-space: pre-wrap;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #222;
+      }
     </style>
   </head>
   <body>
@@ -1818,6 +1976,10 @@
                 >‹</button>
                 <button id="newNoteButton" class="action-button">New Note</button>
                 <button id="saveNoteButton" class="action-button">Save Note</button>
+                <button id="summarizeButton" class="action-button">Summarize</button>
+                <button id="rewriteButton" class="action-button">Rewrite</button>
+                <span id="aiRemoteBadge" class="ai-remote-badge" hidden>Remote AI</span>
+                <button id="aiSettingsButton" class="action-button" title="AI settings" aria-haspopup="dialog">AI Settings</button>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
@@ -1873,11 +2035,51 @@
                   </div>
                   <div id="readViewMount" class="read-view-mount"></div>
                 </div>
+                <!-- Path D — AI Summarize result panel. Empty shell only:
+                     children (.ai-summary-status + .ai-summary-body) are
+                     created by AiSummaryPanel.mount() in lib/ai-boot.js. -->
+                <div id="aiSummaryPanel" class="ai-summary-panel" hidden></div>
               </div>
             </div>
           </div>
         </section>
       </main>
+
+      <!-- Stage C: AI settings modal. Hidden by default; opened by
+           #aiSettingsButton. All wiring lives in lib/ai-boot.js (NOT the inline
+           boot script, per H1). Saving goes through vaultApi.saveAiSettings();
+           the Remote AI badge re-renders live afterward. -->
+      <div id="aiSettingsOverlay" class="ai-settings-overlay" hidden>
+        <div class="ai-settings-modal" role="dialog" aria-modal="true" aria-labelledby="aiSettingsTitle">
+          <h2 id="aiSettingsTitle" class="ai-settings-title">AI Settings</h2>
+          <div id="aiSettingsError" class="ai-settings-error" hidden></div>
+          <label class="ai-settings-field">
+            <span class="ai-settings-label">Server URL</span>
+            <input id="aiSettingsBaseUrl" type="text" class="ai-settings-input" placeholder="http://localhost:1234/v1" spellcheck="false" autocomplete="off" />
+            <span id="aiSettingsBaseUrlHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_BASE_URL environment variable.</span>
+          </label>
+          <div class="ai-settings-testrow">
+            <button id="aiSettingsTest" class="action-button" type="button">Test connection</button>
+            <span id="aiSettingsTestStatus" class="ai-settings-teststatus" aria-live="polite"></span>
+          </div>
+          <label class="ai-settings-field">
+            <span class="ai-settings-label">Model</span>
+            <input id="aiSettingsModel" type="text" class="ai-settings-input" placeholder="local-model" spellcheck="false" autocomplete="off" list="aiSettingsModelList" />
+            <datalist id="aiSettingsModelList"></datalist>
+            <span id="aiSettingsModelHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_MODEL environment variable.</span>
+          </label>
+          <label class="ai-settings-field ai-settings-field--check">
+            <input id="aiSettingsAllowRemote" type="checkbox" />
+            <span class="ai-settings-label">Allow a remote (off-machine) server</span>
+          </label>
+          <span id="aiSettingsAllowRemoteHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_ALLOW_REMOTE environment variable.</span>
+          <p class="ai-settings-warning">If the server is not on this machine (not localhost), enabling this sends your note content off your machine.</p>
+          <div class="ai-settings-actions">
+            <button id="aiSettingsCancel" class="action-button" type="button">Cancel</button>
+            <button id="aiSettingsSave" class="action-button" type="button">Save</button>
+          </div>
+        </div>
+      </div>
 
       <footer class="status-bar">
         <div id="vaultPathText" class="status-bar-path">Vault: not selected</div>
@@ -1962,6 +2164,12 @@
     <script src="./lib/session-viewer/favorites.js"></script>
     <script src="./lib/session-viewer/grouping.js"></script>
     <script src="./lib/session-viewer/grouped-list-renderer.js"></script>
+    <!-- Path D — AI Summarize. ai-result-panel exposes window.AiSummaryPanel;
+         ai-boot registers a DOMContentLoaded handler that mounts the panel
+         and wires the Summarize button. Loaded via <script src> so the
+         renderer-boot test harness (getBootScript) does NOT execute them. -->
+    <script src="./lib/ai-result-panel.js"></script>
+    <script src="./lib/ai-boot.js"></script>
 
     <script>
       function escapeHtml(text) {
@@ -2260,6 +2468,13 @@
       let isSidebarHidden         = false;  // open by default
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
+      // Stage A diff loop 2: dedicated CM6-hydration tracker. Distinct from
+      // liveEditorLastNoteId (which is updated UNCONDITIONALLY on every
+      // note switch, including sessions where CM6 is NOT re-hydrated).
+      // cm6HydratedNoteId is set only when CM6 actually receives the new
+      // note's content; the AI bridge's getActiveSelection() uses it to
+      // detect stale CM6 selections after a switch to a read-only/session note.
+      let cm6HydratedNoteId       = '';
       let hasLoadedVaultNotes     = false;
 
       // Stage 13: editor text-size adjust. Renderer-local, CSS-only:
@@ -2415,6 +2630,47 @@
       function getSelectedNote() {
         return notes.find((note) => note.id === selectedNoteId);
       }
+
+      // Path D — bridge for lib/ai-boot.js. The AI Summarize button lives
+      // in lib/ai-boot.js (loaded via <script src>) so the renderer-boot
+      // test harness does not execute it. The boot module reads the active
+      // note via this bridge instead of touching renderer internals.
+      window.markdownVault = {
+        getActiveNoteBody: () => bodyForRead(getSelectedNote()),
+        getActiveNoteId:   () => { const n = getSelectedNote(); return (n && n.id) || null; },
+        // Stage A: returns the active CM6 selection text (when the engine
+        // exposes .view AND the user has a non-empty, non-whitespace selection),
+        // or null. Legacy hybrid engine doesn't expose .view → always null →
+        // the Rewrite handler falls back to whole-note text.
+        //
+        // [Codex diff S1 loop-2 fix] Stale-CM6 guard: CM6 is hydrated only
+        // when renderEditor takes the non-session branch (i.e., for vault /
+        // draft notes). Session and read-only notes leave CM6 hidden and
+        // its selection still belongs to the previous CM6-hydrated note.
+        // cm6HydratedNoteId tracks WHICH note CM6 is currently hydrated for
+        // (set ONLY after liveEditorInstance.setText/setState — never on
+        // the session branch). Compare it to the active note id; if they
+        // differ, the selection is stale and must NOT be returned.
+        // (liveEditorLastNoteId is the wrong tracker — it's updated for
+        // session notes too, before the session branch.)
+        //
+        // [Codex diff S2 loop-3 fix] Visible-mode guard: even when CM6 is
+        // hydrated for the active note, the user can toggle to Preview/Read
+        // mode, in which case CM6 stays mounted but HIDDEN. The selection
+        // is no longer visible to the user, so we must NOT silently honor
+        // it — fall back to whole-note text. Only currentMode === 'write'
+        // makes the CM6 selection visible and therefore valid.
+        getActiveSelection: () => {
+          if (!selectedNoteId || selectedNoteId !== cm6HydratedNoteId) return null;
+          if (currentMode !== 'write') return null;
+          const inst = liveEditorInstance;
+          if (!inst || !inst.view) return null;
+          const sel = inst.view.state.selection.main;
+          if (sel.from === sel.to) return null;
+          const text = inst.view.state.sliceDoc(sel.from, sel.to);
+          return text.trim() === '' ? null : text;
+        },
+      };
 
       function setStatus(mode, message) {
         if (mode === 'draft') {
@@ -2620,6 +2876,13 @@
             if (!restored) {
               liveEditorInstance.setText(note.body);
             }
+            // Stage A diff loop 2: CM6 just received note.body (either via
+            // setState-from-cache or fresh setText). Update the dedicated
+            // CM6-hydration tracker so the AI bridge's getActiveSelection()
+            // knows the view is live for THIS note. The session branch above
+            // does NOT touch this tracker — CM6 stays whatever it was before
+            // the switch, and getActiveSelection() correctly returns null.
+            cm6HydratedNoteId = note.id;
 
             // Restore the INCOMING note's saved mode + scroll ratio.
             // Defaults to { mode: 'write', scrollRatio: 0 } for
@@ -3017,6 +3280,7 @@
           autoResizeTitleInput();
           liveEditorInstance.setText('');
           liveEditorLastNoteId = '';
+          cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
           updateStatusReadouts('');
           // Stage 6.2: visually + functionally disable editing in the
           // no-selection state. The title input is disabled outright; the
@@ -3251,6 +3515,7 @@
             // for this note so Write/Preview re-hydrate with the
             // new body on demand.
             liveEditorLastNoteId = '';
+            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
             hydrationCache.drop(selectedNote.id);
           }
 
@@ -3754,6 +4019,11 @@
                 noteViewStates.delete(oldId);
               }
               liveEditorLastNoteId = newId;
+              // Stage A diff loop 4 / S3: migrate the CM6-hydration tracker
+              // alongside the editor-last-note tracker. Without this, a
+              // post-save visible CM6 selection would be silently dropped by
+              // getActiveSelection() because of the (now-stale) id mismatch.
+              if (cm6HydratedNoteId === oldId) cm6HydratedNoteId = newId;
             }
           }
 
@@ -4205,6 +4475,9 @@
                 if (selectedNoteId === note.id) {
                   selectedNoteId = newId;
                   liveEditorLastNoteId = newId;
+                  // Stage A diff loop 4 / S3: keep cm6HydratedNoteId paired
+                  // so post-save-all visible selections are still honored.
+                  if (cm6HydratedNoteId === note.id) cm6HydratedNoteId = newId;
                 }
                 note.id = newId;
               }
@@ -4362,6 +4635,11 @@
         // note-local across A → B → A switches: returning to a cached note
         // restores its history-bearing state instead of rebuilding via setText.
         liveEditorInstance = {
+          // Stage A R1: expose the underlying CM6 view so the bridge's
+          // getActiveSelection() can read the active selection. The wrapper
+          // intentionally doesn't proxy view methods — callers must use the
+          // documented getText/setText API. view is read-only escape hatch.
+          view: cm6Write.view,
           getText() { return cm6Write.getText(); },
           setText(text) {
             const raw = text || '';
@@ -4386,6 +4664,9 @@
         });
 
         liveEditorInstance = {
+          // Stage A R1: same as cm6 wrapper above — view is the read-only
+          // escape hatch the AI bridge uses to read selection.
+          view: cm6HybridWrite.view,
           getText() { return cm6HybridWrite.getText(); },
           setText(text) {
             const raw = text || '';
@@ -4864,6 +5145,7 @@
               scrollRatio: 1,
             });
             liveEditorLastNoteId = '';
+            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
             hydrationCache.drop(selectedNote.id);
           }
           // Mirror loadVaultNotes's status side-effect, then call
@@ -5017,6 +5299,92 @@
         groupedListRenderer = null;
       }
 
+      // Dictionary lookup (⌘⇧D). We capture the selection plus its
+      // surrounding block so the local Dictionary app can translate in
+      // context. The main process holds the token and does the POST; here
+      // we only gather text and surface a status pill.
+      const DICTIONARY_BLOCK_TAGS = {
+        P: 1, ARTICLE: 1, LI: 1, BLOCKQUOTE: 1, SECTION: 1, DIV: 1, TD: 1,
+        DD: 1, DT: 1, FIGCAPTION: 1, PRE: 1,
+        H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1
+      };
+
+      // Find the single sentence in `context` that contains `target`, so the
+      // popup can show the source sentence. Mirrors the Dictionary extensions.
+      function dictionarySentenceAround(context, target) {
+        try {
+          const idx = context.indexOf(target);
+          if (idx < 0) return null;
+          const seg = new Intl.Segmenter(navigator.language || 'en', { granularity: 'sentence' });
+          for (const piece of seg.segment(context)) {
+            if (piece.index <= idx && idx < piece.index + piece.segment.length) {
+              return piece.segment.trim();
+            }
+          }
+        } catch (_e) { /* Intl.Segmenter unavailable — skip the sentence row */ }
+        return null;
+      }
+
+      // Read the current DOM selection and walk up to the nearest block
+      // ancestor for paragraph context. Returns { empty } when nothing is
+      // selected.
+      function captureDictionarySelection() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return { empty: true };
+        const target = sel.toString().trim();
+        if (!target) return { empty: true };
+
+        let node = sel.anchorNode;
+        if (node && node.nodeType !== 1) node = node.parentNode;
+        let block = null;
+        while (node) {
+          if (node.nodeType === 1 && DICTIONARY_BLOCK_TAGS[node.tagName]
+              && (node.textContent || '').trim().length > 0) {
+            block = node;
+            break;
+          }
+          node = node.parentNode;
+        }
+
+        let context = target;
+        if (block) {
+          let raw = (block.textContent || '').replace(/\s+/g, ' ').trim();
+          if (raw.length > 2000) {
+            const idx = raw.indexOf(target);
+            if (idx >= 0) {
+              raw = raw.slice(Math.max(0, idx - 1000), Math.min(raw.length, idx + target.length + 1000));
+            } else {
+              raw = raw.slice(0, 2000);
+            }
+          }
+          context = raw;
+        }
+        return { empty: false, target, context, containingSentence: dictionarySentenceAround(context, target) };
+      }
+
+      async function triggerDictionaryLookup() {
+        if (!window.vaultApi || !window.vaultApi.dictionaryLookup) return;
+        const payload = captureDictionarySelection();
+        if (payload.empty) {
+          setStatus('error', 'Dictionary: select a word first');
+          setTimeout(() => setStatusFromSelectedNote(), 2000);
+          return;
+        }
+        setStatus('saving', 'Translating...');
+        let result;
+        try {
+          result = await window.vaultApi.dictionaryLookup(payload);
+        } catch (_e) {
+          result = { ok: false, error: 'Dictionary lookup failed.' };
+        }
+        if (result && result.ok) {
+          setStatusFromSelectedNote();
+        } else {
+          setStatus('error', (result && result.error) || 'Dictionary lookup failed.');
+          setTimeout(() => setStatusFromSelectedNote(), 3000);
+        }
+      }
+
       document.addEventListener('keydown', async (e) => {
         if (e.isComposing) return;
         const mod = e.metaKey || e.ctrlKey;
@@ -5050,6 +5418,7 @@
         }
         if (mod && plain && key === 'n') { e.preventDefault(); createNewNote(); }
         if (mod && plain && key === 's') { e.preventDefault(); await saveCurrentNote(); }
+        if (mod && e.shiftKey && !e.altKey && key === 'd') { e.preventDefault(); await triggerDictionaryLookup(); return; }
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
           const focused = document.activeElement;

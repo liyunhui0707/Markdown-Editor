@@ -44,3 +44,33 @@ def test_sandbox_and_cd_after_exec(tmp_path):
     assert "--cd" in tail
     assert "--output-schema" in tail
     assert "--output-last-message" in tail
+
+
+def test_reasoning_effort_defaults_to_high(tmp_path, monkeypatch):
+    monkeypatch.delenv("CODEX_BRIDGE_REASONING_EFFORT", raising=False)
+    argv = _argv(tmp_path)
+    exec_idx = argv.index("exec")
+    tail = argv[exec_idx + 1:]
+    assert "-c" in tail
+    c_idx = argv.index("-c")
+    assert argv[c_idx + 1] == "model_reasoning_effort=high"
+
+
+def test_reasoning_effort_env_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_BRIDGE_REASONING_EFFORT", "medium")
+    argv = _argv(tmp_path)
+    c_idx = argv.index("-c")
+    assert argv[c_idx + 1] == "model_reasoning_effort=medium"
+
+
+def test_reasoning_effort_blank_env_skips_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_BRIDGE_REASONING_EFFORT", "")
+    argv = _argv(tmp_path)
+    assert "-c" not in argv
+    assert not any("model_reasoning_effort" in a for a in argv)
+
+
+def test_reasoning_effort_default_keyword_skips_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_BRIDGE_REASONING_EFFORT", "default")
+    argv = _argv(tmp_path)
+    assert "-c" not in argv

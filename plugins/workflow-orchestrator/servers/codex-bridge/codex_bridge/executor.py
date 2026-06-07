@@ -17,8 +17,25 @@ from codex_bridge.errors import (
     InvalidCwdError,
 )
 
-DEFAULT_TIMEOUT_SECONDS = 300
+DEFAULT_TIMEOUT_SECONDS = 900
 _GRACE_AFTER_TERMINATE_SECONDS = 2
+
+# Operators can override the wall-clock budget without code changes; an explicit
+# `timeout` argument still wins over this. Reviews under gpt-5.5 routinely run
+# past the old 300s ceiling, hence the higher default.
+_TIMEOUT_ENV_VAR = "CODEX_BRIDGE_TIMEOUT_SECONDS"
+
+
+def _resolve_timeout(timeout: float | None) -> float:
+    if timeout is not None:
+        return timeout
+    raw = os.environ.get(_TIMEOUT_ENV_VAR, "").strip()
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return DEFAULT_TIMEOUT_SECONDS
 
 # Allowlist of environment variables passed through to the Codex subprocess.
 # Everything else (API keys, tokens, ad-hoc shell exports) is dropped to avoid
@@ -66,7 +83,7 @@ def run_codex(
     schema: Path,
     out_message: Path,
     payload: str,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    timeout: float | None = None,
     extra_args: Sequence[str] = (),
     runner: Callable = subprocess.Popen,
 ) -> tuple[int, str, str]:
@@ -80,6 +97,8 @@ def run_codex(
     repo = Path(repo)
     if not repo.is_dir():
         raise InvalidCwdError(f"repo must be an existing directory: {repo}")
+
+    timeout = _resolve_timeout(timeout)
 
     argv = build_codex_argv(
         repo=repo,

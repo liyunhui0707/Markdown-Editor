@@ -32,6 +32,7 @@ vault-demo/
 .mcp.json
 !plugins/workflow-orchestrator/.mcp.json
 !plugins/mcp-note-ingest/.mcp.json
+!plugins/mcp-chat-rag/.mcp.json
 
 # Workflow orchestrator runtime state (per-repo; ephemeral plans, reviews,
 # diff dumps; never committed).

@@ -1,14 +1,29 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const http = require('http');
 
 const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
+const { performDictionaryLookup } = require('./lib/dictionary-lookup');
 const SessionImportIpc = require('./lib/session-import-ipc');
+const AiIpc = require('./lib/ai-ipc');
+const AiSettingsIpc = require('./lib/ai-settings-ipc');
+const AiConnectionIpc = require('./lib/ai-connection-ipc');
 const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
 
+// Stage C: AI settings persist to userData/ai-settings.json. The same path is
+// passed to the summarize/rewrite handlers so per-request settings (env >
+// stored > default) and the settings panel read/write one canonical file.
+const aiSettingsPath = path.join(app.getPath('userData'), 'ai-settings.json');
 SessionImportIpc.register(ipcMain);
+AiIpc.register(ipcMain, { settingsPath: aiSettingsPath });
+AiIpc.registerRewrite(ipcMain, { settingsPath: aiSettingsPath });
+AiIpc.registerCancel(ipcMain);
+AiSettingsIpc.registerSettings(ipcMain, { settingsPath: aiSettingsPath });
+AiConnectionIpc.registerTestConnection(ipcMain, { settingsPath: aiSettingsPath });
 
 let mainWindow = null;
 let currentVaultWatcher = null;
@@ -807,6 +822,14 @@ ipcMain.handle('resolve-image-path', async (_event, payload) => {
     fsConstants: fsConstantsAll,
     vaultPath: currentWatchedVaultPath,
   });
+});
+
+// Dictionary lookup. The renderer captures the selection + surrounding
+// paragraph and hands it here; we read the local Dictionary.app token and
+// POST to its loopback server (the Dictionary app shows the popup). Done in
+// the main process because a renderer fetch to 127.0.0.1 would be CORS-blocked.
+ipcMain.handle('dictionary:lookup', async (_event, payload) => {
+  return performDictionaryLookup({ payload, http, fs, os, path });
 });
 
 app.whenReady().then(() => {

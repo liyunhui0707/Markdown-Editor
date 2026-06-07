@@ -4,10 +4,13 @@ const { logToStderr } = require('./lib/logger');
 
 const SERVER_INFO = {
   name: 'mcp-note-ingest',
-  version: '0.4.0'
+  version: '0.4.1'
 };
 
-let inputBuffer = '';
+// Read-path buffer is a raw Buffer, not a string: Content-Length is a BYTE
+// count, but a UTF-8-decoded string measures UTF-16 code units, so any CJK or
+// emoji body would desync framing (hang or truncate). Frame by bytes here.
+let inputBuffer = Buffer.alloc(0);
 // null = not yet detected, 'ndjson' = newline-delimited, 'lsp' = Content-Length framing
 let protocol = null;
 
@@ -50,10 +53,11 @@ function writeError(id, code, message, data = null) {
 
 function tryReadMessage() {
   if (protocol === null) {
-    if (inputBuffer.startsWith('Content-Length:')) {
+    if (inputBuffer.length === 0) return null;
+    if (inputBuffer.indexOf('Content-Length:') === 0) {
       protocol = 'lsp';
       log('protocol: lsp (Content-Length)');
-    } else if (inputBuffer.trimStart().startsWith('{')) {
+    } else if (inputBuffer.toString('utf8').trimStart().startsWith('{')) {
       protocol = 'ndjson';
       log('protocol: ndjson');
     } else {
@@ -63,28 +67,29 @@ function tryReadMessage() {
 
   if (protocol === 'lsp') {
     const separator = '\r\n\r\n';
-    const separatorIndex = inputBuffer.indexOf(separator);
+    const separatorLength = Buffer.byteLength(separator);
+    const separatorIndex = inputBuffer.indexOf(separator);   // byte offset
     if (separatorIndex === -1) return null;
 
-    const headerText = inputBuffer.slice(0, separatorIndex);
+    const headerText = inputBuffer.subarray(0, separatorIndex).toString('utf8');
     const contentLengthMatch = headerText.match(/Content-Length:\s*(\d+)/i);
     if (!contentLengthMatch) throw new Error('Invalid or missing Content-Length header.');
 
-    const contentLength = Number(contentLengthMatch[1]);
-    const messageStart = separatorIndex + separator.length;
-    if (inputBuffer.length < messageStart + contentLength) return null;
+    const contentLength = Number(contentLengthMatch[1]);     // byte length of body
+    const messageStart = separatorIndex + separatorLength;
+    if (inputBuffer.length < messageStart + contentLength) return null;  // byte counts
 
-    const messageText = inputBuffer.slice(messageStart, messageStart + contentLength);
-    inputBuffer = inputBuffer.slice(messageStart + contentLength);
+    const messageText = inputBuffer.subarray(messageStart, messageStart + contentLength).toString('utf8');
+    inputBuffer = inputBuffer.subarray(messageStart + contentLength);
     return JSON.parse(messageText);
   }
 
   // ndjson
-  const newlineIndex = inputBuffer.indexOf('\n');
+  const newlineIndex = inputBuffer.indexOf(0x0a);            // '\n' byte; safe in UTF-8
   if (newlineIndex === -1) return null;
 
-  const line = inputBuffer.slice(0, newlineIndex).trim();
-  inputBuffer = inputBuffer.slice(newlineIndex + 1);
+  const line = inputBuffer.subarray(0, newlineIndex).toString('utf8').trim();
+  inputBuffer = inputBuffer.subarray(newlineIndex + 1);
   if (!line) return null;
 
   return JSON.parse(line);
@@ -146,7 +151,7 @@ function handleRequest(message) {
 }
 
 function processInputChunk(chunk) {
-  inputBuffer += chunk.toString('utf8');
+  inputBuffer = Buffer.concat([inputBuffer, chunk]);
 
   while (true) {
     let message;
@@ -155,7 +160,7 @@ function processInputChunk(chunk) {
       message = tryReadMessage();
     } catch (error) {
       writeError(null, -32700, 'Parse error', { detail: error.message });
-      inputBuffer = '';
+      inputBuffer = Buffer.alloc(0);
       protocol = null;
       return;
     }

@@ -159,3 +159,83 @@ test('stdout is well-framed JSON-RPC for the full ping + ingest session', async 
     'logger output must never appear on stdout'
   );
 });
+
+test('LSP framing round-trips a CJK + emoji body by byte length, not code units', async () => {
+  // Content-Length is a BYTE count, but the old read buffer was a UTF-8-decoded
+  // string measured in UTF-16 code units. A CJK/emoji body has more bytes than
+  // code units, so the server's "do I have the whole body yet?" check never
+  // succeeded and it hung forever. This sends one framed request whose body is
+  // multi-byte; the buggy server times out, the byte-framed server responds.
+  const tempVault = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-note-ingest-cjk-'));
+
+  const child = spawn(process.execPath, [SERVER_PATH], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  let stdoutBuffer = Buffer.alloc(0);
+  child.stdout.on('data', (chunk) => {
+    stdoutBuffer = Buffer.concat([stdoutBuffer, chunk]);
+  });
+  const exitPromise = new Promise((resolve) => child.on('exit', () => resolve()));
+
+  try {
+    writeFrame(child, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'cjk-frames-test', version: '0.0.1' }
+      }
+    });
+    writeFrame(child, {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'ingest_chat_markdown',
+        arguments: {
+          vault_path: tempVault,
+          title: '中文标题 🚀 タイトル',
+          body: '正文：これはテストです。日本語・中文・emoji 🎉🔥 を含む長めの本文。',
+          source: 'claude'
+        }
+      }
+    });
+
+    let seenMessages = [];
+    await new Promise((resolve, reject) => {
+      let timeout, interval;
+      const cleanup = () => { clearTimeout(timeout); clearInterval(interval); };
+      timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('Timeout waiting for CJK response (id=2): server hung on byte/code-unit framing mismatch'));
+      }, 5000);
+      interval = setInterval(() => {
+        let messages;
+        try {
+          messages = parseAllFrames(stdoutBuffer);
+        } catch {
+          return; // partial frame, keep waiting
+        }
+        if (messages.some((m) => m.id === 2)) {
+          cleanup();
+          seenMessages = messages;
+          resolve();
+        }
+      }, 25);
+    });
+
+    const resp = seenMessages.find((m) => m.id === 2);
+    assert.ok(resp, 'missing response for id=2');
+    assert.ok(
+      resp.result && !resp.error,
+      `CJK ingest should succeed, got error=${JSON.stringify(resp.error)}`
+    );
+  } finally {
+    child.kill();
+    await exitPromise;
+    fs.rmSync(tempVault, { recursive: true, force: true });
+  }
+});

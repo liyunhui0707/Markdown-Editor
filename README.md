@@ -55,6 +55,7 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
 - **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
 - **AI Sessions are read-only (Stage S6)** — opening any session in the AI Sessions filter now renders the transcript directly (no Write / Preview / Read tabs). The tab bar above the editor is hidden for sessions; the right panel shows the rendered transcript only. Non-session notes (Drafts / Vault / AI Imports) keep their existing Write + Preview tabs. Rationale: AI Sessions are immutable transcripts of past conversations — the editing surfaces (CM6 / Toast UI) consume substantial memory on multi-MB transcripts (OOM risk) and were rarely the right tool for log content. If you want to annotate a session, create a separate companion note.
+- **Local AI: Summarize & Rewrite** — one-click **Summarize** the active note and one-click **Rewrite** a selection (or whole note) via a configurable local OpenAI-compatible endpoint (LM Studio, Ollama, `llama-server`). Results **stream into a side panel** below the editor token-by-token, stored **per note**: switching away does not lose them, and the × button both dismisses the panel and aborts the in-flight request. The original note body, dirty state, and on-disk file are never modified by either verb. See [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) below.
 - **AI Sessions favorites + grouped view (Stage S5)** — the AI Sessions filter now renders sessions as a grouped tree: **Favorites** (when any; rendered flat) → **Codex** → **Claude** → **Other**. The three agent groups are bucketed by the session's last-activity time (read from the importer's `source_mtime` frontmatter, falling back to file mtime): Today / Within 3 Days / Older Than 3 Days. Empty buckets are skipped. Click the ☆ on any session row to favorite it (★); favorites persist to `localStorage` and appear in a collapsible Favorites section at the top. Both group headers AND bucket headers collapse/expand on click; their state persists. Session row titles use the importer's `source_custom_title` / `source_ai_title` when present (falls back to the on-disk filename otherwise). Cross-session search results (Stage S4) show the ★ indicator for favorited sessions. Other filters (All / Drafts / Vault / AI Imports) keep their flat list — only AI Sessions gets the grouped view. AI Imports and AI Sessions are disjoint: imported sessions appear only under AI Sessions, not under AI Imports.
 
 ### Data-safety guarantees
@@ -213,6 +214,7 @@ npm run smoke
 | `Cmd/Ctrl + 0` | Reset editor text size to default (18px) |
 | `Cmd/Ctrl + Z` / `Cmd/Ctrl + Shift + Z` | Undo / redo in CM6 Write mode |
 | `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
+| `Cmd/Ctrl + Shift + D` | Translate the selected word in context via the local Dictionary macOS app (see [Dictionary lookup](#dictionary-lookup)) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
 | `Enter` | (Stage S4) In the in-transcript search input — jump to next match |
 | `Shift + Enter` | (Stage S4) In the in-transcript search input — jump to previous match |
@@ -220,6 +222,120 @@ npm run smoke
 | `Enter` / `Space` | (Stage S5) On a focused AI Sessions star button — toggle favorite; on a focused group header — collapse / expand the group |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
+
+## Local AI: Summarize & Rewrite
+
+Two one-click AI actions against a local OpenAI-compatible model — **Summarize** the active note, or **Rewrite** a selected passage (or the whole note) for clarity and concision. The app sends the active note's Markdown body (or your selection, for Rewrite) to the configured endpoint, **streams the response back token-by-token**, and shows it in the same side panel below the editor. By default the endpoint must be a **loopback** address (`localhost` / `127.x` / `::1`), so nothing leaves your machine; pointing at a remote server requires an explicit opt-in (see [Remote endpoints & privacy](#remote-endpoints--privacy) below).
+
+- The original note's body, file on disk, and dirty state are **never** modified by either verb. Copy/paste the result manually if you want to use it.
+- Each note has its own result state, shared between Summarize and Rewrite (most recent action wins). Switching to another note mid-flight does not show a stale result; returning to a note while it is still streaming restores the accumulated text so far.
+- The × button on the panel **aborts the in-flight request** (cross-process cancel — the model server stops getting new HTTP reads) AND dismisses the current note's result. Buttons re-enable immediately so you can start a fresh request without waiting.
+- If the local server is unreachable, the panel shows a friendly inline error and the app stays interactive.
+
+### Rewrite — selection vs. whole note
+
+When you click **Rewrite**:
+
+- If you have a non-empty selection in the editor (Write mode, CM6 engine), Rewrite operates on **just that selection**.
+- Otherwise (no selection, or you're in Preview/Read mode, or the active note is an AI Session / read-only note), Rewrite falls back to the **whole note body**.
+
+This protects against rewriting text you cannot see: a stale CM6 selection from a previous note never leaks into the request.
+
+### Setup
+
+1. Start a local OpenAI-compatible server. Examples:
+   - **LM Studio** → Server tab → Start. Default endpoint: `http://localhost:1234`. Load any text model.
+   - **Ollama** → `ollama serve` (the OpenAI-compatible path lives under `:11434/v1`). Pull a model first, e.g. `ollama pull llama3.1`.
+   - **llama.cpp `llama-server`** or any other OpenAI-compatible local server.
+2. Launch the editor: `cd apps/desktop && npm run dev`.
+3. Open a Markdown note and click **Summarize** or **Rewrite** in the toolbar.
+
+### Configuration
+
+AI settings apply to **both** Summarize and Rewrite. The endpoint URL, model, and remote-allow toggle can be edited in the in-app **AI Settings** panel (see below); the remaining tuning knobs are environment variables. Precedence per setting is **environment variable > saved panel value > built-in default** — an env var, when present, always wins, and the matching panel field is shown locked.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MARKDOWN_AI_PROVIDER` | `openai-compatible` | Adapter selector. `openai-compatible` (default — LM Studio, Ollama's `/v1`, `llama-server`, any OpenAI-compatible server) or `ollama` (Ollama's **native** API — set `MARKDOWN_AI_BASE_URL` to the `:11434` root, **no `/v1`**). Both adapters support Summarize, Rewrite, streaming, and the Test-connection model list. |
+| `MARKDOWN_AI_BASE_URL` | `http://localhost:1234/v1` | Must be `http://` or `https://`. A trailing slash is normalized away. Must be **loopback** unless `MARKDOWN_AI_ALLOW_REMOTE=true` (see below). |
+| `MARKDOWN_AI_ALLOW_REMOTE` | _unset_ (treated as `false`) | Gate for non-loopback endpoints. By default a base URL that isn't `localhost` / `127.x` / `::1` is rejected before any network call (reason `remote-blocked`). Set to `true` (case-insensitive) to permit a remote/LAN endpoint; a **Remote AI** badge then appears in the toolbar. |
+| `MARKDOWN_AI_MODEL` | `local-model` | LM Studio routes to the currently-loaded model regardless of name. Ollama requires the real model id (e.g. `llama3.1`). |
+| `MARKDOWN_AI_TEMPERATURE` | `0.2` | |
+| `MARKDOWN_AI_MAX_TOKENS` | `1024` | Bump higher for reasoning models (DeepSeek-R1, Gemma-thinking, etc.) whose `reasoning_content` eats the token budget before any visible content appears. |
+| `MARKDOWN_AI_TIMEOUT_MS` | `60000` | IPC-handler timeout. The handler resolves with reason `'timeout'` even if the model adapter hangs. |
+| `MARKDOWN_AI_MAX_INPUT_CHARS` | `48000` | Notes larger than this are rejected without a network call. |
+| `MARKDOWN_AI_STREAMING` | _unset_ (treated as on) | Streaming is on by default. Set to `false` (case-insensitive) to opt out: the panel will show `Summarizing…` / `Rewriting…` for the full duration, then the final reply in one shot. Use this if a specific local server doesn't speak SSE cleanly. Stall timeout still applies via `MARKDOWN_AI_TIMEOUT_MS` — in streaming mode the timer resets on every token (per-chunk stall), not over the whole response. |
+
+Example: point at Ollama via its OpenAI-compatible endpoint:
+
+```bash
+cd apps/desktop
+MARKDOWN_AI_BASE_URL=http://localhost:11434/v1 \
+MARKDOWN_AI_MODEL=llama3.1 \
+  npm run dev
+```
+
+Example: use Ollama's **native** adapter instead (note the `:11434` root with no `/v1`):
+
+```bash
+cd apps/desktop
+MARKDOWN_AI_PROVIDER=ollama \
+MARKDOWN_AI_BASE_URL=http://localhost:11434 \
+MARKDOWN_AI_MODEL=llama3.1 \
+  npm run dev
+```
+
+### Settings panel
+
+Click **AI Settings** in the toolbar to edit the most common settings without a terminal:
+
+- **Server URL** — the OpenAI-compatible endpoint (`baseUrl`).
+- **Model** — the model id.
+- **Allow a remote (off-machine) server** — the privacy opt-in (see below).
+
+**Test connection** pings the endpoint's `/models` (respecting the loopback/allow-remote gate) and reports *"Connected — N models available"* or a friendly error. On success the **Model** field becomes a pick-from-list (a dropdown populated from the server's models; free-typing still works). The test uses the values currently in the panel, so you can verify a URL before saving.
+
+Saved values persist to `ai-settings.json` in Electron's app-data directory and survive restarts. Changes take effect **immediately** — no relaunch — including the **Remote AI** badge, which updates live when you toggle allow-remote or change the URL. If a setting is controlled by an environment variable, its field is shown **disabled** with a hint, because the env var takes precedence. The tuning knobs (temperature, max tokens, timeout, max input chars, streaming, provider) remain environment-only for now.
+
+### Remote endpoints & privacy
+
+By default the AI verbs only talk to a **loopback** endpoint — `localhost`, any `127.x.x.x`, or `::1`. This keeps note content on your machine. A non-loopback `MARKDOWN_AI_BASE_URL` (a LAN IP, a hostname, a public server) is **rejected before any network call** with the typed reason `remote-blocked`; the panel shows _"Remote AI server blocked. Set MARKDOWN_AI_ALLOW_REMOTE=true to allow."_
+
+To send notes to a non-loopback server, set `MARKDOWN_AI_ALLOW_REMOTE=true`. When a remote endpoint is both configured **and** allowed, a **Remote AI** badge appears next to the AI buttons in the toolbar (its tooltip shows the destination hostname) so you always know note content is leaving your machine. The badge stays hidden for loopback endpoints and whenever the allow flag is off.
+
+### Constraints (this stage)
+
+- Streaming is over plain text — the rendered panel is `textContent` only, so any Markdown the model emits is shown verbatim rather than re-rendered as headings / bold / etc.
+- No retrieval-augmented generation (RAG); only the active note's body (or the selected passage for Rewrite) is sent.
+- No auto-editing of the original note for either verb. The panel is read-only; copy/paste manually if you want to use the result.
+- The × button aborts the in-flight HTTP request from this app's side, but whether the local model server actually stops generating depends on the server. LM Studio's `llama.cpp` backend, for example, continues to finish a scheduled response even after the client disconnects — the app re-enables the buttons immediately either way, but you may notice the model server keeps working in the background.
+- Most-recent-action wins on the same note: running Summarize after Rewrite (or vice versa) overwrites the previous result. There is no separate history per verb in this stage.
+- Selection-aware Summarize is not implemented; Summarize always sends the whole note.
+- The in-app settings panel covers the endpoint URL, model, and remote-allow toggle only; the other tuning knobs (temperature, max tokens, timeout, max input chars, streaming, provider) remain environment-variable only.
+- No retries, no provider failover, no multi-provider concurrency.
+- Failure modes return one of a fixed set of typed reasons (`empty-input`, `input-too-large`, `server-unreachable`, `timeout`, `http-error`, `invalid-response`, `provider-error`, `unknown`) with canned, sanitized user-facing messages. Provider-supplied error text is **not** echoed to the UI.
+
+## Dictionary lookup
+
+`Cmd/Ctrl + Shift + D` translates the currently-selected word using the local
+[Dictionary macOS app](https://github.com/) (a separate menu-bar app). The app
+captures your selection plus the surrounding paragraph so the translation is
+context-aware (e.g. "bank" as a riverbank vs. a financial institution), then
+shows its own popup with the result.
+
+This is optional and requires the Dictionary app to be installed and running:
+
+- The Dictionary app runs a loopback HTTP server on `127.0.0.1:49152` and writes
+  a bearer token to `~/Library/Application Support/DictionaryApp/token` (mode
+  `0600`). This app reads that token in the **main process** and POSTs the
+  selection there — never over the network, never from the renderer (a renderer
+  fetch to `127.0.0.1` would be CORS-blocked).
+- If the Dictionary app is not running, or the token is missing, pressing
+  `Cmd/Ctrl + Shift + D` shows a short status message in the bottom-right pill
+  instead of translating. No note content is ever modified.
+
+If you do not use the Dictionary app, simply ignore this shortcut — it has no
+effect on normal editing.
 
 ## MCP Note Ingestion
 
@@ -321,6 +437,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
 - The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
+- **Local AI: Summarize & Rewrite** is intentionally narrow this stage: streaming + abort ship, but the rendered output is plain `textContent` (no Markdown re-rendering), there is no RAG, no auto-edit of the original note, an in-app settings panel for the endpoint/model/allow-remote (other tuning knobs remain env-var only), no retries, no provider failover, no per-verb history per note, and whether the upstream model server actually stops on × depends on the server. See the [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) section for the full constraint list.
 
 ### Deferred items
 
