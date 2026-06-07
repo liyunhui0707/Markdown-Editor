@@ -1,8 +1,0 @@
-{
-  "name": "mcp-chat-rag",
-  "version": "0.1.1",
-  "description": "MCP server that indexes Claude Code session JSONL files into a local sqlite-vec store and exposes retrieval over chat history.",
-  "author": {
-    "name": "liyunhui"
-  }
-}
