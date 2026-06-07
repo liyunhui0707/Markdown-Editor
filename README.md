@@ -253,7 +253,7 @@ AI settings apply to **both** Summarize and Rewrite. The endpoint URL, model, an
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MARKDOWN_AI_PROVIDER` | `openai-compatible` | Adapter selector. Only the OpenAI-compatible adapter ships today; the architecture allows additional adapters with a single new module. |
+| `MARKDOWN_AI_PROVIDER` | `openai-compatible` | Adapter selector. `openai-compatible` (default — LM Studio, Ollama's `/v1`, `llama-server`, any OpenAI-compatible server) or `ollama` (Ollama's **native** API — set `MARKDOWN_AI_BASE_URL` to the `:11434` root, **no `/v1`**). Both adapters support Summarize, Rewrite, streaming, and the Test-connection model list. |
 | `MARKDOWN_AI_BASE_URL` | `http://localhost:1234/v1` | Must be `http://` or `https://`. A trailing slash is normalized away. Must be **loopback** unless `MARKDOWN_AI_ALLOW_REMOTE=true` (see below). |
 | `MARKDOWN_AI_ALLOW_REMOTE` | _unset_ (treated as `false`) | Gate for non-loopback endpoints. By default a base URL that isn't `localhost` / `127.x` / `::1` is rejected before any network call (reason `remote-blocked`). Set to `true` (case-insensitive) to permit a remote/LAN endpoint; a **Remote AI** badge then appears in the toolbar. |
 | `MARKDOWN_AI_MODEL` | `local-model` | LM Studio routes to the currently-loaded model regardless of name. Ollama requires the real model id (e.g. `llama3.1`). |
@@ -263,11 +263,21 @@ AI settings apply to **both** Summarize and Rewrite. The endpoint URL, model, an
 | `MARKDOWN_AI_MAX_INPUT_CHARS` | `48000` | Notes larger than this are rejected without a network call. |
 | `MARKDOWN_AI_STREAMING` | _unset_ (treated as on) | Streaming is on by default. Set to `false` (case-insensitive) to opt out: the panel will show `Summarizing…` / `Rewriting…` for the full duration, then the final reply in one shot. Use this if a specific local server doesn't speak SSE cleanly. Stall timeout still applies via `MARKDOWN_AI_TIMEOUT_MS` — in streaming mode the timer resets on every token (per-chunk stall), not over the whole response. |
 
-Example: point at Ollama with `llama3.1`:
+Example: point at Ollama via its OpenAI-compatible endpoint:
 
 ```bash
 cd apps/desktop
 MARKDOWN_AI_BASE_URL=http://localhost:11434/v1 \
+MARKDOWN_AI_MODEL=llama3.1 \
+  npm run dev
+```
+
+Example: use Ollama's **native** adapter instead (note the `:11434` root with no `/v1`):
+
+```bash
+cd apps/desktop
+MARKDOWN_AI_PROVIDER=ollama \
+MARKDOWN_AI_BASE_URL=http://localhost:11434 \
 MARKDOWN_AI_MODEL=llama3.1 \
   npm run dev
 ```
