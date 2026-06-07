@@ -1,19 +1,12 @@
 /* test/ai-preload-badge.test.js
-   Stage F — CF4: vaultApi.getAiBadgeState() computes badge state at preload
-   load time from process.env. Sync, no IPC.
+   Stage C update — the badge + AI settings are sourced from the MAIN process
+   via ai:get-settings (single source of truth: env > stored > default). The
+   preload no longer computes the badge from process.env.
 
-   Contract:
-   - Default (no env vars) → { isRemote: false, hostname: '', allowRemote: false }.
-     Badge hidden.
-   - Non-loopback baseUrl + allowRemote=true → { isRemote: true, hostname:
-     <host>, allowRemote: true }. Badge SHOWN.
-   - Non-loopback baseUrl + allowRemote NOT true → { isRemote: true,
-     hostname: <host>, allowRemote: false }. Badge hidden (request would
-     be blocked; badge would lie about actual traffic).
-   - Loopback baseUrl + allowRemote=true → { isRemote: false, hostname:
-     'localhost'|'...', allowRemote: true }. Badge hidden (no remote traffic).
-   - Method added inside vaultApi block. Namespace count stays 2 (vaultApi + ai).
-   - No new exposeInMainWorld surface.
+   These tests verify the preload's DELEGATION + surface shape. The actual
+   env/stored/default merge and badge derivation are covered main-side by
+   ai-settings-ipc.test.js (CS3.*). The original Stage F CF4.B env-computation
+   tests were removed along with the inlined preload logic they exercised.
 */
 
 'use strict';
@@ -28,18 +21,18 @@ const SRC = () => fs.readFileSync(PRELOAD_PATH, 'utf8');
 
 // ===== CF4.A — source-shape =====
 
-test('CF4.A1 vaultApi has getAiBadgeState method (source-shape)', () => {
-  assert.match(SRC(), /getAiBadgeState\s*:/);
+test('CF4.A1 vaultApi exposes getAiBadgeState + getAiSettings + saveAiSettings + testAiConnection', () => {
+  const src = SRC();
+  assert.match(src, /getAiBadgeState\s*:/);
+  assert.match(src, /getAiSettings\s*:/);
+  assert.match(src, /saveAiSettings\s*:/);
+  assert.match(src, /testAiConnection\s*:/);
 });
 
 test('CF4.A1b [QA fix] preload does NOT require any relative module (sandbox-safe)', () => {
-  // Electron's sandboxed preload restricts require() to a whitelist
-  // (electron, events, timers, url). A relative require like
-  // `./lib/ai-settings` throws silently and prevents
-  // contextBridge.exposeInMainWorld from running — symptom: every
-  // vaultApi button becomes a no-op. Inline the helper instead.
+  // Electron's sandboxed preload restricts require() to a whitelist; a relative
+  // require throws silently and turns every vaultApi button into a no-op.
   const src = SRC();
-  // Allow only the special `require('electron')` line at the top.
   const requires = src.match(/require\(['"][^'"]+['"]\)/g) || [];
   const nonAllowed = requires.filter((r) => !/(['"])electron\1/.test(r));
   assert.deepEqual(nonAllowed, [],
@@ -53,7 +46,7 @@ test('CF4.A2 namespace count still === 2 (vaultApi + ai)', () => {
   assert.deepEqual(names, ['ai', 'vaultApi']);
 });
 
-test('CF4.A3 ai surface still exactly 2 keys', () => {
+test('CF4.A3 ai surface still exactly 2 keys (settings live on vaultApi)', () => {
   const src = SRC();
   const re = /exposeInMainWorld\(\s*['"]ai['"]\s*,\s*(\{[\s\S]*?\})\s*\)\s*;/m;
   const m = src.match(re);
@@ -67,116 +60,68 @@ test('CF4.A3 ai surface still exactly 2 keys', () => {
   assert.deepEqual(keys, ['rewriteText', 'summarizeNote']);
 });
 
-// ===== CF4.B — runtime with env stubs =====
+// ===== CF4.B — runtime delegation to main =====
 
-function evalPreloadWithEnv(env) {
+function evalPreload(invokeImpl) {
   const exposed = {};
+  const calls = [];
   const ipcRenderer = {
-    invoke: () => Promise.resolve(),
-    on: () => {},
-    removeListener: () => {},
-    send: () => {},
+    invoke: (channel, payload) => { calls.push({ channel, payload }); return invokeImpl(channel, payload); },
+    on: () => {}, removeListener: () => {}, send: () => {},
   };
-  const contextBridge = {
-    exposeInMainWorld(name, surface) { exposed[name] = surface; },
-  };
+  const contextBridge = { exposeInMainWorld(name, surface) { exposed[name] = surface; } };
   const src = fs.readFileSync(PRELOAD_PATH, 'utf8');
   const stripped = src.replace(
     /const\s*\{\s*contextBridge\s*,\s*ipcRenderer\s*\}\s*=\s*require\(['"]electron['"]\)\s*;?/,
     '/* stripped */',
   );
-  // Provide process with the test env; require() resolves relative to this test file's directory.
-  // Use eval with the same dirname as preload.js for require() to work.
-  const realProcess = global.process;
-  const fakeProcess = { ...realProcess, env: env };
-  const Module = require('node:module');
-  const wrappedSrc = `(function(contextBridge, ipcRenderer, process, require, __dirname, __filename) {\n${stripped}\n});`;
-  const fn = (0, eval)(wrappedSrc); // eslint-disable-line no-eval
-  fn(
-    contextBridge,
-    ipcRenderer,
-    fakeProcess,
-    Module.createRequire(PRELOAD_PATH),
-    path.dirname(PRELOAD_PATH),
-    PRELOAD_PATH,
-  );
-  return exposed;
+  const wrapped = `(function(contextBridge, ipcRenderer){\n${stripped}\n});`;
+  (0, eval)(wrapped)(contextBridge, ipcRenderer); // eslint-disable-line no-eval
+  return { exposed, calls };
 }
 
-test('CF4.B1 default env → { isRemote: false, allowRemote: false } (badge hidden)', () => {
-  const env = {};
-  const exposed = evalPreloadWithEnv(env);
-  assert.equal(typeof exposed.vaultApi.getAiBadgeState, 'function');
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, false);
-  assert.equal(state.allowRemote, false);
+test('CF4.B1 getAiBadgeState invokes ai:get-settings and resolves to .badge', async () => {
+  const badge = { isRemote: true, allowRemote: true, hostname: '192.168.1.9' };
+  const { exposed, calls } = evalPreload((ch) =>
+    ch === 'ai:get-settings' ? Promise.resolve({ effective: {}, envOverridden: {}, badge }) : Promise.resolve());
+  assert.deepEqual(await exposed.vaultApi.getAiBadgeState(), badge);
+  assert.ok(calls.some((c) => c.channel === 'ai:get-settings'));
 });
 
-test('CF4.B2 non-loopback baseUrl + ALLOW_REMOTE=true → badge SHOWN', () => {
-  const env = {
-    MARKDOWN_AI_BASE_URL: 'http://192.168.1.50:1234/v1',
-    MARKDOWN_AI_ALLOW_REMOTE: 'true',
+test('CF4.B2 getAiBadgeState falls back to no-badge when main returns nothing', async () => {
+  const { exposed } = evalPreload(() => Promise.resolve(undefined));
+  assert.deepEqual(await exposed.vaultApi.getAiBadgeState(),
+    { isRemote: false, allowRemote: false, hostname: '' });
+});
+
+test('CF4.B3 getAiBadgeState falls back to no-badge when the invoke rejects', async () => {
+  const { exposed } = evalPreload(() => Promise.reject(new Error('no channel')));
+  assert.deepEqual(await exposed.vaultApi.getAiBadgeState(),
+    { isRemote: false, allowRemote: false, hostname: '' });
+});
+
+test('CF4.B4 getAiSettings returns the full snapshot from main', async () => {
+  const snap = {
+    effective: { baseUrl: 'http://localhost:1234/v1', model: 'm', allowRemote: false },
+    envOverridden: { baseUrl: false, model: false, allowRemote: false },
+    badge: { isRemote: false, allowRemote: false, hostname: 'localhost' },
   };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, true);
-  assert.equal(state.allowRemote, true);
-  assert.equal(typeof state.hostname, 'string');
-  assert.ok(state.hostname.length > 0);
+  const { exposed } = evalPreload((ch) => ch === 'ai:get-settings' ? Promise.resolve(snap) : Promise.resolve());
+  assert.deepEqual(await exposed.vaultApi.getAiSettings(), snap);
 });
 
-test('CF4.B3 non-loopback baseUrl + NO allow → badge hidden (request would be blocked)', () => {
-  const env = { MARKDOWN_AI_BASE_URL: 'http://192.168.1.50:1234/v1' };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, true);
-  assert.equal(state.allowRemote, false);
-  // Renderer uses (isRemote && allowRemote) to decide; this means badge OFF.
+test('CF4.B5 saveAiSettings invokes ai:save-settings with the partial payload', async () => {
+  const { exposed, calls } = evalPreload((ch) => ch === 'ai:save-settings' ? Promise.resolve({ ok: true }) : Promise.resolve());
+  const res = await exposed.vaultApi.saveAiSettings({ model: 'qwen' });
+  assert.equal(res.ok, true);
+  assert.deepEqual(calls.find((c) => c.channel === 'ai:save-settings').payload, { model: 'qwen' });
 });
 
-test('CF4.B4 loopback baseUrl + ALLOW_REMOTE=true → badge hidden (no actual remote traffic)', () => {
-  const env = {
-    MARKDOWN_AI_BASE_URL: 'http://127.0.0.1:8080/v1',
-    MARKDOWN_AI_ALLOW_REMOTE: 'true',
-  };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, false);
-  assert.equal(state.allowRemote, true);
-});
-
-test('CF4.B5 IPv6 loopback baseUrl → isRemote false', () => {
-  const env = { MARKDOWN_AI_BASE_URL: 'http://[::1]:1234/v1' };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, false);
-});
-
-test('CF4.B6 LAN IP exposes hostname for badge tooltip (no port leak)', () => {
-  const env = {
-    MARKDOWN_AI_BASE_URL: 'http://10.0.0.5:8080/v1',
-    MARKDOWN_AI_ALLOW_REMOTE: 'true',
-  };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.hostname, '10.0.0.5');
-  // Port intentionally NOT included — keep the badge tooltip compact.
-});
-
-test('CF4.B7 unparseable baseUrl → defensive default (isRemote false)', () => {
-  const env = { MARKDOWN_AI_BASE_URL: 'garbage' };
-  const exposed = evalPreloadWithEnv(env);
-  const state = exposed.vaultApi.getAiBadgeState();
-  assert.equal(state.isRemote, false);
-});
-
-test('CF4.B8 getAiBadgeState is sync and idempotent', () => {
-  const env = {
-    MARKDOWN_AI_BASE_URL: 'http://192.168.1.50:1234/v1',
-    MARKDOWN_AI_ALLOW_REMOTE: 'true',
-  };
-  const exposed = evalPreloadWithEnv(env);
-  const state1 = exposed.vaultApi.getAiBadgeState();
-  const state2 = exposed.vaultApi.getAiBadgeState();
-  assert.deepEqual(state1, state2);
+test('CF4.B6 testAiConnection invokes ai:test-connection with the pending payload', async () => {
+  const { exposed, calls } = evalPreload((ch) => ch === 'ai:test-connection'
+    ? Promise.resolve({ ok: true, models: ['a'] }) : Promise.resolve());
+  const res = await exposed.vaultApi.testAiConnection({ baseUrl: 'http://localhost:1234/v1', allowRemote: false });
+  assert.deepEqual(res, { ok: true, models: ['a'] });
+  assert.deepEqual(calls.find((c) => c.channel === 'ai:test-connection').payload,
+    { baseUrl: 'http://localhost:1234/v1', allowRemote: false });
 });

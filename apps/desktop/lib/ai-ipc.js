@@ -37,7 +37,16 @@ const { aiError, REASON_MESSAGES, isKnownReason } = require('./ai-errors');
 const { buildSummaryPrompt } = require('./ai-prompt-builder');
 const { buildRewritePrompt } = require('./ai-rewrite-prompt-builder');
 const { loadAiSettings, isLoopbackBaseUrl } = require('./ai-settings');
+const { readStoredSettings } = require('./ai-settings-store');
 const { resolveProvider } = require('./ai-provider');
+
+// Stage C: per-request settings resolver. Tests inject a fixed opts.settings
+// (short-circuits the read). Otherwise settings are re-read on every request
+// as env > stored (settings panel) > default, so panel edits take effect live.
+function makeSettingsResolver(opts) {
+  if (opts.settings) return () => opts.settings;
+  return () => loadAiSettings({ env: process.env, stored: readStoredSettings(opts.settingsPath) });
+}
 
 const CHANNEL = 'ai:summarize-note';
 const REWRITE_CHANNEL = 'ai:rewrite-text';
@@ -162,24 +171,28 @@ function shouldStream(settings, provider, payload) {
 
 function register(ipc, options) {
   const opts = options || {};
-  const settings = opts.settings || loadAiSettings({ env: process.env });
-  const timeoutMs = (typeof opts.timeoutMs === 'number' && opts.timeoutMs > 0)
-    ? opts.timeoutMs
-    : settings.timeoutMs;
+  // Stage C: re-read settings per request (env > stored > default) so the
+  // settings panel takes effect live. opts.settings still short-circuits.
+  const resolveSettings = makeSettingsResolver(opts);
 
-  // Resolve provider at registration. If the provider selector throws (unknown
-  // provider, etc.), cache the AiError as a fail-fast provider so every invoke
-  // returns the typed failure without the handler needing a special case.
+  // Resolve provider once. The provider TYPE is env-only (MARKDOWN_AI_PROVIDER
+  // is not user-editable), so it cannot change at runtime; baseUrl/model are
+  // passed per call from the per-request settings. If the selector throws,
+  // cache the AiError as a fail-fast provider so every invoke returns typed.
   let provider = opts.provider;
   if (!provider) {
     try {
-      provider = resolveProvider(settings, { fetch: globalThis.fetch });
+      provider = resolveProvider(resolveSettings(), { fetch: globalThis.fetch });
     } catch (err) {
       provider = makeFailFastProvider(err);
     }
   }
 
   ipc.handle(CHANNEL, async (event, payload) => {
+    const settings = resolveSettings();
+    const timeoutMs = (typeof opts.timeoutMs === 'number' && opts.timeoutMs > 0)
+      ? opts.timeoutMs
+      : settings.timeoutMs;
     // Stage F: privacy pre-flight. Non-loopback baseUrl + no opt-in →
     // refuse before any other work (no provider call, no info leak).
     if (!isLoopbackBaseUrl(settings.baseUrl) && (settings.allowRemote ?? false) !== true) {
@@ -238,21 +251,22 @@ function register(ipc, options) {
 // zero risk of regressing the v0.2.0 Summarize behavior.
 function registerRewrite(ipc, options) {
   const opts = options || {};
-  const settings = opts.settings || loadAiSettings({ env: process.env });
-  const timeoutMs = (typeof opts.timeoutMs === 'number' && opts.timeoutMs > 0)
-    ? opts.timeoutMs
-    : settings.timeoutMs;
+  const resolveSettings = makeSettingsResolver(opts);
 
   let provider = opts.provider;
   if (!provider) {
     try {
-      provider = resolveProvider(settings, { fetch: globalThis.fetch });
+      provider = resolveProvider(resolveSettings(), { fetch: globalThis.fetch });
     } catch (err) {
       provider = makeFailFastProvider(err);
     }
   }
 
   ipc.handle(REWRITE_CHANNEL, async (event, payload) => {
+    const settings = resolveSettings();
+    const timeoutMs = (typeof opts.timeoutMs === 'number' && opts.timeoutMs > 0)
+      ? opts.timeoutMs
+      : settings.timeoutMs;
     // Stage F: same pre-flight as Summarize handler.
     if (!isLoopbackBaseUrl(settings.baseUrl) && (settings.allowRemote ?? false) !== true) {
       return failure('remote-blocked');

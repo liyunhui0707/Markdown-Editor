@@ -43,6 +43,126 @@
   // from node without a document).
   if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
 
+  // Stage C: wire the AI settings modal. Defensive — does nothing if the modal
+  // elements or the vaultApi settings methods are missing. renderBadge() is
+  // called after a successful save so the Remote AI badge updates live without
+  // an app restart. Env-overridden fields are disabled with a hint and are not
+  // sent on save (env wins anyway).
+  function setupAiSettingsPanel(renderBadge) {
+    const settingsButton = document.getElementById('aiSettingsButton');
+    const overlay = document.getElementById('aiSettingsOverlay');
+    const inputBaseUrl = document.getElementById('aiSettingsBaseUrl');
+    const inputModel = document.getElementById('aiSettingsModel');
+    const checkAllowRemote = document.getElementById('aiSettingsAllowRemote');
+    const hintBaseUrl = document.getElementById('aiSettingsBaseUrlHint');
+    const hintModel = document.getElementById('aiSettingsModelHint');
+    const hintAllowRemote = document.getElementById('aiSettingsAllowRemoteHint');
+    const errorBox = document.getElementById('aiSettingsError');
+    const saveBtn = document.getElementById('aiSettingsSave');
+    const cancelBtn = document.getElementById('aiSettingsCancel');
+    // Stage C-2: test-connection controls are optional (the panel still works
+    // without them) — looked up but NOT in the required-elements guard below.
+    const testBtn = document.getElementById('aiSettingsTest');
+    const testStatus = document.getElementById('aiSettingsTestStatus');
+    const modelList = document.getElementById('aiSettingsModelList');
+    if (!settingsButton || !overlay || !inputBaseUrl || !inputModel || !checkAllowRemote
+        || !saveBtn || !cancelBtn || !window.vaultApi
+        || typeof window.vaultApi.getAiSettings !== 'function'
+        || typeof window.vaultApi.saveAiSettings !== 'function') {
+      return;
+    }
+
+    function showError(msg) {
+      if (!errorBox) return;
+      if (msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+      else { errorBox.textContent = ''; errorBox.hidden = true; }
+    }
+    function applyLock(input, hint, locked) {
+      input.disabled = locked;
+      if (hint) hint.hidden = !locked;
+    }
+    function closeModal() { overlay.hidden = true; }
+
+    function openModal() {
+      showError('');
+      Promise.resolve()
+        .then(function () { return window.vaultApi.getAiSettings(); })
+        .then(function (snap) {
+          const eff = (snap && snap.effective) || {};
+          const ov = (snap && snap.envOverridden) || {};
+          inputBaseUrl.value = typeof eff.baseUrl === 'string' ? eff.baseUrl : '';
+          inputModel.value = typeof eff.model === 'string' ? eff.model : '';
+          checkAllowRemote.checked = eff.allowRemote === true;
+          applyLock(inputBaseUrl, hintBaseUrl, ov.baseUrl === true);
+          applyLock(inputModel, hintModel, ov.model === true);
+          checkAllowRemote.disabled = ov.allowRemote === true;
+          if (hintAllowRemote) hintAllowRemote.hidden = ov.allowRemote !== true;
+          setTestStatus('', '');
+          overlay.hidden = false;
+        })
+        .catch(function () { showError('Could not load settings.'); overlay.hidden = false; });
+    }
+
+    function save() {
+      showError('');
+      const partial = {};
+      if (!inputBaseUrl.disabled) partial.baseUrl = inputBaseUrl.value.trim();
+      if (!inputModel.disabled) partial.model = inputModel.value.trim();
+      if (!checkAllowRemote.disabled) partial.allowRemote = checkAllowRemote.checked;
+      Promise.resolve()
+        .then(function () { return window.vaultApi.saveAiSettings(partial); })
+        .then(function (res) {
+          if (res && res.ok) {
+            closeModal();
+            if (typeof renderBadge === 'function') renderBadge();
+          } else {
+            showError((res && res.error) || 'Could not save settings.');
+          }
+        })
+        .catch(function () { showError('Could not save settings.'); });
+    }
+
+    // Stage C-2: test connection + model list. Uses the PENDING panel values so
+    // the user can test before saving. XSS-safe: status via textContent, model
+    // options via createElement (never innerHTML).
+    function setTestStatus(msg, kind) {
+      if (!testStatus) return;
+      testStatus.textContent = msg || '';
+      testStatus.className = 'ai-settings-teststatus' + (kind ? ' ' + kind : '');
+    }
+    function populateModelList(models) {
+      if (!modelList) return;
+      modelList.textContent = '';
+      (models || []).forEach(function (id) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        modelList.appendChild(opt);
+      });
+    }
+    function testConnection() {
+      setTestStatus('Testing…', '');
+      const payload = { baseUrl: inputBaseUrl.value.trim(), allowRemote: checkAllowRemote.checked };
+      Promise.resolve()
+        .then(function () { return window.vaultApi.testAiConnection(payload); })
+        .then(function (res) {
+          if (res && res.ok) {
+            const n = (res.models || []).length;
+            populateModelList(res.models);
+            setTestStatus('Connected — ' + n + ' model' + (n === 1 ? '' : 's') + ' available', 'ok');
+          } else {
+            setTestStatus((res && res.error) || 'Could not connect.', 'err');
+          }
+        })
+        .catch(function () { setTestStatus('Could not connect.', 'err'); });
+    }
+
+    settingsButton.addEventListener('click', openModal);
+    cancelBtn.addEventListener('click', closeModal);
+    saveBtn.addEventListener('click', save);
+    if (testBtn) testBtn.addEventListener('click', testConnection);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     const button = document.getElementById('summarizeButton');
     const panel = document.getElementById('aiSummaryPanel');
@@ -50,29 +170,38 @@
     // panel lookups, then included in the same defensive early-return guard.
     const rewriteButton = document.getElementById('rewriteButton');
 
-    // Stage F: privacy badge wiring. Reads the badge state computed at
-    // preload load time (vaultApi.getAiBadgeState). Shows the badge ONLY
-    // when remote AI is actively used (non-loopback baseUrl + allowRemote).
-    // The non-loopback + no-allow case is blocked at the IPC layer and
-    // surfaces as an error message on click; the badge in that state
-    // would mislead the user about live traffic, so it stays hidden.
+    // Stage C: badge state + AI settings come from the MAIN process
+    // (vaultApi.getAiBadgeState / getAiSettings / saveAiSettings) — single
+    // source of truth merging env > stored > default. getAiBadgeState is now
+    // async (IPC), so renderBadge resolves a Promise. The badge shows ONLY when
+    // remote AI is actively used (non-loopback baseUrl + allowRemote); the
+    // non-loopback + no-allow case is blocked at the IPC layer on click.
     const badge = document.getElementById('aiRemoteBadge');
-    if (badge && window.vaultApi && typeof window.vaultApi.getAiBadgeState === 'function') {
-      try {
-        const s = window.vaultApi.getAiBadgeState();
-        if (s && s.isRemote && s.allowRemote) {
-          badge.textContent = 'Remote AI';
-          if (typeof s.hostname === 'string' && s.hostname.length > 0) {
-            badge.title = 'AI requests are going to ' + s.hostname + ' (off this machine).';
+    function renderBadge() {
+      if (!badge || !window.vaultApi || typeof window.vaultApi.getAiBadgeState !== 'function') return;
+      Promise.resolve()
+        .then(() => window.vaultApi.getAiBadgeState())
+        .then((s) => {
+          if (s && s.isRemote && s.allowRemote) {
+            badge.textContent = 'Remote AI';
+            if (typeof s.hostname === 'string' && s.hostname.length > 0) {
+              badge.title = 'AI requests are going to ' + s.hostname + ' (off this machine).';
+            }
+            badge.hidden = false;
+          } else {
+            badge.hidden = true;
           }
-          badge.hidden = false;
-        } else {
-          badge.hidden = true;
-        }
-      } catch (_e) {
-        badge.hidden = true;
-      }
+        })
+        .catch(function () { badge.hidden = true; });
     }
+    renderBadge();
+
+    // Stage C: AI settings modal. Independent of the Summarize/Rewrite guard
+    // below — it only needs vaultApi.getAiSettings/saveAiSettings and the modal
+    // elements. Open loads effective settings; env-overridden fields are
+    // disabled with a hint; Save persists the (non-locked) fields then
+    // re-renders the badge live so it reflects the new baseUrl/allowRemote.
+    setupAiSettingsPanel(renderBadge);
 
     // Defensive: if any required global is missing, do nothing rather than throw.
     // Both buttons stay unwired; the rest of the renderer is unaffected.

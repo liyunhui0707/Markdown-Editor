@@ -8,11 +8,15 @@
 
 const { aiError, REASON_MESSAGES } = require('./ai-errors');
 const { createOpenAiCompatibleProvider } = require('./ai-provider-openai');
+const { createOllamaProvider } = require('./ai-provider-ollama');
 
 function resolveProvider(settings, deps) {
   const providerName = settings && settings.provider;
   if (providerName === 'openai-compatible') {
     return createOpenAiCompatibleProvider(deps);
+  }
+  if (providerName === 'ollama') {
+    return createOllamaProvider(deps);
   }
   throw aiError('provider-error', REASON_MESSAGES['provider-error']);
 }

@@ -422,16 +422,19 @@ test('CA4.19 main.js requires ./lib/ai-ipc (v0.2.0 preserved)', () => {
   assert.match(readMain(), /require\(\s*['"]\.\/lib\/ai-ipc['"]\s*\)/);
 });
 
-test('CA4.20 main.js calls AiIpc.registerRewrite(ipcMain) exactly once', () => {
-  const m = readMain().match(/AiIpc\.registerRewrite\(\s*ipcMain\s*\)/g) || [];
+test('CA4.20 main.js calls AiIpc.registerRewrite(ipcMain, …) exactly once', () => {
+  // Stage C: registerRewrite now takes a { settingsPath } option (per-request
+  // settings re-read). Still exactly one call.
+  const m = readMain().match(/AiIpc\.registerRewrite\(\s*ipcMain\s*,/g) || [];
   assert.equal(m.length, 1);
 });
 
-test('CA4.21 main.js registerRewrite call has NO options argument', () => {
-  assert.doesNotMatch(readMain(), /AiIpc\.registerRewrite\(\s*ipcMain\s*,/);
+test('CA4.21 main.js registerRewrite passes a settingsPath option (Stage C)', () => {
+  // Pre-Stage C this asserted NO options; Stage C wires the shared settings file.
+  assert.match(readMain(), /AiIpc\.registerRewrite\(\s*ipcMain\s*,\s*\{\s*settingsPath/);
 });
 
-test('CA4.22 main.js still calls AiIpc.register(ipcMain) exactly once (v0.2.0 preserved)', () => {
-  const m = readMain().match(/AiIpc\.register\(\s*ipcMain\s*\)/g) || [];
+test('CA4.22 main.js still calls AiIpc.register(ipcMain, …) exactly once', () => {
+  const m = readMain().match(/AiIpc\.register\(\s*ipcMain\s*,/g) || [];
   assert.equal(m.length, 1);
 });

@@ -208,7 +208,42 @@ function createOpenAiCompatibleProvider(deps) {
     }
   }
 
-  return { summarize, streamSummarize };
+  // Stage C-2: list available models via GET {baseUrl}/models. Used by the
+  // settings panel's "Test connection" + model picker. Same typed-error
+  // mapping as summarize; never formats user-facing text.
+  async function listModels(args) {
+    const { baseUrl, signal } = args || {};
+    const url = joinUrl(baseUrl, '/models');
+    let res;
+    try {
+      res = await fetchImpl(url, { method: 'GET', signal });
+    } catch (err) {
+      if (isAbortError(err) || (signal && signal.aborted)) {
+        throw aiError('timeout', REASON_MESSAGES['timeout']);
+      }
+      throw aiError('server-unreachable', REASON_MESSAGES['server-unreachable']);
+    }
+    if (!res || res.ok !== true) {
+      const status = res && Number.isInteger(res.status) ? res.status : undefined;
+      throw aiError('http-error', REASON_MESSAGES['http-error'], { status });
+    }
+    let json;
+    try {
+      json = await res.json();
+    } catch (_err) {
+      throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+    }
+    const data = json && json.data;
+    if (!Array.isArray(data)) {
+      throw aiError('invalid-response', REASON_MESSAGES['invalid-response']);
+    }
+    const models = data
+      .map((m) => (m && typeof m.id === 'string' ? m.id : ''))
+      .filter((id) => id.length > 0);
+    return { models };
+  }
+
+  return { summarize, streamSummarize, listModels };
 }
 
 module.exports = { createOpenAiCompatibleProvider };
