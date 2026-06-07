@@ -2,32 +2,76 @@
 
 /* WYSIWYG (ProseMirror/Tiptap) Write engine — bundle entry.
 
-   First slice of the post-G.13 pivot (see memory project_wysiwyg_prosemirror_
-   pivot): instead of CM6 decorations toggling render↔source inline (which hit
-   an inherent reflow ceiling on tall blocks), this engine edits a ProseMirror
-   document directly via Tiptap. Markdown stays the source of truth: content
-   loads from a Markdown string and `getText()` serializes back to Markdown
-   (round-trip is remark/markdown-it-NORMALIZED, not byte-identical — a
-   deliberate, accepted tradeoff of this model).
+   Post-G.13 pivot (see memory project_wysiwyg_prosemirror_pivot): this engine
+   edits a ProseMirror document directly via Tiptap instead of toggling CM6
+   decorations (which hit an inherent reflow ceiling on tall blocks). Markdown
+   stays the source of truth.
 
-   This entry is bundled by `npm run build:tiptap` into lib/tiptap-bundle.js
-   (esbuild IIFE) and loaded via a <script> tag in index.html, mirroring how
-   cm6-entry.js → cm6-bundle.js works. It exposes:
+   MARKDOWN BRIDGE: a `remark` (unified) pipeline + the pure mdast<->ProseMirror
+   converter in markdown-mdast-pm.js. Replaces tiptap-markdown, which lost GFM
+   task-list checkboxes on Tiptap 3. Round-trip is remark-NORMALIZED, not
+   byte-identical (accepted tradeoff).
 
-     window.TiptapView.createTiptapView(parent, opts) -> {
-       view, getText, setText, getState, setState, exitWriteMode, focus, destroy
-     }
+   NEVER-BLANK GUARD (the regression fix): Tiptap 3's setContent silently drops
+   content the schema rejects (enableContentCheck is off by default), which can
+   empty the editor. So setText (and the initial load) call setContent with
+   `errorOnInvalidContent: true` inside try/catch; on ANY failure they fall back
+   to a plain-text doc built from the raw Markdown — the editor is never blank.
+   `emitUpdate: false` keeps loading a note from marking it dirty.
 
-   The return shape matches the CM6 engine factories so the renderer can mount
-   it through the same engine-selection path.
+   Bundled by `npm run build:tiptap` into lib/tiptap-bundle.js; loaded via a
+   <script> tag in index.html. Exposes window.TiptapView.createTiptapView.
 
-   SLICE SCOPE: paragraphs, headings, bold/italic/inline-code, lists,
-   blockquote, fenced code, hr (StarterKit defaults). Tables / math / mermaid
-   are deferred to later slices. */
+   SLICE SCOPE: paragraphs, headings, bold/italic/inline-code/strike, links,
+   lists, task lists, blockquote, fenced code, hr, GFM tables. Math / mermaid
+   degrade to fenced code / text; per-column table alignment is deferred. */
 
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from 'tiptap-markdown';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TaskList } from '@tiptap/extension-task-list';
+import { TaskItem } from '@tiptap/extension-task-item';
+import { Image } from '@tiptap/extension-image';
+
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkStringify from 'remark-stringify';
+import remarkGfm from 'remark-gfm';
+
+import MarkdownMdastPm from './markdown-mdast-pm.js';
+const { mdastToPm, pmToMdast } = MarkdownMdastPm;
+
+const mdParser = unified().use(remarkParse).use(remarkGfm);
+const mdStringifier = unified().use(remarkStringify, {
+  bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
+}).use(remarkGfm);
+
+function markdownToDoc(md) {
+  const tree = mdParser.parse(md == null ? '' : String(md));
+  return mdastToPm(tree);
+}
+
+function docToMarkdown(json) {
+  return String(mdStringifier.stringify(pmToMdast(json)));
+}
+
+// Guaranteed-valid fallback: each blank-line-separated block becomes a
+// paragraph of plain text. Used when remark/conversion/setContent fails so the
+// editor renders the raw content rather than going blank.
+function plainTextDoc(md) {
+  const s = (md == null) ? '' : String(md);
+  const blocks = s.split(/\n{2,}/);
+  const content = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    content.push(b ? { type: 'paragraph', content: [{ type: 'text', text: b }] }
+                   : { type: 'paragraph' });
+  }
+  return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
+}
 
 function createTiptapView(parent, opts) {
   const o = opts || {};
@@ -38,32 +82,51 @@ function createTiptapView(parent, opts) {
     element: parent,
     extensions: [
       StarterKit,
-      // tiptap-markdown: parse string `content` as Markdown on load, and
-      // expose editor.storage.markdown.getMarkdown() for serialization.
-      Markdown.configure({
-        html: false,            // do not pass raw HTML through
-        tightLists: true,
-        bulletListMarker: '-',
-        linkify: false,
-        breaks: false,
-      }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      // Inline images (the converter emits image nodes inside paragraphs).
+      // inline:true matches that; without this extension, strict setContent
+      // rejected the whole note and fell back to plain text (raw Markdown).
+      Image.configure({ inline: true, allowBase64: true }),
     ],
-    content: initialDoc,
+    content: '', // start empty; real content is applied via the guarded setText
   });
 
   function getText() {
     try {
-      return editor.storage.markdown.getMarkdown();
+      return docToMarkdown(editor.getJSON());
     } catch (err) {
       return '';
     }
   }
 
+  // Never-blank setText: try the real Markdown->PM doc with strict content
+  // checking; on any failure fall back to a plain-text doc. emitUpdate:false so
+  // a load doesn't fire onChange (which would mark the note dirty).
   function setText(text) {
     const md = (text == null) ? '' : String(text);
-    // setContent with a Markdown string; the Markdown extension parses it.
-    editor.commands.setContent(md, false);
+    let doc = null;
+    try { doc = markdownToDoc(md); } catch (err) { doc = null; }
+    if (doc) {
+      try {
+        editor.commands.setContent(doc, { emitUpdate: false, errorOnInvalidContent: true });
+        return;
+      } catch (err) {
+        // Schema rejected the converted doc — fall through to plain text.
+      }
+    }
+    try {
+      editor.commands.setContent(plainTextDoc(md), { emitUpdate: false });
+    } catch (err) {
+      editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph' }] }, { emitUpdate: false });
+    }
   }
+
+  if (initialDoc) setText(initialDoc);
 
   if (onChange) {
     editor.on('update', function () { onChange(getText()); });
@@ -85,4 +148,4 @@ if (typeof window !== 'undefined') {
   window.TiptapView = { createTiptapView: createTiptapView };
 }
 
-export { createTiptapView };
+export { createTiptapView, markdownToDoc, docToMarkdown, plainTextDoc };

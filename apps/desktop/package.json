@@ -1,11 +1,11 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
-    "test": "node --test test/*.test.js test/spike-cm6/*.test.js test/cm6-write-view/*.test.js test/session-import/*.test.mjs test/session-viewer/*.test.js",
+    "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js test/session-import/*.test.mjs test/session-viewer/*.test.js",
     "session-import:claude": "node tools/session-import/import-claude.mjs",
     "session-import:codex": "node tools/session-import/import-codex.mjs",
     "test:write-engine": "node --test test/write-engine.test.js",
@@ -47,6 +47,13 @@
     "@codemirror/view": "^6.28.0",
     "@lezer/markdown": "^1.6.3",
     "@tiptap/core": "^3.26.0",
+    "@tiptap/extension-image": "^3.26.0",
+    "@tiptap/extension-table": "^3.26.0",
+    "@tiptap/extension-table-cell": "^3.26.0",
+    "@tiptap/extension-table-header": "^3.26.0",
+    "@tiptap/extension-table-row": "^3.26.0",
+    "@tiptap/extension-task-item": "^3.26.0",
+    "@tiptap/extension-task-list": "^3.26.0",
     "@tiptap/pm": "^3.26.0",
     "@tiptap/starter-kit": "^3.26.0",
     "@toast-ui/editor": "^3.2.2",
@@ -54,6 +61,9 @@
     "katex": "^0.16.47",
     "marked": "^17.0.5",
     "mermaid": "^11.15.0",
-    "tiptap-markdown": "^0.9.0"
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "unified": "^11.0.5"
   }
 }
