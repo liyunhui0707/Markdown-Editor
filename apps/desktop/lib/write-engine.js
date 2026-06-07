@@ -27,7 +27,10 @@
   const STORAGE_KEY = 'markdownVault.writeEngine';
   const QUERY_KEY   = 'writeEngine';
   const DEFAULT     = 'hybrid-cm6';
-  const VALID       = new Set(['hybrid', 'cm6', 'hybrid-cm6']);
+  // Stage A: 'hybrid-cm6-lp' is the live-preview engine — opt-in via
+  // ?writeEngine=hybrid-cm6-lp or localStorage.markdownVault.writeEngine.
+  // Default remains 'hybrid-cm6'; lp is a peer engine, not a replacement.
+  const VALID       = new Set(['hybrid', 'cm6', 'hybrid-cm6', 'hybrid-cm6-lp']);
 
   function readQuery(search) {
     if (search == null) return null;

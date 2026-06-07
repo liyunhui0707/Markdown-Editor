@@ -470,6 +470,740 @@ Use a Stage-14-rich note covering frontmatter, ATX + Setext headings, bold, ital
 
 **Conclusion:** Stage 18 is accepted as a clean Branch A closure. Automated regression checks and live-app manual QA passed; no regression was found; no code or test change was required. The patch is documentation-only.
 
+## Stage A — `hybrid-cm6-lp` live-preview engine (opt-in)
+
+First stage of the option-2 Obsidian-style Live Preview migration. The default engine remains `hybrid-cm6`; the lp engine is opt-in via `?writeEngine=hybrid-cm6-lp` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp')`.
+
+**Behavioral difference from `hybrid-cm6` (Stage A scope)**: emphasis markers (`*`, `_`, `**`, `__`) only. Off-active-line the lp plugin emits `Decoration.replace` (markers visually removed) and registers the replaced ranges with `EditorView.atomicRanges` (arrow-key cursor motion steps over each hidden marker as one unit). On-active-line, lp emits nothing — the hybrid walker's existing `Decoration.mark` + existing CSS reveal the marker dimmed.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label in the status bar should read **CM6 Hybrid LP**. To revert: `localStorage.removeItem('markdownVault.writeEngine'); location.reload()` — engine label returns to **CM6 Hybrid**.
+
+**Engine selection and renderer wiring**
+- [ ] Set `?writeEngine=hybrid-cm6-lp` in the URL (or use the localStorage key). Confirm: engine label reads "CM6 Hybrid LP". Console: `window.console.debug` logs `[write-engine] hybrid-cm6-lp` on load.
+- [ ] Clear the localStorage key / URL param and reload. Confirm: engine label reverts to "CM6 Hybrid" (default unchanged).
+
+**Decoration-overlap verification (manual gate from R2-MAJOR 3 — load-bearing)**
+- [ ] Open a note containing exactly: `Line 1.\n\n**bold text** and *italic text* on this line.\n\nLine 4.` Click on line 1 (the lp emphasis line is NOT active).
+- [ ] Confirm: line 3 visually reads as `bold text and italic text on this line.` — NO `*` or `**` characters are visible. The "bold text" reads as bold; "italic text" reads as italic.
+- [ ] Open DevTools → Elements panel. Inspect line 3's DOM. Confirm: the rendered DOM elements for line 3 do NOT contain literal `*` characters in their text content. The hybrid walker's `Decoration.mark({class:'cm-md-syntax cm-md-emphasis-mark'})` exists on the original character ranges, but they are visually replaced by empty widgets.
+- [ ] If line 3 still shows `*` characters in DOM, STOP — the decoration-overlap assumption from spec Unknown (d) does not hold in this CM6 version. Fallback: parameterize `Cm6HybridView.buildHeadingDecorations` with a `{skipEmphasisMark:true}` flag (only sanctioned modification to that file).
+
+**Active-line reveal (Stage A on-active behavior matches `hybrid-cm6`)**
+- [ ] Click on line 3 (the emphasis line). Confirm: `**` and `*` characters appear, dimmed (muted color, 0.5 opacity) — same visual as `hybrid-cm6`.
+- [ ] Click back on line 1. Confirm: `**` and `*` disappear again.
+
+**Atomic-range arrow-key motion (Stage A's user-visible cursor benefit)**
+- [ ] On a line containing `prefix **bold** suffix`, click on a DIFFERENT line (so the bold line's markers are hidden).
+- [ ] Use arrow keys to navigate UP onto the bold line, then to the position immediately after `bold` (visually after the "d"). 
+- [ ] Press Left arrow once. Confirm: the cursor advances by ONE keystroke past the closing `**` (in `hybrid-cm6` it would pause for two invisible character positions; in `hybrid-cm6-lp` it skips both `*` at once).
+- [ ] Continue pressing Left arrow. Confirm: cursor moves character-by-character through `bold` letters.
+- [ ] Test the same in the OTHER direction: cursor before `bold`, press Right arrow, should advance past the opening `**` in one keystroke.
+
+**Multi-line + multi-cursor selection reveal**
+- [ ] Document with `**bold A**` on line 2 and `**bold B**` on line 6. Drag-select from line 1 to line 7. Confirm: both `**` runs reveal (dimmed) simultaneously.
+- [ ] Alt-click on line 2 and Alt-click on line 6 (two cursors). Confirm: both `**` runs reveal simultaneously.
+
+**Chinese IME composition (CLAUDE.md focus area)**
+- [ ] On a line containing `**bold**`, place caret inside `bold`. Start a Pinyin IME composition (e.g., type `zhong wen`). Select a candidate and commit. Confirm: composition completes normally; no first-character drop; no caret jump; inserted Chinese characters land at the caret position; emphasis markers reveal/hide correctly during and after composition.
+
+**Round-trip save/reload**
+- [ ] In a note with various emphasis (`# H\n\n**a** *b* **c***d* _e_ __f__\n`), edit (e.g., insert text inside `**a**`). Save (Cmd+S). Close and reopen the note. Confirm: source on disk matches what you typed (byte-identical at LF level); `getText()` in DevTools (via `liveEditorInstance.getText()`) returns the same source.
+
+**Undo / redo (CLAUDE.md focus area)**
+- [ ] Type `_test_` into an existing note. Press Cmd+Z. Confirm: document state reverts; `_test_` is removed. Press Cmd+Shift+Z. Confirm: `_test_` returns. Move caret away from the line. Confirm: markers hide (replaced). Move back. Confirm: markers reveal.
+
+**Long-document responsiveness (CLAUDE.md focus area)**
+- [ ] Open a ~1000-line note containing emphasis every 5 lines. Confirm: opens within a few seconds; typing remains responsive; arrow-key navigation feels smooth.
+
+**Edge cases**
+- [ ] Note with frontmatter containing `**bold**` (`---\ntitle: **note title**\n---\n\nbody **bold**\n`): in lp engine, confirm the frontmatter `**` is rendered as plain text (no replace, no special styling — Stage 14.9 frontmatter contract preserved). The body `**bold**` is replaced as normal when off-active.
+- [ ] Note with a fenced code block containing `**not bold**` inside. Confirm: the markers stay visible (parser does not emit EmphasisMark inside fenced code).
+- [ ] Note with `***bold-italic***`. Confirm: all three asterisks on each side hide when off-active; reveal when on-active.
+
+**Switch back to default — no regression in `hybrid-cm6`**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label is "CM6 Hybrid". Confirm: all Stage 17 behavior intact (Stages 23, 25, 26, 28, 30, 31, 32, 33, 34 features still work).
+
+**Automated regression sweep after Stage A**
+- [ ] `cd apps/desktop && npm test` — pre-edit baseline was 1566 pass / 0 fail / 2 skip; post-Stage-A delta is +68 new tests (5 new test files for the lp engine). Confirm full suite stays green.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green.
+
+## Stage B — `hybrid-cm6-lp` extended to inline code, strikethrough, links, images
+
+Second stage of the option-2 Live Preview migration. Same opt-in mechanism as Stage A (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage A**: extends `Decoration.replace` + `EditorView.atomicRanges` off-active to FOUR additional inline marker categories — inline-code backticks, strikethrough `~~`, inline-link brackets/parens/URL/title, inline-image markup. Link TEXT and image ALT ranges stay visible. Reference-style links/images and autolinks are intentionally NOT replaced.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-B1 — engine opt-in works (unchanged from Stage A)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-B2 — inline code DOM overlap (load-bearing)**
+- [ ] Open a note with `prefix \`code\` suffix` on its own line. Click on a different line.
+- [ ] Visually: backticks are absent; "code" reads with monospace + muted background.
+- [ ] DevTools Elements panel: the rendered DOM for the inline-code line contains the word "code" but NOT the `` ` `` characters.
+- [ ] Click on the inline-code line. Confirm: backticks reveal dimmed.
+
+**MQ-B3 — strikethrough DOM overlap (load-bearing)**
+- [ ] Note with `prefix ~~old~~ suffix`. Click on a different line.
+- [ ] Visually + DevTools: `~~` characters are absent; "old" still has line-through.
+- [ ] Click on the strikethrough line. Confirm: `~~` reveals dimmed.
+
+**MQ-B4 — inline link DOM overlap (load-bearing)**
+- [ ] Note with `prefix [link text](https://example.com "title") suffix`. Click on a different line.
+- [ ] Visually: only `link text` is visible (underlined per existing `cm-md-link-text`). No `[`, `]`, `(`, URL, `"title"`, `)` visible.
+- [ ] DevTools: rendered DOM for the link line contains "link text" but NOT the bracket/paren/URL/title characters.
+- [ ] Click on the link line. Confirm: all 6 hidden marker ranges reveal dimmed.
+
+**MQ-B5 — inline image DOM overlap (load-bearing)**
+- [ ] Note with `prefix ![alt text](https://example.com/img.png) suffix`. Click on a different line.
+- [ ] Visually: only `alt text` is visible (italic + muted per existing `cm-md-image-alt`). No `![`, `]`, `(`, URL, `)` visible. **NO `<img>` rendered** (that's Stage C, not Stage B).
+- [ ] DevTools: rendered DOM contains "alt text" but NOT the image markup characters.
+- [ ] Click on the image line. Confirm: markup reveals dimmed.
+
+**MQ-B6 — atomic cursor motion over inline-code backticks**
+- [ ] Click immediately AFTER the visible "code" on an off-active line. Press Left arrow once. Confirm: cursor advances past the closing backtick in ONE keystroke (no pause on invisible position).
+- [ ] Click immediately BEFORE "code". Press Right arrow. Same.
+
+**MQ-B7 — atomic cursor motion over strikethrough delimiters**
+- [ ] Same arrow-key test around `~~old~~`. Each `~~` is traversed atomically (one keystroke skips both `~`).
+
+**MQ-B8 — atomic cursor motion over inline-link markers**
+- [ ] On an off-active line containing `[text](url)`, position cursor immediately after the visible "text". Press Left arrow once. Confirm: cursor jumps past the `]` in one keystroke.
+- [ ] Continue pressing Left through the link — each hidden marker traversed atomically.
+
+**MQ-B9 — atomic cursor motion over inline-image markup**
+- [ ] Same test around `![alt](url)`. Each hidden marker atomically traversed.
+
+**MQ-B10 — Cmd-click link preservation (Stage 25 must still work)**
+- [ ] Click on a non-link line so the link line is off-active. Cmd-click on the visible link text.
+- [ ] Confirm: URL opens via Stage 25 path (allowlist `https:` and `mailto:`). The source offsets are unchanged by `Decoration.replace`, so the click handler still resolves the link correctly.
+
+**MQ-B11 — Chinese IME composition (CLAUDE.md focus area)**
+- [ ] Start an IME composition with caret inside any of the 4 new marker types (e.g., inside a backtick-wrapped code span, inside link text, inside image alt).
+- [ ] Confirm: composition completes normally; no first-character drop; no caret jump; markers reveal/hide correctly around composition.
+
+**MQ-B12 — Undo/redo per marker type**
+- [ ] Type new `\`text\``, `~~text~~`, `[text](url)`, `![alt](url)` snippets in a fresh line. Press Cmd-Z then Cmd-Shift-Z. Confirm: each undo step reverses the edit cleanly; decoration state remains consistent.
+
+**MQ-B13 — Save / reload round-trip per marker type**
+- [ ] Edit a note containing all 4 new marker types. Save (Cmd-S). Close + reopen.
+- [ ] Confirm: source on disk matches what you typed (byte-identical at LF level); `getText()` in DevTools returns the same source.
+
+**MQ-B14 — Stage A emphasis still works**
+- [ ] Confirm `**bold**`, `*italic*`, `_italic_`, `__bold__` continue to hide off-active and reveal on-active — Stage A behavior preserved through the lp-emphasis → lp-inline rename.
+
+**MQ-B15 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label is "CM6 Hybrid".
+- [ ] Confirm: all Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact. Inline code / strikethrough / links / images in hybrid-cm6 still hide via CSS `display: none` on `.cm-md-syntax` (NOT replaced; same as before Stage B).
+
+**MQ-B16 — Automated regression sweep after Stage B**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-B baseline was 1648/1646/0/2; post-Stage-B should be roughly 1685/1683/0/2 (+37 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (535/533/0/2 after Stage B).
+
+**Edge-case extras (optional)**
+- [ ] Frontmatter containing inline code / strikethrough / link / image — confirm those markers render as plain text (not replaced) per Stage 14.9 frontmatter contract.
+- [ ] Reference-style link `[text][ref]` and reference-style image `![alt][1]` — confirm NOT replaced (markers stay visible).
+- [ ] Autolink `<https://example.com>` — confirm NOT replaced (Stage 25 Cmd-click continues to work).
+- [ ] Nested emphasis inside link text or image alt (e.g., `[**bold** text](url)`) — inner `**` still replaced (Stage A behavior preserved through Stage B's iteration).
+
+## Stage C — `hybrid-cm6-lp` renders inline images as actual `<img>` elements (with URL allowlist + vault-relative IPC)
+
+Third stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage B**: inline image markup `![alt](url)` is no longer just 5–6 empty-widget hides — it is now ONE `WidgetType` widget per image that renders an actual `<img>` element off-active. URL must pass `isSafeImageUrl` (allowed: `https:`, `data:image/<mime>` where mime ∈ {png, jpeg, jpg, gif, webp, svg+xml, bmp, apng, avif, x-icon, vnd.microsoft.icon}, and vault-relative paths). Vault-relative paths resolve via a new IPC contract `window.vaultApi.resolveImagePath(noteDir, relPath)`. Rejected URLs render a styled-alt placeholder (NEVER an `<img>` with a disallowed URL). On-active behavior unchanged: markup characters reveal dimmed with alt text styled per Stage B.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-C1 — engine opt-in works (unchanged from Stages A + B)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-C2 — `https:` inline image renders as `<img>` off-active (load-bearing)**
+- [ ] Open a note with `prefix ![cat](https://placekitten.com/200/200) suffix`. Click on a different line.
+- [ ] Visually: an actual `<img>` is rendered inline (no `![cat](...)` markup visible).
+- [ ] DevTools Elements panel: the rendered DOM contains exactly one `<img>` element with `src="https://placekitten.com/200/200"` and `alt="cat"` (or empty alt if `cat` was sized away).
+- [ ] Click on the image line. Confirm: `<img>` disappears; the markup characters reveal dimmed; "cat" appears styled (italic + muted).
+
+**MQ-C3 — `data:image/...` inline image renders as `<img>` off-active**
+- [ ] Note with a small `data:image/png;base64,iVBORw0KGgoAAAANSU...` image. Click off the line.
+- [ ] Visually + DevTools: actual `<img>` rendered with the `data:` URL as `src`.
+
+**MQ-C4 — rejected URL schemes show placeholder, NEVER render `<img>` (security — load-bearing)**
+- [ ] For each of these URLs, place the markup `![alt](URL)` in a note and click off the line:
+  - `http://example.com/img.png` (insecure)
+  - `javascript:alert(1)` (XSS)
+  - `file:///etc/passwd` (local file)
+  - `chrome-extension://abc/x.png`
+  - `blob:https://example.com/abc`
+- [ ] For each: DevTools confirms NO `<img>` element rendered for that range; "alt" text shown styled (italic + muted) per `RejectedImageWidget`.
+
+**MQ-C5 — vault-relative path resolves to actual `<img>` (positive case)**
+- [ ] In the current note's directory, place an image file e.g. `./assets/test.png` (PNG or any supported MIME). In the note: `![local](./assets/test.png)`. Click off the line.
+- [ ] Visually + DevTools: `<img>` renders with `src` starting `file://` and pointing to the resolved vault file. The image loads.
+- [ ] In main-process logs: confirm one `resolve-image-path` IPC call with `{ok: true, fileUrl: 'file://...'}`.
+
+**MQ-C6 — vault-relative path OUTSIDE vault is rejected (security — load-bearing)**
+- [ ] In a note inside the vault, add `![out](../../../etc/hosts)` (or any escape attempt to a real file outside the vault root). Click off the line.
+- [ ] Visually + DevTools: NO `<img>` rendered; rejected placeholder shown.
+- [ ] Main-process logs: IPC returns `{ok: false, reason: 'outside-vault'}` (or similar typed reason); sanitized — does NOT leak absolute paths to renderer.
+
+**MQ-C7 — vault-relative path through symlink rejected (safe-read invariant)**
+- [ ] Create a symlink inside the vault that points to a file outside the vault: `ln -s /etc/hosts vault/dir/leak.png`. Add `![leak](dir/leak.png)`.
+- [ ] Confirm: rejected (symlinks are blocked by `O_NOFOLLOW` open). Placeholder shown.
+
+**MQ-C8 — missing vault-relative file rejected gracefully**
+- [ ] `![ghost](./does-not-exist.png)`. Confirm: placeholder rendered (no thrown error, no broken `<img>` icon).
+
+**MQ-C9 — `<img>` load failure swaps to placeholder**
+- [ ] `![404](https://example.com/definitely-404.png)`. Confirm: initially `<img>` element attempted; when the load fails, the DOM swaps to the rejected placeholder showing "404".
+
+**MQ-C10 — Obsidian-style sizing `![alt|400](url)`**
+- [ ] `![bigcat|400](https://placekitten.com/800/800)`. Confirm rendered `<img>` has `width: 400` (or 400px) inline style applied; aspect ratio preserved (height auto).
+- [ ] `![bigcat|400x300](...)`: confirm both width 400 + height 300 applied; alt text "bigcat" (sizing stripped).
+
+**MQ-C11 — default sizing constraints**
+- [ ] Place an unsized image with very large natural dimensions. Confirm: `<img>` is capped by `max-width: 100%` (fits container) and `max-height: 400px` (doesn't blow up vertically).
+
+**MQ-C12 — on-active toggle (Stage B behavior preserved)**
+- [ ] On an off-active image line, the `<img>` is shown. Click on the same line.
+- [ ] Confirm: `<img>` disappears; the source markup `![alt](url)` reveals — alt styled (italic + muted) per `cm-md-image-alt`, brackets/parens/url marked dimmed per `cm-md-image-mark`.
+- [ ] Click off the line again. `<img>` returns. Repeat several times — no flicker, no leaked widgets.
+
+**MQ-C13 — round-trip / `getText()` preservation**
+- [ ] Edit a note with several image lines (mix of https, data, vault-relative, rejected). Save (Cmd-S). Close + reopen.
+- [ ] Confirm source on disk is byte-identical at LF level to what you typed — no `<img>` HTML, no mutated alt, no URL rewrites.
+- [ ] DevTools: `window.markdownVaultLive.getText()` returns raw Markdown identical to source.
+
+**MQ-C14 — undo/redo per image edit**
+- [ ] Type a new `![cat](https://...)` line. Cmd-Z. Confirm: edit reversed cleanly; widget removed. Cmd-Shift-Z. Confirm: edit reapplied; widget re-rendered.
+
+**MQ-C15 — Chinese IME composition near image markup**
+- [ ] Place caret adjacent to an image (just before `!` or just after `)`). Start IME composition. Confirm: composition completes normally; no first-character drop; the widget doesn't disrupt the composition.
+
+**MQ-C16 — multi-cursor / drag-select touches reveal source**
+- [ ] Drag-select across several lines that include image lines. Confirm: every touched image line switches to source view (per Stage 26 active-range contract); `<img>` widgets disappear on the touched lines and reveal markup.
+
+**MQ-C17 — Stage A + B behavior preserved (regression)**
+- [ ] Confirm: emphasis (`**bold**`, `*italic*`), inline code, strikethrough, inline links continue to hide off-active and reveal on-active — Stages A + B behavior preserved through Stage C's image-branch contract change.
+
+**MQ-C18 — Automated regression sweep after Stage C**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-C baseline was approximately 1685/1683/0/2; post-Stage-C should be roughly 1756/1754/0/2 (+71 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (615/613/0/2 after Stage C).
+
+**Edge-case extras (optional)**
+- [ ] Frontmatter containing an image — confirm markup renders as plain text (not replaced) per Stage 14.9 frontmatter contract.
+- [ ] Reference-style image `![alt][1]` — confirm NOT replaced (markers stay visible).
+- [ ] Image inside a link `[![inner-alt](inner-url)](outer-url)` — confirm image is rendered as `<img>` + outer link markers are atomically replaced (5 link ranges + 1 image widget = 6 replaced ranges total).
+- [ ] Default engine `hybrid-cm6` unchanged: `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Images render as text + URL markup (no `<img>` inline). All Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact.
+
+## Stage D — `hybrid-cm6-lp` block-level marker hiding (heading `#`, list bullets, blockquote `>`)
+
+Fourth stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B + C (`?writeEngine=hybrid-cm6-lp` or `localStorage.markdownVault.writeEngine`). Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage C**: extends `Decoration.replace` + `EditorView.atomicRanges` off-active to THREE block-level marker categories — ATX heading prefix (`#` … `######`), list bullets (`-`, `*`, `+`, `1.`, `1)`), and blockquote `>`. Setext underlines (`===`/`---` after text), HorizontalRule (`---` on its own line), TaskMarker (`[ ]`, `[x]`), and fenced-code fences (` ``` `, `~~~`) are explicitly preserved unchanged.
+
+**Starting state for these checks**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label should read **CM6 Hybrid LP**.
+
+**MQ-D1 — engine opt-in works (unchanged from Stages A + B + C)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-D2 — ATX HeaderMark DOM overlap (load-bearing)**
+- [ ] Open a note with `alpha`, then `# Heading One`, then `beta` on three separate lines. Click on the `alpha` line.
+- [ ] Visually: the heading line shows just "Heading One" with H1 styling; no `#` visible.
+- [ ] DevTools Elements panel: the rendered DOM for the heading line contains "Heading One" but NOT the `#` character.
+- [ ] Click on the heading line. Confirm: `#` reveals dimmed (Stage 27 behavior preserved).
+- [ ] Repeat for `## H2`, `### H3`, …, `###### H6`. All reveal/hide correctly.
+
+**MQ-D3 — ListMark DOM overlap (load-bearing)**
+- [ ] Note with three list items: `- a`, `- b`, `- c`. Click on a different line.
+- [ ] Visually + DevTools: the `-` characters are absent from the rendered DOM; the list text is still indented per CSS rules. Click on one item line; confirm `-` reveals dimmed for that item only.
+- [ ] Repeat the check for ordered (`1.`, `2.`, `3.`), `*`, `+`, `1)` variants.
+
+**MQ-D4 — QuoteMark DOM overlap (load-bearing)**
+- [ ] Note with `> line1`, `> line2`, `> line3`. Click off the blockquote.
+- [ ] Visually + DevTools: NO `>` characters in the rendered DOM for any line.
+- [ ] Click on line 2 only. Confirm: line 2's `>` reveals dimmed; lines 1 and 3 remain hidden.
+
+**MQ-D5 — Atomic cursor motion across block markers**
+- [ ] Click immediately AFTER the visible text on a heading line that is OFF-ACTIVE (or use Shift+Click to extend selection without entering the line). Press Left arrow once.
+- [ ] Confirm: cursor advances past the hidden `#` characters in ONE keystroke (no pause on invisible positions).
+- [ ] Repeat for list bullets and blockquote `>`.
+
+**MQ-D6 — Multi-line blockquote per-line reveal**
+- [ ] Note with `> a`, `> b`, `> c`. Click on the `> b` line.
+- [ ] Confirm: only line 2's `>` reveals dimmed. Lines 1 and 3 stay hidden. Mouse-click to lines 1 / 3 in turn; reveal follows the active line.
+
+**MQ-D7 — Setext H1 + H2 underlines NOT replaced (parent guard)**
+- [ ] Note with `Title\n=====` (Setext H1) and below that `Subtitle\n---` (Setext H2). Click on a different line.
+- [ ] Visually: both `=====` and `---` underlines are still visible (Stage 29 reveal). NO Decoration.replace was applied to them.
+- [ ] DevTools: confirm the `=====` and `---` text is present in the rendered DOM.
+
+**MQ-D8 — HorizontalRule `---` NOT replaced**
+- [ ] Note with `paragraph 1\n\n---\n\nparagraph 2`. The `---` line is a standalone HR. Click off it.
+- [ ] Visually: the `---` characters remain VISIBLE (dimmed + letter-spaced via `.cm-md-hr` — Stage 14.1 behavior). They are NOT hidden by Stage D.
+- [ ] DevTools: confirm the `---` text is present in the rendered DOM.
+
+**MQ-D9 — Task list ListMark hidden, TaskMarker preserved + clickable**
+- [ ] Note with `- [ ] task one\n- [x] task two`. Click off the list.
+- [ ] Visually: the `-` bullet is hidden (Stage D); the `[ ]` / `[x]` is still visible (Stage 23 contract).
+- [ ] Click on the `[ ]` of task one. Confirm: it toggles to `[x]` per Stage 23 (and the saved source contains `[x]`).
+- [ ] Press Cmd-Shift-X with caret on task two. Confirm: `[x]` toggles to `[ ]` per Stage 23 keymap.
+
+**MQ-D10 — Frontmatter region — block markers inside YAML NOT replaced**
+- [ ] Note with `---\ntitle: Test\ntags:\n  - tag1\n  - tag2\n---\n# Real Heading`. Click off the frontmatter.
+- [ ] Confirm: the YAML lines render as plain text (Stage 14.9 frontmatter contract). The `# Real Heading` line below has its `#` hidden per Stage D MQ-D2.
+
+**MQ-D11 — Nested constructs replace correctly**
+- [ ] Note with `- > quoted item` (blockquote inside list item). Click off.
+- [ ] Confirm: both `-` and `>` are hidden in DOM; the line shows just "quoted item".
+- [ ] Note with `> - listed quote` (list item inside blockquote). Confirm same.
+- [ ] Note with `> # quoted heading`. Confirm both `>` and `#` hidden.
+
+**MQ-D12 — Chinese IME composition near block markers**
+- [ ] Place caret at the end of a `# 标题` line. Start IME composition for a new Chinese word.
+- [ ] Confirm: composition completes normally; no first-character drop; no caret jump.
+- [ ] Try the same near a list `- ` and blockquote `> `.
+
+**MQ-D13 — Undo / redo for block-marker inserts/deletes**
+- [ ] Type a new line starting with `# `. Confirm the `#` hides immediately when you press Enter (off-active).
+- [ ] Cmd-Z. Confirm the entire heading line is undone cleanly.
+- [ ] Cmd-Shift-Z. Confirm the heading reappears.
+- [ ] Repeat for new list items and blockquotes.
+
+**MQ-D14 — Save / reload round-trip per block-marker type**
+- [ ] Edit a note with mixed headings + list items + blockquotes. Save (Cmd-S). Close + reopen.
+- [ ] Confirm source on disk is byte-identical at LF level. `window.markdownVaultLive.getText()` in DevTools matches source.
+
+**MQ-D15 — Stages A + B + C preserved (regression)**
+- [ ] Confirm: emphasis, inline code, strikethrough, inline links, and inline images continue to behave exactly as in Stages A + B + C. Image rendering via `<img>` still works.
+
+**MQ-D16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] Confirm: block markers in `hybrid-cm6` still hide via CSS `display: none` (the rendered DOM contains the `#`/`-`/`>` characters but they're invisible). Cursor motion may pause on invisible positions (the Stage D atomic-cursor improvement is lp-only).
+- [ ] All Stage 17 / 23 / 25 / 26 / 28 / 30 / 31 / 32 / 33 / 34 behaviors intact.
+
+**MQ-D17 — Long-document responsiveness**
+- [ ] Open a 500+ line document with mix of headings, lists, blockquotes. Type in the middle and arrow-key around. Confirm: no perceptible slowdown vs. default engine.
+
+**MQ-D18 — Automated regression sweep after Stage D**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-D baseline was approximately 1739/1737/0/2; post-Stage-D should be roughly 1810/1808/0/2 (+45 focused tests). Confirm zero failures.
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite must be green (660/658/0/2 after Stage D).
+
+**Edge-case extras (optional)**
+- [ ] `#` characters inside fenced code blocks → still render as plain code text (parser: not HeaderMark inside FencedCode).
+- [ ] Empty document / document with only newlines → no crash, no replaces.
+- [ ] Drag-select across multiple block-marker lines — every touched line reveals (Stage 26 active-range contract preserved).
+- [ ] Cmd-click on a link inside a heading or list item — still works per Stage 25.
+
+## Stage E — `hybrid-cm6-lp` renders GFM tables as HTML `<table>` widgets off-active
+
+Fifth stage of the option-2 Live Preview migration. Same opt-in mechanism as Stages A + B + C + D. Default engine remains `hybrid-cm6`.
+
+**Behavioral additions over Stage D**: GFM tables off-active render as actual HTML `<table>` grids via a new multi-line block `TableWidget`. Caret on ANY line of the table swaps the widget back to walker-styled Markdown source. Cell text is rendered as PLAIN text (inline markdown inside cells is NOT rendered — `**bold**` shows as literal characters inside the widget; deferred to a follow-on).
+
+**Starting state**: `cd apps/desktop && npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note** (paste into a vault note):
+
+```markdown
+Before.
+
+| A | B |
+|---|---|
+| 1 | 2 |
+
+After.
+
+| L | C | R |
+|:--|:-:|--:|
+| 1 | 2 | 3 |
+
+After alignment.
+```
+
+**MQ-E1 — engine opt-in works (unchanged from Stages A + B + C + D)**
+- [ ] Engine label reads "CM6 Hybrid LP".
+
+**MQ-E2 — simple 2-col table renders as HTML `<table>` off-active (load-bearing)**
+- [ ] Click on the "Before." line. The table renders as a grid (header row + body row).
+- [ ] DevTools Elements panel: the rendered DOM contains a `<table>` element with `<thead>` (containing `<th>A</th><th>B</th>`) and `<tbody>` (containing `<td>1</td><td>2</td>`).
+- [ ] No raw Markdown `| A | B |` characters visible in the rendered DOM for this region.
+
+**MQ-E3 — per-column alignment from delimiter row (load-bearing)**
+- [ ] Click off the alignment table. Visually: column L is left-aligned, column C is center-aligned, column R is right-aligned.
+- [ ] DevTools: each `<th>` / `<td>` has inline `style="text-align: left;"` / `"text-align: center;"` / `"text-align: right;"` per column.
+
+**MQ-E4 — table-level on-active toggle works**
+- [ ] Click into the header row. The widget disappears; the raw Markdown source `| A | B |` returns with the walker's styled pipes (Stage 31 cm-md-table-pipe).
+- [ ] Click into the delimiter row `|---|---|`. Still source mode.
+- [ ] Click into any body row. Still source mode.
+- [ ] Click outside the table. Widget returns.
+
+**MQ-E5 — single-column table works**
+- [ ] Add `| only |\n|------|\n| a |\n`. Click off → renders as 1-column grid.
+
+**MQ-E6 — HTML-special chars in cells render as escaped text (XSS-safe, load-bearing)**
+- [ ] Add a cell containing `<script>alert(1)</script>`. Click off.
+- [ ] Confirm: NO alert fires. The cell shows the literal characters `<script>alert(1)</script>` as text.
+- [ ] DevTools: the `<td>` element contains a text node, NOT a child `<script>` element.
+
+**MQ-E7 — empty cells render as empty `<td>`**
+- [ ] Table with `| a |  | c |`. Off-active: the 3-column row renders with the middle cell empty.
+
+**MQ-E8 — multi-cursor across table + non-table lines**
+- [ ] Multi-select with one cursor inside the table and another outside (Cmd+click). Table goes to source mode (any cursor inside → on-active).
+
+**MQ-E9 — drag-select across table boundaries**
+- [ ] Drag-select from a line above the table through a line below it. Table goes to source.
+
+**MQ-E10 — multiple tables, independently active**
+- [ ] Two tables in one doc. Click in table 1 → only table 2 renders as widget. Click in table 2 → only table 1.
+
+**MQ-E11 — round-trip / `getText()`**
+- [ ] After clicking in and out of the table multiple times, save (Cmd-S) and close + reopen. Source on disk is byte-identical at LF level. `window.markdownVaultLive.getText()` matches source.
+
+**MQ-E12 — Chinese IME composition near a table**
+- [ ] Place caret on a line adjacent to the table. Start IME composition. Confirm: composition completes normally; widget on the table doesn't disrupt composition.
+- [ ] Click into the table, place caret in a cell, start IME composition. Confirm: composition works in source mode.
+
+**MQ-E13 — undo/redo through table edits**
+- [ ] Click into the table, edit a cell, click out, Cmd-Z. Confirm: edit reverts cleanly. Cmd-Shift-Z. Confirm: edit re-applied.
+
+**MQ-E14 — long table (50+ rows) responsiveness**
+- [ ] Paste a 50-row table. Click in/out. Confirm: no perceptible lag.
+
+**MQ-E15 — Stages A + B + C + D preserved (regression)**
+- [ ] Confirm: emphasis, inline code, strikethrough, inline links, inline images, block markers all continue to work as in prior stages.
+
+**MQ-E16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Tables render as walker-styled Markdown source (NO `<table>` widget). All Stage 31 + 33 table styling intact.
+
+**MQ-E17 — Automated regression sweep after Stage E**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-E baseline ~1810/1808/0/2; post-Stage-E should be roughly 1848/1846/0/2 (+38 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (705/703/0/2 after Stage E).
+
+**Known limitations (intentional, deferred)**
+- Inline markdown inside cells (`**bold**`, `[link](url)`, `` `code` ``) renders as raw text inside the widget. Click into the table to see normal source styling.
+- A non-blank, non-pipe line immediately after a table (no separator blank line) is absorbed into the Lezer Table node as a single-cell trailing row. Convention: separate tables from the following paragraph with a blank line.
+- Cells cannot be edited inside the widget; must click into the table first (triggers source mode).
+
+## Stage F — `hybrid-cm6-lp` KaTeX math rendering
+
+Sixth stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. **First lp stage that adds a new npm dependency** (`katex@^0.16`).
+
+**Behavioral additions over Stage E**: inline math `$x$` and display math `$$x$$` source ranges off-active render via KaTeX as actual TeX. Caret on the same line as inline math, or any line of a display math block, swaps the widget back to raw `$...$` / `$$...$$` source visible. `$` is not in CommonMark; detection is regex-based with a Pandoc-style whitespace rule, `\$` escape handling, and Lezer-aware filtering (math inside `InlineCode` / `FencedCode` / frontmatter is NOT rendered).
+
+**Starting state**: `cd apps/desktop && npm install` (to bring katex), `npm run build:katex` (vendor KaTeX dist), `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+```markdown
+Inline math: $E=mc^2$ and $\alpha + \beta = \gamma$ on one line.
+
+Display math:
+
+$$
+\sum_{i=1}^n i = \frac{n(n+1)}{2}
+$$
+
+Inline code with dollars: `$x$` should stay as code.
+
+```code
+$x$ inside fenced code should stay as code.
+```
+
+Escaped: \$100 is a price, not math.
+
+Invalid TeX: $\frac{$
+```
+
+**MQ-F1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-F2 — inline math renders as KaTeX off-active (load-bearing)**
+- [ ] Click on a line OTHER than the inline math line.
+- [ ] Visually: `$E=mc^2$` is replaced by an actual rendered formula (italic E, italic m, superscript 2).
+- [ ] DevTools Elements panel: a `<span class="katex">` element is present at the math range; the `$` characters are absent from the rendered DOM.
+
+**MQ-F3 — display math renders as KaTeX off-active (load-bearing)**
+- [ ] Click off the display math block.
+- [ ] Visually: `$$\sum...$$` is replaced by a centered rendered equation.
+- [ ] DevTools: `<span class="katex-display">` (or `<div class="cm-md-lp-math-display">` wrapping a katex element).
+
+**MQ-F4 — KaTeX CSS doesn't pollute non-math regions (load-bearing)**
+- [ ] Compare a Markdown note WITHOUT math against the same note rendered in `hybrid-cm6` (default). Visually, paragraphs/headings/lists/quotes/code should look identical.
+- [ ] DevTools: confirm `.katex` class only appears on math elements.
+
+**MQ-F5 — Click into inline math line → source returns**
+- [ ] Click ON the line containing `$E=mc^2$`. The widget disappears; the literal `$E=mc^2$` text returns.
+
+**MQ-F6 — Click into display math block → source returns**
+- [ ] Click on the line `$$`, or inside the math content, or on the closing `$$`. The widget disappears; the multi-line `$$\nsum...\n$$` source returns. Cursor moves between characters in source mode.
+
+**MQ-F7 — Escaped \\$ stays as $ (no math)**
+- [ ] `\$100` line shows as `$100` with the backslash visible (or invisibly per Markdown escape). NO formula rendered.
+
+**MQ-F8 — Math inside inline code stays as code**
+- [ ] `` `$x$` `` shows as the literal code `$x$` (with code styling: monospace, background). NO KaTeX rendering inside.
+
+**MQ-F9 — Math inside fenced code stays as code**
+- [ ] Fenced code block containing `$x$` shows as raw text inside the code block.
+
+**MQ-F10 — Invalid TeX shows error placeholder, NOT a crash (load-bearing)**
+- [ ] `$\frac{$` (unclosed brace). Click off the line.
+- [ ] Visually: a red-bordered or visually distinct element appears showing the raw source `\frac{`.
+- [ ] DevTools: element has class `cm-md-lp-math-error` (or KaTeX's own error class with `errorColor: #cc0000` styling).
+- [ ] No JavaScript error in the DevTools console.
+
+**MQ-F11 — Multiple inline math on one line render independently**
+- [ ] `$\alpha$ and $\beta$` on a single line off-active. Both render as separate KaTeX spans.
+
+**MQ-F12 — Round-trip / `getText()` byte-identical**
+- [ ] Edit a note with math, save (Cmd-S), close + reopen. Source on disk matches what you typed.
+- [ ] DevTools: `window.markdownVaultLive.getText()` returns the raw `$...$` / `$$...$$` source.
+
+**MQ-F13 — Undo/redo through math edits**
+- [ ] Type a new `$x^2$`. Cmd-Z. Confirm the type is undone cleanly. Cmd-Shift-Z. Redo.
+
+**MQ-F14 — Long doc with many formulas — responsiveness**
+- [ ] Generate or paste a 100-formula document. Open it in lp engine. Scroll, click in/out. Confirm: no perceptible slowdown.
+
+**MQ-F15 — Stages A + B + C + D + E preserved (regression)**
+- [ ] Emphasis, inline code, strikethrough, inline links, inline images, block markers, GFM tables all continue to behave as in prior stages.
+
+**MQ-F16 — Default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] `$E=mc^2$` shows as the LITERAL characters `$E=mc^2$` (NO math rendering). Stage F's math layer is lp-only.
+
+**MQ-F17 — Automated regression sweep after Stage F**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-F baseline ~1862/1860/0/2; post-Stage-F roughly 1908/1906/0/2 (+46 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (751/749/0/2 after Stage F).
+
+**Known limitations (intentional, deferred)**
+- Only `$...$` and `$$...$$` delimiters (no `\(...\)` / `\[...\]`).
+- Math inside table cells: cells continue to render as plain text per Stage E (table cells are not parsed for inline math). To get math in a table, click into the table to enter source mode, OR use the math in the table's surrounding prose.
+- KaTeX macros via `\newcommand` work only inside a single formula (no global macro config in Stage F).
+- Trust mode is `false` (KaTeX rejects `\href{javascript:...}{...}` etc.).
+- KaTeX bundle adds ~3 MB to the app (vendored at install time via `build:katex` script).
+
+## Stage G.1 — `hybrid-cm6-lp` fenced-code syntax highlighting via highlight.js
+
+Seventh stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. Second lp stage with a new npm dep (`highlight.js@^11`).
+
+**Behavioral additions over Stage F**: fenced code blocks ` ```lang\n...\n``` ` (and tilde-fenced `~~~lang\n...\n~~~`) off-active render as `<pre><code class="hljs language-{lang}">` with syntax-highlighted tokens via highlight.js. Caret on ANY line of the FencedCode block swaps the widget back to walker source. Unknown / missing language → plain `<code>` text fallback (no error). Mermaid (` ```mermaid `) NOT covered — deferred to Stage G.2.
+
+**Starting state**: `cd apps/desktop && npm install` + `npm run build:hljs` (vendor hljs bundle) + `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+````markdown
+JS:
+
+```js
+const x = 1;
+function add(a, b) { return a + b; }
+```
+
+Python:
+
+```python
+def hello(name):
+    return f"Hello, {name}!"
+```
+
+No language:
+
+```
+plain text
+no highlighting
+```
+
+Unknown language:
+
+```xyzlang123
+this should render as plain text
+```
+
+XSS test:
+
+```html
+<script>alert(1)</script>
+```
+
+Tilde-fenced:
+
+~~~js
+const tilde = true;
+~~~
+````
+
+**MQ-G1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-G2 — JS code block renders highlighted off-active (load-bearing)**
+- [ ] Click on a non-code line. The JS block renders with `const` / `function` keywords colored, strings colored, etc. per atom-one-light theme.
+- [ ] DevTools Elements panel: confirm `<pre class="cm-md-lp-code-block"><code class="hljs language-js">` and child `<span class="hljs-keyword">const</span>` (and similar tokens).
+- [ ] No raw `` ``` `` characters visible in the rendered DOM for the block.
+
+**MQ-G3 — click into code block → walker source returns (load-bearing)**
+- [ ] Click on the opening fence line, or on a code line, or on the closing fence line.
+- [ ] Confirm: the widget disappears; the raw Markdown source returns with the walker's existing styled fence delimiters + info string (Stage 28+).
+- [ ] Cursor moves between characters in source mode; edits propagate; click out → widget reflects edits.
+
+**MQ-G4 — hljs CSS doesn't pollute non-code regions (load-bearing)**
+- [ ] Compare a Markdown note WITHOUT any code blocks against the same note rendered in `hybrid-cm6` (default). Visually, paragraphs/headings/lists/quotes/inline-code should look identical.
+- [ ] DevTools: confirm `.hljs` and `.hljs-*` classes only appear inside `<code>` elements.
+
+**MQ-G5 — unknown language → plain text, no error**
+- [ ] The `xyzlang123` block above renders as plain monospace text inside the widget. No JavaScript error in DevTools console.
+
+**MQ-G6 — XSS-safe with `<script>` in code body (load-bearing)**
+- [ ] The HTML block containing `<script>alert(1)</script>`. Click off the line.
+- [ ] Confirm: NO alert fires. The text `<script>alert(1)</script>` displays as code (escaped + likely with HTML token coloring).
+- [ ] DevTools: the `<code>` element contains hljs token spans + text nodes; NO child `<script>` element.
+
+**MQ-G7 — empty code block doesn't crash**
+- [ ] Add ` ```js\n``` `. Click off. The widget renders an empty `<code>` element. No error.
+
+**MQ-G8 — tilde-fenced ~~~ works the same as backtick-fenced**
+- [ ] The tilde-fenced JS block above renders with the same highlighting as backtick-fenced.
+
+**MQ-G9 — frontmatter region — no code-block widget inside YAML**
+- [ ] A note with `---\nyaml: value\n---\n\n```js\n...\n```\n`. Frontmatter renders as plain text per Stage 14.9; the post-frontmatter code block still renders with highlighting.
+
+**MQ-G10 — multiple code blocks independent**
+- [ ] Click in one code block → walker source for THAT block; other blocks remain as widgets.
+
+**MQ-G11 — round-trip / `getText()` byte-identical**
+- [ ] After clicking in and out, edit cells, save (Cmd-S), close + reopen. Source on disk matches.
+
+**MQ-G12 — IME composition adjacent to code block**
+- [ ] Place caret on a paragraph line adjacent to a code block. Start IME composition. Composition completes normally; the code-block widget doesn't disrupt.
+
+**MQ-G13 — Stages A + B + C + D + E + F preserved (regression)**
+- [ ] Emphasis, inline code, strikethrough, links, images, block markers, tables, math all continue to work as in prior stages.
+
+**MQ-G14 — default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid". Code blocks render as plain monospace text (NO syntax highlighting). Stage 28 walker styling for fences + info string intact.
+
+**MQ-G15 — automated regression sweep after Stage G.1**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-G.1 baseline ~1914/1912/0/2; post-Stage-G.1 roughly 1948/1946/0/2 (+34 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (785/783/0/2 after Stage G.1).
+
+**Known limitations (intentional, deferred)**
+- Only fenced code (``` and `~~~`). Indented (4-space) code blocks NOT handled — Lezer emits `CodeBlock` rather than `FencedCode`; Stage G.1 scope is fenced only.
+- Only languages in the common bundle (~30 popular: JS, TS, Python, Rust, Go, Java, C, C++, Bash, JSON, YAML, HTML, CSS, SQL, and more). Unknown languages fall back to plain text.
+- No auto-detection of language when info string is missing. Plain text fallback.
+- No line numbers, no copy button, no diff view.
+- Mermaid blocks (` ```mermaid `) render as plain `mermaid` code (no diagram). Stage G.2 will add Mermaid.
+- One default theme (atom-one-light). No theme switching.
+- `trust:false` behavior matches hljs defaults.
+- hljs bundle adds ~157 KB to the app (vendored via `build:hljs` script).
+
+## Stage G.2 — `hybrid-cm6-lp` Mermaid diagram rendering
+
+Eighth stage of the option-2 Live Preview migration. Default engine remains `hybrid-cm6`. First lp stage with async-render widget. Third new-dep stage (after F's KaTeX and G.1's hljs).
+
+**Behavioral additions over Stage G.1**: ` ```mermaid ` fenced-code blocks off-active render as actual SVG diagrams via Mermaid. Lang dispatch in `cm6-lp-block.js`'s FencedCode branch: `mermaid` → MermaidWidget; everything else → Stage G.1's hljs CodeBlockWidget (unchanged). Async render: the widget returns a sync placeholder `<div class="cm-md-lp-mermaid">`, then `mermaid.render()` (Promise) patches in the SVG when it resolves (~100ms typical). Async safety via destroyed-flag (mirrors Stage C image widget).
+
+**Starting state**: `cd apps/desktop && npm install` + `npm run build:hljs && npm run build:mermaid` + `npm run dev`. In DevTools console: `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp'); location.reload()`. Engine label "CM6 Hybrid LP".
+
+**Recommended test note**:
+
+````markdown
+Flowchart:
+
+```mermaid
+graph TD
+    A[Start] --> B{Decision?}
+    B -->|Yes| C[Do thing]
+    B -->|No| D[Skip]
+    C --> E[End]
+    D --> E
+```
+
+Sequence:
+
+```mermaid
+sequenceDiagram
+    Alice->>Bob: Hello Bob
+    Bob-->>Alice: Hi Alice
+```
+
+Non-mermaid (Stage G.1 hljs path):
+
+```js
+const x = 1;
+```
+
+Invalid mermaid (should NOT crash):
+
+```mermaid
+not a real diagram
+syntax garbage
+```
+````
+
+**MQ-G2.1 — engine opt-in works**
+- [ ] Engine label "CM6 Hybrid LP".
+
+**MQ-G2.2 — flowchart renders as SVG off-active (load-bearing)**
+- [ ] Click on a non-mermaid line. After a brief flash (<200 ms), the flowchart appears as an actual diagram with rounded boxes, arrows, and labels.
+- [ ] DevTools Elements panel: the widget contains `<div class="cm-md-lp-mermaid">` whose innerHTML is `<svg>...</svg>` (Mermaid's output).
+
+**MQ-G2.3 — click into mermaid block → walker source returns (load-bearing)**
+- [ ] Click on the opening ` ```mermaid ` line, or inside `graph TD`, or on the closing ` ``` `.
+- [ ] Confirm: the widget disappears; raw Markdown source returns with Stage 28 walker styling (fence delimiters + `mermaid` info string).
+
+**MQ-G2.4 — multiple diagram types render**
+- [ ] Both flowchart AND sequence diagram in the test note render correctly off-active.
+
+**MQ-G2.5 — invalid mermaid syntax → styled error, no crash (load-bearing)**
+- [ ] The "Invalid mermaid" block: after a brief flash, the widget shows a red-bordered (or visually distinct) box containing the raw `not a real diagram\nsyntax garbage` text.
+- [ ] DevTools: element has class `cm-md-lp-mermaid cm-md-lp-mermaid-error`; the title attribute contains a Mermaid error message.
+- [ ] No JavaScript error in the DevTools console.
+
+**MQ-G2.6 — non-mermaid blocks still use Stage G.1 hljs (regression)**
+- [ ] The ` ```js ` block renders with syntax highlighting per Stage G.1 (NOT a Mermaid error / NOT a Mermaid render attempt).
+- [ ] DevTools: `<code class="hljs language-js">` (NOT `<div class="cm-md-lp-mermaid">`).
+
+**MQ-G2.7 — multiple mermaid blocks independent**
+- [ ] Add a second mermaid block. Both render independently. Click in one → only that one returns to source.
+
+**MQ-G2.8 — frontmatter region — no mermaid widget inside YAML**
+- [ ] Frontmatter `---\nyaml: value\n---\n\n```mermaid\n...\n```\n` — post-frontmatter block still renders; frontmatter region unaffected.
+
+**MQ-G2.9 — round-trip / `getText()` byte-identical**
+- [ ] After clicking in and out, save (Cmd-S), close + reopen. Source on disk matches.
+
+**MQ-G2.10 — IME composition adjacent**
+- [ ] Caret on a paragraph adjacent to a mermaid block. IME composition completes normally; the widget doesn't disrupt.
+
+**MQ-G2.11 — Stages A + B + C + D + E + F + G.1 preserved (regression)**
+- [ ] All prior stages still work: emphasis, inline code, strikethrough, links, images, block markers, tables, math, syntax-highlighted code blocks.
+
+**MQ-G2.12 — default engine `hybrid-cm6` unchanged**
+- [ ] `localStorage.removeItem('markdownVault.writeEngine'); location.reload()`. Engine label "CM6 Hybrid".
+- [ ] ` ```mermaid ` block renders as plain text in a `<pre>` block (NO diagram). Stage 28 walker styling for fences intact.
+
+**MQ-G2.13 — long doc with many diagrams — responsiveness**
+- [ ] 10+ mermaid blocks in one doc. Open in lp engine. Scroll, click in/out. Confirm: no perceptible lag beyond initial paint.
+
+**MQ-G2.14 — destroy / scroll safety**
+- [ ] Open a doc with mermaid blocks. Scroll rapidly so widgets are constructed + destroyed quickly. No console errors about late Promise updates after destroy.
+
+**MQ-G2.15 — automated regression sweep after Stage G.2**
+- [ ] `cd apps/desktop && npm test` — pre-Stage-G.2 baseline ~1947/1945/0/2; post-Stage-G.2 roughly 1986/1984/0/2 (+39 focused tests).
+- [ ] `cd apps/desktop && npm run test:cm6-write-view` — focused suite green (824/822/0/2 after Stage G.2).
+
+**Known limitations (intentional, deferred)**
+- Only ` ```mermaid ` fences. No alternate language identifiers.
+- `securityLevel: 'strict'` rejects diagrams with user-provided HTML (e.g., `\href` to non-safe URLs).
+- Pre-rendered SVG NOT cached across edits — re-renders every time the widget is created.
+- No click-to-zoom / interactive diagrams / export buttons.
+- One theme (Mermaid's `default` theme); no theme switching.
+- Mermaid bundle adds ~3 MB to the app.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

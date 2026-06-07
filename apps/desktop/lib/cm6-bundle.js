@@ -26730,12 +26730,14 @@
   ];
   window.CM6Production = {
     EditorState,
+    EditorSelection,
     EditorView,
     Annotation,
     ViewPlugin,
     Decoration,
     WidgetType,
     RangeSetBuilder,
+    StateField,
     syntaxTree,
     history,
     markdown: () => markdown({

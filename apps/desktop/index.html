@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown Vault App</title>
     <link rel="stylesheet" href="./node_modules/@toast-ui/editor/dist/toastui-editor.css" />
+    <!-- Stage F — KaTeX CSS for math rendering in hybrid-cm6-lp. Fonts at fonts/ alongside. -->
+    <link rel="stylesheet" href="./lib/vendor/katex/katex.min.css" />
+    <!-- Stage G.1 — highlight.js CSS theme for fenced-code rendering in hybrid-cm6-lp. -->
+    <link rel="stylesheet" href="./lib/vendor/highlight/hljs.css" />
     <style>
       /* ── Design tokens (Stage 5.1: Claude warm paper + iA quietness) ──
          Stage 6.13: theme shifted from warm-paper to neutral / off-white.
@@ -1810,6 +1814,45 @@
         border: none;
       }
 
+      /* Stage G.8 — hide source lines of block widgets in hybrid-cm6-lp.
+         Each source line of a Stage E table / Stage F display math /
+         Stage G.1 fenced code / Stage G.2 mermaid block gets the
+         cm-md-lp-block-hidden class via Decoration.line; this rule
+         removes them from layout. The block widget itself (inserted
+         via Decoration.widget({block: true, side: -1}) at the first
+         source line's .from) renders in their place. Off-active only
+         — when the caret enters any line of the block, the StateField
+         re-runs and removes both the widget AND the line decorations,
+         so the walker-styled raw source becomes visible.
+
+         Stage G.9 — CSS specificity fix. CM6 ships built-in styles
+         like `.cm-content .cm-line { display: block; … }` which are
+         more specific than a single-class rule (specificity 0,1,1 vs
+         0,1,0). Fix: bump specificity AND add !important.
+
+         Stage G.11 — switched from `display: none` to `height: 0 +
+         overflow: hidden`. Per MDN, ResizeObserver does NOT fire for
+         `display: none` transitions, so CM6's height tree stayed
+         stale after the class was applied — CM6 still thought hidden
+         lines had `lineHeight` (~18px), causing a 1-line click-
+         position offset per widget (need to click line N-1 to land
+         on line N). With `height: 0`, ResizeObserver fires reliably
+         on the rect-change; CM6 updates the line's tracked height to
+         0; click positions map correctly. Other resets (`padding`,
+         `margin`, `border`) prevent residual box-model space from
+         pushing height above 0. The line element stays in flow but
+         takes zero visual space. */
+      .cm-md-lp-block-hidden,
+      .cm-content .cm-md-lp-block-hidden,
+      .cm-editor .cm-md-lp-block-hidden {
+        height: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 0 !important;
+      }
+
       /* Path D — AI Summarize result panel. Empty shell is in HTML;
          .ai-summary-status, .ai-summary-body, and (when wired) the
          .ai-summary-close × button are created by mount(). */
@@ -2071,6 +2114,37 @@
     <script src="./lib/cm6-active-range.js"></script>
     <script src="./lib/cm6-construct-reveal.js"></script>
     <script src="./lib/cm6-hybrid-view.js"></script>
+    <!-- Stage G.12 — widget click→source-line router. Must load BEFORE
+         the block-widget classes (table, math, code, mermaid) that
+         consume it at toDOM time. Tiny utility (no deps). -->
+    <script src="./lib/cm6-lp-widget-click-routing.js"></script>
+    <script src="./lib/cm6-lp-image-widget.js"></script>
+    <!-- Stage F — KaTeX JS bundle + math detect + math widget modules.
+         Order: KaTeX JS first (so window.katex is available); detect
+         and widget modules next; lp-inline + lp-block consume them. -->
+    <script src="./lib/vendor/katex/katex.min.js"></script>
+    <script src="./lib/cm6-lp-math-detect.js"></script>
+    <script src="./lib/cm6-lp-math-widget.js"></script>
+    <script src="./lib/cm6-lp-inline.js"></script>
+    <script src="./lib/cm6-lp-table-widget.js"></script>
+    <!-- Stage G.1 — highlight.js bundle + code-block widget module. Order:
+         hljs JS first (so window.hljs is available); widget module next;
+         lp-block consumes the widget. -->
+    <script src="./lib/vendor/highlight/highlight.min.js"></script>
+    <script src="./lib/cm6-lp-code-widget.js"></script>
+    <!-- Stage G.2 — Mermaid bundle + mermaid widget module. Same shape
+         as Stage G.1: mermaid JS first so window.mermaid is available;
+         widget module next; lp-block dispatches on lang === 'mermaid'. -->
+    <script src="./lib/vendor/mermaid/mermaid.min.js"></script>
+    <script src="./lib/cm6-lp-mermaid-widget.js"></script>
+    <script src="./lib/cm6-lp-block.js"></script>
+    <!-- Stage G.3 — block-widget StateField. Loads AFTER all widget
+         modules it consumes (image, table, math, code, mermaid) and
+         AFTER cm6-lp-block.js so dependencies are in place. Owns the
+         block:true Decoration.replace emissions that CM6 forbids in
+         ViewPlugins. -->
+    <script src="./lib/cm6-lp-block-widgets.js"></script>
+    <script src="./lib/cm6-lp-view.js"></script>
     <script src="./lib/vault-actions.js"></script>
     <script src="./lib/write-engine.js"></script>
     <script src="./lib/file-name.js"></script>
@@ -4497,9 +4571,10 @@
       });
 
       // Engine label is constant for the session; set once.
-      docEngine.textContent = selectedWriteEngine === 'cm6'        ? 'CM6'
-                            : selectedWriteEngine === 'hybrid-cm6' ? 'CM6 Hybrid'
-                            :                                        'Hybrid';
+      docEngine.textContent = selectedWriteEngine === 'cm6'           ? 'CM6'
+                            : selectedWriteEngine === 'hybrid-cm6'    ? 'CM6 Hybrid'
+                            : selectedWriteEngine === 'hybrid-cm6-lp' ? 'CM6 Hybrid LP'
+                            :                                           'Hybrid';
 
       if (window.console && typeof window.console.debug === 'function') {
         window.console.debug('[write-engine]', selectedWriteEngine);
@@ -4604,6 +4679,51 @@
             _toastuiInstance.setMarkdown(cm6HybridWrite.getText());
           },
           exitWriteMode() { cm6HybridWrite.exitWriteMode(); },
+        };
+      } else if (selectedWriteEngine === 'hybrid-cm6-lp') {
+        // Stages A + B + C live-preview engine. Reuses the hybrid walker for
+        // most constructs. Inline marker categories (emphasis, inline code,
+        // strikethrough, inline links) are replaced with empty widgets off-
+        // active-line and revealed via the walker's existing decorations +
+        // CSS on-active-line. Stage C: inline IMAGES render as actual <img>
+        // elements via WidgetType when off-active; vault-relative paths
+        // resolve through window.vaultApi.resolveImagePath (IPC). Replaced
+        // ranges are atomic via EditorView.atomicRanges so arrow-key cursor
+        // motion steps over hidden markers / image widgets as one unit.
+        // getText() returns raw Markdown — no document mutation.
+        const cm6LpWrite = window.Cm6LpView.createCm6LpView(hybridWritePane, {
+          onChange: handleWriteChange,
+          cm6: window.CM6Production,
+          // Stage C: getNoteDir is called at decoration build time so a
+          // note switch reflects in the next paint. Returns the current
+          // note's directory relative to the vault root (empty string for
+          // root-level notes). The IPC handler joins it with the vault
+          // path on the main side.
+          getNoteDir: () => {
+            const sel = getSelectedNote();
+            if (!sel || !sel.relativePath) return '';
+            const lastSlash = sel.relativePath.lastIndexOf('/');
+            return lastSlash >= 0 ? sel.relativePath.slice(0, lastSlash) : '';
+          },
+          // Stage C: vault-relative image paths resolve via the new IPC
+          // contract. Returns {ok: true, fileUrl} or {ok: false, reason}.
+          resolveImagePath: (noteDir, relPath) =>
+            window.vaultApi.resolveImagePath(noteDir, relPath),
+        });
+
+        liveEditorInstance = {
+          getText() { return cm6LpWrite.getText(); },
+          setText(text) {
+            const raw = text || '';
+            cm6LpWrite.setText(raw);
+            _toastuiInstance.setMarkdown(raw);
+          },
+          getState() { return cm6LpWrite.getState(); },
+          setState(state) {
+            cm6LpWrite.setState(state);
+            _toastuiInstance.setMarkdown(cm6LpWrite.getText());
+          },
+          exitWriteMode() { cm6LpWrite.exitWriteMode(); },
         };
       } else {
         const hybridWrite = new window.HybridWriteView(hybridWritePane, {

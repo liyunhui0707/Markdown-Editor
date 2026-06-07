@@ -1,0 +1,227 @@
+/* Stage A WAVE 10 — lp emphasis edge cases.
+   Run focused:
+     node --test test/cm6-write-view/cm6-lp-edge-cases.test.js
+
+   Covers the documented edge cases from the Stage A spec Section 10:
+     - frontmatter: emphasis inside YAML frontmatter must NOT be replaced.
+     - fenced code: parser does not expose EmphasisMark inside fenced code blocks.
+     - inline code: same — parser does not expose EmphasisMark inside `code`.
+     - nested emphasis: ***bold-italic*** — both inner and outer markers handled.
+     - empty emphasis: **** — no zero-width crash.
+     - adjacent emphasis: **a****b** — each ** run handled independently.
+     - Setext heading: **bold** inside a Setext H1 title — markers still replaced. */
+
+'use strict';
+
+const { test } = require('node:test');
+const assert   = require('node:assert/strict');
+
+const { EditorState, EditorSelection } = require('@codemirror/state');
+const { Decoration, WidgetType }     = require('@codemirror/view');
+const { syntaxTree }                 = require('@codemirror/language');
+const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
+
+delete require.cache[require.resolve('../../lib/cm6-lp-inline.js')];
+const lpInline = require('../../lib/cm6-lp-inline.js');
+
+const cm6 = { Decoration, syntaxTree, WidgetType };
+
+function makeState(doc, cursorPos) {
+  return EditorState.create({
+    doc,
+    selection: { anchor: cursorPos == null ? 0 : cursorPos, head: cursorPos == null ? 0 : cursorPos },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
+  });
+}
+
+function countReplaced(state) {
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  if (!out || !out.replaced || typeof out.replaced.iter !== 'function') return 0;
+  let n = 0;
+  const cur = out.replaced.iter();
+  while (cur.value) { n++; cur.next(); }
+  return n;
+}
+
+test('Stage A WAVE 10-T15: emphasis inside YAML frontmatter is NOT replaced', () => {
+  // Strict frontmatter: leading '---' on line 1, closing '---' on a later line.
+  // The walker's emphasis inside frontmatter would normally produce
+  // EmphasisMark nodes (the parser doesn't recognize frontmatter as a
+  // construct). Our lp-emphasis guard skips them via frontmatterEnd(doc).
+  const fixture = '---\ntitle: **bold** in frontmatter\n---\n\nBody **bold**\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  // The body's "**bold**" is on a later line that is NOT touched by caret
+  // at offset 0, so it MAY be replaced — assert there are exactly 2 replaced
+  // ranges (the body markers only), not 4 (which would include frontmatter).
+  assert.equal(replaced, 2,
+    'frontmatter emphasis must be skipped; only body emphasis ('+ 2 +' markers) should be replaced');
+});
+
+test('Stage A WAVE 10-T14: emphasis-looking text inside fenced code is NOT styled', () => {
+  // Parser intentionally does not emit EmphasisMark nodes inside fenced code.
+  // This test pins that the lp walker depends on that contract.
+  const fixture = 'line1\n```\n**not bold here**\n```\nbody\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 0,
+    'no EmphasisMark inside fenced code → no replace');
+});
+
+test('Stage A WAVE 10-T-INLINE-CODE: emphasis-looking text inside `inline code` is NOT styled', () => {
+  const fixture = 'line1\nprefix `**not bold**` suffix\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  // Updated for Stage B: the parser does NOT emit EmphasisMark inside
+  // inline code (so no `**` ranges replaced), BUT Stage B's inline-code
+  // branch now replaces the two backticks themselves. Net: 2 ranges (the
+  // backticks), not 0 as in Stage A.
+  assert.equal(replaced, 2,
+    'no EmphasisMark inside inline code; Stage B replaces the 2 backticks themselves');
+});
+
+test('Stage A WAVE 10-T-NESTED: ***bold-italic*** off-active produces multiple replaces', () => {
+  // Parser produces nested StrongEmphasis around Emphasis (or vice versa).
+  // The exact number of EmphasisMark nodes is parser-dependent — assert
+  // at least 4 (two outer ** plus two inner *) and exactly that count.
+  const fixture = 'line1\n***bold-italic***\nbody\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 4,
+    'three-asterisk emphasis produces 4 EmphasisMark nodes (outer ** opening, inner * opening, inner * closing, outer ** closing)');
+});
+
+test('Stage A WAVE 10-T-EMPTY: **** off-active does not crash', () => {
+  // Four asterisks parse as either an empty StrongEmphasis or as two
+  // adjacent EmphasisMark spans. Whatever it produces, the walker must
+  // handle it without error.
+  const fixture = 'line1\n****\nbody\n';
+  const state = makeState(fixture, 0);
+  assert.doesNotThrow(() => lpInline.buildLpInlineDecorations(state, cm6),
+    'four-asterisk run must not crash the walker');
+});
+
+test('Stage A WAVE 10-T-ADJACENT: **a****b** off-active produces the markers the parser emits', () => {
+  // Probed against the real parser: `**a****b**` parses as ONE
+  // StrongEmphasis spanning offsets 6..16 with EmphasisMark only at the
+  // OPENING (6-8) and CLOSING (14-16). The middle `**` runs are absorbed
+  // into the inner content as plain text rather than producing extra
+  // EmphasisMark nodes. Pin that behavior so the walker handles it without
+  // crashing and emits the same count the parser does.
+  const fixture = 'line1\n**a****b**\nbody\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2,
+    'parser emits only opening + closing EmphasisMark for adjacent ** runs');
+});
+
+test('Stage A WAVE 10-T-SETEXT-HEADING: emphasis inside Setext H1 title is replaced normally', () => {
+  // Setext H1: title line followed by ==== underline. Emphasis in the title
+  // still produces EmphasisMark nodes. The lp walker does not need any
+  // special Setext handling — emphasis is emphasis.
+  const fixture = 'prelude\n\n**Title**\n=========\n\nbody\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2,
+    'emphasis inside Setext heading title produces 2 replaced ranges');
+});
+
+test('Stage A WAVE 10-T-MULTIPLE-LINES: multiple emphasis runs across multiple lines', () => {
+  const fixture = 'line1\n**a**\nline3\n*b*\nline5\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 4,
+    'two emphasis runs across two off-active lines = 4 replaced ranges');
+});
+
+test('Stage A WAVE 10-T-FRONTMATTER-ONLY: doc that is only frontmatter has no emphasis to replace', () => {
+  // Edge case: doc is just frontmatter, no body.
+  const fixture = '---\ntitle: **bold**\n---\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 0,
+    'frontmatter-only doc produces zero replaced ranges');
+});
+
+// ── Stage B WAVE 6 — cross-cutting edge cases for new marker types ──────
+
+test('Stage B WAVE 6-T-X-1a: inline code inside frontmatter is NOT replaced', () => {
+  const fixture = '---\ntitle: `code` here\n---\n\nBody `code`\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2,
+    'frontmatter `code` skipped; only body backticks (2) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1b: strikethrough inside frontmatter is NOT replaced', () => {
+  const fixture = '---\ntag: ~~old~~ value\n---\n\nBody ~~strike~~\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 2, 'frontmatter ~~ skipped; only body strikethrough (2) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1c: inline link inside frontmatter is NOT replaced', () => {
+  const fixture = '---\nlink: [t](https://x.test)\n---\n\nBody [text](https://x.test)\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 5, 'frontmatter link skipped; only body link (5) replaced');
+});
+
+test('Stage B WAVE 6-T-X-1d: inline image inside frontmatter is NOT replaced', () => {
+  // Stage C contract change: body image now emits 1 widget range (not 5
+  // sub-replacements). Frontmatter image still skipped. Expected: 1.
+  const fixture = '---\nimg: ![a](https://x.test/i.png)\n---\n\nBody ![alt](https://x.test/i.png)\n';
+  const state = makeState(fixture, 0);
+  const replaced = countReplaced(state);
+  assert.equal(replaced, 1, 'frontmatter image skipped; only body image (1 widget per Stage C) replaced');
+});
+
+test('Stage B WAVE 6-T-X-2: getText() round-trip preserved with all 5 marker types', () => {
+  const fixture = '# H\n\n**b** `c` ~~s~~ [l](https://x.test) ![i](https://x.test/i.png)\n';
+  const state = makeState(fixture, 0);
+  lpInline.buildLpInlineDecorations(state, cm6);
+  assert.equal(state.doc.toString(), fixture,
+    'getText() preserves source character-identical');
+});
+
+test('Stage B WAVE 6-T-X-3: whole-doc selection reveals all marker types', () => {
+  const fixture = 'line1\n**b**\nline3\n`c`\nline5\n[l](https://x.test)\nline7\n';
+  const state = EditorState.create({
+    doc: fixture,
+    selection: { anchor: 0, head: fixture.length },
+    extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
+  });
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  let n = 0;
+  if (out && out.replaced && typeof out.replaced.iter === 'function') {
+    const cur = out.replaced.iter();
+    while (cur.value) { n++; cur.next(); }
+  }
+  assert.equal(n, 0, 'whole-doc selection reveals all markers — no replace');
+});
+
+test('Stage B WAVE 6-T-X-4: multi-cursor reveals only touched lines', () => {
+  // Two cursors on lines 2 and 6; line 4's backticks stay replaced.
+  // EditorState.allowMultipleSelections must be enabled or the state
+  // collapses multi-cursor to the main cursor only.
+  const fixture = 'line1\n**b**\nline3\n`c`\nline5\n[l](https://x.test)\nline7\n';
+  const state = EditorState.create({
+    doc: fixture,
+    selection: EditorSelection.create([
+      EditorSelection.cursor(8),
+      EditorSelection.cursor(31),
+    ], 0),
+    extensions: [
+      EditorState.allowMultipleSelections.of(true),
+      markdown({ base: markdownLanguage, codeLanguages: [] }),
+    ],
+  });
+  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  let n = 0;
+  if (out && out.replaced && typeof out.replaced.iter === 'function') {
+    const cur = out.replaced.iter();
+    while (cur.value) { n++; cur.next(); }
+  }
+  assert.equal(n, 2,
+    'multi-cursor: lines 2 and 6 revealed; only line 4 (`c`, 2 backticks) replaced');
+});

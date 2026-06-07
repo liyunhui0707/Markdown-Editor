@@ -1,6 +1,6 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.8.0",
+  "version": "0.9.11",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "main.js",
   "scripts": {
@@ -14,6 +14,9 @@
     "build:editor": "esbuild lib/editor-entry.js --bundle --format=iife --platform=browser --outfile=lib/toastui-bundle.js",
     "build:cm6": "esbuild lib/cm6-entry.js --bundle --format=iife --platform=browser --outfile=lib/cm6-bundle.js",
     "build:spike-cm6": "esbuild lib/spike-cm6-entry.js --bundle --format=iife --platform=browser --outfile=lib/spike-cm6-bundle.js",
+    "build:katex": "mkdir -p lib/vendor/katex && cp -R node_modules/katex/dist/. lib/vendor/katex/",
+    "build:hljs": "mkdir -p lib/vendor/highlight && esbuild lib/highlight-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/highlight/highlight.min.js --minify && cp node_modules/highlight.js/styles/atom-one-light.css lib/vendor/highlight/hljs.css",
+    "build:mermaid": "mkdir -p lib/vendor/mermaid && esbuild lib/mermaid-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/mermaid/mermaid.min.js --minify",
     "spike:cm6": "electron spike/codemirror6/spike-main.js",
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
     "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
@@ -43,6 +46,9 @@
     "@codemirror/view": "^6.28.0",
     "@lezer/markdown": "^1.6.3",
     "@toast-ui/editor": "^3.2.2",
-    "marked": "^17.0.5"
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.47",
+    "marked": "^17.0.5",
+    "mermaid": "^11.15.0"
   }
 }
