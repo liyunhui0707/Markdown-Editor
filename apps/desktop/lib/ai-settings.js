@@ -63,6 +63,14 @@ function readString(env, key, fallback) {
   return isNonEmptyString(v) ? v : fallback;
 }
 
+// Stage C precedence helper for user-editable string fields: env > stored >
+// default. Mirrors readString's "non-empty wins" rule across two sources.
+function pickString(envVal, storedVal, fallback) {
+  if (isNonEmptyString(envVal)) return envVal;
+  if (isNonEmptyString(storedVal)) return storedVal;
+  return fallback;
+}
+
 function readPositiveNumber(env, key, fallback) {
   const raw = env[key];
   if (typeof raw !== 'string' || raw.trim() === '') return fallback;
@@ -93,12 +101,19 @@ function normalizeBaseUrl(raw, fallback) {
   return s;
 }
 
-function loadAiSettings({ env } = { env: {} }) {
+function loadAiSettings({ env, stored } = { env: {} }) {
   const envMap = env || {};
+  // Stage C: the in-app settings panel persists baseUrl / model / allowRemote.
+  // Precedence per field is env var > stored > default. `stored` is optional,
+  // so existing callers passing only { env } behave exactly as before.
+  const storedMap = stored || {};
+  const baseUrlRaw = isNonEmptyString(envMap.MARKDOWN_AI_BASE_URL)
+    ? envMap.MARKDOWN_AI_BASE_URL
+    : storedMap.baseUrl;
   const settings = {
     provider:      readString(envMap, 'MARKDOWN_AI_PROVIDER', DEFAULTS.provider),
-    baseUrl:       normalizeBaseUrl(envMap.MARKDOWN_AI_BASE_URL, DEFAULTS.baseUrl),
-    model:         readString(envMap, 'MARKDOWN_AI_MODEL', DEFAULTS.model),
+    baseUrl:       normalizeBaseUrl(baseUrlRaw, DEFAULTS.baseUrl),
+    model:         pickString(envMap.MARKDOWN_AI_MODEL, storedMap.model, DEFAULTS.model),
     // temperature uses readPositiveOrZeroNumber so 0 is acceptable; default
     // is 0.2. Note: T1.3 expects 0.5 to round-trip; T1.4 expects 'abc' to
     // fall back. The test suite does not currently exercise 0 explicitly
@@ -120,6 +135,10 @@ function loadAiSettings({ env } = { env: {} }) {
   // Consumer pattern: settings.allowRemote ?? false.
   if (isNonEmptyString(envMap.MARKDOWN_AI_ALLOW_REMOTE)) {
     settings.allowRemote = envMap.MARKDOWN_AI_ALLOW_REMOTE.trim().toLowerCase() === 'true';
+  } else if (typeof storedMap.allowRemote === 'boolean') {
+    // Stage C: stored opt-in from the settings panel, used only when the env
+    // var is absent (env still wins). Stays absent when neither sets it.
+    settings.allowRemote = storedMap.allowRemote;
   }
   return settings;
 }

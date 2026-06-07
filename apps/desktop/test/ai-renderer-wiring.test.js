@@ -9,7 +9,8 @@
               captures startedId BEFORE await (H4), AiSummaryPanel.clear() on
               stale-result branch (I4), try/catch/finally with showError catch (G6),
               negative regexes for note mutation (A8))
-   - Block C: main.js (one require + one AiIpc.register(ipcMain) call, no options) [I2]
+   - Block C: main.js (one require + one AiIpc.register(ipcMain, { settingsPath })
+              call — Stage C passes a settingsPath option for per-request settings) [I2]
 */
 
 'use strict';
@@ -166,11 +167,15 @@ test('T9.6d [QA loop 2] success path stores result under startedId (not current 
   // This is what makes "wait in B until A's summary returns, then go
   // back to A" work — A's result is keyed by A's id.
   const src = readBoot();
-  // Find the click handler block, then capture the pre-await identifier
-  // INSIDE it (not e.g. an outer note-change watcher's lastNoteId).
-  const clickBlockMatch = src.match(/addEventListener\(\s*['"]click['"][\s\S]*$/);
-  assert.ok(clickBlockMatch, 'expected a click handler block');
-  const clickBlock = clickBlockMatch[0];
+  // Anchor on the SUMMARIZE click handler specifically. ai-boot now has other
+  // click handlers (Rewrite, the settings button), so we can't assume the first
+  // click listener is Summarize — locate the handler that calls summarizeNote
+  // and capture the pre-await identifier INSIDE it (not an outer watcher's id).
+  const sumIdx = src.search(/window\.ai\.summarizeNote/);
+  assert.ok(sumIdx > -1, 'expected the summarize handler to call window.ai.summarizeNote');
+  const clickStart = src.lastIndexOf('addEventListener', sumIdx);
+  assert.ok(clickStart > -1, 'expected a click handler around summarizeNote');
+  const clickBlock = src.slice(clickStart);
   const captureMatch = clickBlock.match(/(?:const|let)\s+([A-Za-z_][A-Za-z_0-9]*)\s*=\s*window\.markdownVault\.getActiveNoteId\(\s*\)/);
   assert.ok(captureMatch, 'expected click handler to capture getActiveNoteId() into an identifier');
   const startedId = captureMatch[1];
@@ -246,11 +251,16 @@ test('T9.13 main.js requires ./lib/ai-ipc', () => {
   assert.match(readMain(), /require\(\s*['"]\.\/lib\/ai-ipc['"]\s*\)/);
 });
 
-test('T9.14 main.js calls AiIpc.register(ipcMain) exactly once', () => {
-  const m = readMain().match(/AiIpc\.register\(\s*ipcMain\s*\)/g);
+test('T9.14 main.js calls AiIpc.register(ipcMain, …) exactly once', () => {
+  // Stage C: register now takes a { settingsPath } option so the summarize
+  // handler re-reads settings per request (env > stored > default). Still
+  // exactly one register call.
+  const m = readMain().match(/AiIpc\.register\(\s*ipcMain\s*,/g);
   assert.equal(m && m.length, 1);
 });
 
-test('T9.15 main.js register call has NO options argument', () => {
-  assert.doesNotMatch(readMain(), /AiIpc\.register\(\s*ipcMain\s*,/);
+test('T9.15 main.js register passes a settingsPath option (Stage C)', () => {
+  // Pre-Stage C this asserted NO options; Stage C intentionally wires a
+  // persistent settings file shared by the handlers and the settings panel.
+  assert.match(readMain(), /AiIpc\.register\(\s*ipcMain\s*,\s*\{\s*settingsPath/);
 });

@@ -1,46 +1,20 @@
 const { contextBridge, ipcRenderer } = require('electron');
-// Stage F: synchronously compute the privacy badge state at preload load.
-// IMPORTANT: Electron's sandboxed preload (default when contextIsolation
-// is true) restricts require() to a small whitelist — relative imports
-// like `./lib/ai-settings` THROW SILENTLY and prevent the rest of the
-// preload (including contextBridge.exposeInMainWorld) from running.
-// Symptom of doing that: window.vaultApi is undefined, every vault button
-// becomes a no-op. We inline the loopback check here instead. The IPC
-// pre-flight in main.js keeps the canonical version in lib/ai-settings.
-function _isLoopbackHostname(host) {
-  if (typeof host !== 'string' || host.length === 0) return false;
-  const h = host.toLowerCase();
-  if (h === 'localhost' || h === '::1' || h === '[::1]') return true;
-  if (/^127(\.\d{1,3}){3}$/.test(h)) {
-    return h.split('.').every((o) => {
-      const n = Number(o);
-      return Number.isInteger(n) && n >= 0 && n <= 255;
-    });
-  }
-  return false;
-}
-function computeAiBadgeState() {
-  try {
-    const baseUrl = (process.env && process.env.MARKDOWN_AI_BASE_URL) || 'http://localhost:1234/v1';
-    const allowRaw = process.env && process.env.MARKDOWN_AI_ALLOW_REMOTE;
-    const allowRemote = typeof allowRaw === 'string' && allowRaw.trim().toLowerCase() === 'true';
-    let hostname = '';
-    let parsed = null;
-    try { parsed = new URL(baseUrl); hostname = parsed.hostname; } catch (_e) { /* leave empty */ }
-    const isRemote = parsed !== null
-      && (parsed.protocol === 'http:' || parsed.protocol === 'https:')
-      && !_isLoopbackHostname(hostname);
-    return { isRemote, allowRemote, hostname };
-  } catch (_e) {
-    // Belt-and-suspenders: never let badge computation throw and break
-    // the preload boot. Default to no-badge / no-remote on any failure.
-    return { isRemote: false, allowRemote: false, hostname: '' };
-  }
-}
-const _aiBadgeState = computeAiBadgeState();
+// Stage C: the privacy badge state AND all AI settings come from the MAIN
+// process via the ai:get-settings IPC — main is the single source of truth,
+// merging env > stored (settings panel) > default. The preload no longer
+// computes the badge from process.env: once settings can be persisted to a
+// file the sandboxed preload cannot read, an env-only badge would go stale.
 
 contextBridge.exposeInMainWorld('vaultApi', {
-  getAiBadgeState: () => _aiBadgeState,
+  // Resolves to the badge sub-object with a safe no-badge fallback so the boot
+  // wiring can never throw if main is slow or the channel is missing.
+  getAiBadgeState: () => ipcRenderer.invoke('ai:get-settings')
+    .then((r) => (r && r.badge) || { isRemote: false, allowRemote: false, hostname: '' })
+    .catch(() => ({ isRemote: false, allowRemote: false, hostname: '' })),
+  // Settings panel: full snapshot { effective, envOverridden, badge } and a
+  // save that takes a partial { baseUrl?, model?, allowRemote? }.
+  getAiSettings: () => ipcRenderer.invoke('ai:get-settings'),
+  saveAiSettings: (partial) => ipcRenderer.invoke('ai:save-settings', partial),
   chooseVaultFolder: () => ipcRenderer.invoke('choose-vault-folder'),
   watchVaultFolder: (payload) => ipcRenderer.invoke('watch-vault-folder', payload),
   unwatchVaultFolder: () => ipcRenderer.invoke('unwatch-vault-folder'),

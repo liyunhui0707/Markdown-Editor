@@ -249,7 +249,7 @@ This protects against rewriting text you cannot see: a stale CM6 selection from 
 
 ### Configuration
 
-All AI settings are read from environment variables when the app starts and apply to **both** Summarize and Rewrite. There is no in-app settings UI in this stage.
+AI settings apply to **both** Summarize and Rewrite. The endpoint URL, model, and remote-allow toggle can be edited in the in-app **AI Settings** panel (see below); the remaining tuning knobs are environment variables. Precedence per setting is **environment variable > saved panel value > built-in default** — an env var, when present, always wins, and the matching panel field is shown locked.
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -272,6 +272,16 @@ MARKDOWN_AI_MODEL=llama3.1 \
   npm run dev
 ```
 
+### Settings panel
+
+Click **AI Settings** in the toolbar to edit the most common settings without a terminal:
+
+- **Server URL** — the OpenAI-compatible endpoint (`baseUrl`).
+- **Model** — the model id.
+- **Allow a remote (off-machine) server** — the privacy opt-in (see below).
+
+Saved values persist to `ai-settings.json` in Electron's app-data directory and survive restarts. Changes take effect **immediately** — no relaunch — including the **Remote AI** badge, which updates live when you toggle allow-remote or change the URL. If a setting is controlled by an environment variable, its field is shown **disabled** with a hint, because the env var takes precedence. The tuning knobs (temperature, max tokens, timeout, max input chars, streaming, provider) remain environment-only for now.
+
 ### Remote endpoints & privacy
 
 By default the AI verbs only talk to a **loopback** endpoint — `localhost`, any `127.x.x.x`, or `::1`. This keeps note content on your machine. A non-loopback `MARKDOWN_AI_BASE_URL` (a LAN IP, a hostname, a public server) is **rejected before any network call** with the typed reason `remote-blocked`; the panel shows _"Remote AI server blocked. Set MARKDOWN_AI_ALLOW_REMOTE=true to allow."_
@@ -286,7 +296,7 @@ To send notes to a non-loopback server, set `MARKDOWN_AI_ALLOW_REMOTE=true`. Whe
 - The × button aborts the in-flight HTTP request from this app's side, but whether the local model server actually stops generating depends on the server. LM Studio's `llama.cpp` backend, for example, continues to finish a scheduled response even after the client disconnects — the app re-enables the buttons immediately either way, but you may notice the model server keeps working in the background.
 - Most-recent-action wins on the same note: running Summarize after Rewrite (or vice versa) overwrites the previous result. There is no separate history per verb in this stage.
 - Selection-aware Summarize is not implemented; Summarize always sends the whole note.
-- No persisted settings UI — env vars only.
+- The in-app settings panel covers the endpoint URL, model, and remote-allow toggle only; the other tuning knobs (temperature, max tokens, timeout, max input chars, streaming, provider) remain environment-variable only.
 - No retries, no provider failover, no multi-provider concurrency.
 - Failure modes return one of a fixed set of typed reasons (`empty-input`, `input-too-large`, `server-unreachable`, `timeout`, `http-error`, `invalid-response`, `provider-error`, `unknown`) with canned, sanitized user-facing messages. Provider-supplied error text is **not** echoed to the UI.
 
@@ -412,7 +422,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
   - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
 - The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
-- **Local AI: Summarize & Rewrite** is intentionally narrow this stage: streaming + abort ship, but the rendered output is plain `textContent` (no Markdown re-rendering), there is no RAG, no auto-edit of the original note, no in-app settings UI (env vars only), no retries, no provider failover, no per-verb history per note, and whether the upstream model server actually stops on × depends on the server. See the [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) section for the full constraint list.
+- **Local AI: Summarize & Rewrite** is intentionally narrow this stage: streaming + abort ship, but the rendered output is plain `textContent` (no Markdown re-rendering), there is no RAG, no auto-edit of the original note, an in-app settings panel for the endpoint/model/allow-remote (other tuning knobs remain env-var only), no retries, no provider failover, no per-verb history per note, and whether the upstream model server actually stops on × depends on the server. See the [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) section for the full constraint list.
 
 ### Deferred items
 

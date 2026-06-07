@@ -1587,6 +1587,65 @@
         display: none;
       }
 
+      /* ── Stage C: AI settings modal ──────────────────────────────────── */
+      .ai-settings-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .ai-settings-overlay[hidden] { display: none; }
+      .ai-settings-modal {
+        background: #ffffff;
+        color: #111827;
+        width: 420px;
+        max-width: calc(100vw - 48px);
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+        padding: 20px 22px;
+        font-size: 13px;
+      }
+      .ai-settings-title { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+      .ai-settings-error {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        background: #fef2f2;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        color: #991b1b;
+      }
+      .ai-settings-error[hidden] { display: none; }
+      .ai-settings-field { display: block; margin: 0 0 12px; }
+      .ai-settings-field--check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .ai-settings-label { display: block; font-weight: 600; margin-bottom: 4px; }
+      .ai-settings-field--check .ai-settings-label { margin-bottom: 0; font-weight: 500; }
+      .ai-settings-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      .ai-settings-input:disabled { background: #f3f4f6; color: #6b7280; cursor: not-allowed; }
+      .ai-settings-hint { display: block; margin-top: 4px; font-size: 11px; color: #6b7280; }
+      .ai-settings-hint[hidden] { display: none; }
+      .ai-settings-warning {
+        margin: 4px 0 16px;
+        font-size: 12px;
+        color: #92400e;
+      }
+      .ai-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
       /* ── Top chrome removal ──────────────────────────────────────────── */
 
       /* Panel headers become invisible rails — only the toggle icon shows */
@@ -1868,6 +1927,7 @@
                 <button id="summarizeButton" class="action-button">Summarize</button>
                 <button id="rewriteButton" class="action-button">Rewrite</button>
                 <span id="aiRemoteBadge" class="ai-remote-badge" hidden>Remote AI</span>
+                <button id="aiSettingsButton" class="action-button" title="AI settings" aria-haspopup="dialog">AI Settings</button>
                 <button id="chooseVaultButton" class="action-button">Choose Vault</button>
                 <button id="deleteNoteButton" class="action-button action-button--destructive">Delete Note</button>
               </div>
@@ -1932,6 +1992,37 @@
           </div>
         </section>
       </main>
+
+      <!-- Stage C: AI settings modal. Hidden by default; opened by
+           #aiSettingsButton. All wiring lives in lib/ai-boot.js (NOT the inline
+           boot script, per H1). Saving goes through vaultApi.saveAiSettings();
+           the Remote AI badge re-renders live afterward. -->
+      <div id="aiSettingsOverlay" class="ai-settings-overlay" hidden>
+        <div class="ai-settings-modal" role="dialog" aria-modal="true" aria-labelledby="aiSettingsTitle">
+          <h2 id="aiSettingsTitle" class="ai-settings-title">AI Settings</h2>
+          <div id="aiSettingsError" class="ai-settings-error" hidden></div>
+          <label class="ai-settings-field">
+            <span class="ai-settings-label">Server URL</span>
+            <input id="aiSettingsBaseUrl" type="text" class="ai-settings-input" placeholder="http://localhost:1234/v1" spellcheck="false" autocomplete="off" />
+            <span id="aiSettingsBaseUrlHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_BASE_URL environment variable.</span>
+          </label>
+          <label class="ai-settings-field">
+            <span class="ai-settings-label">Model</span>
+            <input id="aiSettingsModel" type="text" class="ai-settings-input" placeholder="local-model" spellcheck="false" autocomplete="off" />
+            <span id="aiSettingsModelHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_MODEL environment variable.</span>
+          </label>
+          <label class="ai-settings-field ai-settings-field--check">
+            <input id="aiSettingsAllowRemote" type="checkbox" />
+            <span class="ai-settings-label">Allow a remote (off-machine) server</span>
+          </label>
+          <span id="aiSettingsAllowRemoteHint" class="ai-settings-hint" hidden>Set by the MARKDOWN_AI_ALLOW_REMOTE environment variable.</span>
+          <p class="ai-settings-warning">If the server is not on this machine (not localhost), enabling this sends your note content off your machine.</p>
+          <div class="ai-settings-actions">
+            <button id="aiSettingsCancel" class="action-button" type="button">Cancel</button>
+            <button id="aiSettingsSave" class="action-button" type="button">Save</button>
+          </div>
+        </div>
+      </div>
 
       <footer class="status-bar">
         <div id="vaultPathText" class="status-bar-path">Vault: not selected</div>

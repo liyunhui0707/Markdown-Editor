@@ -127,7 +127,9 @@ test('CB9.12 ai-boot uses showStreamingText in the streaming branch of renderAct
 
 test('CB9.13 main.js still has register + registerRewrite + registerCancel (all three lines)', () => {
   const src = MAIN_SRC();
-  assert.match(src, /AiIpc\.register\(\s*ipcMain\s*\)/);
-  assert.match(src, /AiIpc\.registerRewrite\(\s*ipcMain\s*\)/);
+  // Stage C: register + registerRewrite now take a { settingsPath } option;
+  // registerCancel is unchanged (no settings needed for the cancel channel).
+  assert.match(src, /AiIpc\.register\(\s*ipcMain\s*,/);
+  assert.match(src, /AiIpc\.registerRewrite\(\s*ipcMain\s*,/);
   assert.match(src, /AiIpc\.registerCancel\(\s*ipcMain\s*\)/);
 });
