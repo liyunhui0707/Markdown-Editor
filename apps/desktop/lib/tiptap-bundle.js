@@ -396,6 +396,40 @@
     }
   });
 
+  // lib/markdown-frontmatter.js
+  var require_markdown_frontmatter = __commonJS({
+    "lib/markdown-frontmatter.js"(exports, module) {
+      "use strict";
+      (function(root2, factory) {
+        if (typeof module === "object" && module.exports) {
+          module.exports = factory();
+        } else {
+          root2.MarkdownFrontmatter = factory();
+        }
+      })(typeof globalThis !== "undefined" ? globalThis : exports, function() {
+        const FRONTMATTER_RE = /^(---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*)(\r?\n|$)/;
+        function splitFrontmatter2(md) {
+          const s = md == null ? "" : String(md);
+          const m = s.match(FRONTMATTER_RE);
+          if (!m) return { frontmatter: "", body: s };
+          const body = s.slice(m[0].length).replace(/^(?:\r?\n)+/, "");
+          return { frontmatter: m[1], body };
+        }
+        function joinFrontmatter2(frontmatter, body) {
+          const fm = (frontmatter == null ? "" : String(frontmatter)).replace(/\s+$/, "");
+          const b = (body == null ? "" : String(body)).replace(/^\n+/, "");
+          if (!fm) return body == null ? "" : String(body);
+          if (!b) return fm + "\n";
+          return fm + "\n\n" + b;
+        }
+        return {
+          splitFrontmatter: splitFrontmatter2,
+          joinFrontmatter: joinFrontmatter2
+        };
+      });
+    }
+  });
+
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content3) {
     this.content = content3;
@@ -40020,7 +40054,9 @@ ${prefix}
 
   // lib/tiptap-entry.js
   var import_markdown_mdast_pm = __toESM(require_markdown_mdast_pm());
+  var import_markdown_frontmatter = __toESM(require_markdown_frontmatter());
   var { mdastToPm, pmToMdast } = import_markdown_mdast_pm.default;
+  var { splitFrontmatter, joinFrontmatter } = import_markdown_frontmatter.default;
   var mdParser = unified().use(remarkParse).use(remarkGfm);
   var mdStringifier = unified().use(remarkStringify, {
     bullet: "-",
@@ -40067,18 +40103,24 @@ ${prefix}
       content: ""
       // start empty; real content is applied via the guarded setText
     });
+    let frontmatter = "";
     function getText3() {
+      let body;
       try {
-        return docToMarkdown(editor.getJSON());
+        body = docToMarkdown(editor.getJSON());
       } catch (err) {
-        return "";
+        body = "";
       }
+      return joinFrontmatter(frontmatter, body);
     }
     function setText(text5) {
       const md = text5 == null ? "" : String(text5);
+      const split2 = splitFrontmatter(md);
+      frontmatter = split2.frontmatter;
+      const body = split2.body;
       let doc3 = null;
       try {
-        doc3 = markdownToDoc(md);
+        doc3 = markdownToDoc(body);
       } catch (err) {
         doc3 = null;
       }
@@ -40090,7 +40132,7 @@ ${prefix}
         }
       }
       try {
-        editor.commands.setContent(plainTextDoc(md), { emitUpdate: false });
+        editor.commands.setContent(plainTextDoc(body), { emitUpdate: false });
       } catch (err) {
         editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] }, { emitUpdate: false });
       }

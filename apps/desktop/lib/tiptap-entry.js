@@ -44,6 +44,9 @@ import remarkGfm from 'remark-gfm';
 import MarkdownMdastPm from './markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
 
+import MarkdownFrontmatter from './markdown-frontmatter.js';
+const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
+
 const mdParser = unified().use(remarkParse).use(remarkGfm);
 const mdStringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
@@ -96,12 +99,19 @@ function createTiptapView(parent, opts) {
     content: '', // start empty; real content is applied via the guarded setText
   });
 
+  // Leading YAML frontmatter is kept OUT of the WYSIWYG body (remark would
+  // corrupt it) and stored verbatim per the loaded note, then reattached on
+  // getText. Editing frontmatter is a future source-mode concern.
+  let frontmatter = '';
+
   function getText() {
+    let body;
     try {
-      return docToMarkdown(editor.getJSON());
+      body = docToMarkdown(editor.getJSON());
     } catch (err) {
-      return '';
+      body = '';
     }
+    return joinFrontmatter(frontmatter, body);
   }
 
   // Never-blank setText: try the real Markdown->PM doc with strict content
@@ -109,8 +119,11 @@ function createTiptapView(parent, opts) {
   // a load doesn't fire onChange (which would mark the note dirty).
   function setText(text) {
     const md = (text == null) ? '' : String(text);
+    const split = splitFrontmatter(md);
+    frontmatter = split.frontmatter;
+    const body = split.body;
     let doc = null;
-    try { doc = markdownToDoc(md); } catch (err) { doc = null; }
+    try { doc = markdownToDoc(body); } catch (err) { doc = null; }
     if (doc) {
       try {
         editor.commands.setContent(doc, { emitUpdate: false, errorOnInvalidContent: true });
@@ -120,7 +133,7 @@ function createTiptapView(parent, opts) {
       }
     }
     try {
-      editor.commands.setContent(plainTextDoc(md), { emitUpdate: false });
+      editor.commands.setContent(plainTextDoc(body), { emitUpdate: false });
     } catch (err) {
       editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph' }] }, { emitUpdate: false });
     }

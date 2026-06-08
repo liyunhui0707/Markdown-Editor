@@ -21,6 +21,9 @@ import remarkGfm from 'remark-gfm';
 import MarkdownMdastPm from '../lib/markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
 
+import MarkdownFrontmatter from '../lib/markdown-frontmatter.js';
+const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
+
 const parser = unified().use(remarkParse).use(remarkGfm);
 const stringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
@@ -108,6 +111,31 @@ test('blank-fix: a complex doc (math + mermaid + raw html + table + tasks) does 
 test('blank-fix: empty / whitespace input yields a single-paragraph doc', () => {
   assert.deepEqual(toDoc('').content, [{ type: 'paragraph' }]);
   assert.deepEqual(toDoc('   \n  \n').content, [{ type: 'paragraph' }]);
+});
+
+// Mirrors tiptap-entry.js getText/setText: frontmatter is split off, the body
+// round-trips through remark, and the frontmatter is reattached verbatim.
+const engineRoundtrip = (md) => {
+  const { frontmatter, body } = splitFrontmatter(md);
+  return joinFrontmatter(frontmatter, roundtrip(body));
+};
+
+test('frontmatter: YAML metadata is preserved byte-for-byte while the body round-trips', () => {
+  const md = '---\ntitle: Kitchen Sink\ntags:\n  - qa\n  - wysiwyg\n---\n\n# Body\n\n- [ ] a\n- [x] b\n';
+  const out = engineRoundtrip(md);
+  assert.ok(
+    out.startsWith('---\ntitle: Kitchen Sink\ntags:\n  - qa\n  - wysiwyg\n---'),
+    'frontmatter YAML must be intact (not reflowed like remark would)',
+  );
+  assert.match(out, /- \[ \] a/, 'body task survives');
+  assert.match(out, /- \[x\] b/);
+});
+
+test('frontmatter: a note without frontmatter is unaffected', () => {
+  const md = '# Just a body\n\ntext\n';
+  const out = engineRoundtrip(md);
+  assert.doesNotMatch(out, /^---/, 'no spurious frontmatter added');
+  assert.match(out, /# Just a body/);
 });
 
 test('round-trip: a mixed document is idempotent on a second pass', () => {
