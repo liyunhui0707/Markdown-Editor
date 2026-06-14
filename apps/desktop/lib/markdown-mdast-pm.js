@@ -67,6 +67,10 @@
         }));
       case 'image':
         return [{ type: 'image', attrs: { src: node.url || '', alt: node.alt || null, title: node.title || null } }];
+      case 'inlineMath':
+        // remark-math node; an atom carrying verbatim LaTeX so it round-trips
+        // WITHOUT remark escaping `_`/`*` (which corrupts LaTeX subscripts etc.).
+        return [{ type: 'inlineMath', attrs: { latex: node.value || '' } }];
       case 'break':
         return [{ type: 'hardBreak' }];
       default:
@@ -162,6 +166,9 @@
         return listToPm(node);
       case 'table':
         return tableToPm(node);
+      case 'math':
+        // remark-math display block; atom carrying verbatim LaTeX (see inlineMath).
+        return { type: 'mathBlock', attrs: { latex: node.value || '' } };
       case 'html':
         // Raw block HTML: keep VISIBLE as text so it neither blanks the editor
         // nor is silently dropped. (Round-trip of raw HTML is a non-goal.)
@@ -224,6 +231,8 @@
         out.push(wrapInline(n.text, n.marks));
       } else if (n.type === 'image') {
         out.push({ type: 'image', url: (n.attrs && n.attrs.src) || '', alt: (n.attrs && n.attrs.alt) || null, title: (n.attrs && n.attrs.title) || null });
+      } else if (n.type === 'inlineMath') {
+        out.push({ type: 'inlineMath', value: (n.attrs && n.attrs.latex) || '' });
       } else if (n.type === 'hardBreak') {
         out.push({ type: 'break' });
       }
@@ -299,6 +308,8 @@
         return { type: 'list', ordered: false, spread: false, children: listItemsToMdast(node, true) };
       case 'table':
         return pmTableToMdast(node);
+      case 'mathBlock':
+        return { type: 'math', value: (node.attrs && node.attrs.latex) || '' };
       default:
         if (Array.isArray(node.content)) return { type: 'paragraph', children: pmInlineToMdast(node.content) };
         return null;

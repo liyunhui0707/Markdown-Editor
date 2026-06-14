@@ -17,6 +17,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
 import MarkdownMdastPm from '../lib/markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
@@ -24,10 +25,10 @@ const { mdastToPm, pmToMdast } = MarkdownMdastPm;
 import MarkdownFrontmatter from '../lib/markdown-frontmatter.js';
 const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
 
-const parser = unified().use(remarkParse).use(remarkGfm);
+const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const stringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
-}).use(remarkGfm);
+}).use(remarkGfm).use(remarkMath);
 
 const toDoc = (md) => mdastToPm(parser.parse(md));
 const toMd = (json) => String(stringifier.stringify(pmToMdast(json)));
@@ -71,6 +72,19 @@ test('round-trip: fenced code keeps language + body', () => {
 
 test('round-trip: blockquote', () => {
   assert.match(roundtrip('> quoted\n'), /^> quoted$/m);
+});
+
+test('math: inline + display LaTeX round-trip WITHOUT escaping (the corruption fix)', () => {
+  // Before remark-math, `$$\sum_{i=1}^n$$` round-tripped as `\sum\_{i=1}^n`
+  // (remark escaped `_`), corrupting the LaTeX. Math nodes preserve it verbatim.
+  const inline = roundtrip('Mass is $E = mc^2$ and $a_b$ here.\n');
+  assert.match(inline, /\$E = mc\^2\$/);
+  assert.match(inline, /\$a_b\$/);            // underscore NOT escaped
+  assert.doesNotMatch(inline, /a\\_b/, 'inline math underscore must not be escaped');
+
+  const display = roundtrip('$$\n\\sum_{i=1}^n i\n$$\n');
+  assert.match(display, /\\sum_\{i=1\}\^n i/);  // subscript intact
+  assert.doesNotMatch(display, /\\sum\\_/, 'display math underscore must not be escaped');
 });
 
 test('blank-fix: a complex doc (math + mermaid + raw html + table + tasks) does NOT throw and yields a non-empty doc', () => {

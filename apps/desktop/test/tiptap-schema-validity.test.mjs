@@ -31,7 +31,9 @@ import { Image } from '@tiptap/extension-image';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
+import { InlineMath, MathBlock } from '../lib/tiptap-math.js';
 import MarkdownMdastPm from '../lib/markdown-mdast-pm.js';
 const { mdastToPm } = MarkdownMdastPm;
 
@@ -45,9 +47,11 @@ const schema = getSchema([
   TaskList,
   TaskItem.configure({ nested: true }),
   Image.configure({ inline: true, allowBase64: true }),
+  InlineMath,
+  MathBlock,
 ]);
 
-const parser = unified().use(remarkParse).use(remarkGfm);
+const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const toDoc = (md) => mdastToPm(parser.parse(md));
 
 function assertValid(md, label) {
@@ -70,6 +74,8 @@ test('schema: each supported construct produces schema-valid PM JSON', () => {
   assertValid('![alt](https://x/i.png)\n', 'inline image');     // the bug fix
   assertValid('text with a hard  \nbreak\n', 'hard break');
   assertValid('---\n', 'thematic break');
+  assertValid('Inline $x^2$ math.\n', 'inline math');
+  assertValid('$$\n\\sum_{i=1}^n i\n$$\n', 'display math');
 });
 
 test('schema: the full "kitchen sink" note is schema-valid (the blank/raw-fallback fix)', () => {

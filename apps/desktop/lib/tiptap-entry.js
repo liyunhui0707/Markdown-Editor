@@ -40,6 +40,9 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+
+import { InlineMath, MathBlock } from './tiptap-math.js';
 
 import MarkdownMdastPm from './markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
@@ -47,10 +50,10 @@ const { mdastToPm, pmToMdast } = MarkdownMdastPm;
 import MarkdownFrontmatter from './markdown-frontmatter.js';
 const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
 
-const mdParser = unified().use(remarkParse).use(remarkGfm);
+const mdParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const mdStringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
-}).use(remarkGfm);
+}).use(remarkGfm).use(remarkMath);
 
 function markdownToDoc(md) {
   const tree = mdParser.parse(md == null ? '' : String(md));
@@ -95,6 +98,10 @@ function createTiptapView(parent, opts) {
       // inline:true matches that; without this extension, strict setContent
       // rejected the whole note and fell back to plain text (raw Markdown).
       Image.configure({ inline: true, allowBase64: true }),
+      // KaTeX-rendered math: inline `$x$` and display `$$x$$`. Atoms carrying
+      // verbatim LaTeX so remark-math round-trips it without escaping.
+      InlineMath,
+      MathBlock,
     ],
     content: '', // start empty; real content is applied via the guarded setText
   });

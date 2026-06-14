@@ -1857,6 +1857,20 @@
       }
       #hybridWritePane .ProseMirror ul[data-type="taskList"] li > div > p { margin: 0; }
 
+      /* Tiptap WYSIWYG engine — KaTeX math nodes. */
+      #hybridWritePane .ProseMirror .tiptap-math-inline { padding: 0 1px; }
+      #hybridWritePane .ProseMirror .tiptap-math-block {
+        display: block;
+        margin: 10px 0;
+        text-align: center;
+        overflow-x: auto;
+      }
+      #hybridWritePane .ProseMirror .tiptap-math-inline.ProseMirror-selectednode,
+      #hybridWritePane .ProseMirror .tiptap-math-block.ProseMirror-selectednode {
+        outline: 2px solid var(--accent, #6b7cff);
+        border-radius: 3px;
+      }
+
       /* Blend toolbar with app palette */
       .toastui-editor-toolbar {
         border-bottom: 1px solid var(--border-subtle);

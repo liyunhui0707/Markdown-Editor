@@ -89,6 +89,24 @@ test('mdastToPm: empty table cell still yields a valid paragraph', () => {
   assert.deepEqual(emptyCell.content[0].content, []);
 });
 
+test('math: inlineMath/math <-> inlineMath/mathBlock nodes carry verbatim latex', () => {
+  // mdast (from remark-math) -> PM
+  const pm = mdastToPm(root([
+    para([{ type: 'inlineMath', value: 'a_b' }]),
+    { type: 'math', value: '\\sum_{i=1}^n i' },
+  ]));
+  assert.equal(pm.content[0].content[0].type, 'inlineMath');
+  assert.equal(pm.content[0].content[0].attrs.latex, 'a_b');
+  assert.equal(pm.content[1].type, 'mathBlock');
+  assert.equal(pm.content[1].attrs.latex, '\\sum_{i=1}^n i');
+  // PM -> mdast (back)
+  const back = pmToMdast(pm);
+  assert.equal(back.children[0].children[0].type, 'inlineMath');
+  assert.equal(back.children[0].children[0].value, 'a_b');
+  assert.equal(back.children[1].type, 'math');
+  assert.equal(back.children[1].value, '\\sum_{i=1}^n i');
+});
+
 test('mdastToPm: code block keeps language + value', () => {
   const pm = mdastToPm(root([{ type: 'code', lang: 'js', value: 'const x=1;' }]));
   assert.equal(pm.content[0].type, 'codeBlock');
