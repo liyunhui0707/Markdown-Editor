@@ -58,15 +58,21 @@ const toDoc = (md) => mdastToPm(parser.parse(md));
 
 function assertValid(md, label) {
   const doc = toDoc(md);
+  // nodeFromJSON checks node/mark EXISTENCE; node.check() additionally validates
+  // content expressions AND mark-collection rules (e.g. the exclusive `code`
+  // mark). setContent runs check(), so we must too — using only nodeFromJSON
+  // previously missed a bold+code combo that blanked a whole note to raw text.
   assert.doesNotThrow(
-    () => schema.nodeFromJSON(doc),
-    `${label}: converter output must be schema-valid (else setContent falls back to raw text)`,
+    () => { schema.nodeFromJSON(doc).check(); },
+    `${label}: converter output must pass node.check() (else setContent falls back to raw text)`,
   );
 }
 
 test('schema: each supported construct produces schema-valid PM JSON', () => {
   assertValid('# H1\n\n## H2\n\n### H3\n', 'headings');
   assertValid('**b** *i* `c` ~~s~~ [l](https://x)\n', 'inline marks');
+  assertValid('**bold with `code` inside**\n', 'bold+code (exclusive code mark)');
+  assertValid('a ***bold italic*** b and ~~**strike bold**~~\n', 'combined marks');
   assertValid('- a\n- b\n', 'bullet list');
   assertValid('1. a\n2. b\n', 'ordered list');
   assertValid('- [ ] a\n- [x] b\n', 'task list');

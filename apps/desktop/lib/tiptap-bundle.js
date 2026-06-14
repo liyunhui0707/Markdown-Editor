@@ -140,7 +140,17 @@
         }
         function textNode(text5, marks) {
           const t = { type: "text", text: text5 };
-          if (marks && marks.length) t.marks = marks.map(cloneMark);
+          let ms = marks;
+          if (ms && ms.length) {
+            if (ms.some(function(m) {
+              return m.type === "code";
+            })) {
+              ms = ms.filter(function(m) {
+                return m.type === "code";
+              });
+            }
+            t.marks = ms.map(cloneMark);
+          }
           return t;
         }
         function inlineToPm(node2, marks) {
@@ -40783,12 +40793,20 @@ ${prefix}
         doc3 = markdownToDoc(body);
       } catch (err) {
         doc3 = null;
+        if (typeof console !== "undefined") console.warn("[tiptap] markdownToDoc threw; plain-text fallback:", err);
       }
       if (doc3) {
         try {
           editor.commands.setContent(doc3, { emitUpdate: false, errorOnInvalidContent: true });
           return;
         } catch (err) {
+          if (typeof console !== "undefined") console.warn("[tiptap] strict setContent rejected; retrying lenient:", err);
+          try {
+            editor.commands.setContent(doc3, { emitUpdate: false });
+            return;
+          } catch (err2) {
+            if (typeof console !== "undefined") console.warn("[tiptap] lenient setContent also failed; plain-text fallback:", err2);
+          }
         }
       }
       try {

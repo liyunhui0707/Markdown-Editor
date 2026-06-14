@@ -44,7 +44,16 @@
 
   function textNode(text, marks) {
     const t = { type: 'text', text: text };
-    if (marks && marks.length) t.marks = marks.map(cloneMark);
+    let ms = marks;
+    if (ms && ms.length) {
+      // The Tiptap `code` mark is EXCLUSIVE (excludes all other marks), so
+      // `**`x`**` (bold+code) is not representable in the schema and would make
+      // setContent reject the whole doc. When code is present, keep only code.
+      if (ms.some(function (m) { return m.type === 'code'; })) {
+        ms = ms.filter(function (m) { return m.type === 'code'; });
+      }
+      t.marks = ms.map(cloneMark);
+    }
     return t;
   }
 

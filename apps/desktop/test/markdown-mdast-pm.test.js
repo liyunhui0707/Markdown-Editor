@@ -44,6 +44,18 @@ test('mdastToPm: emphasis/strong/inlineCode/strike/link become marks', () => {
   assert.equal(inline[4].marks[0].attrs.href, 'https://x');
 });
 
+test('mdastToPm: code mark is exclusive — bold+code text keeps only code', () => {
+  // `**`x`**` -> strong(inlineCode) in mdast. The Tiptap `code` mark excludes
+  // all others, so the text must carry ONLY the code mark (else setContent
+  // rejects the whole doc -> raw fallback).
+  const pm = mdastToPm(root([para([
+    { type: 'strong', children: [{ type: 'inlineCode', value: 'x' }] },
+  ])]));
+  const inline = pm.content[0].content[0];
+  assert.equal(inline.text, 'x');
+  assert.deepEqual(inline.marks, [{ type: 'code' }], 'bold dropped; only code kept');
+});
+
 test('mdastToPm: GFM task list -> taskList/taskItem with checked attr', () => {
   const pm = mdastToPm(root([
     md('list', { ordered: false, children: [

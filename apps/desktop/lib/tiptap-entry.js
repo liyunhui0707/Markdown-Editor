@@ -134,13 +134,29 @@ function createTiptapView(parent, opts) {
     frontmatter = split.frontmatter;
     const body = split.body;
     let doc = null;
-    try { doc = markdownToDoc(body); } catch (err) { doc = null; }
+    try {
+      doc = markdownToDoc(body);
+    } catch (err) {
+      doc = null;
+      if (typeof console !== 'undefined') console.warn('[tiptap] markdownToDoc threw; plain-text fallback:', err);
+    }
     if (doc) {
+      // 1. Strict: the doc is fully schema-valid — render it exactly.
       try {
         editor.commands.setContent(doc, { emitUpdate: false, errorOnInvalidContent: true });
         return;
       } catch (err) {
-        // Schema rejected the converted doc — fall through to plain text.
+        // 2. Lenient retry: let ProseMirror NORMALIZE the doc (drop an invalid
+        // mark combo or stray node) and render the rest as WYSIWYG, rather than
+        // dumping the whole note to raw text. Only a catastrophic failure falls
+        // through to plain text.
+        if (typeof console !== 'undefined') console.warn('[tiptap] strict setContent rejected; retrying lenient:', err);
+        try {
+          editor.commands.setContent(doc, { emitUpdate: false });
+          return;
+        } catch (err2) {
+          if (typeof console !== 'undefined') console.warn('[tiptap] lenient setContent also failed; plain-text fallback:', err2);
+        }
       }
     }
     try {
