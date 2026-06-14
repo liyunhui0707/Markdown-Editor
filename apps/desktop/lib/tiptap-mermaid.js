@@ -23,6 +23,13 @@ import { Node, mergeAttributes } from '@tiptap/core';
 let mermaidIdCounter = 0;
 function nextId() { mermaidIdCounter += 1; return 'tiptap-mermaid-' + mermaidIdCounter; }
 
+// PERF: cache rendered SVG by source. mermaid.render is CPU-heavy and runs on
+// the main thread; without a cache, every note switch (ProseMirror re-renders
+// the whole doc) re-renders all diagrams, which is the dominant switch lag.
+// Switching back to a note now reuses the cached SVG instantly. (Bounded-ish:
+// keyed by distinct diagram source seen this session.)
+const svgCache = new Map();
+
 function showSource(dom, code) {
   if (typeof document === 'undefined') return;
   const pre = document.createElement('pre');
@@ -38,22 +45,37 @@ function makeMermaidView(code) {
   dom.setAttribute('data-code', code || '');
   dom.setAttribute('contenteditable', 'false');
 
+  const src = String(code || '');
   let destroyed = false;
-  const mermaid = (typeof window !== 'undefined') ? window.mermaid : null;
 
-  if (mermaid && typeof mermaid.render === 'function' && String(code || '').trim()) {
-    // Wrap in Promise.resolve so a SYNCHRONOUS throw from mermaid.render lands
-    // in .catch rather than escaping the node view.
-    Promise.resolve()
-      .then(function () { return mermaid.render(nextId(), code); })
-      .then(function (result) {
-        if (destroyed) return;
-        if (result && typeof result.svg === 'string') dom.innerHTML = result.svg;
-        else showSource(dom, code);
-      })
-      .catch(function () { if (!destroyed) showSource(dom, code); });
+  // Cache hit -> render instantly, no mermaid.render cost (the switch-lag fix).
+  if (svgCache.has(src)) {
+    dom.innerHTML = svgCache.get(src);
+    return { dom: dom, destroy: function () { destroyed = true; } };
+  }
+
+  const mermaid = (typeof window !== 'undefined') ? window.mermaid : null;
+  if (mermaid && typeof mermaid.render === 'function' && src.trim()) {
+    showSource(dom, src); // brief placeholder until the deferred render lands
+    // DEFER to a macrotask so the note switch PAINTS first; the heavy render
+    // then fills the diagram in progressively instead of blocking the switch.
+    setTimeout(function () {
+      if (destroyed) return;
+      Promise.resolve()
+        .then(function () { return mermaid.render(nextId(), src); })
+        .then(function (result) {
+          if (destroyed) return;
+          if (result && typeof result.svg === 'string') {
+            svgCache.set(src, result.svg);
+            dom.innerHTML = result.svg;
+          } else {
+            showSource(dom, src);
+          }
+        })
+        .catch(function () { if (!destroyed) showSource(dom, src); });
+    }, 0);
   } else {
-    showSource(dom, code);
+    showSource(dom, src);
   }
 
   return {

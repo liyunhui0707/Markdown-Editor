@@ -40622,6 +40622,7 @@ ${prefix}
     mermaidIdCounter += 1;
     return "tiptap-mermaid-" + mermaidIdCounter;
   }
+  var svgCache = /* @__PURE__ */ new Map();
   function showSource(dom, code3) {
     if (typeof document === "undefined") return;
     const pre = document.createElement("pre");
@@ -40635,20 +40636,35 @@ ${prefix}
     dom.className = "tiptap-mermaid";
     dom.setAttribute("data-code", code3 || "");
     dom.setAttribute("contenteditable", "false");
+    const src = String(code3 || "");
     let destroyed = false;
+    if (svgCache.has(src)) {
+      dom.innerHTML = svgCache.get(src);
+      return { dom, destroy: function() {
+        destroyed = true;
+      } };
+    }
     const mermaid = typeof window !== "undefined" ? window.mermaid : null;
-    if (mermaid && typeof mermaid.render === "function" && String(code3 || "").trim()) {
-      Promise.resolve().then(function() {
-        return mermaid.render(nextId(), code3);
-      }).then(function(result) {
+    if (mermaid && typeof mermaid.render === "function" && src.trim()) {
+      showSource(dom, src);
+      setTimeout(function() {
         if (destroyed) return;
-        if (result && typeof result.svg === "string") dom.innerHTML = result.svg;
-        else showSource(dom, code3);
-      }).catch(function() {
-        if (!destroyed) showSource(dom, code3);
-      });
+        Promise.resolve().then(function() {
+          return mermaid.render(nextId(), src);
+        }).then(function(result) {
+          if (destroyed) return;
+          if (result && typeof result.svg === "string") {
+            svgCache.set(src, result.svg);
+            dom.innerHTML = result.svg;
+          } else {
+            showSource(dom, src);
+          }
+        }).catch(function() {
+          if (!destroyed) showSource(dom, src);
+        });
+      }, 0);
     } else {
-      showSource(dom, code3);
+      showSource(dom, src);
     }
     return {
       dom,
