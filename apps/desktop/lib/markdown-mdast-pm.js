@@ -157,6 +157,11 @@
       case 'thematicBreak':
         return { type: 'horizontalRule' };
       case 'code':
+        // A ```mermaid fenced block becomes a rendered mermaidBlock node;
+        // every other fenced block stays a codeBlock.
+        if (String(node.lang || '').toLowerCase() === 'mermaid') {
+          return { type: 'mermaidBlock', attrs: { code: node.value || '' } };
+        }
         return {
           type: 'codeBlock',
           attrs: { language: node.lang || null },
@@ -310,6 +315,8 @@
         return pmTableToMdast(node);
       case 'mathBlock':
         return { type: 'math', value: (node.attrs && node.attrs.latex) || '' };
+      case 'mermaidBlock':
+        return { type: 'code', lang: 'mermaid', value: (node.attrs && node.attrs.code) || '' };
       default:
         if (Array.isArray(node.content)) return { type: 'paragraph', children: pmInlineToMdast(node.content) };
         return null;

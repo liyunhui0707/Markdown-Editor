@@ -1871,6 +1871,26 @@
         border-radius: 3px;
       }
 
+      /* Tiptap WYSIWYG engine — Mermaid diagram block. */
+      #hybridWritePane .ProseMirror .tiptap-mermaid {
+        display: block;
+        margin: 10px 0;
+        text-align: center;
+      }
+      #hybridWritePane .ProseMirror .tiptap-mermaid svg { max-width: 100%; height: auto; }
+      #hybridWritePane .ProseMirror .tiptap-mermaid-source {
+        white-space: pre-wrap;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: var(--surface-muted, #f3f3f3);
+        padding: 8px 10px;
+        border-radius: 4px;
+        text-align: left;
+      }
+      #hybridWritePane .ProseMirror .tiptap-mermaid.ProseMirror-selectednode {
+        outline: 2px solid var(--accent, #6b7cff);
+        border-radius: 3px;
+      }
+
       /* Blend toolbar with app palette */
       .toastui-editor-toolbar {
         border-bottom: 1px solid var(--border-subtle);

@@ -247,6 +247,9 @@
             case "thematicBreak":
               return { type: "horizontalRule" };
             case "code":
+              if (String(node2.lang || "").toLowerCase() === "mermaid") {
+                return { type: "mermaidBlock", attrs: { code: node2.value || "" } };
+              }
               return {
                 type: "codeBlock",
                 attrs: { language: node2.lang || null },
@@ -391,6 +394,8 @@
               return pmTableToMdast(node2);
             case "mathBlock":
               return { type: "math", value: node2.attrs && node2.attrs.latex || "" };
+            case "mermaidBlock":
+              return { type: "code", lang: "mermaid", value: node2.attrs && node2.attrs.code || "" };
             default:
               if (Array.isArray(node2.content)) return { type: "paragraph", children: pmInlineToMdast(node2.content) };
               return null;
@@ -40611,6 +40616,79 @@ ${prefix}
     }
   });
 
+  // lib/tiptap-mermaid.js
+  var mermaidIdCounter = 0;
+  function nextId() {
+    mermaidIdCounter += 1;
+    return "tiptap-mermaid-" + mermaidIdCounter;
+  }
+  function showSource(dom, code3) {
+    if (typeof document === "undefined") return;
+    const pre = document.createElement("pre");
+    pre.className = "tiptap-mermaid-source";
+    pre.textContent = "```mermaid\n" + (code3 || "") + "\n```";
+    while (dom.firstChild) dom.removeChild(dom.firstChild);
+    dom.appendChild(pre);
+  }
+  function makeMermaidView(code3) {
+    const dom = document.createElement("div");
+    dom.className = "tiptap-mermaid";
+    dom.setAttribute("data-code", code3 || "");
+    dom.setAttribute("contenteditable", "false");
+    let destroyed = false;
+    const mermaid = typeof window !== "undefined" ? window.mermaid : null;
+    if (mermaid && typeof mermaid.render === "function" && String(code3 || "").trim()) {
+      Promise.resolve().then(function() {
+        return mermaid.render(nextId(), code3);
+      }).then(function(result) {
+        if (destroyed) return;
+        if (result && typeof result.svg === "string") dom.innerHTML = result.svg;
+        else showSource(dom, code3);
+      }).catch(function() {
+        if (!destroyed) showSource(dom, code3);
+      });
+    } else {
+      showSource(dom, code3);
+    }
+    return {
+      dom,
+      destroy: function() {
+        destroyed = true;
+      }
+    };
+  }
+  var MermaidBlock = Node3.create({
+    name: "mermaidBlock",
+    group: "block",
+    atom: true,
+    selectable: true,
+    addAttributes: function() {
+      return {
+        code: {
+          default: "",
+          parseHTML: function(el) {
+            return el.getAttribute("data-code") || "";
+          },
+          renderHTML: function(attrs) {
+            return { "data-code": attrs.code || "" };
+          }
+        }
+      };
+    },
+    parseHTML: function() {
+      return [{ tag: 'div[data-type="mermaid-block"]' }];
+    },
+    renderHTML: function(props) {
+      return ["div", mergeAttributes(props.HTMLAttributes, { "data-type": "mermaid-block" })];
+    },
+    addNodeView: function() {
+      return function(props) {
+        if (typeof document === "undefined") return { dom: { nodeType: 1 } };
+        return makeMermaidView(props.node.attrs.code);
+      };
+    }
+  });
+
   // lib/tiptap-entry.js
   var import_markdown_mdast_pm = __toESM(require_markdown_mdast_pm());
   var import_markdown_frontmatter = __toESM(require_markdown_frontmatter());
@@ -40661,7 +40739,10 @@ ${prefix}
         // KaTeX-rendered math: inline `$x$` and display `$$x$$`. Atoms carrying
         // verbatim LaTeX so remark-math round-trips it without escaping.
         InlineMath,
-        MathBlock
+        MathBlock,
+        // Mermaid diagrams: ```mermaid blocks render as SVG (async). Round-trips
+        // back to a ```mermaid fenced block.
+        MermaidBlock
       ],
       content: ""
       // start empty; real content is applied via the guarded setText

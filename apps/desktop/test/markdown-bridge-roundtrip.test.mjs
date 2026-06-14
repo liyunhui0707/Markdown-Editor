@@ -70,6 +70,14 @@ test('round-trip: fenced code keeps language + body', () => {
   assert.match(out, /const x = 1;/);
 });
 
+test('mermaid: a ```mermaid block round-trips as a ```mermaid block (not mangled)', () => {
+  const out = roundtrip('```mermaid\ngraph TD; A-->B;\n```\n');
+  assert.match(out, /```mermaid/);
+  assert.match(out, /graph TD; A-->B;/);
+  // and a regular code block is NOT treated as mermaid
+  assert.match(roundtrip('```js\nx;\n```\n'), /```js/);
+});
+
 test('round-trip: blockquote', () => {
   assert.match(roundtrip('> quoted\n'), /^> quoted$/m);
 });

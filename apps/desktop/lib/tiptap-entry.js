@@ -43,6 +43,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { InlineMath, MathBlock } from './tiptap-math.js';
+import { MermaidBlock } from './tiptap-mermaid.js';
 
 import MarkdownMdastPm from './markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
@@ -102,6 +103,9 @@ function createTiptapView(parent, opts) {
       // verbatim LaTeX so remark-math round-trips it without escaping.
       InlineMath,
       MathBlock,
+      // Mermaid diagrams: ```mermaid blocks render as SVG (async). Round-trips
+      // back to a ```mermaid fenced block.
+      MermaidBlock,
     ],
     content: '', // start empty; real content is applied via the guarded setText
   });

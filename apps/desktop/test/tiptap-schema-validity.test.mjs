@@ -34,6 +34,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { InlineMath, MathBlock } from '../lib/tiptap-math.js';
+import { MermaidBlock } from '../lib/tiptap-mermaid.js';
 import MarkdownMdastPm from '../lib/markdown-mdast-pm.js';
 const { mdastToPm } = MarkdownMdastPm;
 
@@ -49,6 +50,7 @@ const schema = getSchema([
   Image.configure({ inline: true, allowBase64: true }),
   InlineMath,
   MathBlock,
+  MermaidBlock,
 ]);
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
@@ -76,6 +78,7 @@ test('schema: each supported construct produces schema-valid PM JSON', () => {
   assertValid('---\n', 'thematic break');
   assertValid('Inline $x^2$ math.\n', 'inline math');
   assertValid('$$\n\\sum_{i=1}^n i\n$$\n', 'display math');
+  assertValid('```mermaid\ngraph TD; A-->B;\n```\n', 'mermaid block');
 });
 
 test('schema: the full "kitchen sink" note is schema-valid (the blank/raw-fallback fix)', () => {

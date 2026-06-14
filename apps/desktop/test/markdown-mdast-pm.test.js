@@ -114,6 +114,21 @@ test('mdastToPm: code block keeps language + value', () => {
   assert.equal(pm.content[0].content[0].text, 'const x=1;');
 });
 
+test('mermaid: lang=mermaid code <-> mermaidBlock; other langs stay codeBlock', () => {
+  const pm = mdastToPm(root([
+    { type: 'code', lang: 'mermaid', value: 'graph TD; A-->B;' },
+    { type: 'code', lang: 'js', value: 'x;' },
+  ]));
+  assert.equal(pm.content[0].type, 'mermaidBlock');
+  assert.equal(pm.content[0].attrs.code, 'graph TD; A-->B;');
+  assert.equal(pm.content[1].type, 'codeBlock');
+  // back to mdast: mermaidBlock -> code with lang mermaid
+  const back = pmToMdast(pm);
+  assert.equal(back.children[0].type, 'code');
+  assert.equal(back.children[0].lang, 'mermaid');
+  assert.equal(back.children[0].value, 'graph TD; A-->B;');
+});
+
 test('TOTALITY: raw block html degrades to a visible paragraph (never dropped/blank)', () => {
   const pm = mdastToPm(root([{ type: 'html', value: '<script>alert(1)</script>' }]));
   assert.equal(pm.content[0].type, 'paragraph');
