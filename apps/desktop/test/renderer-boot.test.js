@@ -24,6 +24,7 @@ const ScrollSync  = require('../lib/scroll-sync');
 const DocStats    = require('../lib/doc-stats');
 const NoteRow     = require('../lib/note-row');
 const DirtyState  = require('../lib/dirty-state');
+const NoteSwitchRestore = require('../lib/note-switch-restore');
 const RefreshButton = require('../lib/session-viewer/refresh-button');
 const ReadRenderer = require('../lib/session-viewer/read-renderer');
 const ReadTab = require('../lib/session-viewer/read-tab');
@@ -360,6 +361,16 @@ function makeRendererHarness({
     cm6HybridAdapter: null,
     cm6HybridGetState: 0,
     cm6HybridSetState: [],
+    tiptapConstructed: 0,
+    tiptapParent: null,
+    tiptapOptions: null,
+    tiptapSetText: [],
+    tiptapGetText: 0,
+    tiptapExitWriteMode: 0,
+    tiptapOnChange: null,
+    tiptapAdapter: null,
+    tiptapGetState: 0,
+    tiptapSetState: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
     watchVaultFolderPayloads: [],
@@ -598,6 +609,54 @@ function makeRendererHarness({
     },
   };
 
+  // tiptap WYSIWYG engine stub. Mirrors lib/tiptap-entry.js createTiptapView:
+  // setText replaces the document; getState returns a truthy snapshot; setState
+  // is a NO-OP (Tiptap owns its own state) — exactly the no-op that caused the
+  // stale-content bug when the host "restored" a revisited note via setState
+  // and skipped setText.
+  const TiptapView = {
+    createTiptapView(parent, opts) {
+      calls.tiptapConstructed += 1;
+      calls.tiptapParent  = parent;
+      calls.tiptapOptions = opts || {};
+      calls.tiptapOnChange = calls.tiptapOptions.onChange;
+      const initialDoc = calls.tiptapOptions.initialDoc || '';
+      const adapter = {
+        view: {},
+        text: initialDoc,
+        _state: { doc: initialDoc, _kind: 'tiptap-fresh' },
+        getText() {
+          calls.tiptapGetText += 1;
+          return this.text;
+        },
+        setText(text) {
+          const value = text == null ? '' : String(text);
+          calls.tiptapSetText.push(value);
+          this.text = value;
+          this._state = { doc: value, _kind: 'tiptap-fresh' };
+        },
+        getState() {
+          calls.tiptapGetState += 1;
+          this._state = { ...this._state, doc: this.text };
+          return this._state;
+        },
+        // NO-OP, like the real engine: does NOT reload the document. If the host
+        // ever restores a revisited note through this, the editor keeps the
+        // previous note's text — the bug under test.
+        setState(state) {
+          calls.tiptapSetState.push(state);
+        },
+        exitWriteMode() {
+          calls.tiptapExitWriteMode += 1;
+        },
+        focus() {},
+        destroy() {},
+      };
+      calls.tiptapAdapter = adapter;
+      return adapter;
+    },
+  };
+
   let nextSavedFileId = 1;
   // Auto-default loadedTitle = title so vaultNotes config doesn't have to set
   // it explicitly. parseMarkdownFile in main.js does the same on real disk
@@ -793,6 +852,7 @@ function makeRendererHarness({
     Cm6WriteView,
     Cm6HybridView,
     CM6Production,
+    TiptapView,
     WriteEngine: {
       ...WriteEngine,
       resolveWriteEngine(opts) {
@@ -806,6 +866,7 @@ function makeRendererHarness({
     DocStats,
     NoteRow,
     DirtyState,
+    NoteSwitchRestore,
     SessionViewer,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
@@ -1495,6 +1556,43 @@ test('Hybrid: note switching continues to use setText (note-local undo intention
   elements.get('noteList').children[0].fire('click');
   assert.equal(calls.hybridSetText.at(-1), '# Note A edited',
     'returning to A in Hybrid must reload via setText (no cached state)');
+});
+
+test('tiptap: switching back to a previously-opened note reloads via setText (not the no-op setState)', async () => {
+  // Regression: the tiptap adapter advertised a no-op setState, so the host
+  // "restored" a revisited note through it and skipped setText — leaving the
+  // editor showing the PREVIOUS note's content (and a Save would then write it
+  // to the wrong file). tiptap must behave like Hybrid: always setText on
+  // switch. RED before the fix (revisit calls the no-op setState, not setText).
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=tiptap',
+    vaultNotes: [
+      { id: 'vault:a', title: 'Vault A', body: '# Note A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'Vault B', body: '# Note B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+
+  await elements.get('chooseVaultButton').fireAsync('click');
+  // Initial load brings A in via setText (uncached first visit).
+  assert.equal(calls.tiptapSetText.at(-1), '# Note A');
+
+  // Switch to B (uncached) → setText '# Note B'.
+  elements.get('noteList').children[1].fire('click');
+  assert.equal(calls.tiptapSetText.at(-1), '# Note B');
+
+  const setStateBeforeReturn = calls.tiptapSetState.length;
+  const setTextBeforeReturn  = calls.tiptapSetText.length;
+
+  // Switch back to A. Must reload A via setText, NOT restore via the no-op
+  // setState (which would keep B's content on screen — the stale-content bug).
+  elements.get('noteList').children[0].fire('click');
+
+  assert.equal(calls.tiptapSetText.length, setTextBeforeReturn + 1,
+    'returning to A must reload via setText');
+  assert.equal(calls.tiptapSetText.at(-1), '# Note A',
+    'returning to A must show A’s body, not the previous note’s');
+  assert.equal(calls.tiptapSetState.length, setStateBeforeReturn,
+    'tiptap must NOT restore via the no-op setState (that is the stale-content bug)');
 });
 
 // ── Save-flow preserves dirty in-memory edits in unrelated vault notes ──────

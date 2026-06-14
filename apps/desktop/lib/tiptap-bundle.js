@@ -40825,11 +40825,6 @@ ${prefix}
       view: editor,
       getText: getText3,
       setText,
-      getState: function() {
-        return editor.state;
-      },
-      setState: function() {
-      },
       exitWriteMode: function() {
       },
       focus: function() {

@@ -2243,6 +2243,7 @@
     <script src="./lib/doc-stats.js"></script>
     <script src="./lib/note-row.js"></script>
     <script src="./lib/dirty-state.js"></script>
+    <script src="./lib/note-switch-restore.js"></script>
     <script src="./lib/session-viewer/refresh-button.js"></script>
     <script src="./lib/session-viewer/read-inline.js"></script>
     <script src="./lib/session-viewer/read-user-preprocess.js"></script>
@@ -2955,12 +2956,13 @@
             // Migration always forces a fresh load because we just rewrote
             // note.body.
             let restored = false;
-            if (!migrated && typeof liveEditorInstance.setState === 'function') {
+            if (!migrated) {
+              const hasSetState = typeof liveEditorInstance.setState === 'function';
               const cached = noteEditorStates.get(note.id);
-              if (cached && cached.doc === note.body) {
+              if (window.NoteSwitchRestore.shouldRestoreCachedState(hasSetState, cached, note.body)) {
                 liveEditorInstance.setState(cached.state);
                 restored = true;
-              } else if (cached) {
+              } else if (hasSetState && cached) {
                 noteEditorStates.delete(note.id);
               }
             }
@@ -4828,6 +4830,12 @@
           onChange: handleWriteChange,
         });
 
+        // Like the legacy `hybrid` adapter, tiptap intentionally does NOT expose
+        // getState/setState: Tiptap owns its in-session history and has no
+        // restorable model-level state snapshot. The host detects their absence
+        // and reloads the note via setText on every switch. (Advertising a no-op
+        // setState made the host "restore" revisited notes through it and skip
+        // setText, showing the previous note's content — a data-loss-on-save risk.)
         liveEditorInstance = {
           view: tiptapWrite.view,
           getText() { return tiptapWrite.getText(); },
@@ -4835,11 +4843,6 @@
             const raw = text || '';
             tiptapWrite.setText(raw);
             _toastuiInstance.setMarkdown(raw);
-          },
-          getState() { return tiptapWrite.getState(); },
-          setState(state) {
-            tiptapWrite.setState(state);
-            _toastuiInstance.setMarkdown(tiptapWrite.getText());
           },
           exitWriteMode() { tiptapWrite.exitWriteMode(); },
         };

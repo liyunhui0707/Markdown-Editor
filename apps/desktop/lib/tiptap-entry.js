@@ -172,12 +172,15 @@ function createTiptapView(parent, opts) {
     editor.on('update', function () { onChange(getText()); });
   }
 
+  // No getState/setState: Tiptap owns its in-session history and exposes no
+  // restorable model-level snapshot. The host treats their absence as "reload
+  // via setText on every note switch" (see lib/note-switch-restore.js). A no-op
+  // setState here previously made the host skip setText on revisit, showing the
+  // previous note's content.
   return {
     view:          editor,
     getText:       getText,
     setText:       setText,
-    getState:      function () { return editor.state; },
-    setState:      function () { /* no-op: Tiptap owns its state */ },
     exitWriteMode: function () { /* no-op: no inactive-block mode */ },
     focus:         function () { editor.commands.focus(); },
     destroy:       function () { editor.destroy(); },
