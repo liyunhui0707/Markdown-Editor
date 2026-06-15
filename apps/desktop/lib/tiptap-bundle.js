@@ -30,6 +30,187 @@
     mod
   ));
 
+  // lib/image-url-safety.js
+  var require_image_url_safety = __commonJS({
+    "lib/image-url-safety.js"(exports, module) {
+      "use strict";
+      (function(root2, factory) {
+        if (typeof module === "object" && module.exports) {
+          module.exports = factory();
+        } else {
+          root2.ImageUrlSafety = factory();
+        }
+      })(typeof globalThis !== "undefined" ? globalThis : exports, function() {
+        const ALLOWED_DATA_MIMES = /* @__PURE__ */ new Set([
+          "png",
+          "jpeg",
+          "jpg",
+          "gif",
+          "webp",
+          "svg+xml",
+          "bmp",
+          "apng",
+          "avif",
+          "x-icon",
+          "vnd.microsoft.icon"
+        ]);
+        function isSafeImageUrl(url) {
+          if (url == null) return { safe: false, reason: "empty-url" };
+          if (typeof url !== "string") return { safe: false, reason: "empty-url" };
+          if (url.length === 0) return { safe: false, reason: "empty-url" };
+          if (url.indexOf("\0") !== -1) return { safe: false, reason: "invalid-path" };
+          const schemeMatch = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/.exec(url);
+          if (schemeMatch) {
+            const scheme2 = schemeMatch[1].toLowerCase();
+            if (scheme2 === "https") return { safe: true, kind: "https" };
+            if (scheme2 === "data") {
+              const mimeMatch = /^data:image\/([a-zA-Z0-9+.\-]+)/i.exec(url);
+              if (!mimeMatch) return { safe: false, reason: "data-mime-not-allowed" };
+              const mime = mimeMatch[1].toLowerCase();
+              if (!ALLOWED_DATA_MIMES.has(mime)) return { safe: false, reason: "data-mime-not-allowed" };
+              return { safe: true, kind: "data" };
+            }
+            return { safe: false, reason: "scheme-not-allowed" };
+          }
+          if (url.charAt(0) === "/") return { safe: false, reason: "absolute-path-not-allowed" };
+          return { safe: true, kind: "vault-relative" };
+        }
+        function decideImageRender(src) {
+          const verdict = isSafeImageUrl(src);
+          if (!verdict.safe) return { action: "reject", reason: verdict.reason };
+          if (verdict.kind === "vault-relative") return { action: "resolve", kind: "vault-relative" };
+          return { action: "direct", kind: verdict.kind };
+        }
+        return {
+          isSafeImageUrl,
+          decideImageRender
+        };
+      });
+    }
+  });
+
+  // lib/tiptap-image-nodeview.js
+  var require_tiptap_image_nodeview = __commonJS({
+    "lib/tiptap-image-nodeview.js"(exports, module) {
+      "use strict";
+      (function(root2, factory) {
+        if (typeof module === "object" && module.exports) {
+          module.exports = factory(require_image_url_safety());
+        } else {
+          root2.TiptapImageNodeView = factory(root2.ImageUrlSafety);
+        }
+      })(typeof globalThis !== "undefined" ? globalThis : exports, function(ImageUrlSafety) {
+        const decideImageRender = ImageUrlSafety.decideImageRender;
+        function isValidResolved(r) {
+          return !!r && r.ok === true && typeof r.fileUrl === "string" && r.fileUrl.indexOf("\0") === -1 && /^file:/i.test(r.fileUrl);
+        }
+        function buildImageNodeView2(node2, options, deps) {
+          const o = options || {};
+          const d = deps || {};
+          const doc3 = d.document || (typeof document !== "undefined" ? document : null);
+          const decide = d.decide || decideImageRender;
+          let currentNode = node2;
+          const src = node2 && node2.attrs && node2.attrs.src || "";
+          const alt = node2 && node2.attrs && node2.attrs.alt || "";
+          let destroyed = false;
+          const dom = doc3 ? doc3.createElement("span") : null;
+          if (dom && dom.setAttribute) dom.setAttribute("class", "tiptap-image");
+          function makeRejected() {
+            const span = doc3 ? doc3.createElement("span") : null;
+            if (span) {
+              if (span.setAttribute) span.setAttribute("class", "tiptap-image-rejected");
+              span.textContent = alt;
+            }
+            return span;
+          }
+          function makeImg(srcValue) {
+            const img = doc3 ? doc3.createElement("img") : null;
+            if (img && img.setAttribute) {
+              if (srcValue != null) img.setAttribute("src", srcValue);
+              img.setAttribute("alt", alt);
+              img.setAttribute("loading", "lazy");
+              if (img.style) img.style.maxWidth = "100%";
+            }
+            return img;
+          }
+          function swapToRejected(img) {
+            if (dom && img && img.parentNode === dom && dom.removeChild) dom.removeChild(img);
+            const ph = makeRejected();
+            if (dom && ph && dom.appendChild) dom.appendChild(ph);
+          }
+          const decision = decide(src);
+          const isVaultRelative = decision.action === "resolve";
+          let builtNoteDir = null;
+          if (decision.action === "reject") {
+            const ph = makeRejected();
+            if (dom && ph && dom.appendChild) dom.appendChild(ph);
+          } else if (decision.action === "direct") {
+            const img = makeImg(src);
+            if (dom && img && dom.appendChild) dom.appendChild(img);
+          } else {
+            const img = makeImg(null);
+            if (dom && img && dom.appendChild) dom.appendChild(img);
+            const getNoteDir = typeof o.getNoteDir === "function" ? o.getNoteDir : null;
+            const resolveImagePath = typeof o.resolveImagePath === "function" ? o.resolveImagePath : null;
+            builtNoteDir = getNoteDir ? getNoteDir() : null;
+            if (!getNoteDir || !resolveImagePath) {
+              swapToRejected(img);
+            } else {
+              let promise = null;
+              try {
+                promise = Promise.resolve(resolveImagePath(builtNoteDir, src));
+              } catch (_err) {
+                swapToRejected(img);
+              }
+              if (promise) {
+                promise.then(
+                  function(r) {
+                    if (destroyed) return;
+                    if (isValidResolved(r)) {
+                      if (img && img.setAttribute) img.setAttribute("src", r.fileUrl);
+                    } else {
+                      swapToRejected(img);
+                    }
+                  },
+                  function(_err) {
+                    if (destroyed) return;
+                    swapToRejected(img);
+                  }
+                );
+              }
+            }
+          }
+          return {
+            dom,
+            ignoreMutation: function() {
+              return true;
+            },
+            update: function(newNode) {
+              if (!newNode || newNode.type !== currentNode.type) return false;
+              const newSrc = newNode.attrs && newNode.attrs.src || "";
+              const newAlt = newNode.attrs && newNode.attrs.alt || "";
+              if (newSrc !== src || newAlt !== alt) return false;
+              if (isVaultRelative) {
+                const getNoteDir = typeof o.getNoteDir === "function" ? o.getNoteDir : null;
+                const currentDir = getNoteDir ? getNoteDir() : null;
+                if (currentDir !== builtNoteDir) return false;
+              }
+              currentNode = newNode;
+              return true;
+            },
+            destroy: function() {
+              destroyed = true;
+            }
+          };
+        }
+        return {
+          buildImageNodeView: buildImageNodeView2,
+          isValidResolved
+        };
+      });
+    }
+  });
+
   // node_modules/extend/index.js
   var require_extend = __commonJS({
     "node_modules/extend/index.js"(exports, module) {
@@ -29797,6 +29978,24 @@ ${prefix}
     }
   });
 
+  // lib/tiptap-image.js
+  var import_tiptap_image_nodeview = __toESM(require_tiptap_image_nodeview());
+  var { buildImageNodeView } = import_tiptap_image_nodeview.default;
+  var GatedImage = Image.extend({
+    addOptions() {
+      const parent = this.parent ? this.parent() : {};
+      return {
+        ...parent,
+        getNoteDir: null,
+        resolveImagePath: null
+      };
+    },
+    addNodeView() {
+      const options = this.options;
+      return (props) => buildImageNodeView(props.node, options, {});
+    }
+  });
+
   // node_modules/bail/index.js
   function bail(error) {
     if (error) {
@@ -40748,6 +40947,8 @@ ${prefix}
     const o = opts || {};
     const onChange = typeof o.onChange === "function" ? o.onChange : null;
     const initialDoc = o.initialDoc != null ? String(o.initialDoc) : "";
+    const getNoteDir = typeof o.getNoteDir === "function" ? o.getNoteDir : null;
+    const resolveImagePath = typeof o.resolveImagePath === "function" ? o.resolveImagePath : null;
     const editor = new Editor({
       element: parent,
       extensions: [
@@ -40759,9 +40960,12 @@ ${prefix}
         TaskList,
         TaskItem.configure({ nested: true }),
         // Inline images (the converter emits image nodes inside paragraphs).
-        // inline:true matches that; without this extension, strict setContent
-        // rejected the whole note and fell back to plain text (raw Markdown).
-        Image.configure({ inline: true, allowBase64: true }),
+        // GatedImage routes every src through the allowlist + vault-relative IPC
+        // (lib/tiptap-image.js); unsafe URLs render an alt-text placeholder and
+        // are never fetched. inline:true matches the converter's inline image
+        // nodes (without an image extension, strict setContent rejected the whole
+        // note and fell back to plain text).
+        GatedImage.configure({ inline: true, allowBase64: true, getNoteDir, resolveImagePath }),
         // KaTeX-rendered math: inline `$x$` and display `$$x$$`. Atoms carrying
         // verbatim LaTeX so remark-math round-trips it without escaping.
         InlineMath,

@@ -371,6 +371,7 @@ function makeRendererHarness({
     tiptapAdapter: null,
     tiptapGetState: 0,
     tiptapSetState: [],
+    resolveImagePathArgs: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
     watchVaultFolderPayloads: [],
@@ -767,6 +768,12 @@ function makeRendererHarness({
           calls.vaultChangedCallback = null;
         }
       };
+    },
+    // Image safety: vault-relative image resolution IPC. Records calls so the
+    // tiptap-image wiring test can assert the engine's resolver delegates here.
+    resolveImagePath(noteDir, relPath) {
+      calls.resolveImagePathArgs.push([noteDir, relPath]);
+      return Promise.resolve({ ok: true, fileUrl: 'file:///fake-vault/resolved.png' });
     },
     // Stage 6.3A: the renderer registers one callback that, when
     // invoked by main at close time, computes the current dirty
@@ -1593,6 +1600,26 @@ test('tiptap: switching back to a previously-opened note reloads via setText (no
     'returning to A must show A’s body, not the previous note’s');
   assert.equal(calls.tiptapSetState.length, setStateBeforeReturn,
     'tiptap must NOT restore via the no-op setState (that is the stale-content bug)');
+});
+
+test('tiptap: image-safety wiring — mount passes getNoteDir + a resolver delegating to vaultApi.resolveImagePath', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=tiptap',
+    vaultNotes: [
+      { id: 'vault:n', title: 'N', body: '# N', fileName: 'n.md', relativePath: 'notes/sub/n.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+
+  // getNoteDir returns the selected note's directory relative to the vault root.
+  assert.equal(typeof calls.tiptapOptions.getNoteDir, 'function');
+  assert.equal(calls.tiptapOptions.getNoteDir(), 'notes/sub');
+
+  // resolveImagePath delegates to window.vaultApi.resolveImagePath(noteDir, relPath).
+  assert.equal(typeof calls.tiptapOptions.resolveImagePath, 'function');
+  const result = await calls.tiptapOptions.resolveImagePath('notes/sub', './a.png');
+  assert.deepEqual(calls.resolveImagePathArgs.at(-1), ['notes/sub', './a.png']);
+  assert.deepEqual(result, { ok: true, fileUrl: 'file:///fake-vault/resolved.png' });
 });
 
 // ── Save-flow preserves dirty in-memory edits in unrelated vault notes ──────

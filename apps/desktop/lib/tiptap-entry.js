@@ -34,7 +34,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TaskList } from '@tiptap/extension-task-list';
 import { TaskItem } from '@tiptap/extension-task-item';
-import { Image } from '@tiptap/extension-image';
+import { GatedImage } from './tiptap-image.js';
 
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -84,6 +84,11 @@ function createTiptapView(parent, opts) {
   const o = opts || {};
   const onChange = (typeof o.onChange === 'function') ? o.onChange : null;
   const initialDoc = (o.initialDoc != null) ? String(o.initialDoc) : '';
+  // Image safety: rendered <img> only loads allow-listed URLs; vault-relative
+  // paths resolve via the resolve-image-path IPC. Both optional (degrade to the
+  // rejected placeholder for vault-relative when absent).
+  const getNoteDir = (typeof o.getNoteDir === 'function') ? o.getNoteDir : null;
+  const resolveImagePath = (typeof o.resolveImagePath === 'function') ? o.resolveImagePath : null;
 
   const editor = new Editor({
     element: parent,
@@ -96,9 +101,12 @@ function createTiptapView(parent, opts) {
       TaskList,
       TaskItem.configure({ nested: true }),
       // Inline images (the converter emits image nodes inside paragraphs).
-      // inline:true matches that; without this extension, strict setContent
-      // rejected the whole note and fell back to plain text (raw Markdown).
-      Image.configure({ inline: true, allowBase64: true }),
+      // GatedImage routes every src through the allowlist + vault-relative IPC
+      // (lib/tiptap-image.js); unsafe URLs render an alt-text placeholder and
+      // are never fetched. inline:true matches the converter's inline image
+      // nodes (without an image extension, strict setContent rejected the whole
+      // note and fell back to plain text).
+      GatedImage.configure({ inline: true, allowBase64: true, getNoteDir, resolveImagePath }),
       // KaTeX-rendered math: inline `$x$` and display `$$x$$`. Atoms carrying
       // verbatim LaTeX so remark-math round-trips it without escaping.
       InlineMath,

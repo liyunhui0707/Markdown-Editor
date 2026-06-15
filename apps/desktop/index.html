@@ -1890,6 +1890,11 @@
         outline: 2px solid var(--accent, #6b7cff);
         border-radius: 3px;
       }
+      #hybridWritePane .ProseMirror .tiptap-image img { max-width: 100%; height: auto; }
+      #hybridWritePane .ProseMirror .tiptap-image-rejected {
+        font-style: italic;
+        opacity: 0.6;
+      }
 
       /* Blend toolbar with app palette */
       .toastui-editor-toolbar {
@@ -4828,6 +4833,19 @@
         // (NORMALIZED, not byte-identical — the accepted tradeoff of this model).
         const tiptapWrite = window.TiptapView.createTiptapView(hybridWritePane, {
           onChange: handleWriteChange,
+          // Image safety: getNoteDir returns the selected note's directory
+          // relative to the vault root (empty for root-level notes); the IPC
+          // handler joins it with the vault path. Same contract as the cm6-lp
+          // mount above. Vault-relative <img> paths resolve via this IPC; only
+          // allow-listed URLs are ever fetched.
+          getNoteDir: () => {
+            const sel = getSelectedNote();
+            if (!sel || !sel.relativePath) return '';
+            const lastSlash = sel.relativePath.lastIndexOf('/');
+            return lastSlash >= 0 ? sel.relativePath.slice(0, lastSlash) : '';
+          },
+          resolveImagePath: (noteDir, relPath) =>
+            window.vaultApi.resolveImagePath(noteDir, relPath),
         });
 
         // Like the legacy `hybrid` adapter, tiptap intentionally does NOT expose
