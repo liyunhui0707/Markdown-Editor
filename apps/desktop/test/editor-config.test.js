@@ -60,6 +60,46 @@ test('toolbarItems has the expected three groups', () => {
   ]);
 });
 
+// ── Preview image gating (customHTMLRenderer) ─────────────────────────────────
+
+test('customHTMLRenderer.image is wired', () => {
+  const config = makeEditorConfig(null);
+  assert.equal(typeof config.customHTMLRenderer.image, 'function');
+});
+
+test('configured image renderer: unsafe URL -> placeholder, no <img>/src', () => {
+  const image = makeEditorConfig(null).customHTMLRenderer.image;
+  const ctx = { getChildrenText: () => 'A', skipChildren: () => {} };
+  const t = image({ destination: 'javascript:alert(1)' }, ctx);
+  assert.ok(Array.isArray(t), 'placeholder is a token array');
+  assert.equal(JSON.stringify(t).includes('"tagName":"img"'), false, 'no <img>');
+  assert.equal(JSON.stringify(t).includes('"src"'), false, 'no src attribute');
+});
+
+test('configured image renderer: vault-relative -> placeholder', () => {
+  const image = makeEditorConfig(null).customHTMLRenderer.image;
+  const ctx = { getChildrenText: () => 'local', skipChildren: () => {} };
+  const t = image({ destination: './assets/x.png' }, ctx);
+  assert.ok(Array.isArray(t));
+});
+
+test('configured image renderer: https -> <img> token with src', () => {
+  const image = makeEditorConfig(null).customHTMLRenderer.image;
+  const ctx = { getChildrenText: () => 'cat', skipChildren: () => {} };
+  const t = image({ destination: 'https://example.com/x.png' }, ctx);
+  assert.equal(t.tagName, 'img');
+  assert.equal(t.attributes.src, 'https://example.com/x.png');
+});
+
+test('index.html loads image-url-safety.js and toast-image-renderer.js before editor-config.js', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const safety = html.indexOf('<script src="./lib/image-url-safety.js"></script>');
+  const renderer = html.indexOf('<script src="./lib/toast-image-renderer.js"></script>');
+  const config = html.indexOf('<script src="./lib/editor-config.js"></script>');
+  assert.ok(safety >= 0 && renderer >= 0 && config >= 0, 'all three script tags present');
+  assert.ok(safety < renderer && renderer < config, 'safety + renderer must load before editor-config');
+});
+
 // ── Static wiring tests ───────────────────────────────────────────────────────
 
 test('index.html loads editor-config.js via script tag', () => {

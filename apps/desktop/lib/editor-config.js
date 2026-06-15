@@ -3,14 +3,14 @@
    Pattern matches lib/LiveEditor.js UMD wrapper. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./toast-image-renderer.js'));
   } else {
-    root.makeEditorConfig = factory();
+    root.makeEditorConfig = factory(root.ToastImageRenderer);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (ToastImageRenderer) {
 
   function makeEditorConfig(el) {
-    return {
+    var config = {
       el,
       height: '100%',
       initialEditType: 'markdown',
@@ -24,6 +24,13 @@
       ],
       initialValue: '',
     };
+    // Gate Preview-pane image rendering through the same allowlist as the tiptap
+    // engine: unsafe + un-resolvable vault-relative URLs render an alt-text
+    // placeholder instead of an <img>, so the Preview never fetches them.
+    if (ToastImageRenderer && typeof ToastImageRenderer.gatedImage === 'function') {
+      config.customHTMLRenderer = { image: ToastImageRenderer.gatedImage };
+    }
+    return config;
   }
 
   return makeEditorConfig;
