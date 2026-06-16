@@ -319,6 +319,23 @@
         function cloneMark(m) {
           return m.attrs ? { type: m.type, attrs: Object.assign({}, m.attrs) } : { type: m.type };
         }
+        let currentSource = null;
+        function verbatim(node2) {
+          if (node2 && typeof node2.value === "string") return node2.value;
+          const src = currentSource;
+          if (typeof src !== "string") return null;
+          const pos = node2 && node2.position;
+          if (!pos || !pos.start || !pos.end) return null;
+          const a = pos.start.offset, b = pos.end.offset;
+          if (!Number.isInteger(a) || !Number.isInteger(b)) return null;
+          if (a < 0 || b < a || b > src.length) return null;
+          return src.slice(a, b);
+        }
+        function rawInlineNode(raw, marks) {
+          const n = { type: "rawInline", attrs: { raw } };
+          if (marks && marks.length) n.marks = marks.map(cloneMark);
+          return n;
+        }
         function textNode(text5, marks) {
           const t = { type: "text", text: text5 };
           let ms = marks;
@@ -358,6 +375,17 @@
               return [{ type: "inlineMath", attrs: { latex: node2.value || "" } }];
             case "break":
               return [{ type: "hardBreak" }];
+            case "html": {
+              const raw = verbatim(node2);
+              return raw ? [rawInlineNode(raw, marks)] : typeof node2.value === "string" && node2.value ? [textNode(node2.value, marks)] : [];
+            }
+            case "linkReference":
+            case "imageReference":
+            case "footnoteReference": {
+              const raw = verbatim(node2);
+              if (raw) return [rawInlineNode(raw, marks)];
+              return Array.isArray(node2.children) ? inlineChildren(node2, marks) : [];
+            }
             default:
               if (Array.isArray(node2.children)) return inlineChildren(node2, marks);
               if (typeof node2.value === "string" && node2.value) return [textNode(node2.value, marks)];
@@ -452,8 +480,19 @@
               return tableToPm(node2);
             case "math":
               return { type: "mathBlock", attrs: { latex: node2.value || "" } };
-            case "html":
-              return node2.value ? { type: "paragraph", content: [textNode(node2.value, [])] } : null;
+            case "html": {
+              const raw = verbatim(node2);
+              return raw ? { type: "rawBlock", attrs: { raw } } : node2.value ? { type: "paragraph", content: [textNode(node2.value, [])] } : null;
+            }
+            case "definition":
+            case "footnoteDefinition": {
+              const raw = verbatim(node2);
+              if (raw) return { type: "rawBlock", attrs: { raw } };
+              if (Array.isArray(node2.children) && node2.children.length) {
+                return { type: "blockquote", content: blockChildrenOrEmpty(node2) };
+              }
+              return null;
+            }
             default:
               if (Array.isArray(node2.children)) return { type: "paragraph", content: inlineChildren(node2, []) };
               if (typeof node2.value === "string" && node2.value) {
@@ -470,20 +509,21 @@
           const blocks = blockChildren(node2);
           return blocks.length ? blocks : [{ type: "paragraph" }];
         }
-        function mdastToPm2(root2) {
-          const content3 = root2 && root2.children ? blockChildren(root2) : [];
-          return { type: "doc", content: content3.length ? content3 : [{ type: "paragraph" }] };
+        function mdastToPm2(root2, source) {
+          currentSource = typeof source === "string" ? source : null;
+          try {
+            const content3 = root2 && root2.children ? blockChildren(root2) : [];
+            return { type: "doc", content: content3.length ? content3 : [{ type: "paragraph" }] };
+          } finally {
+            currentSource = null;
+          }
         }
         const WRAP_ORDER = ["italic", "bold", "strike", "link"];
-        function wrapInline(textValue, marks) {
-          marks = marks || [];
-          const hasCode = marks.some(function(m) {
-            return m.type === "code";
-          });
-          let node2 = hasCode ? { type: "inlineCode", value: textValue } : { type: "text", value: textValue };
+        function wrapMarks3(base2, marks) {
+          let node2 = base2;
           for (let i = 0; i < WRAP_ORDER.length; i++) {
             const type = WRAP_ORDER[i];
-            const mark = marks.find(function(m) {
+            const mark = (marks || []).find(function(m) {
               return m.type === type;
             });
             if (!mark) continue;
@@ -499,6 +539,14 @@
           }
           return node2;
         }
+        function wrapInline(textValue, marks) {
+          marks = marks || [];
+          const hasCode = marks.some(function(m) {
+            return m.type === "code";
+          });
+          const base2 = hasCode ? { type: "inlineCode", value: textValue } : { type: "text", value: textValue };
+          return wrapMarks3(base2, marks);
+        }
         function pmInlineToMdast(content3) {
           const out = [];
           const nodes = content3 || [];
@@ -507,6 +555,8 @@
             if (n.type === "text") {
               if (n.text == null || n.text === "") continue;
               out.push(wrapInline(n.text, n.marks));
+            } else if (n.type === "rawInline") {
+              out.push(wrapMarks3({ type: "html", value: n.attrs && n.attrs.raw || "" }, n.marks));
             } else if (n.type === "image") {
               out.push({ type: "image", url: n.attrs && n.attrs.src || "", alt: n.attrs && n.attrs.alt || null, title: n.attrs && n.attrs.title || null });
             } else if (n.type === "inlineMath") {
@@ -587,6 +637,8 @@
               return { type: "math", value: node2.attrs && node2.attrs.latex || "" };
             case "mermaidBlock":
               return { type: "code", lang: "mermaid", value: node2.attrs && node2.attrs.code || "" };
+            case "rawBlock":
+              return { type: "html", value: node2.attrs && node2.attrs.raw || "" };
             default:
               if (Array.isArray(node2.content)) return { type: "paragraph", children: pmInlineToMdast(node2.content) };
               return null;
@@ -40914,6 +40966,73 @@ ${prefix}
     }
   });
 
+  // lib/tiptap-raw.js
+  function renderRaw(raw, block) {
+    const tag = block ? "div" : "span";
+    const el = typeof document !== "undefined" ? document.createElement(tag) : { nodeType: 1 };
+    if (typeof document === "undefined") return el;
+    el.className = block ? "tiptap-raw-block" : "tiptap-raw-inline";
+    el.setAttribute("contenteditable", "false");
+    el.textContent = raw == null ? "" : String(raw);
+    return el;
+  }
+  var rawAttr = {
+    raw: {
+      default: "",
+      parseHTML: function(el) {
+        return el.getAttribute("data-raw") || "";
+      },
+      renderHTML: function(attrs) {
+        return { "data-raw": attrs.raw || "" };
+      }
+    }
+  };
+  var RawInline = Node3.create({
+    name: "rawInline",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    // Explicitly allow all marks so a raw inline inside emphasis (e.g. `**[x][r]**`)
+    // keeps its bold/italic/strike/link on save. (Inline nodes already default to
+    // allowing all marks; this makes the contract explicit and robust.)
+    marks: "_",
+    addAttributes: function() {
+      return rawAttr;
+    },
+    parseHTML: function() {
+      return [{ tag: 'span[data-type="raw-inline"]' }];
+    },
+    renderHTML: function(props) {
+      return ["span", mergeAttributes(props.HTMLAttributes, { "data-type": "raw-inline" })];
+    },
+    addNodeView: function() {
+      return function(props) {
+        return { dom: renderRaw(props.node.attrs.raw, false) };
+      };
+    }
+  });
+  var RawBlock = Node3.create({
+    name: "rawBlock",
+    group: "block",
+    atom: true,
+    selectable: true,
+    addAttributes: function() {
+      return rawAttr;
+    },
+    parseHTML: function() {
+      return [{ tag: 'div[data-type="raw-block"]' }];
+    },
+    renderHTML: function(props) {
+      return ["div", mergeAttributes(props.HTMLAttributes, { "data-type": "raw-block" })];
+    },
+    addNodeView: function() {
+      return function(props) {
+        return { dom: renderRaw(props.node.attrs.raw, true) };
+      };
+    }
+  });
+
   // lib/tiptap-entry.js
   var import_markdown_mdast_pm = __toESM(require_markdown_mdast_pm());
   var import_markdown_frontmatter = __toESM(require_markdown_frontmatter());
@@ -40927,8 +41046,9 @@ ${prefix}
     rule: "-"
   }).use(remarkGfm).use(remarkMath);
   function markdownToDoc(md) {
-    const tree = mdParser.parse(md == null ? "" : String(md));
-    return mdastToPm(tree);
+    const src = md == null ? "" : String(md);
+    const tree = mdParser.parse(src);
+    return mdastToPm(tree, src);
   }
   function docToMarkdown(json) {
     return String(mdStringifier.stringify(pmToMdast(json)));
@@ -40972,7 +41092,12 @@ ${prefix}
         MathBlock,
         // Mermaid diagrams: ```mermaid blocks render as SVG (async). Round-trips
         // back to a ```mermaid fenced block.
-        MermaidBlock
+        MermaidBlock,
+        // Verbatim passthrough for constructs the bridge doesn't richly map (raw
+        // HTML, reference links/images, footnotes). Shown as literal source; they
+        // survive load->save instead of being escaped/flattened/dropped.
+        RawInline,
+        RawBlock
       ],
       content: ""
       // start empty; real content is applied via the guarded setText

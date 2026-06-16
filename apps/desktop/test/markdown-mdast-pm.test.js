@@ -141,10 +141,14 @@ test('mermaid: lang=mermaid code <-> mermaidBlock; other langs stay codeBlock', 
   assert.equal(back.children[0].value, 'graph TD; A-->B;');
 });
 
-test('TOTALITY: raw block html degrades to a visible paragraph (never dropped/blank)', () => {
+test('raw block html is preserved verbatim as a rawBlock (not escaped; rendered as text, not executed)', () => {
+  // Was previously flattened to a paragraph of TEXT, which remark then escaped on
+  // save (data corruption). Now preserved verbatim as a rawBlock that round-trips
+  // as an mdast html node. The node view renders via textContent (never innerHTML)
+  // so `<script>` is shown as literal source, never executed (see lib/tiptap-raw.js).
   const pm = mdastToPm(root([{ type: 'html', value: '<script>alert(1)</script>' }]));
-  assert.equal(pm.content[0].type, 'paragraph');
-  assert.equal(pm.content[0].content[0].text, '<script>alert(1)</script>');
+  assert.equal(pm.content[0].type, 'rawBlock');
+  assert.equal(pm.content[0].attrs.raw, '<script>alert(1)</script>');
 });
 
 test('TOTALITY: unknown value-only node degrades to text; empty doc -> one paragraph', () => {
@@ -188,4 +192,79 @@ test('round-trip mdast -> pm -> mdast preserves task checkbox state', () => {
   const li = pmToMdast(mdastToPm(original)).children[0].children;
   assert.equal(li[0].checked, false);
   assert.equal(li[1].checked, true);
+});
+
+// ── Verbatim passthrough (the data-loss fix) ────────────────────────────────
+
+test('raw block html -> rawBlock (verbatim), not escaped paragraph text', () => {
+  const pm = mdastToPm(root([{ type: 'html', value: '<div class="x">raw</div>' }]));
+  assert.equal(pm.content[0].type, 'rawBlock');
+  assert.equal(pm.content[0].attrs.raw, '<div class="x">raw</div>');
+});
+
+test('inline raw html -> rawInline (verbatim)', () => {
+  const pm = mdastToPm(root([para([
+    text('Press '), { type: 'html', value: '<kbd>Cmd</kbd>' }, text(' now'),
+  ])]));
+  const inline = pm.content[0].content;
+  assert.equal(inline[1].type, 'rawInline');
+  assert.equal(inline[1].attrs.raw, '<kbd>Cmd</kbd>');
+});
+
+test('offset-only node (linkReference) -> rawInline sliced from source', () => {
+  const source = 'A [x][r] b';
+  const tree = root([{ type: 'paragraph', children: [
+    text('A '),
+    { type: 'linkReference', identifier: 'r', position: { start: { offset: 2 }, end: { offset: 8 } }, children: [text('x')] },
+    text(' b'),
+  ] }]);
+  const inline = mdastToPm(tree, source).content[0].content;
+  assert.equal(inline[1].type, 'rawInline');
+  assert.equal(inline[1].attrs.raw, '[x][r]');
+});
+
+test('verbatim guard: positioned node with non-integer offsets does NOT capture the whole doc', () => {
+  const source = 'A [x][r] b';
+  const tree = root([{ type: 'paragraph', children: [
+    { type: 'linkReference', identifier: 'r', position: { start: { offset: null }, end: { offset: undefined } }, children: [text('x')] },
+  ] }]);
+  const inline = mdastToPm(tree, source).content[0].content;
+  // Falls back to the link text (recurse children), NOT a rawInline of the whole source.
+  assert.notEqual(inline[0] && inline[0].type, 'rawInline');
+  if (inline[0] && inline[0].attrs) assert.notEqual(inline[0].attrs.raw, source);
+});
+
+test('pmToMdast: rawBlock + rawInline -> mdast html nodes (remark raw passthrough)', () => {
+  const doc = { type: 'doc', content: [
+    { type: 'rawBlock', attrs: { raw: '[r]: https://e.com' } },
+    { type: 'paragraph', content: [{ type: 'rawInline', attrs: { raw: '[x][r]' } }] },
+  ] };
+  const mdast = pmToMdast(doc);
+  assert.equal(mdast.children[0].type, 'html');
+  assert.equal(mdast.children[0].value, '[r]: https://e.com');
+  assert.equal(mdast.children[1].children[0].type, 'html');
+  assert.equal(mdast.children[1].children[0].value, '[x][r]');
+});
+
+test('pmToMdast: rawInline carrying a bold mark -> strong > html (mark preserved)', () => {
+  const doc = { type: 'doc', content: [{ type: 'paragraph', content: [
+    { type: 'rawInline', attrs: { raw: '[x][r]' }, marks: [{ type: 'bold' }] },
+  ] }] };
+  const para = pmToMdast(doc).children[0];
+  assert.equal(para.children[0].type, 'strong');
+  assert.equal(para.children[0].children[0].type, 'html');
+  assert.equal(para.children[0].children[0].value, '[x][r]');
+});
+
+test('footnoteDefinition WITHOUT source: block body is preserved (not dropped)', () => {
+  // The compat path (no source string). A footnote definition holds BLOCK
+  // children; the fallback must convert them block-aware so the body survives.
+  const tree = root([
+    { type: 'footnoteDefinition', identifier: '1', children: [
+      para([text('the footnote body')]),
+    ] },
+  ]);
+  const pm = mdastToPm(tree); // no source
+  const flat = JSON.stringify(pm.content);
+  assert.match(flat, /the footnote body/, 'footnote body content must not be dropped');
 });

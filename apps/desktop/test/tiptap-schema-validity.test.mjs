@@ -35,6 +35,7 @@ import remarkMath from 'remark-math';
 
 import { InlineMath, MathBlock } from '../lib/tiptap-math.js';
 import { MermaidBlock } from '../lib/tiptap-mermaid.js';
+import { RawInline, RawBlock } from '../lib/tiptap-raw.js';
 import MarkdownMdastPm from '../lib/markdown-mdast-pm.js';
 const { mdastToPm } = MarkdownMdastPm;
 
@@ -51,10 +52,14 @@ const schema = getSchema([
   InlineMath,
   MathBlock,
   MermaidBlock,
+  RawInline,
+  RawBlock,
 ]);
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
-const toDoc = (md) => mdastToPm(parser.parse(md));
+// Pass the source so verbatim() can preserve offset-only nodes (reference
+// links/footnotes) as raw atoms — same as the app's markdownToDoc.
+const toDoc = (md) => mdastToPm(parser.parse(md), md);
 
 function assertValid(md, label) {
   const doc = toDoc(md);
@@ -85,6 +90,23 @@ test('schema: each supported construct produces schema-valid PM JSON', () => {
   assertValid('Inline $x^2$ math.\n', 'inline math');
   assertValid('$$\n\\sum_{i=1}^n i\n$$\n', 'display math');
   assertValid('```mermaid\ngraph TD; A-->B;\n```\n', 'mermaid block');
+  // Verbatim passthrough atoms (the data-loss fix) must be schema-valid too.
+  assertValid('Press <kbd>Cmd</kbd> now.\n', 'inline raw html');
+  assertValid('<div class="x">raw</div>\n', 'block raw html');
+  assertValid('A [x][r] here.\n\n[r]: https://e.com\n', 'reference link + definition');
+  assertValid('Note.[^1]\n\n[^1]: the note.\n', 'footnote + definition');
+  assertValid('A **[x][r]** bold ref.\n\n[r]: https://e.com\n', 'reference link wrapped in bold (rawInline carries marks)');
+});
+
+test('schema: a marked rawInline RETAINS its mark through schema.nodeFromJSON (not just .check())', () => {
+  // setContent runs nodeFromJSON().check(); this asserts the bold mark on a
+  // rawInline is actually KEPT on the node (RawInline declares marks:'_').
+  const doc = toDoc('A **[x][r]** bold ref.\n\n[r]: https://e.com\n');
+  const node = schema.nodeFromJSON(doc);
+  let found = null;
+  node.descendants((n) => { if (n.type.name === 'rawInline') found = n; });
+  assert.ok(found, 'a rawInline node must exist');
+  assert.deepEqual(found.marks.map((m) => m.type.name), ['bold'], 'bold mark retained on the rawInline');
 });
 
 test('schema: the full "kitchen sink" note is schema-valid (the blank/raw-fallback fix)', () => {

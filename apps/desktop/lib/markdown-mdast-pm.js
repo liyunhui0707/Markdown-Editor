@@ -42,6 +42,35 @@
     return m.attrs ? { type: m.type, attrs: Object.assign({}, m.attrs) } : { type: m.type };
   }
 
+  // The markdown the current mdast tree was parsed from. Set at the start of
+  // mdastToPm and read by verbatim() to slice the source of nodes that have no
+  // `.value` (linkReference, definition, footnotes). Synchronous, non-reentrant.
+  let currentSource = null;
+
+  // Returns the VERBATIM markdown source for a node the converter does not
+  // richly map, or null when it cannot be captured safely. Prefers node.value
+  // (raw HTML carries it); else slices the original source by position offsets,
+  // with strict bounds so a malformed position can never capture the whole doc.
+  function verbatim(node) {
+    if (node && typeof node.value === 'string') return node.value;
+    const src = currentSource;
+    if (typeof src !== 'string') return null;
+    const pos = node && node.position;
+    if (!pos || !pos.start || !pos.end) return null;
+    const a = pos.start.offset, b = pos.end.offset;
+    if (!Number.isInteger(a) || !Number.isInteger(b)) return null;
+    if (a < 0 || b < a || b > src.length) return null;
+    return src.slice(a, b);
+  }
+
+  // An inline raw atom carrying verbatim source. Marks (bold/italic/...) are
+  // preserved so e.g. `**[x][r]**` keeps its emphasis on save.
+  function rawInlineNode(raw, marks) {
+    const n = { type: 'rawInline', attrs: { raw: raw } };
+    if (marks && marks.length) n.marks = marks.map(cloneMark);
+    return n;
+  }
+
   function textNode(text, marks) {
     const t = { type: 'text', text: text };
     let ms = marks;
@@ -82,9 +111,24 @@
         return [{ type: 'inlineMath', attrs: { latex: node.value || '' } }];
       case 'break':
         return [{ type: 'hardBreak' }];
+      case 'html': {
+        // Inline raw HTML (e.g. `<kbd>`): preserve verbatim so it isn't escaped.
+        const raw = verbatim(node);
+        return raw ? [rawInlineNode(raw, marks)]
+                   : (typeof node.value === 'string' && node.value ? [textNode(node.value, marks)] : []);
+      }
+      case 'linkReference':
+      case 'imageReference':
+      case 'footnoteReference': {
+        // Reference-style link/image + footnote marker: preserve the VERBATIM
+        // `[..][r]` / `[^1]` source (do NOT recurse children — that loses the
+        // reference + URL). Falls back to text only when source is unavailable.
+        const raw = verbatim(node);
+        if (raw) return [rawInlineNode(raw, marks)];
+        return Array.isArray(node.children) ? inlineChildren(node, marks) : [];
+      }
       default:
-        // Unknown inline (e.g. inline `html`): recurse children, else emit
-        // its raw text — never drop content.
+        // Unknown inline: recurse children, else emit its raw text — never drop.
         if (Array.isArray(node.children)) return inlineChildren(node, marks);
         if (typeof node.value === 'string' && node.value) return [textNode(node.value, marks)];
         return [];
@@ -183,11 +227,31 @@
       case 'math':
         // remark-math display block; atom carrying verbatim LaTeX (see inlineMath).
         return { type: 'mathBlock', attrs: { latex: node.value || '' } };
-      case 'html':
-        // Raw block HTML: keep VISIBLE as text so it neither blanks the editor
-        // nor is silently dropped. (Round-trip of raw HTML is a non-goal.)
-        return node.value ? { type: 'paragraph', content: [textNode(node.value, [])] } : null;
+      case 'html': {
+        // Raw block HTML: preserve verbatim (round-trips as an mdast html node,
+        // not escaped text). Falls back to visible text if value is missing.
+        const raw = verbatim(node);
+        return raw ? { type: 'rawBlock', attrs: { raw: raw } }
+                   : (node.value ? { type: 'paragraph', content: [textNode(node.value, [])] } : null);
+      }
+      case 'definition':
+      case 'footnoteDefinition': {
+        // Link/footnote definitions (`[r]: url`, `[^1]: …`): preserve verbatim
+        // so the URL / footnote body survives (was dropped/flattened before).
+        const raw = verbatim(node);
+        if (raw) return { type: 'rawBlock', attrs: { raw: raw } };
+        // No source (compat path): a footnoteDefinition holds BLOCK children
+        // (paragraphs/lists); convert them through the block path (wrapped in a
+        // blockquote) so the body content is not dropped. `definition` has no
+        // children, so its URL is unrecoverable without source -> null.
+        if (Array.isArray(node.children) && node.children.length) {
+          return { type: 'blockquote', content: blockChildrenOrEmpty(node) };
+        }
+        return null;
+      }
       default:
+        // Unknown block: keep the existing visible-text fallback (the confirmed
+        // lossy nodes — html, definition, footnoteDefinition — are handled above).
         if (Array.isArray(node.children)) return { type: 'paragraph', content: inlineChildren(node, []) };
         if (typeof node.value === 'string' && node.value) {
           return { type: 'paragraph', content: [textNode(node.value, [])] };
@@ -206,23 +270,30 @@
     return blocks.length ? blocks : [{ type: 'paragraph' }];
   }
 
-  function mdastToPm(root) {
-    const content = (root && root.children) ? blockChildren(root) : [];
-    return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
+  function mdastToPm(root, source) {
+    // `source` (optional) is the markdown `root` was parsed from; it lets
+    // verbatim() slice the original text for nodes with no `.value`. Without it,
+    // value-bearing nodes (raw HTML) still round-trip; offset-only nodes degrade
+    // to the text fallback (back-compat for the pure unit tests).
+    currentSource = (typeof source === 'string') ? source : null;
+    try {
+      const content = (root && root.children) ? blockChildren(root) : [];
+      return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
+    } finally {
+      currentSource = null;
+    }
   }
 
   // ── ProseMirror JSON -> mdast ─────────────────────────────────────────
 
   const WRAP_ORDER = ['italic', 'bold', 'strike', 'link'];
 
-  function wrapInline(textValue, marks) {
-    marks = marks || [];
-    const hasCode = marks.some(function (m) { return m.type === 'code'; });
-    let node = hasCode ? { type: 'inlineCode', value: textValue }
-                       : { type: 'text', value: textValue };
+  // Wrap a base mdast node in emphasis/strong/delete/link per the PM marks.
+  function wrapMarks(base, marks) {
+    let node = base;
     for (let i = 0; i < WRAP_ORDER.length; i++) {
       const type = WRAP_ORDER[i];
-      const mark = marks.find(function (m) { return m.type === type; });
+      const mark = (marks || []).find(function (m) { return m.type === type; });
       if (!mark) continue;
       if (type === 'italic')      node = { type: 'emphasis', children: [node] };
       else if (type === 'bold')   node = { type: 'strong', children: [node] };
@@ -235,6 +306,14 @@
     return node;
   }
 
+  function wrapInline(textValue, marks) {
+    marks = marks || [];
+    const hasCode = marks.some(function (m) { return m.type === 'code'; });
+    const base = hasCode ? { type: 'inlineCode', value: textValue }
+                         : { type: 'text', value: textValue };
+    return wrapMarks(base, marks);
+  }
+
   function pmInlineToMdast(content) {
     const out = [];
     const nodes = content || [];
@@ -243,6 +322,10 @@
       if (n.type === 'text') {
         if (n.text == null || n.text === '') continue;
         out.push(wrapInline(n.text, n.marks));
+      } else if (n.type === 'rawInline') {
+        // Verbatim source re-emitted as an inline html node (remark passes it
+        // through raw), re-wrapped in any marks it carried (e.g. `**[x][r]**`).
+        out.push(wrapMarks({ type: 'html', value: (n.attrs && n.attrs.raw) || '' }, n.marks));
       } else if (n.type === 'image') {
         out.push({ type: 'image', url: (n.attrs && n.attrs.src) || '', alt: (n.attrs && n.attrs.alt) || null, title: (n.attrs && n.attrs.title) || null });
       } else if (n.type === 'inlineMath') {
@@ -326,6 +409,9 @@
         return { type: 'math', value: (node.attrs && node.attrs.latex) || '' };
       case 'mermaidBlock':
         return { type: 'code', lang: 'mermaid', value: (node.attrs && node.attrs.code) || '' };
+      case 'rawBlock':
+        // Verbatim source re-emitted as a block html node (remark raw passthrough).
+        return { type: 'html', value: (node.attrs && node.attrs.raw) || '' };
       default:
         if (Array.isArray(node.content)) return { type: 'paragraph', children: pmInlineToMdast(node.content) };
         return null;

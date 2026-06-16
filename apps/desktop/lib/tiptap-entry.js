@@ -44,6 +44,7 @@ import remarkMath from 'remark-math';
 
 import { InlineMath, MathBlock } from './tiptap-math.js';
 import { MermaidBlock } from './tiptap-mermaid.js';
+import { RawInline, RawBlock } from './tiptap-raw.js';
 
 import MarkdownMdastPm from './markdown-mdast-pm.js';
 const { mdastToPm, pmToMdast } = MarkdownMdastPm;
@@ -57,8 +58,11 @@ const mdStringifier = unified().use(remarkStringify, {
 }).use(remarkGfm).use(remarkMath);
 
 function markdownToDoc(md) {
-  const tree = mdParser.parse(md == null ? '' : String(md));
-  return mdastToPm(tree);
+  const src = (md == null) ? '' : String(md);
+  const tree = mdParser.parse(src);
+  // Pass the source so the converter can preserve verbatim the constructs it
+  // doesn't richly map (raw HTML, reference links/footnotes) instead of losing them.
+  return mdastToPm(tree, src);
 }
 
 function docToMarkdown(json) {
@@ -114,6 +118,11 @@ function createTiptapView(parent, opts) {
       // Mermaid diagrams: ```mermaid blocks render as SVG (async). Round-trips
       // back to a ```mermaid fenced block.
       MermaidBlock,
+      // Verbatim passthrough for constructs the bridge doesn't richly map (raw
+      // HTML, reference links/images, footnotes). Shown as literal source; they
+      // survive load->save instead of being escaped/flattened/dropped.
+      RawInline,
+      RawBlock,
     ],
     content: '', // start empty; real content is applied via the guarded setText
   });

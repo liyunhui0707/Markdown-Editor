@@ -30,7 +30,10 @@ const stringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
 }).use(remarkGfm).use(remarkMath);
 
-const toDoc = (md) => mdastToPm(parser.parse(md));
+// Pass the source so the converter can preserve verbatim the constructs it
+// doesn't richly map (raw HTML, reference links/footnotes) — same as the app's
+// markdownToDoc(md) -> mdastToPm(tree, md).
+const toDoc = (md) => mdastToPm(parser.parse(md), md);
 const toMd = (json) => String(stringifier.stringify(pmToMdast(json)));
 const roundtrip = (md) => toMd(toDoc(md));
 
@@ -169,4 +172,50 @@ test('round-trip: a mixed document is idempotent on a second pass', () => {
   ].join('\n');
   const first = roundtrip(md);
   assert.equal(roundtrip(first), first, 'round-trip stable after first normalization');
+});
+
+// ── Data-loss fix: verbatim passthrough of constructs the bridge can't map ───
+// Each asserts the construct (and its URL) SURVIVES the round-trip (not
+// byte-identity — remark may normalize whitespace) AND the round-trip is
+// idempotent. All four were lost/escaped before the verbatim-passthrough fix.
+
+test('round-trip: inline raw HTML survives (not escaped)', () => {
+  const out = roundtrip('Press <kbd>Cmd</kbd> now.\n');
+  assert.match(out, /<kbd>Cmd<\/kbd>/, 'inline html preserved verbatim');
+  assert.doesNotMatch(out, /\\</, 'must not be backslash-escaped');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: block raw HTML survives (not escaped)', () => {
+  const out = roundtrip('<div class="x">raw block</div>\n');
+  assert.match(out, /<div class="x">raw block<\/div>/);
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: reference link keeps its URL (was lost entirely)', () => {
+  const out = roundtrip('A [ref link][r] here.\n\n[r]: https://example.com\n');
+  assert.match(out, /\[ref link\]\[r\]/, 'reference link syntax preserved');
+  assert.match(out, /\[r\]:\s*https:\/\/example\.com/, 'definition + URL preserved');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: footnote reference + definition survive (was dropped)', () => {
+  const out = roundtrip('Text with a footnote.[^1]\n\n[^1]: the note.\n');
+  assert.match(out, /\[\^1\]/, 'footnote marker preserved');
+  assert.match(out, /\[\^1\]:\s*the note\./, 'footnote definition preserved');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: bold-wrapped reference link keeps BOTH bold and URL', () => {
+  const out = roundtrip('A **[x][r]** bold ref.\n\n[r]: https://e.com\n');
+  assert.match(out, /\*\*\[x\]\[r\]\*\*/, 'bold mark preserved around the raw ref');
+  assert.match(out, /https:\/\/e\.com/, 'URL preserved');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: CJK reference link + CJK URL preserved', () => {
+  const out = roundtrip('中文 [链接][r] 文字\n\n[r]: https://e.com/路径\n');
+  assert.match(out, /\[链接\]\[r\]/);
+  assert.match(out, /https:\/\/e\.com\/路径/);
+  assert.equal(roundtrip(out), out, 'idempotent');
 });
