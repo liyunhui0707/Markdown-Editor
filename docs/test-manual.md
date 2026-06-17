@@ -1204,6 +1204,32 @@ syntax garbage
 - One theme (Mermaid's `default` theme); no theme switching.
 - Mermaid bundle adds ~3 MB to the app.
 
+## Tiptap WYSIWYG — Source ↔ WYSIWYG toggle (opt-in engine)
+
+Set `localStorage.markdownVault.writeEngine='tiptap'`, then Cmd-R.
+
+**MQ-TT-SRC-1 — toggle both ways**
+- [ ] In Write mode a **Source** button appears in the mode toggle. Click it → the
+      Write pane becomes an editable raw-markdown textarea showing the FULL markdown
+      (including YAML frontmatter). Button label flips to **Rich**.
+- [ ] Click **Rich** → back to the rich WYSIWYG view.
+
+**MQ-TT-SRC-2 — no lost edits + dirty + save**
+- [ ] Edit text in Source (and/or edit the frontmatter `title:`). The note becomes dirty (Draft).
+- [ ] Toggle to Rich → the edit is reflected. Cmd-S, close + reopen → the edit persisted.
+
+**MQ-TT-SRC-3 — note switch resets, no stranded source**
+- [ ] Enter Source, edit, then click another note → it opens in **Rich** (reset);
+      the button shows **Source**. Switch back → your source edit was saved.
+
+**MQ-TT-SRC-4 — Preview + safety**
+- [ ] In Source mode, click **Preview** → Preview reflects the source edits; the
+      Source button is hidden in Preview/Read.
+- [ ] Raw HTML (e.g. `<kbd>`) shows as literal text in the textarea (never executed).
+
+Known limitations (deferred): no syntax highlighting in the source view (plain
+textarea); cursor/scroll position not preserved across the toggle.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

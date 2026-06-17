@@ -1908,6 +1908,18 @@
         padding: 6px 8px;
         border-radius: 4px;
       }
+      #hybridWritePane .tiptap-source {
+        width: 100%;
+        min-height: 100%;
+        box-sizing: border-box;
+        border: 0;
+        outline: none;
+        resize: none;
+        background: transparent;
+        color: inherit;
+        padding: 8px;
+        font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
       .toastui-editor-contents .toast-image-rejected {
         font-style: italic;
         opacity: 0.6;
@@ -2129,6 +2141,15 @@
                     aria-selected="false"
                     hidden
                   >Read</button>
+                  <!-- Source <-> WYSIWYG toggle: shown only for the tiptap engine
+                       in Write mode; swaps the Write pane to editable raw markdown. -->
+                  <button
+                    id="sourceToggleButton"
+                    class="mode-button"
+                    type="button"
+                    title="Edit raw Markdown source"
+                    hidden
+                  >Source</button>
                 </div>
 
                 <!-- hybridWritePane hosts the selected Write surface.
@@ -4682,6 +4703,36 @@
       const toastPreviewMount  = document.getElementById('toastPreviewMount');
       const writeModeButton    = document.getElementById('writeModeButton');
       const previewModeButton  = document.getElementById('previewModeButton');
+      const sourceToggleButton = document.getElementById('sourceToggleButton');
+
+      // Single source of truth for the Source/Rich toggle button — called via the
+      // engine's onModeChange on EVERY mode change (toggle click, note-switch reset,
+      // leaving Write), so the button label/active state never drifts from the engine.
+      function syncSourceToggleButton(on) {
+        if (!sourceToggleButton) return;
+        sourceToggleButton.textContent = on ? 'Rich' : 'Source';
+        if (on) sourceToggleButton.classList.add('mode-button-active');
+        else sourceToggleButton.classList.remove('mode-button-active');
+      }
+
+      // Source/Rich toggle is a tiptap-only Write submode. Show the button only in
+      // Write; on any transition OUT of Write, commit + exit source so the hidden
+      // Write pane is never stranded in source. Called from BOTH setActiveMode and
+      // forceReadModeWithBody (AI Sessions bypass setActiveMode).
+      function syncSourceToggleVisibility(mode) {
+        if (!sourceToggleButton || selectedWriteEngine !== 'tiptap') return;
+        if (mode === 'write') {
+          sourceToggleButton.hidden = false;
+        } else {
+          if (liveEditorInstance
+              && typeof liveEditorInstance.isSourceMode === 'function'
+              && liveEditorInstance.isSourceMode()) {
+            liveEditorInstance.setSourceMode(false);
+          }
+          sourceToggleButton.hidden = true;
+        }
+      }
+
       const selectedWriteEngine = window.WriteEngine.resolveWriteEngine({
         search: window.location.search,
         storage: window.localStorage,
@@ -4865,7 +4916,19 @@
           },
           resolveImagePath: (noteDir, relPath) =>
             window.vaultApi.resolveImagePath(noteDir, relPath),
+          // Source/Rich toggle: keep the toolbar button in sync on every mode change.
+          onModeChange: syncSourceToggleButton,
         });
+
+        // Source toggle is a tiptap-only Write submode. Reveal + wire the button;
+        // the label flows through onModeChange (no manual update -> no drift).
+        if (sourceToggleButton) {
+          sourceToggleButton.hidden = false;
+          syncSourceToggleButton(false);
+          sourceToggleButton.addEventListener('click', function () {
+            tiptapWrite.setSourceMode(!tiptapWrite.isSourceMode());
+          });
+        }
 
         // Like the legacy `hybrid` adapter, tiptap intentionally does NOT expose
         // getState/setState: Tiptap owns its in-session history and has no
@@ -4881,6 +4944,8 @@
             tiptapWrite.setText(raw);
             _toastuiInstance.setMarkdown(raw);
           },
+          setSourceMode(on) { tiptapWrite.setSourceMode(on); },
+          isSourceMode() { return tiptapWrite.isSourceMode(); },
           exitWriteMode() { tiptapWrite.exitWriteMode(); },
         };
       } else {
@@ -4959,6 +5024,9 @@
       // Round-2 plan-review M2 fix.
       function forceReadModeWithBody(note) {
         currentMode = 'read';
+        // AI Sessions bypass setActiveMode; still run the Source-toggle cleanup so
+        // the button isn't left visible on a read-only note and source isn't stranded.
+        syncSourceToggleVisibility('read');
         hybridWritePane.classList.add('is-hidden');
         toastPreviewMount.classList.remove('is-visible');
         readViewMount.classList.add('is-visible');
@@ -5061,6 +5129,9 @@
         const wasChange = currentMode !== mode;
         const prevMode = currentMode;
         currentMode = mode;
+        // Source/Rich toggle visibility + leave-source cleanup (also reused by
+        // forceReadModeWithBody, which bypasses setActiveMode for AI Sessions).
+        syncSourceToggleVisibility(mode);
         // Stage S4 — show/hide the in-file search toolbar. The toolbar
         // is bound to Read; hide it on transitions away from Read so a
         // stale highlight doesn't leak into Write/Preview, and show it

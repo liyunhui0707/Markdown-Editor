@@ -52,6 +52,9 @@ const { mdastToPm, pmToMdast } = MarkdownMdastPm;
 import MarkdownFrontmatter from './markdown-frontmatter.js';
 const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
 
+import TiptapSourceToggle from './tiptap-source-toggle.js';
+const { createSourceToggle } = TiptapSourceToggle;
+
 const mdParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const mdStringifier = unified().use(remarkStringify, {
   bullet: '-', fences: true, listItemIndent: 'one', rule: '-',
@@ -132,7 +135,8 @@ function createTiptapView(parent, opts) {
   // getText. Editing frontmatter is a future source-mode concern.
   let frontmatter = '';
 
-  function getText() {
+  // Full markdown of the rich (ProseMirror) document, frontmatter reattached.
+  function getRichMarkdown() {
     let body;
     try {
       body = docToMarkdown(editor.getJSON());
@@ -142,10 +146,10 @@ function createTiptapView(parent, opts) {
     return joinFrontmatter(frontmatter, body);
   }
 
-  // Never-blank setText: try the real Markdown->PM doc with strict content
-  // checking; on any failure fall back to a plain-text doc. emitUpdate:false so
-  // a load doesn't fire onChange (which would mark the note dirty).
-  function setText(text) {
+  // Never-blank: try the real Markdown->PM doc with strict content checking; on
+  // any failure fall back to a plain-text doc. emitUpdate:false so a load doesn't
+  // fire onChange (which would mark the note dirty).
+  function applyMarkdownToEditor(text) {
     const md = (text == null) ? '' : String(text);
     const split = splitFrontmatter(md);
     frontmatter = split.frontmatter;
@@ -183,6 +187,37 @@ function createTiptapView(parent, opts) {
     }
   }
 
+  // Source <-> WYSIWYG toggle. An editable raw-markdown <textarea> sits beside the
+  // rich editor; the toggle swaps which is visible, sharing the same markdown.
+  const sourceTextarea = (typeof document !== 'undefined') ? document.createElement('textarea') : null;
+  if (sourceTextarea) {
+    sourceTextarea.className = 'tiptap-source';
+    sourceTextarea.style.display = 'none';
+    parent.appendChild(sourceTextarea);
+  }
+  const onModeChange = (typeof o.onModeChange === 'function') ? o.onModeChange : null;
+  const toggle = createSourceToggle({
+    textarea: sourceTextarea,
+    richDom: editor.view.dom,
+    getRichMarkdown: getRichMarkdown,
+    applyMarkdown: applyMarkdownToEditor,
+    onChange: onChange,
+    onModeChange: onModeChange,
+  });
+  if (sourceTextarea) {
+    sourceTextarea.addEventListener('input', function () { toggle.handleInput(); });
+  }
+
+  // Active surface is the source of truth.
+  function getText() { return toggle.getText(); }
+
+  // Note load/switch: reset to rich WITHOUT applying the (outgoing note's) source
+  // textarea, then load the incoming markdown.
+  function setText(text) {
+    toggle.resetToRich();
+    applyMarkdownToEditor(text);
+  }
+
   if (initialDoc) setText(initialDoc);
 
   if (onChange) {
@@ -198,7 +233,11 @@ function createTiptapView(parent, opts) {
     view:          editor,
     getText:       getText,
     setText:       setText,
-    exitWriteMode: function () { /* no-op: no inactive-block mode */ },
+    setSourceMode: toggle.setSourceMode,
+    isSourceMode:  toggle.isSourceMode,
+    // Flush hook: commit any source-mode textarea edits into the rich document so
+    // rich-model serialization paths (called before save/switch/preview) are current.
+    exitWriteMode: function () { toggle.commitSource(); },
     focus:         function () { editor.commands.focus(); },
     destroy:       function () { editor.destroy(); },
   };

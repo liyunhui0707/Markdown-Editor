@@ -686,6 +686,90 @@
     }
   });
 
+  // lib/tiptap-source-toggle.js
+  var require_tiptap_source_toggle = __commonJS({
+    "lib/tiptap-source-toggle.js"(exports, module) {
+      "use strict";
+      (function(root2, factory) {
+        if (typeof module === "object" && module.exports) {
+          module.exports = factory();
+        } else {
+          root2.TiptapSourceToggle = factory();
+        }
+      })(typeof globalThis !== "undefined" ? globalThis : exports, function() {
+        function createSourceToggle2(deps) {
+          const d = deps || {};
+          const textarea = d.textarea;
+          const richDom = d.richDom;
+          const getRichMarkdown = typeof d.getRichMarkdown === "function" ? d.getRichMarkdown : function() {
+            return "";
+          };
+          const applyMarkdown = typeof d.applyMarkdown === "function" ? d.applyMarkdown : function() {
+          };
+          const onChange = typeof d.onChange === "function" ? d.onChange : null;
+          const onModeChange = typeof d.onModeChange === "function" ? d.onModeChange : null;
+          let sourceMode = false;
+          function show(el) {
+            if (el && el.style) el.style.display = "";
+          }
+          function hide(el) {
+            if (el && el.style) el.style.display = "none";
+          }
+          function isSourceMode() {
+            return sourceMode;
+          }
+          function getText3() {
+            return sourceMode ? textarea ? textarea.value : "" : getRichMarkdown();
+          }
+          function enter2() {
+            if (sourceMode) return;
+            if (textarea) textarea.value = getRichMarkdown();
+            hide(richDom);
+            show(textarea);
+            sourceMode = true;
+            if (textarea && typeof textarea.focus === "function") textarea.focus();
+            if (onModeChange) onModeChange(true);
+          }
+          function exit3() {
+            if (!sourceMode) return;
+            const md = textarea ? textarea.value : "";
+            sourceMode = false;
+            hide(textarea);
+            show(richDom);
+            applyMarkdown(md);
+            if (onModeChange) onModeChange(false);
+          }
+          function setSourceMode(on) {
+            if (on) enter2();
+            else exit3();
+          }
+          function resetToRich() {
+            const wasSource = sourceMode;
+            sourceMode = false;
+            hide(textarea);
+            show(richDom);
+            if (wasSource && onModeChange) onModeChange(false);
+          }
+          function handleInput() {
+            if (onChange) onChange(getText3());
+          }
+          function commitSource() {
+            if (sourceMode) applyMarkdown(textarea ? textarea.value : "");
+          }
+          return {
+            isSourceMode,
+            getText: getText3,
+            setSourceMode,
+            resetToRich,
+            commitSource,
+            handleInput
+          };
+        }
+        return { createSourceToggle: createSourceToggle2 };
+      });
+    }
+  });
+
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content3) {
     this.content = content3;
@@ -41036,8 +41120,10 @@ ${prefix}
   // lib/tiptap-entry.js
   var import_markdown_mdast_pm = __toESM(require_markdown_mdast_pm());
   var import_markdown_frontmatter = __toESM(require_markdown_frontmatter());
+  var import_tiptap_source_toggle = __toESM(require_tiptap_source_toggle());
   var { mdastToPm, pmToMdast } = import_markdown_mdast_pm.default;
   var { splitFrontmatter, joinFrontmatter } = import_markdown_frontmatter.default;
+  var { createSourceToggle } = import_tiptap_source_toggle.default;
   var mdParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
   var mdStringifier = unified().use(remarkStringify, {
     bullet: "-",
@@ -41103,7 +41189,7 @@ ${prefix}
       // start empty; real content is applied via the guarded setText
     });
     let frontmatter = "";
-    function getText3() {
+    function getRichMarkdown() {
       let body;
       try {
         body = docToMarkdown(editor.getJSON());
@@ -41112,7 +41198,7 @@ ${prefix}
       }
       return joinFrontmatter(frontmatter, body);
     }
-    function setText(text5) {
+    function applyMarkdownToEditor(text5) {
       const md = text5 == null ? "" : String(text5);
       const split2 = splitFrontmatter(md);
       frontmatter = split2.frontmatter;
@@ -41144,6 +41230,33 @@ ${prefix}
         editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] }, { emitUpdate: false });
       }
     }
+    const sourceTextarea = typeof document !== "undefined" ? document.createElement("textarea") : null;
+    if (sourceTextarea) {
+      sourceTextarea.className = "tiptap-source";
+      sourceTextarea.style.display = "none";
+      parent.appendChild(sourceTextarea);
+    }
+    const onModeChange = typeof o.onModeChange === "function" ? o.onModeChange : null;
+    const toggle = createSourceToggle({
+      textarea: sourceTextarea,
+      richDom: editor.view.dom,
+      getRichMarkdown,
+      applyMarkdown: applyMarkdownToEditor,
+      onChange,
+      onModeChange
+    });
+    if (sourceTextarea) {
+      sourceTextarea.addEventListener("input", function() {
+        toggle.handleInput();
+      });
+    }
+    function getText3() {
+      return toggle.getText();
+    }
+    function setText(text5) {
+      toggle.resetToRich();
+      applyMarkdownToEditor(text5);
+    }
     if (initialDoc) setText(initialDoc);
     if (onChange) {
       editor.on("update", function() {
@@ -41154,7 +41267,12 @@ ${prefix}
       view: editor,
       getText: getText3,
       setText,
+      setSourceMode: toggle.setSourceMode,
+      isSourceMode: toggle.isSourceMode,
+      // Flush hook: commit any source-mode textarea edits into the rich document so
+      // rich-model serialization paths (called before save/switch/preview) are current.
       exitWriteMode: function() {
+        toggle.commitSource();
       },
       focus: function() {
         editor.commands.focus();

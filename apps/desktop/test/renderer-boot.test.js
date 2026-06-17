@@ -249,6 +249,7 @@ function makeRendererHarness({
     'toastPreviewMount',
     'writeModeButton',
     'previewModeButton',
+    'sourceToggleButton',
   ];
 
   const elements = new Map();
@@ -371,6 +372,7 @@ function makeRendererHarness({
     tiptapAdapter: null,
     tiptapGetState: 0,
     tiptapSetState: [],
+    tiptapSetSourceModeCalls: [],
     resolveImagePathArgs: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
@@ -626,6 +628,7 @@ function makeRendererHarness({
         view: {},
         text: initialDoc,
         _state: { doc: initialDoc, _kind: 'tiptap-fresh' },
+        _sourceMode: false,
         getText() {
           calls.tiptapGetText += 1;
           return this.text;
@@ -635,7 +638,18 @@ function makeRendererHarness({
           calls.tiptapSetText.push(value);
           this.text = value;
           this._state = { doc: value, _kind: 'tiptap-fresh' };
+          // Mirror the real engine: setText resets to rich (resetToRich -> onModeChange(false)).
+          if (this._sourceMode) {
+            this._sourceMode = false;
+            if (calls.tiptapOptions.onModeChange) calls.tiptapOptions.onModeChange(false);
+          }
         },
+        setSourceMode(on) {
+          this._sourceMode = !!on;
+          calls.tiptapSetSourceModeCalls.push(this._sourceMode);
+          if (calls.tiptapOptions.onModeChange) calls.tiptapOptions.onModeChange(this._sourceMode);
+        },
+        isSourceMode() { return this._sourceMode; },
         getState() {
           calls.tiptapGetState += 1;
           this._state = { ...this._state, doc: this.text };
@@ -1620,6 +1634,75 @@ test('tiptap: image-safety wiring — mount passes getNoteDir + a resolver deleg
   const result = await calls.tiptapOptions.resolveImagePath('notes/sub', './a.png');
   assert.deepEqual(calls.resolveImagePathArgs.at(-1), ['notes/sub', './a.png']);
   assert.deepEqual(result, { ok: true, fileUrl: 'file:///fake-vault/resolved.png' });
+});
+
+test('tiptap: Source toggle button is wired, syncs via onModeChange, and resets on note switch', async () => {
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=tiptap',
+    vaultNotes: [
+      { id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+      { id: 'vault:b', title: 'B', body: '# B', fileName: 'b.md', relativePath: 'b.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const btn = elements.get('sourceToggleButton');
+
+  // Shown for tiptap in Write mode; starts as 'Source' (rich).
+  assert.equal(btn.hidden, false, 'Source button shown for tiptap in Write mode');
+  assert.equal(btn.textContent, 'Source');
+  assert.equal(btn.classList.contains('mode-button-active'), false);
+
+  // Click -> enter source. Label flows through onModeChange (no manual update).
+  btn.fire('click');
+  assert.deepEqual(calls.tiptapSetSourceModeCalls, [true]);
+  assert.equal(btn.textContent, 'Rich');
+  assert.equal(btn.classList.contains('mode-button-active'), true);
+
+  // Click -> exit source.
+  btn.fire('click');
+  assert.deepEqual(calls.tiptapSetSourceModeCalls, [true, false]);
+  assert.equal(btn.textContent, 'Source');
+  assert.equal(btn.classList.contains('mode-button-active'), false);
+
+  // Enter source, then switch notes -> setText resets mode -> button back to 'Source' (no drift).
+  btn.fire('click');
+  assert.equal(btn.textContent, 'Rich');
+  elements.get('noteList').children[1].fire('click'); // switch to B
+  assert.equal(btn.textContent, 'Source', 'note switch must reset the toggle button');
+  assert.equal(btn.classList.contains('mode-button-active'), false);
+});
+
+test('tiptap: leaving Write mode while in Source hides the button + exits source (shared syncSourceToggleVisibility)', async () => {
+  // The Write-mode-only visibility + leave-source cleanup is centralized in
+  // syncSourceToggleVisibility(mode), called from BOTH setActiveMode AND
+  // forceReadModeWithBody (AI Sessions, which bypass setActiveMode — the
+  // harness can't render a session transcript, so we exercise the same helper
+  // via the Preview transition).
+  const { calls, elements } = makeRendererHarness({
+    search: '?writeEngine=tiptap',
+    vaultNotes: [
+      { id: 'vault:a', title: 'A', body: '# A', fileName: 'a.md', relativePath: 'a.md' },
+    ],
+  });
+  await elements.get('chooseVaultButton').fireAsync('click');
+  const btn = elements.get('sourceToggleButton');
+
+  // Enter Source mode in Write.
+  btn.fire('click');
+  assert.equal(btn.textContent, 'Rich');
+  assert.equal(btn.hidden, false);
+  const before = calls.tiptapSetSourceModeCalls.length;
+
+  // Switch to Preview (a non-Write mode) -> cleanup: exit source + hide the button.
+  elements.get('previewModeButton').fire('click');
+  assert.equal(btn.hidden, true, 'Source button hidden outside Write mode');
+  assert.equal(calls.tiptapSetSourceModeCalls.length, before + 1, 'source mode exited on leaving Write');
+  assert.equal(calls.tiptapSetSourceModeCalls.at(-1), false, 'setSourceMode(false) on the transition');
+
+  // Back to Write -> button visible again, Source.
+  elements.get('writeModeButton').fire('click');
+  assert.equal(btn.hidden, false, 'Source button shown again in Write');
+  assert.equal(btn.textContent, 'Source');
 });
 
 // ── Save-flow preserves dirty in-memory edits in unrelated vault notes ──────
