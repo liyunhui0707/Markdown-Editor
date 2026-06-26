@@ -100,6 +100,20 @@ test('index.html loads image-url-safety.js and toast-image-renderer.js before ed
   assert.ok(safety < renderer && renderer < config, 'safety + renderer must load before editor-config');
 });
 
+// ── Image paste → save-to-vault IPC wiring (preload exposes it; main registers it) ──
+
+test('preload.js exposes saveImageToVault over the save-image-to-vault IPC', () => {
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
+  assert.match(preload, /saveImageToVault:\s*\(noteDir,\s*bytes,\s*mime\)\s*=>/);
+  assert.match(preload, /ipcRenderer\.invoke\(\s*'save-image-to-vault'/);
+});
+
+test('main.js registers the save-image-to-vault handler using the write resolver', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /ipcMain\.handle\(\s*'save-image-to-vault'/);
+  assert.match(main, /require\('\.\/lib\/image-write-ipc'\)/);
+});
+
 // ── Static wiring tests ───────────────────────────────────────────────────────
 
 test('index.html loads editor-config.js via script tag', () => {

@@ -4914,8 +4914,19 @@
             const lastSlash = sel.relativePath.lastIndexOf('/');
             return lastSlash >= 0 ? sel.relativePath.slice(0, lastSlash) : '';
           },
+          // Note IDENTITY (full path) for the image-paste note-switch guard: an
+          // async save must not insert a ./assets ref into a different note opened
+          // mid-save — even one in the same directory (where getNoteDir is equal).
+          getNoteId: () => {
+            const sel = getSelectedNote();
+            return (sel && sel.relativePath) ? sel.relativePath : '';
+          },
           resolveImagePath: (noteDir, relPath) =>
             window.vaultApi.resolveImagePath(noteDir, relPath),
+          // Image paste/drop: save the blob to the vault's assets dir + insert a
+          // vault-relative reference (no inline base64). Returns { ok, relPath } | { ok:false, reason }.
+          saveImageToVault: (noteDir, bytes, mime) =>
+            window.vaultApi.saveImageToVault(noteDir, bytes, mime),
           // Source/Rich toggle: keep the toolbar button in sync on every mode change.
           onModeChange: syncSourceToggleButton,
         });

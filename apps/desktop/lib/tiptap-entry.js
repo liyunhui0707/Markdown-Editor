@@ -27,6 +27,7 @@
    degrade to fenced code / text; per-column table alignment is deferred. */
 
 import { Editor } from '@tiptap/core';
+import { Slice, Fragment } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -54,6 +55,29 @@ const { splitFrontmatter, joinFrontmatter } = MarkdownFrontmatter;
 
 import TiptapSourceToggle from './tiptap-source-toggle.js';
 const { createSourceToggle } = TiptapSourceToggle;
+
+import TiptapImagePaste from './tiptap-image-paste.js';
+const { detectImageTransfer, handleImageDataTransfer, isDataUriSrc } = TiptapImagePaste;
+
+// Drop image nodes whose resolved src is a data: URI from a parsed paste slice.
+// Operates on the PARSED slice (not raw HTML) so entity-encoded / mixed-case data
+// URIs can't slip a base64 image into the doc on a non-pure (HTML) paste/drop.
+function dropDataImageFragment(fragment) {
+  const kept = [];
+  fragment.forEach(function (node) {
+    if (node.type && node.type.name === 'image' && node.attrs && isDataUriSrc(node.attrs.src)) return; // drop
+    if (node.content && node.content.size) node = node.copy(dropDataImageFragment(node.content));
+    kept.push(node);
+  });
+  return Fragment.fromArray(kept);
+}
+function dropDataImageSlice(slice) {
+  try {
+    return new Slice(dropDataImageFragment(slice.content), slice.openStart, slice.openEnd);
+  } catch (_e) {
+    return slice; // never break a paste — worst case ProseMirror handles it
+  }
+}
 
 const mdParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const mdStringifier = unified().use(remarkStringify, {
@@ -95,10 +119,62 @@ function createTiptapView(parent, opts) {
   // paths resolve via the resolve-image-path IPC. Both optional (degrade to the
   // rejected placeholder for vault-relative when absent).
   const getNoteDir = (typeof o.getNoteDir === 'function') ? o.getNoteDir : null;
+  // Note IDENTITY (full path) for the paste note-switch guard; distinguishes two
+  // notes in the same directory. Falls back to getNoteDir inside the paste helper.
+  const getNoteId = (typeof o.getNoteId === 'function') ? o.getNoteId : null;
   const resolveImagePath = (typeof o.resolveImagePath === 'function') ? o.resolveImagePath : null;
+  // Image paste/drop: save the blob to the vault + insert a `./assets/...` reference
+  // instead of inlining a ~1.5MB base64 data URI (which bloated the editor + .md file).
+  const saveImageToVault = (typeof o.saveImageToVault === 'function') ? o.saveImageToVault : null;
+
+  // Insert a gated image node referencing the saved file, at a clamped position.
+  // Never inlines base64 — on any failure the paste is simply dropped.
+  function insertImageAt(relPath, pos) {
+    try {
+      const size = editor.state.doc.content.size;
+      const at = Math.max(0, Math.min(typeof pos === 'number' ? pos : size, size));
+      editor.chain().insertContentAt(at, { type: 'image', attrs: { src: relPath } }).run();
+    } catch (err) { /* swallow — never fall back to base64 */ }
+  }
+
+  function handleImagePasteOrDrop(dataTransfer, pos) {
+    if (!saveImageToVault) return false;
+    const det = detectImageTransfer(dataTransfer);
+    // Only intercept a PURE-image transfer (images + no text). Consume the event
+    // whenever it is pure — even if every image was rejected for size — so an
+    // oversized image is dropped, NEVER inlined as base64. Mixed image+text and
+    // pure-text pastes fall through to ProseMirror (no text loss).
+    if (!det.pure) return false;
+    handleImageDataTransfer({
+      blobs: det.blobs,
+      getNoteDir: getNoteDir || function () { return ''; },
+      getNoteId: getNoteId || getNoteDir || function () { return ''; },
+      saveImageToVault: saveImageToVault,
+      insertImageAt: insertImageAt,
+    }, { pos: pos });
+    return true;
+  }
 
   const editor = new Editor({
     element: parent,
+    // Intercept image paste/drop BEFORE ProseMirror inlines it as base64.
+    editorProps: {
+      handlePaste: function (view, event) {
+        const pos = view.state.selection.from;
+        if (handleImagePasteOrDrop(event.clipboardData, pos)) { event.preventDefault(); return true; }
+        return false;
+      },
+      handleDrop: function (view, event) {
+        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        const pos = coords ? coords.pos : view.state.selection.from;
+        if (handleImagePasteOrDrop(event.dataTransfer, pos)) { event.preventDefault(); return true; }
+        return false;
+      },
+      // Non-pure pastes/drops (HTML with text) fall through to ProseMirror — drop
+      // any data: image node from the PARSED slice so a web-copied image can't be
+      // inlined as base64 (robust vs. entity-encoded / mixed-case bypasses).
+      transformPasted: function (slice) { return dropDataImageSlice(slice); },
+    },
     extensions: [
       StarterKit,
       Table.configure({ resizable: true }),

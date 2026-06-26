@@ -374,6 +374,7 @@ function makeRendererHarness({
     tiptapSetState: [],
     tiptapSetSourceModeCalls: [],
     resolveImagePathArgs: [],
+    saveImageToVaultArgs: [],
     loadVaultNotesPayloads: [],
     saveNotePayloads: [],
     watchVaultFolderPayloads: [],
@@ -788,6 +789,11 @@ function makeRendererHarness({
     resolveImagePath(noteDir, relPath) {
       calls.resolveImagePathArgs.push([noteDir, relPath]);
       return Promise.resolve({ ok: true, fileUrl: 'file:///fake-vault/resolved.png' });
+    },
+    // Image write IPC: records calls so the paste-wiring test can assert delegation.
+    saveImageToVault(noteDir, bytes, mime) {
+      calls.saveImageToVaultArgs.push([noteDir, mime]);
+      return Promise.resolve({ ok: true, relPath: './assets/saved.png' });
     },
     // Stage 6.3A: the renderer registers one callback that, when
     // invoked by main at close time, computes the current dirty
@@ -1634,6 +1640,12 @@ test('tiptap: image-safety wiring — mount passes getNoteDir + a resolver deleg
   const result = await calls.tiptapOptions.resolveImagePath('notes/sub', './a.png');
   assert.deepEqual(calls.resolveImagePathArgs.at(-1), ['notes/sub', './a.png']);
   assert.deepEqual(result, { ok: true, fileUrl: 'file:///fake-vault/resolved.png' });
+
+  // saveImageToVault (paste/drop) delegates to window.vaultApi.saveImageToVault.
+  assert.equal(typeof calls.tiptapOptions.saveImageToVault, 'function');
+  const saved = await calls.tiptapOptions.saveImageToVault('notes/sub', new Uint8Array([1, 2]), 'image/png');
+  assert.deepEqual(calls.saveImageToVaultArgs.at(-1), ['notes/sub', 'image/png']);
+  assert.deepEqual(saved, { ok: true, relPath: './assets/saved.png' });
 });
 
 test('tiptap: Source toggle button is wired, syncs via onModeChange, and resets on note switch', async () => {

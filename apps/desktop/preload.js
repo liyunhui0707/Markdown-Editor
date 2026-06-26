@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('vaultApi', {
   // documented at apps/desktop/lib/image-path-ipc.js.
   resolveImagePath: (noteDir, relPath) =>
     ipcRenderer.invoke('resolve-image-path', { noteDir, relPath }),
+  // Write side: save a pasted/dropped image blob into the vault's assets dir and
+  // get back a vault-relative `./assets/...` reference (no inline base64). bytes is
+  // a Uint8Array/ArrayBuffer (structured-clone over IPC). See lib/image-write-ipc.js.
+  saveImageToVault: (noteDir, bytes, mime) =>
+    ipcRenderer.invoke('save-image-to-vault', { noteDir, bytes, mime }),
   dictionaryLookup: (payload) => ipcRenderer.invoke('dictionary:lookup', payload),
   refreshSessions: (vaultPath) => ipcRenderer.invoke('sessionViewer:import', { vaultPath }),
   onVaultChanged: (callback) => {

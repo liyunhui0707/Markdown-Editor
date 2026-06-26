@@ -824,6 +824,36 @@ ipcMain.handle('resolve-image-path', async (_event, payload) => {
   });
 });
 
+// save-image-to-vault IPC (write side). The renderer (tiptap engine) intercepts
+// an image paste/drop and calls window.vaultApi.saveImageToVault(noteDir, bytes, mime)
+// to write the blob into <vault>/<noteDir>/assets/<sha256>.<ext> and get back a
+// vault-relative `./assets/...` reference — instead of inlining a base64 data URI
+// (which bloated the editor + the .md file). The pure resolver (lib/image-write-ipc.js)
+// validates the noteDir + mime + bytes, contains the write inside the vault
+// (O_NOFOLLOW + O_EXCL + realpath), and content-verifies dedup. err.message is dropped.
+const { saveImageToVault } = require('./lib/image-write-ipc');
+const cryptoMod = require('node:crypto');
+ipcMain.handle('save-image-to-vault', async (_event, payload) => {
+  const noteDirRel = (payload && typeof payload.noteDir === 'string') ? payload.noteDir : '';
+  const mime = (payload && typeof payload.mime === 'string') ? payload.mime : '';
+  const raw = payload && payload.bytes;
+  // Validate the binary BEFORE copying (avoid a large copy of a malformed/oversized payload).
+  if (!(raw instanceof ArrayBuffer) && !ArrayBuffer.isView(raw)) return { ok: false, reason: 'invalid-bytes' };
+  if (raw.byteLength > 20 * 1024 * 1024) return { ok: false, reason: 'too-large' };
+  const bytes = ArrayBuffer.isView(raw)
+    ? Buffer.from(raw.buffer, raw.byteOffset || 0, raw.byteLength)
+    : Buffer.from(raw);
+  return saveImageToVault({
+    vaultPath: currentWatchedVaultPath,
+    noteDirRel: noteDirRel,
+    bytes: bytes,
+    mime: mime,
+    fs: fsPromises,
+    fsConstants: fsConstantsAll,
+    crypto: cryptoMod,
+  });
+});
+
 // Dictionary lookup. The renderer captures the selection + surrounding
 // paragraph and hands it here; we read the local Dictionary.app token and
 // POST to its loopback server (the Dictionary app shows the popup). Done in

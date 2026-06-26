@@ -770,6 +770,117 @@
     }
   });
 
+  // lib/tiptap-image-paste.js
+  var require_tiptap_image_paste = __commonJS({
+    "lib/tiptap-image-paste.js"(exports, module) {
+      "use strict";
+      (function(root2, factory) {
+        if (typeof module === "object" && module.exports) {
+          module.exports = factory();
+        } else {
+          root2.TiptapImagePaste = factory();
+        }
+      })(typeof globalThis !== "undefined" ? globalThis : exports, function() {
+        const RASTER = { "image/png": 1, "image/jpeg": 1, "image/gif": 1, "image/webp": 1 };
+        const MAX_BYTES = 20 * 1024 * 1024;
+        const MAX_IMAGES = 20;
+        function fileBlob(file) {
+          return {
+            mime: file.type,
+            getBytes: function() {
+              return file.arrayBuffer().then(function(ab) {
+                return new Uint8Array(ab);
+              });
+            }
+          };
+        }
+        function hasTextContent2(dataTransfer) {
+          const types = dataTransfer.types;
+          if (types && types.length) {
+            for (let i = 0; i < types.length; i++) {
+              if (types[i] === "text/plain" || types[i] === "text/html") return true;
+            }
+            return false;
+          }
+          const txt = typeof dataTransfer.getData === "function" ? dataTransfer.getData("text/plain") || "" : "";
+          return txt.length > 0;
+        }
+        function detectImageTransfer2(dataTransfer) {
+          if (!dataTransfer) return { pure: false, blobs: [] };
+          const seen = [];
+          const files = [];
+          function addFile(f) {
+            if (!f || !RASTER[f.type] || seen.indexOf(f) !== -1) return;
+            seen.push(f);
+            files.push(f);
+          }
+          const items = dataTransfer.items;
+          if (items && items.length) {
+            for (let i = 0; i < items.length; i++) {
+              const it = items[i];
+              if (it && it.kind === "file" && RASTER[it.type] && typeof it.getAsFile === "function") addFile(it.getAsFile());
+            }
+          }
+          if (!files.length) {
+            const fl = dataTransfer.files;
+            if (fl && fl.length) for (let i = 0; i < fl.length; i++) addFile(fl[i]);
+          }
+          const hasImages = files.length > 0;
+          const pure = hasImages && !hasTextContent2(dataTransfer);
+          const blobs = [];
+          for (let i = 0; i < files.length && blobs.length < MAX_IMAGES; i++) {
+            if (typeof files[i].size === "number" && files[i].size > MAX_BYTES) continue;
+            blobs.push(fileBlob(files[i]));
+          }
+          return { pure, blobs };
+        }
+        async function handleImageDataTransfer2(deps, baseInfo) {
+          const d = deps || {};
+          const blobs = d.blobs || [];
+          const saveImageToVault = d.saveImageToVault;
+          const insertImageAt = d.insertImageAt;
+          const getNoteDir = typeof d.getNoteDir === "function" ? d.getNoteDir : function() {
+            return "";
+          };
+          const getNoteId = typeof d.getNoteId === "function" ? d.getNoteId : getNoteDir;
+          const noteDir = getNoteDir();
+          const noteId = getNoteId();
+          let pos = baseInfo && typeof baseInfo.pos === "number" ? baseInfo.pos : null;
+          let handled = 0;
+          for (let i = 0; i < blobs.length; i++) {
+            let bytes;
+            try {
+              bytes = await blobs[i].getBytes();
+            } catch (_e) {
+              continue;
+            }
+            let r;
+            try {
+              r = await saveImageToVault(noteDir, bytes, blobs[i].mime);
+            } catch (_e) {
+              continue;
+            }
+            if (r && r.ok === true && typeof r.relPath === "string") {
+              if (getNoteId() !== noteId) break;
+              insertImageAt(r.relPath, pos);
+              handled += 1;
+              if (typeof pos === "number") pos += 1;
+            }
+          }
+          return handled;
+        }
+        function isDataUriSrc2(src) {
+          return typeof src === "string" && /^data:/i.test(src.trim());
+        }
+        return {
+          detectImageTransfer: detectImageTransfer2,
+          handleImageDataTransfer: handleImageDataTransfer2,
+          isDataUriSrc: isDataUriSrc2
+        };
+      });
+    }
+  });
+
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content3) {
     this.content = content3;
@@ -41121,9 +41232,27 @@ ${prefix}
   var import_markdown_mdast_pm = __toESM(require_markdown_mdast_pm());
   var import_markdown_frontmatter = __toESM(require_markdown_frontmatter());
   var import_tiptap_source_toggle = __toESM(require_tiptap_source_toggle());
+  var import_tiptap_image_paste = __toESM(require_tiptap_image_paste());
   var { mdastToPm, pmToMdast } = import_markdown_mdast_pm.default;
   var { splitFrontmatter, joinFrontmatter } = import_markdown_frontmatter.default;
   var { createSourceToggle } = import_tiptap_source_toggle.default;
+  var { detectImageTransfer, handleImageDataTransfer, isDataUriSrc } = import_tiptap_image_paste.default;
+  function dropDataImageFragment(fragment) {
+    const kept = [];
+    fragment.forEach(function(node2) {
+      if (node2.type && node2.type.name === "image" && node2.attrs && isDataUriSrc(node2.attrs.src)) return;
+      if (node2.content && node2.content.size) node2 = node2.copy(dropDataImageFragment(node2.content));
+      kept.push(node2);
+    });
+    return Fragment.fromArray(kept);
+  }
+  function dropDataImageSlice(slice2) {
+    try {
+      return new Slice(dropDataImageFragment(slice2.content), slice2.openStart, slice2.openEnd);
+    } catch (_e) {
+      return slice2;
+    }
+  }
   var mdParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
   var mdStringifier = unified().use(remarkStringify, {
     bullet: "-",
@@ -41154,9 +41283,62 @@ ${prefix}
     const onChange = typeof o.onChange === "function" ? o.onChange : null;
     const initialDoc = o.initialDoc != null ? String(o.initialDoc) : "";
     const getNoteDir = typeof o.getNoteDir === "function" ? o.getNoteDir : null;
+    const getNoteId = typeof o.getNoteId === "function" ? o.getNoteId : null;
     const resolveImagePath = typeof o.resolveImagePath === "function" ? o.resolveImagePath : null;
+    const saveImageToVault = typeof o.saveImageToVault === "function" ? o.saveImageToVault : null;
+    function insertImageAt(relPath, pos) {
+      try {
+        const size = editor.state.doc.content.size;
+        const at = Math.max(0, Math.min(typeof pos === "number" ? pos : size, size));
+        editor.chain().insertContentAt(at, { type: "image", attrs: { src: relPath } }).run();
+      } catch (err) {
+      }
+    }
+    function handleImagePasteOrDrop(dataTransfer, pos) {
+      if (!saveImageToVault) return false;
+      const det = detectImageTransfer(dataTransfer);
+      if (!det.pure) return false;
+      handleImageDataTransfer({
+        blobs: det.blobs,
+        getNoteDir: getNoteDir || function() {
+          return "";
+        },
+        getNoteId: getNoteId || getNoteDir || function() {
+          return "";
+        },
+        saveImageToVault,
+        insertImageAt
+      }, { pos });
+      return true;
+    }
     const editor = new Editor({
       element: parent,
+      // Intercept image paste/drop BEFORE ProseMirror inlines it as base64.
+      editorProps: {
+        handlePaste: function(view, event) {
+          const pos = view.state.selection.from;
+          if (handleImagePasteOrDrop(event.clipboardData, pos)) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
+        handleDrop: function(view, event) {
+          const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+          const pos = coords ? coords.pos : view.state.selection.from;
+          if (handleImagePasteOrDrop(event.dataTransfer, pos)) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
+        // Non-pure pastes/drops (HTML with text) fall through to ProseMirror — drop
+        // any data: image node from the PARSED slice so a web-copied image can't be
+        // inlined as base64 (robust vs. entity-encoded / mixed-case bypasses).
+        transformPasted: function(slice2) {
+          return dropDataImageSlice(slice2);
+        }
+      },
       extensions: [
         index_default,
         Table.configure({ resizable: true }),

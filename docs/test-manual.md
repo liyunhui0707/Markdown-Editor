@@ -1230,6 +1230,44 @@ Set `localStorage.markdownVault.writeEngine='tiptap'`, then Cmd-R.
 Known limitations (deferred): no syntax highlighting in the source view (plain
 textarea); cursor/scroll position not preserved across the toggle.
 
+## Tiptap WYSIWYG — image paste/drop saves to the vault (no base64 bloat)
+
+Set `localStorage.markdownVault.writeEngine='tiptap'`, then Cmd-R. Pasting/dropping a
+raster image saves it to `<noteDir>/assets/<sha256>.<ext>` and inserts a `./assets/…`
+reference instead of inlining a ~1.5MB base64 data URI (which bloated the editor + the
+saved `.md`). Markdown stays the source of truth.
+
+**MQ-TT-IMG-1 — screenshot paste → reference, not base64**
+- [ ] Cmd-Shift-4 a region, click into the Write pane, Cmd-V → image renders inline.
+- [ ] Toggle to **Source** → body shows a short `![](./assets/<hash>.png)` ref, NOT a
+      `data:image/...;base64,...` blob. `<noteDir>/assets/<hash>.png` exists on disk.
+- [ ] Cmd-S, close + reopen → image still renders (the ref round-trips).
+
+**MQ-TT-IMG-2 — dedup**
+- [ ] Paste the same screenshot twice → both refs point at the same `<hash>.png`; only
+      one file in `assets/`.
+
+**MQ-TT-IMG-3 — drag-and-drop**
+- [ ] Drag a PNG/JPEG from Finder onto the Write pane → saved + referenced like paste,
+      inserted near the drop point.
+
+**MQ-TT-IMG-4 — web image copy (data:image in HTML) keeps base64 out**
+- [ ] Copy a web image whose markup is `<img src="data:image/png;base64,…">`, paste →
+      no `data:` URI in the doc (Source view). The embedded image may be dropped
+      (saving it to the vault is deferred); surrounding text is preserved.
+
+**MQ-TT-IMG-5 — mixed image+text + plain pastes don't regress**
+- [ ] Paste text that contains an image → the text is preserved (not swallowed).
+- [ ] Paste plain text / a link / a markdown table → pastes normally, no console errors.
+
+**MQ-TT-IMG-6 — note-switch during save (best-effort guard)**
+- [ ] Paste an image, then immediately open a DIFFERENT note (ideally a sibling in the
+      same folder) → the pasted image does NOT appear in the switched-to note.
+
+Known limitations (deferred): a data:image embedded in pasted HTML is stripped rather
+than saved to the vault; non-raster formats (svg, etc.) and remote images are not
+externalized.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  
