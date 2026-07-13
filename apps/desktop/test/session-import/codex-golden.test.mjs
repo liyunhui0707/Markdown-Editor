@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   FIXED_NOW,
@@ -222,4 +223,21 @@ test('codex: symlinked optional Thread-name index is ignored', async (t) => {
   assert.equal(result.imported, 1);
   const output = fs.readFileSync(fixture.outPath, 'utf8');
   assert.doesNotMatch(output, /^source_custom_title:/m);
+});
+
+test('codex: FIFO optional Thread-name index does not block import', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Windows does not provide mkfifo');
+    return;
+  }
+  const fixture = await importBasicFixture(t);
+  const indexPath = path.join(fixture.tmp, 'fake-codex/session_index.jsonl');
+  execFileSync('mkfifo', [indexPath]);
+
+  const result = await fixture.run();
+  assert.equal(result.imported, 1);
+  assert.equal(result.errors, 0);
+  const output = fs.readFileSync(fixture.outPath, 'utf8');
+  assert.doesNotMatch(output, /^source_custom_title:/m);
+  assert.match(output, new RegExp(`^source_session_id: "${fixture.scen.uuid}"$`, 'm'));
 });
