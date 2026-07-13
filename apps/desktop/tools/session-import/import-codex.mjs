@@ -24,6 +24,7 @@ import {
 } from './lib/codex-tree.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
+const THREAD_INDEX_MAX_BYTES = 1024 * 1024;
 
 export function parseRawFlag(v) {
   if (typeof v !== 'string') return false;
@@ -45,6 +46,37 @@ export function parseMaxBytesEnv(raw) {
     );
   }
   return n;
+}
+
+async function readThreadNames(codexHome) {
+  let content;
+  try {
+    const { buf } = await readSessionFileSafe(
+      path.join(codexHome, 'session_index.jsonl'),
+      codexHome,
+      THREAD_INDEX_MAX_BYTES,
+    );
+    content = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+  } catch {
+    // Explicit rename metadata is optional; transcripts still import by id.
+    return new Map();
+  }
+
+  const names = new Map();
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line);
+      const id = typeof entry?.id === 'string' ? entry.id.trim() : '';
+      if (!id || typeof entry?.thread_name !== 'string') continue;
+      const name = entry.thread_name.trim();
+      if (id && name) names.set(id, name);
+      else if (id) names.delete(id);
+    } catch {
+      // Ignore incomplete or malformed index records.
+    }
+  }
+  return names;
 }
 
 export async function runCodexImport({
@@ -109,6 +141,7 @@ export async function runCodexImport({
   }
 
   const forbiddenCodexHome = path.dirname(canonicalSourceRoot);
+  const threadNames = await readThreadNames(forbiddenCodexHome);
 
   await validateAncestorChain(resolvedOutputBase);
   await validateAncestorChainCanonical(resolvedOutputBase, forbiddenCodexHome);
@@ -206,6 +239,7 @@ export async function runCodexImport({
     const fm = buildFrontmatter({
       title: `codex/${pathSegments}/${sessionId}`,
       sessionId,
+      customTitle: threadNames.get(sessionId) || '',
       pathSegments,
       lst: cand.lst,
       importStamp,
