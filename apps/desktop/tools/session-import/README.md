@@ -20,9 +20,11 @@ agent: "claude-code"     # upstream
 source: claude           # added by this port (immediately after agent:)
 ```
 
-`source: codex` is added for the Codex importer. Everything else (titles,
-session ids, paths, mtime, bytes, transcript body) is byte-identical to
-upstream output.
+`source: codex` is added for the Codex importer. It also reads the sparse
+`~/.codex/session_index.jsonl` explicit-rename registry and writes a matching
+non-empty `thread_name` as `source_custom_title`. Unrenamed sessions do not get
+that field. Everything else (titles, session ids, paths, mtime, bytes,
+transcript body) is byte-identical to upstream output.
 
 ## Test seams
 

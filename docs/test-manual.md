@@ -84,6 +84,7 @@ Tester: liyunhui  Date: 2026-05-14  OS: macOS
 - [ ] AI Imports filter works  
 - [ ] Drafts filter works  
 - [ ] Vault Files filter works  
+- [ ] Rename a Codex thread, refresh/re-import AI Sessions, and confirm its exact Thread name appears; an unrenamed session shows `source_session_id`, not the rollout filename
   
 ## Metadata  
   

@@ -230,20 +230,20 @@ test('T-S5-QA4 main.js parseFrontmatter extracts session-import frontmatter fiel
     path.join(__dirname, '..', '..', 'main.js'),
     'utf8',
   );
+  assert.match(src, /key === 'source_session_id'/);
   assert.match(src, /key === 'source_mtime'/);
   assert.match(src, /key === 'source_custom_title'/);
   assert.match(src, /key === 'source_ai_title'/);
 });
 
-test('T-S5-QA5 session-import notes prefer custom/ai title over UUID filename (issue C)', () => {
+test('T-S5-QA5 session-import notes resolve metadata title through the tested helper (issue C)', () => {
   const src = fs.readFileSync(
     path.join(__dirname, '..', '..', 'main.js'),
     'utf8',
   );
-  // For sessionsImport notes, prefer source_custom_title || source_ai_title.
   assert.match(
     src,
-    /if\s*\(sessionsImport\)\s*\{[\s\S]*?source_custom_title[\s\S]*?source_ai_title[\s\S]*?title\s*=\s*preferred/,
+    /if\s*\(sessionsImport\)\s*\{\s*title\s*=\s*resolveSessionTitle\(frontmatter,\s*title\);\s*\}/,
   );
 });
 

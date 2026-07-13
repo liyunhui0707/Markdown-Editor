@@ -22,8 +22,14 @@ export async function readSessionFileSafe(filePath, canonicalSourceRoot, maxByte
   }
   let fh = null;
   try {
-    fh = await fs.open(filePath, fsConstants.O_RDONLY | oNoFollow);
+    fh = await fs.open(
+      filePath,
+      fsConstants.O_RDONLY | oNoFollow | fsConstants.O_NONBLOCK,
+    );
     const fdStat = await fh.stat();
+    if (!fdStat.isFile()) {
+      throw new Error('path is not a regular file');
+    }
     if (fdStat.size > maxBytes) {
       const err = new Error(
         `file exceeds maxBytes after open: ${fdStat.size} > ${maxBytes}`,

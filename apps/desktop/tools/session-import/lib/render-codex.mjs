@@ -193,6 +193,7 @@ export function extractEnrichment(content) {
 export function buildFrontmatter({
   title,
   sessionId,
+  customTitle,
   pathSegments,
   lst,
   importStamp,
@@ -212,6 +213,9 @@ export function buildFrontmatter({
     `source_mtime: ${jsonScalar(lst.mtime.toISOString())}`,
     `source_bytes: ${jsonScalar(String(lst.size))}`,
   );
+  if (customTitle) {
+    fmLines.push(`source_custom_title: ${jsonScalar(customTitle)}`);
+  }
   if (enrichment.cwd) {
     fmLines.push(`source_cwd: ${jsonScalar(enrichment.cwd)}`);
   }

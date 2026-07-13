@@ -25,6 +25,20 @@ const readmeMd     = fs.readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
 const stageHistory = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'stage-history.md'), 'utf8');
 const testManual   = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'test-manual.md'), 'utf8');
 
+function assertSupersededStageIsHistorical(stagePattern, semanticPatterns) {
+  assert.match(claudeMd, /Active direction:[\s\S]{0,100}ProseMirror\/Tiptap/i,
+    'CLAUDE.md must identify ProseMirror/Tiptap as the active direction');
+  assert.match(claudeMd, /SUPERSEDED[\s\S]{0,100}hybrid-cm6-lp/i,
+    'CLAUDE.md must identify hybrid-cm6-lp as superseded');
+  const stageRow = stageHistory.split('\n').find((line) => stagePattern.test(line));
+  assert.ok(stageRow,
+    'docs/stage-history.md must retain the superseded stage details');
+  for (const pattern of semanticPatterns) {
+    assert.match(stageRow, pattern,
+      `historical stage row must retain ${pattern}`);
+  }
+}
+
 // ── AC-13: CLAUDE.md invariant scoping ───────────────────────────────────
 
 test('Stage A WAVE 13-T13a: CLAUDE.md mentions hybrid-cm6-lp', () => {
@@ -114,14 +128,10 @@ test('Stage A WAVE 13-T15f: docs/test-manual.md Stage A section includes Chinese
 
 // ── Stage B WAVE 7 — docs reflect Stage B coverage ──────────────────────
 
-test('Stage B WAVE 7-T-D-1: CLAUDE.md mentions Stage B + four new marker types', () => {
-  assert.match(claudeMd, /Stage B/,
-    'CLAUDE.md must mention "Stage B"');
-  // The four new categories should appear in the lp-engine description.
-  assert.match(claudeMd, /inline.code/i,    'mentions inline code');
-  assert.match(claudeMd, /strikethrough/i,  'mentions strikethrough');
-  assert.match(claudeMd, /inline.link/i,    'mentions inline link');
-  assert.match(claudeMd, /inline.image/i,   'mentions inline image');
+test('Stage B WAVE 7-T-D-1: superseded Stage B details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*B\s*\|/, [
+    /inline-code/i, /strikethrough/i, /inline-link/i, /inline-image/i,
+  ]);
 });
 
 test('Stage B WAVE 7-T-D-2: README.md hybrid-cm6-lp row mentions Stage B coverage', () => {
@@ -168,18 +178,10 @@ test('Stage B WAVE 7-T-D-7: docs/test-manual.md Stage B section preserves Stage 
 
 // ── Stage C WAVE 7 — docs reflect Stage C coverage ──────────────────────
 
-test('Stage C WAVE 7-T-DC-1: CLAUDE.md mentions Stage C + WidgetType image rendering + URL allowlist + IPC', () => {
-  assert.match(claudeMd, /Stage C/,
-    'CLAUDE.md must mention "Stage C"');
-  // Stage C introduces actual WidgetType-based image rendering.
-  assert.match(claudeMd, /InlineImageWidget|inline image[s]?[\s\S]{0,200}WidgetType|WidgetType[\s\S]{0,400}<img>/i,
-    'CLAUDE.md must describe Stage C as rendering actual <img> via WidgetType');
-  // URL allowlist surface.
-  assert.match(claudeMd, /isSafeImageUrl|URL[ -]?allowlist|allowlist/i,
-    'CLAUDE.md must describe the URL/path security allowlist');
-  // IPC contract.
-  assert.match(claudeMd, /resolve-image-path|resolveImagePath/,
-    'CLAUDE.md must reference the resolve-image-path IPC contract');
+test('Stage C WAVE 7-T-DC-1: superseded Stage C details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*C\s*\|/, [
+    /WidgetType/, /allowlist/i, /resolve-image-path/,
+  ]);
 });
 
 test('Stage C WAVE 7-T-DC-2: README.md hybrid-cm6-lp row mentions Stage C coverage', () => {
@@ -226,13 +228,10 @@ test('Stage C WAVE 7-T-DC-7: docs/test-manual.md Stage C section preserves Stage
 
 // ── Stage D WAVE 8 — docs reflect Stage D coverage ──────────────────────
 
-test('Stage D WAVE 8-T-DD-1: CLAUDE.md mentions Stage D + block-level marker hiding', () => {
-  assert.match(claudeMd, /Stage D/,
-    'CLAUDE.md must mention "Stage D"');
-  // Stage D explicit categories.
-  assert.match(claudeMd, /HeaderMark|ATX heading/i, 'mentions ATX heading');
-  assert.match(claudeMd, /ListMark|list bullet/i,   'mentions list bullets');
-  assert.match(claudeMd, /QuoteMark|blockquote/i,   'mentions blockquote marker');
+test('Stage D WAVE 8-T-DD-1: superseded Stage D details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*D\s*\|/, [
+    /HeaderMark/, /ListMark/, /QuoteMark/,
+  ]);
 });
 
 test('Stage D WAVE 8-T-DD-2: README.md hybrid-cm6-lp row mentions Stage D coverage', () => {
@@ -280,13 +279,10 @@ test('Stage D WAVE 8-T-DD-7: docs/test-manual.md Stage D section preserves Stage
 
 // ── Stage E WAVE 7 — docs reflect Stage E coverage ──────────────────────
 
-test('Stage E WAVE 7-T-DE-1: CLAUDE.md mentions Stage E + GFM table widget', () => {
-  assert.match(claudeMd, /Stage E/,
-    'CLAUDE.md must mention "Stage E"');
-  assert.match(claudeMd, /TableWidget|GFM table|<table>/i,
-    'CLAUDE.md must describe Stage E\'s table widget');
-  assert.match(claudeMd, /block:\s*true|multi-line block/i,
-    'CLAUDE.md must reference the multi-line block widget contract');
+test('Stage E WAVE 7-T-DE-1: superseded Stage E details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*E\s*\|/, [
+    /TableWidget|<table>|GFM/i, /block:\s*true|multi-line block/i,
+  ]);
 });
 
 test('Stage E WAVE 7-T-DE-2: README.md hybrid-cm6-lp row mentions Stage E coverage', () => {
@@ -329,11 +325,10 @@ test('Stage E WAVE 7-T-DE-7: docs/test-manual.md Stage E section preserves Stage
 
 // ── Stage F WAVE 7 — docs reflect Stage F coverage ──────────────────────
 
-test('Stage F WAVE 7-T-DF-1: CLAUDE.md mentions Stage F + KaTeX math', () => {
-  assert.match(claudeMd, /Stage F/, 'CLAUDE.md must mention "Stage F"');
-  assert.match(claudeMd, /KaTeX|katex/i, 'CLAUDE.md must reference KaTeX');
-  assert.match(claudeMd, /parseMath|math.*detect|Pandoc/i,
-    'CLAUDE.md must describe the math syntax detector');
+test('Stage F WAVE 7-T-DF-1: superseded Stage F details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*F\s*\|/, [
+    /KaTeX/i, /parseMath|Pandoc/i,
+  ]);
 });
 
 test('Stage F WAVE 7-T-DF-2: README.md hybrid-cm6-lp row mentions Stage F coverage', () => {
@@ -376,10 +371,10 @@ test('Stage F WAVE 7-T-DF-7: docs/test-manual.md Stage F section preserves Stage
 
 // ── Stage G.1 WAVE 4 — docs reflect Stage G.1 coverage ──────────────────
 
-test('Stage G.1 WAVE 4-T-DG-1: CLAUDE.md mentions Stage G.1 + highlight.js / fenced-code', () => {
-  assert.match(claudeMd, /Stage G\.1/, 'CLAUDE.md must mention "Stage G.1"');
-  assert.match(claudeMd, /highlight\.js|hljs/i, 'CLAUDE.md must reference highlight.js');
-  assert.match(claudeMd, /FencedCode|fenced[- ]?code/i, 'CLAUDE.md must reference fenced code');
+test('Stage G.1 WAVE 4-T-DG-1: superseded Stage G.1 details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*G\.1\s*\|/, [
+    /highlight\.js|hljs/i, /FencedCode|fenced-code/i,
+  ]);
 });
 
 test('Stage G.1 WAVE 4-T-DG-2: README.md hybrid-cm6-lp row mentions Stage G.1 coverage', () => {
@@ -422,10 +417,10 @@ test('Stage G.1 WAVE 4-T-DG-7: docs/test-manual.md Stage G.1 section preserves S
 
 // ── Stage G.2 WAVE 4 — docs reflect Stage G.2 coverage ──────────────────
 
-test('Stage G.2 WAVE 4-T-DG2-1: CLAUDE.md mentions Stage G.2 + Mermaid + async-render', () => {
-  assert.match(claudeMd, /Stage G\.2/, 'CLAUDE.md must mention "Stage G.2"');
-  assert.match(claudeMd, /Mermaid|mermaid/i, 'CLAUDE.md must reference Mermaid');
-  assert.match(claudeMd, /async|Promise/i, 'CLAUDE.md must reference the async-render surface');
+test('Stage G.2 WAVE 4-T-DG2-1: superseded Stage G.2 details live in stage history', () => {
+  assertSupersededStageIsHistorical(/\|\s*G\.2\s*\|/, [
+    /Mermaid/i, /async-render|Promise/i,
+  ]);
 });
 
 test('Stage G.2 WAVE 4-T-DG2-2: README.md hybrid-cm6-lp row mentions Stage G.2 coverage', () => {
