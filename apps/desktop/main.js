@@ -13,6 +13,10 @@ const AiIpc = require('./lib/ai-ipc');
 const AiSettingsIpc = require('./lib/ai-settings-ipc');
 const AiConnectionIpc = require('./lib/ai-connection-ipc');
 const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
+const {
+  decodeFrontmatterScalar,
+  resolveSessionTitle,
+} = require('./lib/session-title');
 
 // Stage C: AI settings persist to userData/ai-settings.json. The same path is
 // passed to the summarize/rewrite handlers so per-request settings (env >
@@ -214,6 +218,7 @@ function parseFrontmatter(content) {
       source: '',
       // Stage S5 round-3 QA fix: session-import frontmatter fields.
       // Filled when present; empty string otherwise.
+      source_session_id: '',
       source_mtime: '',
       source_custom_title: '',
       source_ai_title: ''
@@ -236,7 +241,7 @@ function parseFrontmatter(content) {
   const lines = frontmatterBlock.split('\n');
 
   function unquote(v) {
-    return v.replace(/^['"]|['"]$/g, '');
+    return decodeFrontmatterScalar(v);
   }
 
   for (const line of lines) {
@@ -259,6 +264,8 @@ function parseFrontmatter(content) {
       result.frontmatter.tags = normalizeTags(rawValue);
     } else if (key === 'source') {
       result.frontmatter.source = unquote(rawValue);
+    } else if (key === 'source_session_id') {
+      result.frontmatter.source_session_id = unquote(rawValue);
     } else if (key === 'source_mtime') {
       result.frontmatter.source_mtime = unquote(rawValue);
     } else if (key === 'source_custom_title') {
@@ -334,16 +341,11 @@ function parseMarkdownFile(relativePath, content, stat) {
   const sessionsImport = isSessionsImport(relativePath);
 
   // Stage S5 round-3 QA fix (issue C): for session imports, prefer
-  // the importer-captured human-readable title over the UUID
-  // filename fallback. source_custom_title (user-typed) wins over
-  // source_ai_title (Claude/Codex-generated).
+  // importer-captured title metadata over the rollout filename.
+  // source_custom_title wins over source_ai_title; source_session_id
+  // is the stable fallback for sessions without a captured title.
   if (sessionsImport) {
-    const customTitle = (frontmatter.source_custom_title || '').trim();
-    const aiTitle = (frontmatter.source_ai_title || '').trim();
-    const preferred = customTitle || aiTitle;
-    if (preferred) {
-      title = preferred;
-    }
+    title = resolveSessionTitle(frontmatter, title);
   }
 
   // Stage S5 round-3 QA fix (issue D): parse source_mtime so the

@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Current architecture (updated 2026-08-21) — READ FIRST
+
+**Active direction: ProseMirror/Tiptap WYSIWYG.** Raw Markdown remains the
+source of truth. The opt-in `tiptap` Write engine edits a ProseMirror document
+and serializes through the `remark`/`unified` bridge; its round-trip is
+remark-normalized rather than byte-identical. CodeMirror 6 remains the separate
+Source-mode foundation.
+
+**SUPERSEDED — `hybrid-cm6-lp` (CM6-decoration live preview, Stages A–G.13).**
+It is retained as historical reference and a possible Source-mode base, but it
+is no longer the WYSIWYG direction. Do not resume its click/caret/reflow work.
+For WYSIWYG tasks, the ProseMirror direction overrides the historical details
+below.
+
 ## Commands
 
 All npm commands run from `apps/desktop/` unless noted.
@@ -29,6 +43,7 @@ Renderer bundles (must rebuild after editing the matching entry file, or the app
 ```bash
 npm run build:cm6        # rebuilds lib/cm6-bundle.js     (cm6 + hybrid-cm6 engines)
 npm run build:editor     # rebuilds lib/toastui-bundle.js (Preview + legacy hybrid engine)
+npm run build:tiptap     # rebuilds lib/tiptap-bundle.js  (ProseMirror/Tiptap engine)
 npm run build:spike-cm6  # rebuilds lib/spike-cm6-bundle.js (spike only)
 ```
 
@@ -39,13 +54,17 @@ npm run pack             # dir build to apps/desktop/dist/
 npm run dist:mac         # zip build
 ```
 
-MCP ingest plugin smoke test:
+MCP ingest plugin smoke test (plugins now live in the standalone
+`~/Liyunhui/Codes/claude-plugins` repo — see "## Plugins"):
 
 ```bash
-cd plugins/mcp-note-ingest && npm run smoke
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest && npm run smoke
 ```
 
 ## Architecture
+
+> The `hybrid-cm6` / `hybrid-cm6-lp` material below is historical reference.
+> The current WYSIWYG direction is ProseMirror/Tiptap.
 
 Electron app split between main and renderer:
 
@@ -78,8 +97,13 @@ Task list `[ ]` ↔ `[x]` toggle (primary click on marker, or `Cmd-Shift-X` on m
 
 ## Plugins
 
-- `plugins/mcp-note-ingest/` — MCP server that writes AI chat notes into a fixed local Inbox directory. Target overridable via `MCP_INGEST_TARGET_DIR` env var. Distributed via the `workflow-and-MCP-and-plugins` Claude Code marketplace.
-- `plugins/workflow-orchestrator/` — engineering-workflow orchestrator plugin (skills + bin + servers).
+The agent plugins that used to live in this repo's `plugins/` directory were
+extracted to `~/Liyunhui/Codes/claude-plugins` on 2026-06-07 because they are
+cross-project tooling. History was preserved with `git subtree split`.
+
+- `mcp-note-ingest` — writes AI chat notes into a fixed local Inbox directory.
+- `workflow-orchestrator` — engineering-workflow orchestration skills and servers.
+- `mcp-chat-rag` — local RAG over agent session history, registered separately.
 
 ## Stage history
 
@@ -112,7 +136,7 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
   - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
   - Internal refactor with no behavior change → no bump
 - After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
-- `plugins/*/package.json` have **independent** versions. Do not bump them in lockstep with the app.
+- The extracted plugins have **independent** versions. Do not bump them in lockstep with the app.
 
 ### AI workflow
 - Claude may implement.
