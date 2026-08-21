@@ -424,7 +424,7 @@
         return _Fragment.empty;
       if (!Array.isArray(value))
         throw new RangeError("Invalid input for Fragment.fromJSON");
-      return new _Fragment(value.map(schema.nodeFromJSON));
+      return _Fragment.fromArray(value.map(schema.nodeFromJSON));
     }
     /**
     Build a fragment from an array of nodes. Ensures that adjacent
@@ -647,7 +647,7 @@
     @internal
     */
     insertAt(pos, fragment) {
-      let content = insertInto(this.content, pos + this.openStart, fragment);
+      let content = insertInto(this.content, pos + this.openStart, fragment, this.openStart + 1, this.openEnd + 1);
       return content && new _Slice(content, this.openStart, this.openEnd);
     }
     /**
@@ -718,14 +718,14 @@
       throw new RangeError("Removing non-flat range");
     return content.replaceChild(index2, child.copy(removeRange(child.content, from2 - offset - 1, to - offset - 1)));
   }
-  function insertInto(content, dist, insert, parent) {
+  function insertInto(content, dist, insert, openStart, openEnd, parent) {
     let { index: index2, offset } = content.findIndex(dist), child = content.maybeChild(index2);
     if (offset == dist || child.isText) {
-      if (parent && !parent.canReplace(index2, index2, insert))
+      if (parent && openStart <= 0 && openEnd <= 0 && !parent.canReplace(index2, index2, insert))
         return null;
       return content.cut(0, dist).append(insert).append(content.cut(dist));
     }
-    let inner = insertInto(child.content, dist - offset - 1, insert, child);
+    let inner = insertInto(child.content, dist - offset - 1, insert, index2 == 0 ? openStart - 1 : 0, index2 == content.childCount - 1 ? openEnd - 1 : 0, child);
     return inner && content.replaceChild(index2, child.copy(inner));
   }
   function replace($from, $to, slice2) {
@@ -1203,10 +1203,11 @@
       this.content.forEach(f);
     }
     /**
-    Invoke a callback for all descendant nodes recursively between
+    Invoke a callback for all descendant nodes recursively overlapping
     the given two positions that are relative to start of this
-    node's content. The callback is invoked with the node, its
-    position relative to the original node (method receiver),
+    node's content. This includes all ancestors of the nodes
+    containing the two positions. The callback is invoked with the
+    node, its position relative to the original node (method receiver),
     its parent node, and its child index. When the callback returns
     false for a given node, that node's children will not be
     recursed over. The last parameter can be used to specify a
@@ -3162,6 +3163,8 @@
     @internal
     */
     serializeNodeInner(node, options) {
+      if (node.isText)
+        return doc(options).createTextNode(node.text);
       let { dom, contentDOM } = renderSpec(doc(options), this.nodes[node.type.name](node), null, node.attrs);
       if (contentDOM) {
         if (node.isLeaf)
@@ -3196,6 +3199,8 @@
       return toDOM && renderSpec(doc(options), toDOM(mark, inline), null, mark.attrs);
     }
     static renderSpec(doc3, structure, xmlNS = null, blockArraysIn) {
+      if (typeof structure == "string")
+        return { dom: doc3.createTextNode(structure) };
       return renderSpec(doc3, structure, xmlNS, blockArraysIn);
     }
     /**
@@ -3264,11 +3269,9 @@
     return result;
   }
   function renderSpec(doc3, structure, xmlNS, blockArraysIn) {
-    if (typeof structure == "string")
-      return { dom: doc3.createTextNode(structure) };
-    if (structure.nodeType != null)
+    if (structure.nodeType == 1)
       return { dom: structure };
-    if (structure.dom && structure.dom.nodeType != null)
+    if (structure.dom && structure.dom.nodeType == 1)
       return structure;
     let tagName = structure[0], suspicious;
     if (typeof tagName != "string")
@@ -3302,6 +3305,8 @@
         if (i < structure.length - 1 || i > start)
           throw new RangeError("Content hole must be the only child of its parent node");
         return { dom, contentDOM: dom };
+      } else if (typeof child == "string") {
+        dom.appendChild(doc3.createTextNode(child));
       } else {
         let { dom: inner, contentDOM: innerContent } = renderSpec(doc3, child, xmlNS, blockArraysIn);
         dom.appendChild(inner);
