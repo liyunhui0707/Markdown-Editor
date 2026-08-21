@@ -76,6 +76,80 @@ test('mdastToPm: plain bullet list -> bulletList/listItem', () => {
   assert.equal(pm.content[0].content[0].type, 'listItem');
 });
 
+// ── Mixed task/plain lists: split into adjacent runs (Option A) ───────────────
+// A list that mixes GFM task items and plain bullets must NOT become a single
+// taskList (which injected `[ ]` into the plain bullets on save). It splits into
+// contiguous taskList / bulletList(orderedList) runs so each item keeps its kind.
+
+const li = (checked, t) => ({ type: 'listItem', checked, children: [para([text(t)])] });
+
+test('mdastToPm: a MIXED task/plain list splits into adjacent taskList + bulletList runs', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [li(false, 'a'), li(null, 'plain'), li(true, 'b')] }),
+  ]));
+  assert.deepEqual(pm.content.map((n) => n.type), ['taskList', 'bulletList', 'taskList']);
+  assert.equal(pm.content[1].content[0].type, 'listItem', 'plain item is a listItem, not taskItem');
+  assert.equal(pm.content[1].content[0].attrs, undefined, 'plain item carries no checked attr');
+  assert.equal(pm.content[0].content[0].attrs.checked, false);
+  assert.equal(pm.content[2].content[0].attrs.checked, true);
+});
+
+test('mdastToPm: a MIXED list starting with a plain item splits plain-first', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [li(null, 'p'), li(false, 't')] }),
+  ]));
+  assert.deepEqual(pm.content.map((n) => n.type), ['bulletList', 'taskList']);
+});
+
+test('mdastToPm: contiguous task items group into ONE taskList run', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [li(false, 't1'), li(true, 't2'), li(null, 'p')] }),
+  ]));
+  assert.deepEqual(pm.content.map((n) => n.type), ['taskList', 'bulletList']);
+  assert.equal(pm.content[0].content.length, 2, 'both task items in one run');
+});
+
+test('mdastToPm: a pure task list stays ONE taskList (regression)', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [li(false, 'a'), li(true, 'b')] }),
+  ]));
+  assert.equal(pm.content.length, 1);
+  assert.equal(pm.content[0].type, 'taskList');
+});
+
+test('mdastToPm: a pure bullet list stays ONE bulletList (regression)', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [li(null, 'a'), li(null, 'b')] }),
+  ]));
+  assert.equal(pm.content.length, 1);
+  assert.equal(pm.content[0].type, 'bulletList');
+});
+
+test('mdastToPm: ordered MIXED list — plain runs continue the numbering (start = base + index)', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: true, start: 3, children: [li(null, 'p1'), li(false, 't'), li(null, 'p2')] }),
+  ]));
+  assert.deepEqual(pm.content.map((n) => n.type), ['orderedList', 'taskList', 'orderedList']);
+  assert.equal(pm.content[0].attrs.start, 3, 'first plain run keeps the list start');
+  assert.equal(pm.content[2].attrs.start, 5, 'plain run after the task continues at 5');
+});
+
+test('mdastToPm: a nested MIXED list inside a list item flattens into sibling lists', () => {
+  const pm = mdastToPm(root([
+    md('list', { ordered: false, children: [
+      { type: 'listItem', checked: null, children: [
+        para([text('parent')]),
+        md('list', { ordered: false, children: [li(false, 'sub task'), li(null, 'sub plain')] }),
+      ] },
+    ] }),
+  ]));
+  assert.equal(pm.content.length, 1);
+  assert.equal(pm.content[0].type, 'bulletList');
+  const inner = pm.content[0].content[0].content; // the listItem's block children
+  assert.equal(inner[0].type, 'paragraph');
+  assert.deepEqual(inner.slice(1).map((n) => n.type), ['taskList', 'bulletList'], 'nested mixed list split');
+});
+
 test('mdastToPm: table first row -> tableHeader, rest -> tableCell, cells wrap paragraphs', () => {
   const pm = mdastToPm(root([
     md('table', { align: [null, null], children: [

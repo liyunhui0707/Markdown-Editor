@@ -406,7 +406,14 @@
           const kids = node2.children || [];
           for (let i = 0; i < kids.length; i++) {
             const pm = blockToPm(kids[i]);
-            if (pm) out.push(pm);
+            if (pm == null) continue;
+            if (Array.isArray(pm)) {
+              for (let j = 0; j < pm.length; j++) {
+                if (pm[j] != null) out.push(pm[j]);
+              }
+            } else {
+              out.push(pm);
+            }
           }
           return out;
         }
@@ -414,27 +421,47 @@
           const blocks = blockChildren(item);
           return blocks.length ? blocks : [{ type: "paragraph" }];
         }
-        function listToPm(node2) {
-          const items = node2.children || [];
-          const isTask = items.some(function(it) {
-            return it.checked === true || it.checked === false;
-          });
-          if (isTask) {
-            return {
-              type: "taskList",
-              content: items.map(function(it) {
-                return { type: "taskItem", attrs: { checked: it.checked === true }, content: itemContent(it) };
-              })
-            };
-          }
+        function isTaskItem(it) {
+          return it.checked === true || it.checked === false;
+        }
+        function taskListNode(items) {
+          return {
+            type: "taskList",
+            content: items.map(function(it) {
+              return { type: "taskItem", attrs: { checked: it.checked === true }, content: itemContent(it) };
+            })
+          };
+        }
+        function plainListNode(items, ordered, start) {
           const out = {
-            type: node2.ordered ? "orderedList" : "bulletList",
+            type: ordered ? "orderedList" : "bulletList",
             content: items.map(function(it) {
               return { type: "listItem", content: itemContent(it) };
             })
           };
-          if (node2.ordered && node2.start != null && node2.start !== 1) out.attrs = { start: node2.start };
+          if (ordered && start != null && start !== 1) out.attrs = { start };
           return out;
+        }
+        function listToPm(node2) {
+          const items = node2.children || [];
+          const anyTask = items.some(isTaskItem);
+          if (!anyTask) return plainListNode(items, node2.ordered, node2.start);
+          if (items.every(isTaskItem)) return taskListNode(items);
+          const runs = [];
+          let cur = null;
+          for (let i = 0; i < items.length; i++) {
+            const t = isTaskItem(items[i]);
+            if (!cur || cur.task !== t) {
+              cur = { task: t, items: [], startIndex: i };
+              runs.push(cur);
+            }
+            cur.items.push(items[i]);
+          }
+          const base2 = node2.start != null ? node2.start : 1;
+          return runs.map(function(run4) {
+            if (run4.task) return taskListNode(run4.items);
+            return plainListNode(run4.items, node2.ordered, node2.ordered ? base2 + run4.startIndex : null);
+          });
         }
         function tableToPm(node2) {
           const rows = node2.children || [];

@@ -43,6 +43,57 @@ test('round-trip: GFM task list preserves checkbox state (the tiptap-markdown ga
   assert.match(out, /- \[x\] done/);
 });
 
+// ── Mixed task/plain lists must NOT inject a checkbox into the plain bullets ──
+// Assert on the PARSED output (the source-of-truth re-parse), which is robust to
+// remark's marker/blank-line normalization, plus a line-anchored regex guard.
+const flatListItems = (md) => {
+  const out = [];
+  const walk = (n) => { if (n.type === 'listItem') out.push(n); (n.children || []).forEach(walk); };
+  parser.parse(md).children.forEach(walk);
+  return out;
+};
+const itemText = (li) => {
+  let s = '';
+  // Own text only — do NOT descend into a nested list, or a parent item would also
+  // "contain" its children's text and over-match.
+  const walk = (n) => {
+    if (n.type === 'list') return;
+    if (n.type === 'text') s += n.value;
+    (n.children || []).forEach(walk);
+  };
+  (li.children || []).forEach(walk);
+  return s;
+};
+const checkedOf = (md, needle) => flatListItems(md).filter((li) => itemText(li).includes(needle)).map((li) => li.checked);
+
+test('round-trip: a MIXED task/plain list does NOT inject a checkbox into the plain bullet', () => {
+  const out = roundtrip('- [ ] task one\n- plain note\n- [x] task two\n');
+  assert.deepEqual(checkedOf(out, 'plain note'), [null], 'plain item stays non-task (checked null)');
+  assert.deepEqual(checkedOf(out, 'task one'), [false], 'task state preserved');
+  assert.deepEqual(checkedOf(out, 'task two'), [true]);
+  assert.doesNotMatch(out, /^[-*+] \[[ xX]\] plain note$/m, 'no checkbox marker injected');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: ordered list with a task item keeps the plain item plain (no checkbox)', () => {
+  const out = roundtrip('1. plain note\n2. [ ] task\n');
+  assert.deepEqual(checkedOf(out, 'plain note'), [null]);
+  assert.doesNotMatch(out, /^\d+\. \[[ xX]\] plain note$/m);
+});
+
+test('round-trip: ordered MIXED list with a non-1 start preserves numbering', () => {
+  const out = roundtrip('3. plain alpha\n4. [ ] task\n5. plain beta\n');
+  assert.deepEqual(checkedOf(out, 'plain alpha'), [null]);
+  assert.deepEqual(checkedOf(out, 'plain beta'), [null]);
+  assert.match(out, /^5\. plain beta$/m, 'numbering continues after the task run');
+  assert.equal(roundtrip(out), out, 'idempotent');
+});
+
+test('round-trip: a NESTED mixed list keeps its plain child plain', () => {
+  const out = roundtrip('- parent\n\n  - [ ] sub task\n  - sub plain\n');
+  assert.deepEqual(checkedOf(out, 'sub plain'), [null], 'nested plain child must not gain a checkbox');
+});
+
 test('round-trip: GFM table survives as a pipe table', () => {
   const out = roundtrip('| Feature | Status |\n| --- | --- |\n| Tables | ok |\n');
   assert.match(out, /\| Feature \| Status \|/);
