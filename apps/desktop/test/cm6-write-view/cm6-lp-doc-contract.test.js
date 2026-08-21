@@ -84,10 +84,9 @@ test('Stage A WAVE 13-T14b: README.md "Live styling" section mentions hybrid-cm6
     'README.md Live styling section must cover hybrid-cm6-lp');
 });
 
-test('Stage A WAVE 13-T14c: README.md "Four Write engines" replaces "Three Write engines"', () => {
-  // After Stage A there are 4 engines, not 3.
-  assert.match(readmeMd, /Four Write engines/i,
-    'README.md must say "Four Write engines" after Stage A');
+test('Tiptap consolidation: README.md documents all five Write engines', () => {
+  assert.match(readmeMd, /Five Write engines/i,
+    'README.md must say "Five Write engines" after the Tiptap engine is added');
 });
 
 // ── AC-15: docs/stage-history.md + docs/test-manual.md ──────────────────

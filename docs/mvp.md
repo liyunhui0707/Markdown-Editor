@@ -1,5 +1,10 @@
 # MVP Definition — Markdown Vault App
 
+> This document records the original Version 1 scope. The project has since
+> adopted an opt-in ProseMirror/Tiptap WYSIWYG direction while keeping raw
+> Markdown as the source of truth; promotion to the default remains outside the
+> MVP until stabilization is complete.
+
 ## 1. Product summary
 
 This project is a local-first Markdown vault app for macOS.
@@ -60,7 +65,7 @@ Version 1 will NOT include:
 - plugin system
 - cloud sync
 - multi-device sync
-- WYSIWYG editor
+- making the opt-in WYSIWYG editor the default before stabilization
 - advanced backlink system
 - advanced tag explorer
 - collaboration features

@@ -4,10 +4,10 @@ This guide explains how to configure the local MCP server so Claude Code and Cod
   
 ## What the MCP tool does  
   
-This project ships the MCP server as a Claude Code plugin distributed via the local `workflow-and-MCP-and-plugins` marketplace. The plugin source lives at:
+The MCP server is distributed through the local `workflow-and-MCP-and-plugins` marketplace. Its source was extracted from this app repository and now lives at:
 
 ```
-plugins/mcp-note-ingest/
+~/Liyunhui/Codes/claude-plugins/mcp-note-ingest/
 ```
 
 After install, the runnable copy lives in the Claude Code plugin cache at `~/.claude/plugins/cache/workflow-and-MCP-and-plugins/mcp-note-ingest/<version>/`.
@@ -35,7 +35,7 @@ Before configuring any client, test the MCP server directly.
 Open Terminal:
 
 ```
-cd ~/code/markdown-vault-app/plugins/mcp-note-ingest
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest
 npm run smoke
 ```
 
@@ -48,7 +48,7 @@ If the smoke test passes, your local MCP server is working.
 Add the local marketplace once and install the plugin:
 
 ```
-/plugin marketplace add /Users/liyunhui/Liyunhui/Codes/markdown-vault-app/plugins
+/plugin marketplace add /Users/liyunhui/Liyunhui/Codes/claude-plugins
 /plugin install mcp-note-ingest@workflow-and-MCP-and-plugins
 /mcp
 ```
@@ -74,8 +74,8 @@ inside the project root with content like:
 ```TOML
 [mcp_servers.mcp-note-ingest]  
 command = "node"  
-args = ["plugins/mcp-note-ingest/server.js"]  
-cwd = "/absolute/path/to/your/repo"  
+args = ["/absolute/path/to/claude-plugins/mcp-note-ingest/server.js"]
+cwd = "/absolute/path/to/claude-plugins/mcp-note-ingest"
 enabled = true  
 startup_timeout_sec = 15  
 tool_timeout_sec = 60
@@ -84,7 +84,7 @@ tool_timeout_sec = 60
 Then verify:
 
 ```
-cd ~/code/markdown-vault-app  
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest
 codex mcp list
 ```
 
@@ -138,7 +138,7 @@ By default, files land in `/Users/liyunhui/Liyunhui/Inbox/`. To redirect the too
     "mcp-note-ingest": {
       "type": "stdio",
       "command": "node",
-      "args": ["/absolute/path/to/plugins/mcp-note-ingest/server.js"],
+      "args": ["/absolute/path/to/claude-plugins/mcp-note-ingest/server.js"],
       "env": { "MCP_INGEST_TARGET_DIR": "/Users/your-name/path/to/your/inbox" }
     }
   }
@@ -217,4 +217,3 @@ Use this order every time:
   
 ---  
   
-

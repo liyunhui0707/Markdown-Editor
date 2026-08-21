@@ -6,6 +6,7 @@ Concise record of completed stages, their key deliverables, and known deferred i
 
 | Stage | Title | Status | Key deliverables |
 |---|---|---|---|
+| Tiptap arc (`0.10.0`–`0.17.2`) | ProseMirror/Tiptap WYSIWYG pivot and consolidation | Done; opt-in stabilization | Replaced the abandoned CM6-decoration WYSIWYG direction with an opt-in Tiptap 3 surface backed by a `unified`/`remark` mdast↔ProseMirror bridge. Added GFM task lists/tables, frontmatter preservation, KaTeX math, Mermaid, safe image rendering, raw HTML/reference/footnote passthrough, Source/Rich toggle, vault-backed image paste/drop, and note-switch safety. The consolidation fixes mixed task/plain lists so plain items never gain `[ ]`, preserves ordered-run numbering, retains the mainline AI-session title work, keeps extracted plugins outside this repository, upgrades Mermaid to `11.17.x`, and pins DOMPurify `3.4.14`; app version `0.17.2`. Tiptap remains opt-in pending the stabilization gates in `docs/roadmap.md`. |
 | 1 | Electron shell | Done | App window, vault picker, note list, basic save/load |
 | 2 | HybridWriteView | Done | Markdown write surface, Toast UI Preview |
 | 3 | Editor / data-safety stabilization and CM6 spike | Done | Spike validated CM6 as production editor; all six manual scenarios passed |

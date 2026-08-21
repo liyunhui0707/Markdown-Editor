@@ -1,5 +1,28 @@
 # Project Roadmap — Markdown Vault App
 
+## Current phase — Tiptap stabilization (2026-08-21)
+
+The original phases below are retained as project history. The active product
+direction is the opt-in ProseMirror/Tiptap WYSIWYG engine with raw Markdown as
+the source of truth and a separate Source mode.
+
+Priority order:
+
+1. Prove data integrity with a representative Markdown round-trip corpus,
+   especially mixed/nested lists, frontmatter, raw HTML, references, footnotes,
+   math, Mermaid, tables, and images.
+2. Complete real Electron QA for save/switch/quit, undo/redo, Chinese IME,
+   cursor behavior, image paste/drop, and long documents.
+3. Add repeatable clean-install, bundle-reproducibility, production-audit, and
+   macOS packaging checks.
+4. Promote Tiptap to the default only after those gates pass; keep CM6 as
+   Source/fallback until migration confidence is established.
+
+Defer new rendering engines, broad UI expansion, and removal of fallbacks until
+the stabilization gate is complete.
+
+---
+
 ## Phase 0 — Concept clarity and environment setup
 Objective:
 - define MVP clearly

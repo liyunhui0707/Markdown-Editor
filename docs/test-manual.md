@@ -1269,6 +1269,24 @@ Known limitations (deferred): a data:image embedded in pasted HTML is stripped r
 than saved to the vault; non-raster formats (svg, etc.) and remote images are not
 externalized.
 
+## Tiptap WYSIWYG — mixed task/plain list integrity (`0.17.1`)
+
+Set `localStorage.markdownVault.writeEngine='tiptap'`, reload, and use the
+Source/Rich toggle to verify the stored Markdown after each case.
+
+- [ ] Open `- [ ] task one\n- plain note\n- [x] task two`; toggle Source → Rich → Source and confirm `plain note` never gains `[ ]`.
+- [ ] Open `3. plain alpha\n4. [ ] task\n5. plain beta`; round-trip twice and confirm `plain beta` remains plain and numbered `5.`.
+- [ ] Put a mixed task/plain list inside a parent list item; save, close, reopen, and confirm both nesting and checkbox kinds are preserved.
+- [ ] Toggle a real task checkbox, then undo/redo; confirm the adjacent plain item remains unchanged and the dirty badge behaves normally.
+- [ ] Switch notes with a mixed list unsaved, return to the note, save, and reopen; confirm no checkbox was injected.
+
+## Consolidated renderer/dependency smoke (`0.17.2`)
+
+- [ ] In Tiptap, render and edit a table, inline/display math, Mermaid block, task list, safe image, and fenced code in one note; no console errors.
+- [ ] Preview the same note and confirm Toast UI still renders without a blank pane or ProseMirror-related error.
+- [ ] Paste a screenshot, verify the `./assets/<hash>.<ext>` reference, save, and reopen it.
+- [ ] Run `npm ci --ignore-scripts`, `npm test`, `npm audit --omit=dev`, and `npm run pack` from `apps/desktop/`; all complete successfully.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

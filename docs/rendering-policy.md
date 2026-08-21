@@ -1,5 +1,13 @@
 # Rendering Policy
 
+> **Historical policy (superseded).** Stage 20 governed the CodeMirror
+> `hybrid-cm6` path. The 2026-06-07 architecture pivot adopted an opt-in
+> ProseMirror/Tiptap WYSIWYG engine, which necessarily uses rich document nodes
+> and widget rendering. The restrictions below still describe the legacy CM6
+> walker, but they do not prohibit the Tiptap architecture. New WYSIWYG work
+> follows the Tiptap/remark source-of-truth model documented in `CLAUDE.md` and
+> `README.md`.
+
 ## Purpose
 
 This document records the canonical rendering architecture decision accepted

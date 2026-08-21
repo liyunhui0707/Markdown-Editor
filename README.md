@@ -10,7 +10,7 @@ The setup also integrates with the `mcp-note-ingest` MCP server (installed as a 
 
 ## Headline guarantees
 
-- **Raw Markdown is the source of truth.** The editor stores notes as plain `.md` files; `getText()` returns the raw Markdown text. The live-styling layer in Write mode is visual decoration only — no HTML is injected, no document is rewritten. Round-trip is at the LF / character level (CodeMirror normalizes line endings internally; exact on-disk byte equality is not promised for CRLF files). This guarantee holds for ALL Write engines, including the Stage A `hybrid-cm6-lp` live-preview engine (which uses `Decoration.replace` for emphasis markers — the document is unchanged; only the visible rendering hides them).
+- **Raw Markdown is the source of truth.** Notes remain plain `.md` files. The CodeMirror engines preserve source text at the LF/character level; the opt-in Tiptap WYSIWYG engine serializes through `remark` and therefore produces stable, remark-normalized Markdown rather than byte-identical output.
 - **Local-first.** Notes live in a folder you choose. No cloud, no accounts, no hosted backend.
 
 ## Screenshots
@@ -71,10 +71,10 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 
 Each note has two display modes selected by the `Write` and `Preview` tab buttons above the editor (mouse-toggle only — no keyboard shortcut for the toggle).
 
-- **Write mode** — type and edit Markdown source.
+- **Write mode** — edit Markdown source in the CodeMirror engines, or use the opt-in Tiptap rich surface with its Source/Rich toggle.
 - **Preview mode** — Toast UI Editor renders the Markdown read-only.
 
-Four Write engines exist in the codebase. The engine is resolved on load by `apps/desktop/lib/write-engine.js` in the following priority order:
+Five Write engines exist in the codebase. The engine is resolved on load by `apps/desktop/lib/write-engine.js` in the following priority order:
 
 1. URL query parameter: `?writeEngine=<name>`
 2. `localStorage` key: `markdownVault.writeEngine = "<name>"`
@@ -82,10 +82,15 @@ Four Write engines exist in the codebase. The engine is resolved on load by `app
 
 | Engine | Status | Description |
 |---|---|---|
+| `tiptap` | **Active WYSIWYG direction; opt-in** | ProseMirror/Tiptap rich editing backed by a `remark`/`unified` Markdown bridge. Supports headings, marks, lists and task lists, tables, fenced code, KaTeX math, Mermaid, safe images, preserved frontmatter/raw HTML/references/footnotes, a Source/Rich toggle, and vault-backed image paste/drop. Opt in with `localStorage.setItem('markdownVault.writeEngine', 'tiptap')`. |
 | `hybrid-cm6` | **Default** | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). Promoted from experimental to default in Stage 17. Uses `Decoration.mark` only — no widgets, no `Decoration.replace`. |
 | `hybrid-cm6-lp` | Experimental (Stages A + B + C + D + E + F + G.1 + G.2, opt-in) | Live-preview variant of `hybrid-cm6`. Reuses the hybrid walker via its public export PLUS adds inline-marker and block-marker plugins. **Stage A covered emphasis** (`*`, `_`, `**`, `__`); **Stage B added inline-code backticks, strikethrough `~~`, inline-link brackets/parens/URL/title, and inline-image markup**. **Stage C is the first stage where lp visibly diverges from `hybrid-cm6`**: inline images (`![alt](url)`) render as actual `<img>` elements inline (off-active-line) via `WidgetType` widgets. URL allowlist (`https:`, `data:image/*`, vault-relative paths) gates what renders; vault-relative paths resolve via a new IPC route (`window.vaultApi.resolveImagePath`) with symlink-safe filesystem reads mirroring the session importer. Disallowed URLs (`http:`, `javascript:`, etc.) show a styled-alt placeholder. **Stage D extends the Decoration.replace + atomic-range pattern from inline markers to three block-level marker categories**: ATX heading prefix (`#` … `######`), list bullets (`-`, `*`, `+`, `1.`, `1)`), and blockquote `>`. Setext underlines + HorizontalRule + TaskMarker + fenced-code fences are explicitly preserved unchanged. The Stage D user-visible payoff is thin (cursor atomicity + DOM-level absence of block markers); the architectural payoff is that subsequent widget stages (E, F, G) can rely on block-marker scope decisions being settled. **Stage E renders GFM tables as actual HTML `<table>` grids off-active** via a new multi-line block `TableWidget`: walks the Lezer Table node, parses GFM alignment from the delimiter row (`:---`/`:---:`/`---:`), builds `<table>/<thead>/<tbody>` via `document.createElement` + `textContent` (XSS-safe; HTML special chars in cells render as escaped text). Cell text rendered as plain text (inline markdown inside cells NOT rendered — deferred). Table-level active resolution: caret on ANY line of the table → widget disappears, walker source returns. **Stage F renders LaTeX math via KaTeX**: inline `$x$` and display `$$x$$` off-active render as real TeX. Detection is regex-based with a Pandoc-style whitespace rule + `\$` escape handling; caller-side Lezer-aware filtering skips matches inside InlineCode / FencedCode / frontmatter. KaTeX vendored to `lib/vendor/katex/`; called with `throwOnError: false` + `trust: false`; invalid TeX produces a styled error placeholder. Stage F is the FIRST lp stage to add a new npm dependency (`katex@^0.16`). **Stage G.1 adds fenced-code syntax highlighting via highlight.js** — a `CodeBlockWidget` walks the Lezer `FencedCode` node, reads the language info, and calls `hljs.highlight` for known languages; unknown / missing-language code blocks fall back to plain text. highlight.js vendored to `lib/vendor/highlight/` (~157 KB minified + atom-one-light theme). **Stage G.2 adds Mermaid diagram rendering** for ` ```mermaid ` fenced blocks — first lp stage with async-render widget. The widget returns a sync placeholder; `mermaid.render()` (Promise) patches in the SVG on resolve. Async safety via a `destroyed` flag (mirrors Stage C's image-widget IPC pattern). Mermaid vendored to `lib/vendor/mermaid/` (~3 MB; `securityLevel: 'strict'`). Lang dispatch in `cm6-lp-block.js`'s FencedCode branch: `mermaid` → MermaidWidget; everything else → Stage G.1 CodeBlockWidget. On-active-line behavior matches `hybrid-cm6` exactly for ALL Stages A–G.2. Opt in via `?writeEngine=hybrid-cm6-lp` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp')`. Stage H (promote lp to default) remains upcoming. |
 | `cm6` | Fallback | CodeMirror 6 single-document adapter — Markdown editing with syntax highlighting, real undo/redo, real selection, Chinese IME support. Reachable via `?writeEngine=cm6` or by setting the `markdownVault.writeEngine` localStorage key to `cm6`. |
 | `hybrid` | Legacy fallback | Stage 2 HybridWriteView (per-block textarea swap) plus Toast UI Preview. Retained as a fallback; removal is deferred. |
+
+The long `hybrid-cm6-lp` description above is retained as stage history. That
+engine's planned Stage H promotion was abandoned; ProseMirror/Tiptap is the
+current WYSIWYG direction.
 
 ### Live styling in `hybrid-cm6` (default) and `hybrid-cm6-lp` (Stages A + B + C + D + E + F + G.1 + G.2 opt-in)
 
@@ -153,7 +158,7 @@ cd apps/desktop
 npm run dev
 ```
 
-Opens the Electron window in development mode. The default Write engine is `hybrid-cm6` (Stage 17). To select a fallback or the Stage A opt-in, set the `markdownVault.writeEngine` localStorage key to `cm6`, `hybrid`, or `hybrid-cm6-lp` in DevTools (`localStorage.setItem('markdownVault.writeEngine', 'cm6')` / `'hybrid'` / `'hybrid-cm6-lp'` — Electron has no normal address bar). The same selection can also be made by loading the window with `?writeEngine=cm6`, `?writeEngine=hybrid`, or `?writeEngine=hybrid-cm6-lp` in its URL.
+Opens the Electron window in development mode. The default Write engine remains `hybrid-cm6`. To exercise the active WYSIWYG work, run `localStorage.setItem('markdownVault.writeEngine', 'tiptap')` in DevTools and reload. The same resolver also accepts `cm6`, `hybrid`, and the superseded `hybrid-cm6-lp` engine through localStorage or `?writeEngine=<name>`.
 
 ### Build a local macOS app
 
@@ -167,15 +172,17 @@ Build artifacts are written to `apps/desktop/dist/` and should not be committed.
 
 ### Building renderer bundles
 
-The renderer loads two pre-built IIFE bundles checked into `apps/desktop/lib/`. Rebuild them after changing the corresponding entry file:
+The renderer loads pre-built IIFE bundles checked into `apps/desktop/lib/`. Rebuild them after changing the corresponding entry file or dependency:
 
 ```bash
 cd apps/desktop
 npm run build:cm6       # rebuilds lib/cm6-bundle.js (used by cm6 + hybrid-cm6 + hybrid-cm6-lp engines)
 npm run build:editor    # rebuilds lib/toastui-bundle.js (used by Preview + hybrid engine)
+npm run build:tiptap    # rebuilds lib/tiptap-bundle.js (used by the tiptap engine)
+npm run build:mermaid   # rebuilds lib/vendor/mermaid/mermaid.min.js
 ```
 
-If you change `lib/cm6-entry.js` or `lib/editor-entry.js` and skip the rebuild, the running app will silently keep using the old bundle.
+If you change a bundle entry or its dependency and skip the rebuild, the running app will silently keep using the old bundle.
 
 ## Testing
 
@@ -189,10 +196,10 @@ npm run test:cm6-write-view    # focused: CM6 write adapters, hybrid-cm6 decorat
 node --test test/session-import/*.test.mjs   # focused: ported Local-Web-Server importers (Stage S1a)
 ```
 
-MCP smoke test (from the plugin source — clone `markdown-vault-app` if needed):
+MCP smoke test (from the standalone plugin repository):
 
 ```bash
-cd <markdown-vault-app>/plugins/mcp-note-ingest
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest
 npm run smoke
 ```
 
@@ -339,7 +346,7 @@ effect on normal editing.
 
 ## MCP Note Ingestion
 
-The `mcp-note-ingest` MCP server is installed as a Claude Code plugin via the `workflow-and-MCP-and-plugins` marketplace. Source for the plugin lives in this repo at `plugins/mcp-note-ingest/`.
+The `mcp-note-ingest` MCP server is installed through the `workflow-and-MCP-and-plugins` marketplace. Its source was extracted from this app repository and now lives in the standalone `~/Liyunhui/Codes/claude-plugins/mcp-note-ingest/` repository.
 
 The main tool is:
 
@@ -395,10 +402,10 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 - Save / load round-trip preserves raw Markdown source.
 - Dirty-state tracking and close-guard dialog (Cancel / Discard & Quit / Save All & Quit) protect unsaved work.
 - Live-styled Write mode under the default `hybrid-cm6` engine; Preview mode via Toast UI Editor.
-- All four engines (`hybrid-cm6` default, `hybrid-cm6-lp` Stage A opt-in, `cm6` fallback, `hybrid` legacy fallback) selectable via URL query or `markdownVault.writeEngine` localStorage key.
+- All five engines are selectable via URL query or `markdownVault.writeEngine`; `tiptap` is the active opt-in WYSIWYG direction, while `hybrid-cm6` remains the default during stabilization.
 - MCP ingest writes AI-chat notes into a fixed local Inbox folder (default `/Users/liyunhui/Liyunhui/Inbox/`; overridable via `MCP_INGEST_TARGET_DIR`).
 - Stage 18 stabilization QA passed — clean Branch A closure (see `docs/test-manual.md` Stage 18 section).
-- Automated test suite at `tests 907, pass 905, skipped 2, fail 0` (`npm test`); perf opt-in suite at `5 / 5 / 0 / 0` (`npm run test:perf`).
+- The full automated suite runs with `npm test`; the heavier performance checks are opt-in through `npm run test:perf`.
 
 **What's still evolving**
 
@@ -409,15 +416,11 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 
 **What's not supported**
 
-- No clickable links / autolinks in Write mode (they render as visual underline only).
-- No real image preview in Write mode (`![alt](url)` shows styled alt text; no image is fetched).
-- No interactive task checkboxes (`[ ]` / `[x]` are dimmed but not clickable).
-- No full table rendering in Write mode — tables work in Preview only.
-- No math syntax (`$x$`, `$$…$$`).
-- No footnote support.
+- Tiptap is not yet the default and has not completed release-level manual QA for IME, long documents, navigation, and every Markdown edge case.
+- Tiptap's Source view is a plain textarea without syntax highlighting or cursor/scroll restoration across the Source/Rich toggle.
+- Some preserved Markdown constructs, including raw HTML, reference definitions, and footnotes, are passthrough content rather than fully rich-editable nodes.
 - No cross-platform packaging.
 - No sync, no accounts, no hosted backend.
-- Not a WYSIWYG editor.
 
 **How to run tests** — see the [Testing](#testing) section.
 
@@ -427,14 +430,8 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 - No built-in sync across devices.
 - No account system or hosted backend.
 - No plugin system, graph view, or backlinks UI.
-- Not a WYSIWYG editor. Write mode always edits Markdown source — `hybrid-cm6` adds visual decorations on top, it does not replace the source with a rendered view.
-- Write mode does not currently support:
-  - Full table rendering (the GFM `Table` parser nodes exist but are not styled by hybrid-cm6 — pipes stay raw; switch to Preview for table rendering).
-  - Math syntax (`$x$`, `$$…$$`) — no parser or renderer.
-  - Footnotes (`[^1]` and `[^1]: …`) — no parser support.
-  - Real image preview (`![alt](url)` shows alt text styled but does not load the image).
-  - Clickable links / autolinks (text is underlined but never navigates).
-  - Interactive task checkboxes (`[ ]` / `[x]` are dimmed but not toggled by clicking).
+- The default `hybrid-cm6` engine is a source editor with visual decorations; richer tables, math, diagrams, image rendering, and task controls are available in the opt-in `tiptap` engine.
+- Tiptap normalizes Markdown through `remark`; use Source mode when exact source-level control matters.
 - The `hybrid-cm6` engine became the default in Stage 17. The plain `cm6` adapter and the legacy `hybrid` engine remain available as fallbacks via `?writeEngine=cm6` / `?writeEngine=hybrid` or by setting the `markdownVault.writeEngine` localStorage key to the matching value. Users who had the `markdownVault.writeEngine` localStorage key set to `"cm6"` before Stage 17 continue to get `cm6`.
 - The app is intended for local testing and early feedback, not production distribution.
 - **Local AI: Summarize & Rewrite** is intentionally narrow this stage: streaming + abort ship, but the rendered output is plain `textContent` (no Markdown re-rendering), there is no RAG, no auto-edit of the original note, an in-app settings panel for the endpoint/model/allow-remote (other tuning knobs remain env-var only), no retries, no provider failover, no per-verb history per note, and whether the upstream model server actually stops on × depends on the server. See the [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) section for the full constraint list.
@@ -451,6 +448,8 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 
 Not committed to dates. Items listed roughly in priority order:
 
+- **Stabilize the Tiptap engine before changing the default** — expand Markdown corpus/round-trip coverage, complete real Electron QA for save/switch/undo/redo/Chinese IME/long documents, and add repeatable build/packaging checks. Do not add another rendering architecture during this phase.
+- The historical `hybrid-cm6-lp` Stage H promotion is cancelled; its stage narrative below is retained for provenance only.
 - ~~Hybrid-cm6 default-readiness sequence~~ — completed in Stage 17. `hybrid-cm6` is now the default Write engine; `cm6` and legacy `hybrid` remain selectable fallbacks.
 - **Obsidian-style Live Preview migration** — Stages A, B, C, D, E, F, G.1, and G.2 done. Stages A + B introduced `Decoration.replace`-based hiding + atomic-range cursor motion for emphasis, inline code, strikethrough, inline link markers, and inline image markup. **Stage C is the first stage where lp visibly diverges from `hybrid-cm6`**: actual `<img>` elements render inline for inline images, with URL/path security allowlist (`https:`, `data:image/*`, vault-relative resolved via new IPC route) + symlink-safe filesystem reads mirroring the session importer. **Stage D extends the Decoration.replace + atomic-range pattern from inline markers to three block-level marker categories** (ATX heading prefix, list bullets, blockquote `>`). HorizontalRule, Setext underlines, TaskMarker, and fenced-code fences preserved. **Stage E renders GFM tables as actual HTML `<table>` grids off-active** via a multi-line block `TableWidget` (XSS-safe via `textContent`; per-column GFM alignment; cell text rendered as plain text — inline markdown inside cells deferred). Table-level active resolution: caret on ANY line in the table → widget swaps back to walker-styled Markdown source. **Stage F adds KaTeX math rendering** for inline `$x$` and display `$$x$$` via a regex-based detector (Pandoc whitespace rule + `\$` escape) with Lezer-aware filtering (math inside InlineCode/FencedCode/frontmatter NOT rendered). KaTeX vendored to `lib/vendor/katex/`; invalid TeX produces a styled error placeholder via `throwOnError: false` + try/catch. First lp stage to add an npm dependency (`katex@^0.16`). **Stage G.1 adds fenced-code syntax highlighting** via highlight.js (Lezer-native FencedCode detection — no regex layer; whole-block active resolution; known languages get `hljs.highlight`, unknown languages fall back to plain text). **Stage G.2 adds Mermaid diagram rendering** for ` ```mermaid ` blocks — first async-render widget (sync placeholder + Promise-resolve patches SVG; destroyed-flag prevents stale DOM updates). Mermaid vendored to `lib/vendor/mermaid/` (~3 MB). Stage H (promotion to default) remains upcoming. See `docs/stage-history.md` Stages A + B + C + D + E + F + G.1 + G.2 rows for full implementation summaries.
 - Add screenshots and a polished release checklist.
@@ -465,8 +464,9 @@ Not committed to dates. Items listed roughly in priority order:
 Electron main (apps/desktop/main.js)
   ├── Vault file I/O + IPC bridge (apps/desktop/lib/vault-actions.js)
   └── Renderer window (apps/desktop/index.html)
-        ├── Write engine resolver (lib/write-engine.js) → cm6 | hybrid-cm6 | hybrid-cm6-lp | hybrid
+        ├── Write engine resolver (lib/write-engine.js) → tiptap | cm6 | hybrid-cm6 | hybrid-cm6-lp | hybrid
         ├── Write surface
+        │     ├── tiptap           → lib/tiptap-entry.js + lib/tiptap-bundle.js + remark bridge
         │     ├── cm6              → lib/cm6-write-view.js + lib/cm6-bundle.js
         │     ├── hybrid-cm6       → lib/cm6-hybrid-view.js (decoration walker over the same bundle)
         │     ├── hybrid-cm6-lp    → lib/cm6-lp-view.js + lib/cm6-lp-emphasis.js (reuses the hybrid walker; adds Decoration.replace + EditorView.atomicRanges for emphasis markers — Stage A opt-in)
@@ -486,10 +486,11 @@ apps/desktop/lib/         Editor, vault, and renderer helper modules
 apps/desktop/test/        Desktop app tests (incl. test/session-import/ for the Stage S1a importer port)
 apps/desktop/tools/       Developer CLI tools (currently: session-import/ — Local-Web-Server importer port)
 apps/desktop/spike/       CM6 spike artifacts (deferred cleanup)
-plugins/mcp-note-ingest/  MCP plugin (note ingestion; distributed via the workflow-and-MCP-and-plugins marketplace)
-plugins/workflow-orchestrator/  Engineering-workflow orchestrator plugin (same marketplace)
 docs/                     Install, MCP, demo, roadmap, and test-manual docs
 ```
+
+Cross-project plugins live in the separate `~/Liyunhui/Codes/claude-plugins`
+repository and are not part of this app tree.
 
 ## Documentation
 
