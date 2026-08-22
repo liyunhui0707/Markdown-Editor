@@ -13,8 +13,8 @@ Priority order:
    math, Mermaid, tables, and images.
 2. Complete real Electron QA for save/switch/quit, undo/redo, Chinese IME,
    cursor behavior, image paste/drop, and long documents.
-3. Add repeatable clean-install, bundle-reproducibility, production-audit, and
-   macOS packaging checks.
+3. **Completed in v0.17.3:** add repeatable clean-install,
+   bundle-reproducibility, dependency-audit, and macOS packaging checks.
 4. Promote Tiptap to the default only after those gates pass; keep CM6 as
    Source/fallback until migration confidence is established.
 

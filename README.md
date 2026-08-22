@@ -140,8 +140,8 @@ Before publishing or sharing the repository, do not commit personal vault conten
 
 ### Requirements
 
-- macOS
-- Node.js
+- macOS 12 Monterey or newer
+- Node.js 22.12 or newer (Node.js 24 recommended)
 - npm
 
 ### Install dependencies
@@ -180,6 +180,7 @@ npm run build:cm6       # rebuilds lib/cm6-bundle.js (used by cm6 + hybrid-cm6 +
 npm run build:editor    # rebuilds lib/toastui-bundle.js (used by Preview + hybrid engine)
 npm run build:tiptap    # rebuilds lib/tiptap-bundle.js (used by the tiptap engine)
 npm run build:mermaid   # rebuilds lib/vendor/mermaid/mermaid.min.js
+npm run verify:generated # rebuilds every committed renderer/vendor output and verifies a clean tree
 ```
 
 If you change a bundle entry or its dependency and skip the rebuild, the running app will silently keep using the old bundle.
@@ -191,8 +192,11 @@ The project uses the Node.js built-in test runner.
 ```bash
 cd apps/desktop
 npm test                       # full suite (test/, test/spike-cm6/, test/cm6-write-view/, test/session-import/)
+npm run test:ci                # full suite plus the CI baseline/count guard
 npm run test:write-engine      # focused: Write engine resolver
 npm run test:cm6-write-view    # focused: CM6 write adapters, hybrid-cm6 decorations, and bundle-entry source contracts
+npm run audit:prod             # require zero production dependency vulnerabilities
+npm run audit:full             # reject high/critical findings in the complete dependency tree
 node --test test/session-import/*.test.mjs   # focused: ported Local-Web-Server importers (Stage S1a)
 ```
 
