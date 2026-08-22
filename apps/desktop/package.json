@@ -1,11 +1,12 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.17.2",
+  "version": "0.17.3",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
     "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js test/session-import/*.test.mjs test/session-viewer/*.test.js",
+    "test:ci": "node tools/check-test-baseline.mjs",
     "session-import:claude": "node tools/session-import/import-claude.mjs",
     "session-import:codex": "node tools/session-import/import-codex.mjs",
     "test:write-engine": "node --test test/write-engine.test.js",
@@ -18,6 +19,11 @@
     "build:katex": "mkdir -p lib/vendor/katex && cp -R node_modules/katex/dist/. lib/vendor/katex/",
     "build:hljs": "mkdir -p lib/vendor/highlight && esbuild lib/highlight-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/highlight/highlight.min.js --minify && cp node_modules/highlight.js/styles/atom-one-light.css lib/vendor/highlight/hljs.css",
     "build:mermaid": "mkdir -p lib/vendor/mermaid && esbuild lib/mermaid-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/mermaid/mermaid.min.js --minify",
+    "build:generated": "rm -rf lib/vendor/katex lib/vendor/highlight lib/vendor/mermaid && npm run build:editor && npm run build:cm6 && npm run build:tiptap && npm run build:spike-cm6 && npm run build:katex && npm run build:hljs && npm run build:mermaid",
+    "check:generated": "node tools/check-generated.mjs",
+    "verify:generated": "npm run build:generated && npm run check:generated",
+    "audit:prod": "npm audit --omit=dev --audit-level=low",
+    "audit:full": "npm audit --audit-level=high",
     "spike:cm6": "electron spike/codemirror6/spike-main.js",
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
     "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
@@ -30,12 +36,13 @@
     "appId": "com.markdownvault.desktop",
     "mac": {
       "identity": null,
+      "minimumSystemVersion": "12.0",
       "entitlementsInherit": "build/entitlements.mac.plist"
     }
   },
   "devDependencies": {
-    "electron": "^37.0.0",
-    "electron-builder": "^26.0.0",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.7",
     "esbuild": "^0.25.12"
   },
   "dependencies": {

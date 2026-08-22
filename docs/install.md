@@ -6,8 +6,8 @@ This guide explains how to run Markdown Vault App on macOS.
   
 You should have:  
   
-- macOS  
-- Node.js installed  
+- macOS 12 Monterey or newer
+- Node.js 22.12 or newer (Node.js 24 recommended)
 - npm available  
 - the project repo available locally  
   
