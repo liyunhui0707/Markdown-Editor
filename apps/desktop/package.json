@@ -10,6 +10,8 @@
     "session-import:claude": "node tools/session-import/import-claude.mjs",
     "session-import:codex": "node tools/session-import/import-codex.mjs",
     "test:write-engine": "node --test test/write-engine.test.js",
+    "test:tiptap-corpus": "node --test test/tiptap-corpus-manifest.test.mjs test/tiptap-roundtrip-corpus.test.mjs test/tiptap-readiness.test.mjs",
+    "check:tiptap-readiness": "npm run test:tiptap-corpus && node tools/check-tiptap-readiness.mjs",
     "test:cm6-write-view": "node --test test/cm6-write-view/*.test.js",
     "test:perf": "PERF_BENCH=1 node --test test/cm6-write-view/hybrid-cm6-perf.test.js",
     "build:editor": "esbuild lib/editor-entry.js --bundle --format=iife --platform=browser --outfile=lib/toastui-bundle.js",
