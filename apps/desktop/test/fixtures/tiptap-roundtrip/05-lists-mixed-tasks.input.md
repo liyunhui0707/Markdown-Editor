@@ -1,0 +1,4 @@
+- plain before
+- [ ] open task
+- [x] done task
+- plain after
