@@ -23,8 +23,8 @@
    <script> tag in index.html. Exposes window.TiptapView.createTiptapView.
 
    SLICE SCOPE: paragraphs, headings, bold/italic/inline-code/strike, links,
-   lists, task lists, blockquote, fenced code, hr, GFM tables. Math / mermaid
-   degrade to fenced code / text; per-column table alignment is deferred. */
+   lists, task lists, blockquote, fenced code, hr, and GFM tables with
+   per-column alignment. Custom nodes cover math and Mermaid. */
 
 import { Editor } from '@tiptap/core';
 import { Slice, Fragment } from '@tiptap/pm/model';

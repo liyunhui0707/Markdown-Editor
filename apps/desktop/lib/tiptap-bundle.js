@@ -463,17 +463,22 @@
             return plainListNode(run4.items, node2.ordered, node2.ordered ? base2 + run4.startIndex : null);
           });
         }
+        function normalizeTableAlignment(value) {
+          return value === "left" || value === "center" || value === "right" ? value : null;
+        }
         function tableToPm(node2) {
           const rows = node2.children || [];
+          const align = Array.isArray(node2.align) ? node2.align : [];
           return {
             type: "table",
             content: rows.map(function(row, ri) {
               const cells = row.children || [];
               return {
                 type: "tableRow",
-                content: cells.map(function(cell) {
+                content: cells.map(function(cell, ci) {
                   return {
                     type: ri === 0 ? "tableHeader" : "tableCell",
+                    attrs: { align: normalizeTableAlignment(align[ci]) },
                     content: [{ type: "paragraph", content: inlineChildren(cell, []) }]
                   };
                 })
@@ -624,9 +629,28 @@
         }
         function pmTableToMdast(node2) {
           const rows = node2.content || [];
+          let width = 0;
+          for (let i = 0; i < rows.length; i++) {
+            const cells = Array.isArray(rows[i] && rows[i].content) ? rows[i].content : [];
+            if (cells.length > width) width = cells.length;
+          }
+          const align = [];
+          for (let ci = 0; ci < width; ci++) {
+            let value = null;
+            for (let ri = 0; ri < rows.length; ri++) {
+              const cells = Array.isArray(rows[ri] && rows[ri].content) ? rows[ri].content : [];
+              const cell = cells[ci];
+              const candidate = normalizeTableAlignment(cell && cell.attrs && cell.attrs.align);
+              if (candidate) {
+                value = candidate;
+                break;
+              }
+            }
+            align.push(value);
+          }
           return {
             type: "table",
-            align: [],
+            align,
             children: rows.map(function(row) {
               const cells = row.content || [];
               return {

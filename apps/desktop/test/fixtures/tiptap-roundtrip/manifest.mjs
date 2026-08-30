@@ -40,11 +40,9 @@ export default [
     inputPath: '10-table-cjk.input.md', expectedPath: '10-table-cjk.expected.md',
   },
   {
-    id: 'table-column-alignment', category: 'tables', contract: 'blocker',
+    id: 'table-column-alignment', category: 'tables', contract: 'normalized',
     inputPath: '11-table-align.input.md',
-    currentLossyPath: '11-table-align.current-lossy.md',
-    desiredPath: '11-table-align.desired.md',
-    reason: 'GFM left, center, and right column alignment is discarded by the ProseMirror bridge.',
+    expectedPath: '11-table-align.expected.md',
     requiredFragments: ['Left', 'Center', 'Right', 'alpha', 'beta', 'gamma'],
   },
   {

@@ -1287,6 +1287,19 @@ Source/Rich toggle to verify the stored Markdown after each case.
 - [ ] Paste a screenshot, verify the `./assets/<hash>.<ext>` reference, save, and reopen it.
 - [ ] Run `npm ci --ignore-scripts`, `npm test`, `npm audit --omit=dev`, and `npm run pack` from `apps/desktop/`; all complete successfully.
 
+## Tiptap WYSIWYG — GFM table-column alignment integrity (`0.17.4`)
+
+Set `localStorage.markdownVault.writeEngine='tiptap'`, reload, and open a note
+with left, center, right, and unaligned columns.
+
+- [ ] In Rich mode, header and body cells visibly follow their column alignment.
+- [ ] Toggle Rich → Source and confirm the delimiter row still contains left (`:---`), center (`:---:`), right (`---:`), and unaligned (`---`) markers after remark normalization.
+- [ ] Edit cell text in Rich mode, then undo/redo; alignment remains unchanged and the dirty badge follows the edit state.
+- [ ] Save, switch to another note and back, close, and reopen; both cell text and alignment semantics persist.
+- [ ] Open a basic unaligned table; it remains unaligned and no console error or blank-editor fallback occurs.
+- [ ] Remove the Tiptap preference and reload; `hybrid-cm6` remains the default Write engine.
+- [ ] Run `npm run check:tiptap-readiness`; the corpus tests pass, then readiness exits `1` for only `math-currency-delimiter`.
+
 ## Final share check  
   
 - [ ] Another person could follow the docs  

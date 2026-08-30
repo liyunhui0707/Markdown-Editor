@@ -10,7 +10,9 @@ Priority order:
 
 1. Prove data integrity with a representative Markdown round-trip corpus,
    especially mixed/nested lists, frontmatter, raw HTML, references, footnotes,
-   math, Mermaid, tables, and images.
+   math, Mermaid, tables, and images. **Progress:** v0.17.3 established the
+   committed corpus and readiness gate; v0.17.4 clears the table-column-
+   alignment blocker. `math-currency-delimiter` remains unresolved.
 2. Complete real Electron QA for save/switch/quit, undo/redo, Chinese IME,
    cursor behavior, image paste/drop, and long documents.
 3. **Completed in v0.17.3:** add repeatable clean-install,
