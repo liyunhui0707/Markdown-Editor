@@ -100,6 +100,14 @@ test('round-trip: GFM table survives as a pipe table', () => {
   assert.match(out, /\| Tables {2}\| ok {5}\|/);
 });
 
+test('round-trip: GFM table preserves left, center, and right column alignment', () => {
+  const input = '| Left | Center | Right |\n| :--- | :----: | ----: |\n| alpha | beta | gamma |\n';
+  const expected = '| Left  | Center | Right |\n| :---- | :----: | ----: |\n| alpha |  beta  | gamma |\n';
+  const out = roundtrip(input);
+  assert.equal(out, expected);
+  assert.equal(roundtrip(out), out, 'aligned table is stable after first normalization');
+});
+
 test('round-trip: headings keep their level', () => {
   assert.match(roundtrip('## Section\n'), /^## Section$/m);
   assert.match(roundtrip('#### Deep\n'), /^#### Deep$/m);

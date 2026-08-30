@@ -81,7 +81,7 @@ test('schema: each supported construct produces schema-valid PM JSON', () => {
   assertValid('- a\n- b\n', 'bullet list');
   assertValid('1. a\n2. b\n', 'ordered list');
   assertValid('- [ ] a\n- [x] b\n', 'task list');
-  assertValid('| A | B |\n| --- | --- |\n| 1 | 2 |\n', 'table');
+  assertValid('| Left | Center | Right |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |\n', 'aligned table');
   assertValid('```js\nconst x=1;\n```\n', 'fenced code');
   assertValid('> quote line 1\n> line 2\n', 'blockquote');
   assertValid('![alt](https://x/i.png)\n', 'inline image');     // the bug fix

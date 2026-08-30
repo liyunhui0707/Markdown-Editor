@@ -150,16 +150,28 @@ test('mdastToPm: a nested MIXED list inside a list item flattens into sibling li
   assert.deepEqual(inner.slice(1).map((n) => n.type), ['taskList', 'bulletList'], 'nested mixed list split');
 });
 
-test('mdastToPm: table first row -> tableHeader, rest -> tableCell, cells wrap paragraphs', () => {
+test('mdastToPm: table cells preserve normalized per-column alignment', () => {
   const pm = mdastToPm(root([
-    md('table', { align: [null, null], children: [
-      { type: 'tableRow', children: [{ type: 'tableCell', children: [text('A')] }, { type: 'tableCell', children: [text('B')] }] },
-      { type: 'tableRow', children: [{ type: 'tableCell', children: [text('1')] }, { type: 'tableCell', children: [text('2')] }] },
+    md('table', { align: ['left', 'center', 'right', 'sideways'], children: [
+      { type: 'tableRow', children: [
+        { type: 'tableCell', children: [text('A')] },
+        { type: 'tableCell', children: [text('B')] },
+        { type: 'tableCell', children: [text('C')] },
+        { type: 'tableCell', children: [text('D')] },
+      ] },
+      { type: 'tableRow', children: [
+        { type: 'tableCell', children: [text('1')] },
+        { type: 'tableCell', children: [text('2')] },
+        { type: 'tableCell', children: [text('3')] },
+        { type: 'tableCell', children: [text('4')] },
+      ] },
     ] }),
   ]));
   const table = pm.content[0];
   assert.equal(table.content[0].content[0].type, 'tableHeader');
   assert.equal(table.content[1].content[0].type, 'tableCell');
+  assert.deepEqual(table.content[0].content.map((cell) => cell.attrs.align), ['left', 'center', 'right', null]);
+  assert.deepEqual(table.content[1].content.map((cell) => cell.attrs.align), ['left', 'center', 'right', null]);
   assert.equal(table.content[0].content[0].content[0].type, 'paragraph');
   assert.equal(table.content[0].content[0].content[0].content[0].text, 'A');
 });
@@ -254,6 +266,39 @@ test('pmToMdast: marks -> nested emphasis/strong/inlineCode/link', () => {
   assert.equal(p.children[1].type, 'inlineCode');
   assert.equal(p.children[2].type, 'link');
   assert.equal(p.children[2].url, 'https://x');
+});
+
+test('pmToMdast: table alignment uses the first supported value in each column', () => {
+  const paragraph = (value) => ({ type: 'paragraph', content: [{ type: 'text', text: value }] });
+  const cell = (value, attrs) => ({
+    type: 'tableCell',
+    ...(attrs === undefined ? {} : { attrs }),
+    content: [paragraph(value)],
+  });
+  const doc = { type: 'doc', content: [{ type: 'table', content: [
+    { type: 'tableRow', content: [
+      cell('A', { align: null }),
+      cell('B', { align: 'center' }),
+      cell('C', { align: 'sideways' }),
+    ] },
+    { type: 'tableRow', content: [
+      cell('1', { align: 'left' }),
+      cell('2', { align: 'right' }),
+      cell('3', { align: 'right' }),
+      cell('4', { align: 'left' }),
+      cell('5'),
+    ] },
+  ] }] };
+
+  const table = pmToMdast(doc).children[0];
+  assert.deepEqual(table.align, ['left', 'center', 'right', 'left', null]);
+  assert.equal(table.children[0].children.length, 3, 'ragged row shape is preserved');
+  assert.equal(table.children[1].children.length, 5, 'later cells do not shift columns');
+});
+
+test('pmToMdast: empty table alignment is total and empty', () => {
+  const doc = { type: 'doc', content: [{ type: 'table', content: [] }] };
+  assert.deepEqual(pmToMdast(doc).children[0].align, []);
 });
 
 test('round-trip mdast -> pm -> mdast preserves task checkbox state', () => {

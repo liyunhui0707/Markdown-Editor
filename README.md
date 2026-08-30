@@ -407,6 +407,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 - Dirty-state tracking and close-guard dialog (Cancel / Discard & Quit / Save All & Quit) protect unsaved work.
 - Live-styled Write mode under the default `hybrid-cm6` engine; Preview mode via Toast UI Editor.
 - All five engines are selectable via URL query or `markdownVault.writeEngine`; `tiptap` is the active opt-in WYSIWYG direction, while `hybrid-cm6` remains the default during stabilization.
+- Tiptap GFM tables preserve left, center, right, and unaligned column semantics through Rich editing and remark-normalized Markdown saves (`0.17.4`).
 - MCP ingest writes AI-chat notes into a fixed local Inbox folder (default `/Users/liyunhui/Liyunhui/Inbox/`; overridable via `MCP_INGEST_TARGET_DIR`).
 - Stage 18 stabilization QA passed — clean Branch A closure (see `docs/test-manual.md` Stage 18 section).
 - The full automated suite runs with `npm test`; the heavier performance checks are opt-in through `npm run test:perf`.
@@ -421,6 +422,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 **What's not supported**
 
 - Tiptap is not yet the default and has not completed release-level manual QA for IME, long documents, navigation, and every Markdown edge case.
+- Tiptap promotion still has one known round-trip blocker: currency text adjacent to inline-math delimiters can be parsed ambiguously.
 - Tiptap's Source view is a plain textarea without syntax highlighting or cursor/scroll restoration across the Source/Rich toggle.
 - Some preserved Markdown constructs, including raw HTML, reference definitions, and footnotes, are passthrough content rather than fully rich-editable nodes.
 - No cross-platform packaging.

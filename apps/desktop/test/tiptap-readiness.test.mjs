@@ -29,7 +29,10 @@ function writeManifest(entries, files = {}) {
 }
 
 function runChecker(manifestPath, extraArgs = []) {
-  return spawnSync(process.execPath, [checkerPath, '--manifest', manifestPath, ...extraArgs], {
+  const args = [checkerPath];
+  if (manifestPath) args.push('--manifest', manifestPath);
+  args.push(...extraArgs);
+  return spawnSync(process.execPath, args, {
     cwd: desktopDir,
     encoding: 'utf8',
   });
@@ -64,6 +67,14 @@ test('readiness exits 1 and prints stable blocker ids and reasons', () => {
   const result = runChecker(manifestPath);
   assert.equal(result.status, 1);
   assert.match(result.stdout, /^BLOCKER table-align: Alignment is lost\.$/m);
+});
+
+test('committed readiness keeps only the independent math/currency blocker', () => {
+  const result = runChecker();
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /^BLOCKER math-currency-delimiter:/m);
+  assert.doesNotMatch(result.stdout, /^BLOCKER table-column-alignment:/m);
+  assert.equal(result.stdout.trim().split('\n').length, 1, 'exactly one promotion blocker remains');
 });
 
 test('readiness fails closed for malformed, missing, and escaping fixtures', () => {
