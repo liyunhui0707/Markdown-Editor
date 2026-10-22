@@ -34,7 +34,8 @@ test('corpus manifest has representative coverage and stable ids', () => {
   for (const category of REQUIRED_CATEGORIES) {
     assert.ok(categories.has(category), `missing corpus category: ${category}`);
   }
-  assert.ok(cases.some((entry) => entry.contract === 'blocker'), 'readiness must expose at least one known blocker');
+  assert.ok(cases.some((entry) => entry.id === 'math-currency-delimiter' && entry.contract === 'normalized'),
+    'the fixed currency/math case must remain in the corpus');
 });
 
 for (const entry of cases) {

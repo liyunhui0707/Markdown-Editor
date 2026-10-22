@@ -1,6 +1,34 @@
 # Manual Test Checklist  
   
 Use this checklist before sharing the app with another person.  
+
+Current milestone status lives in the
+[frozen acceptance record](roadmap.md#finite-acceptance-record). On 2026-09-09
+the user reported the requested physical Undo/Redo and Chinese IME checks as
+passing. This does not mark the other native checks below complete; older
+unchecked lists remain historical until their results are explicitly recorded.
+
+**A6 candidate, 2026-09-09:** [Fix and evidence](a6-dirty-state-investigation.md)
+now preserve unchanged Tiptap text and block unsafe metadata saves. Scripted
+checks pass; physical Undo/Redo/IME, navigation and native Save All & Quit need
+confirmation on this build. Use disposable notes, including a custom-YAML note:
+after editing it, Save All & Quit must report an error, keep the app open and
+retain the edit and original file. [Security remediation](dependency-security-sep9.md)
+now passes both audits and packaged synthetic checks; review/native acceptance
+still block shipping.
+
+The 2026-09-08 Tiptap load-history fix has a focused
+[native acceptance checklist and scripted QA results](tiptap-load-undo-fix.md#manual-qa-checklist).
+Scripted undo/save/switch checks pass. Beyond the two user-reported passes,
+note isolation, mode/save/reopen, long-document/image input and native
+close/Save All still require acceptance testing.
+
+Currency/math follow-up: [rules and packaged QA evidence](tiptap-math-delimiter-fix.md).
+In a synthetic note, enter `Price $5; formula $x$. Literal $ x $ and $x$2.`
+in Source, switch to Rich, save, switch notes and reopen. Only `$x$` should render
+as math; prices and invalid boundary forms remain literal. Repeat with `$5$`
+(numeric math), display math, code and an escaped currency dollar (`\$5`).
+Scripted equivalents pass; record physical-input acceptance separately.
   
 ## App startup  
   
@@ -84,7 +112,7 @@ Tester: liyunhui  Date: 2026-05-14  OS: macOS
 - [ ] AI Imports filter works  
 - [ ] Drafts filter works  
 - [ ] Vault Files filter works  
-- [ ] Rename a Codex thread, refresh/re-import AI Sessions, and confirm its exact Thread name appears; an unrenamed session shows `source_session_id`, not the rollout filename
+- [ ] AI Sessions navigation/refresh/search are absent; use the independent AI Session Manager for transcripts. Follow the [Phase 2 split checklist](editor-session-split.md#manual-qa-checklist).
   
 ## Metadata  
   

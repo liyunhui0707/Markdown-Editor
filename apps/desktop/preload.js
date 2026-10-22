@@ -37,7 +37,6 @@ contextBridge.exposeInMainWorld('vaultApi', {
   saveImageToVault: (noteDir, bytes, mime) =>
     ipcRenderer.invoke('save-image-to-vault', { noteDir, bytes, mime }),
   dictionaryLookup: (payload) => ipcRenderer.invoke('dictionary:lookup', payload),
-  refreshSessions: (vaultPath) => ipcRenderer.invoke('sessionViewer:import', { vaultPath }),
   onVaultChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('vault-changed', listener);

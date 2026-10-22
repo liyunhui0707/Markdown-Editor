@@ -238,14 +238,15 @@ test('CA4.6.r-realign [Codex diff S3 loop-4] cm6HydratedNoteId is realigned alon
 });
 
 test('CA4.6.r-reset [Codex diff S3 loop-4] cm6HydratedNoteId reset alongside liveEditorLastNoteId', () => {
-  // The three reset points (vault unload, etc.) clear liveEditorLastNoteId to
+  // The remaining empty-selection reset clears liveEditorLastNoteId to
   // empty string so the next renderEditor re-hydrates. cm6HydratedNoteId
   // should reset the same way; otherwise it stays pointing at a note that no
   // longer matches what CM6 holds.
   const html = readHtml();
   // Match RESET assignments only — not the top-level `let ... = '';` declaration.
   const occurrences = [...html.matchAll(/(?<!let\s+)liveEditorLastNoteId\s*=\s*['"]['"]\s*;/g)];
-  assert.ok(occurrences.length >= 3, 'expected at least 3 reset sites');
+  // Phase 2 removes both session refresh invalidation sites; check every remaining reset.
+  assert.ok(occurrences.length >= 1, 'expected the empty-selection reset site');
   for (const m of occurrences) {
     const idx = m.index;
     const slice = html.slice(Math.max(0, idx - 400), idx + 400);

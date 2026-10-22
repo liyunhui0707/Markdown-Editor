@@ -175,7 +175,7 @@
   // the renderer's pre-check and the write is still preserved untouched.
   // Vault save-in-place uses a plain write (overwriting our own file is the
   // legitimate update flow).
-  function performSaveNote({ vaultPath, note, content, fs, path }) {
+  function performSaveNote({ vaultPath, note, content, fs, path, validatePath }) {
     const collision = checkSaveCollision({
       vaultPath,
       note,
@@ -185,6 +185,13 @@
 
     if (!collision.ok) {
       return collision;
+    }
+
+    if (validatePath) {
+      for (const candidate of [collision.relativePath, collision.oldRelativePath].filter(Boolean)) {
+        const permitted = validatePath(candidate);
+        if (!permitted.ok) return permitted;
+      }
     }
 
     const relativePath = collision.relativePath;

@@ -25,22 +25,6 @@ const DocStats    = require('../lib/doc-stats');
 const NoteRow     = require('../lib/note-row');
 const DirtyState  = require('../lib/dirty-state');
 const NoteSwitchRestore = require('../lib/note-switch-restore');
-const RefreshButton = require('../lib/session-viewer/refresh-button');
-const ReadRenderer = require('../lib/session-viewer/read-renderer');
-const ReadTab = require('../lib/session-viewer/read-tab');
-const LargeSessionGuard = require('../lib/session-viewer/large-session-guard');
-const SearchDom = require('../lib/session-viewer/search-dom');
-const SearchIndex = require('../lib/session-viewer/search-index');
-const InFileSearchToolbar = require('../lib/session-viewer/in-file-search-toolbar');
-const Favorites = require('../lib/session-viewer/favorites');
-const Grouping = require('../lib/session-viewer/grouping');
-const GroupedListRenderer = require('../lib/session-viewer/grouped-list-renderer');
-const SessionViewer = Object.assign(
-  {},
-  RefreshButton, ReadRenderer, ReadTab, LargeSessionGuard,
-  SearchDom, SearchIndex, InFileSearchToolbar,
-  Favorites, Grouping, GroupedListRenderer,
-);
 
 function readIndexHtml() {
   return fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -894,7 +878,6 @@ function makeRendererHarness({
     NoteRow,
     DirtyState,
     NoteSwitchRestore,
-    SessionViewer,
     makeEditorConfig(el) {
       return { el, initialValue: '' };
     },
@@ -1018,8 +1001,42 @@ function makeRendererHarness({
     }
   }
 
-  return { calls, elements, window, documentHandlers, flushRaf, flushTimers, document, setItemCalls };
+  const evaluate = (expression) => vm.runInContext(expression, context);
+  return { calls, elements, window, documentHandlers, flushRaf, flushTimers, document, setItemCalls, evaluate };
 }
+
+test('Phase 2: editor boots and creates a draft without SessionViewer', async () => {
+  const harness = makeRendererHarness();
+  await harness.elements.get('newNoteButton').fire('click');
+  assert.equal(harness.elements.get('titleInput').value, '');
+});
+
+test('Phase 2: product exposes AI Imports and Local AI without session controls or scripts', () => {
+  const html = readIndexHtml();
+  for (const id of ['filterAi', 'summarizeButton', 'rewriteButton', 'chooseVaultButton']) {
+    assert.ok(html.includes(`id="${id}"`), id);
+  }
+  assert.doesNotMatch(html, /id="(?:filterSessions|sessionsRefreshMount|crossSessionResults|readViewMount|modeReadButton)"/);
+  assert.doesNotMatch(html, /<script[^>]+session-viewer\//);
+  const desktop = path.join(__dirname, '..');
+  for (const removed of ['lib/session-viewer', 'lib/session-import-ipc.js', 'tools/session-import']) {
+    const target = path.join(desktop, removed);
+    const remaining = !fs.existsSync(target) ? []
+      : fs.statSync(target).isDirectory() ? fs.readdirSync(target, { recursive: true }).filter(name => /\.(?:m?js|md)$/.test(name))
+      : [removed];
+    assert.deepEqual(remaining, [], removed);
+  }
+  const scripts = JSON.parse(fs.readFileSync(path.join(desktop, 'package.json'), 'utf8')).scripts;
+  assert.equal(Object.keys(scripts).some(key => key.startsWith('session-import:')), false);
+});
+
+test('Phase 2: obsolete Sessions filter falls back consistently in navigation and status', async () => {
+  const harness = makeRendererHarness();
+  await harness.elements.get('chooseVaultButton').fireAsync('click');
+  harness.evaluate('setFilter("sessions")');
+  assert.equal(harness.evaluate('currentFilter'), 'vault');
+  assert.equal(harness.evaluate('statusText.textContent'), 'Filter: vault');
+});
 
 test('index.html loads CM6 scripts before write-engine and before the inline boot script', () => {
   const html = readIndexHtml();
@@ -4006,47 +4023,6 @@ test('Stage 6.5: clicking an AI Imports note does NOT mutate note.body (no false
   assert.ok(
     !titles.some((html) => html.includes('Claude convo')),
     'AI Imports note must NOT appear in Drafts after a plain click — that was the false-dirty bug',
-  );
-});
-
-test('Stage 6.5: an AI Sessions note loads clean (no migration mutation, not in Drafts)', async () => {
-  // Same root cause as the AI Imports test above, but pinned for the
-  // sessionsImport=true path too. We don't traverse the grouped tree
-  // here (its renderer needs createTextNode which the lightweight
-  // harness document doesn't mock) — chooseVault auto-selects the
-  // first note, which fires renderEditor for the session. The
-  // assertion is on the Drafts filter: if the migration mutated
-  // note.body for the session, it would appear in Drafts. With the
-  // fix it must not.
-  const { elements } = makeRendererHarness({
-    vaultNotes: [{
-      id: 'vault:plain',
-      title: 'Plain note',
-      body: '# plain',
-      fileName: 'plain.md',
-      relativePath: 'plain.md',
-    }, {
-      id: 'vault:session',
-      title: 'Codex session',
-      body: '## User\n\nbuild me a thing\n\n## Assistant\n\nok',
-      fileName: 'rollout-x.md',
-      relativePath: 'Inbox/AI Chats/codex/2026/05/26/rollout-x.md',
-      aiImported: true,
-      sessionsImport: true,
-      frontmatter: { tags: [], source: 'codex' },
-    }],
-  });
-
-  await elements.get('chooseVaultButton').fireAsync('click');
-
-  // Drafts filter is the user-facing surface where the bug appeared.
-  // After load, no notes have been edited; Drafts should be empty.
-  elements.get('filterDrafts').fire('click');
-  const draftsRows = elements.get('noteList').children;
-  const titles = Array.from(draftsRows).map((row) => row.innerHTML);
-  assert.ok(
-    !titles.some((html) => html.includes('Codex session')),
-    'AI Sessions note must NOT appear in Drafts — the migration must not run for sessionsImport notes',
   );
 });
 
@@ -7153,37 +7129,17 @@ test('Stage 13: source contains literal storage key "markdownVault.editorFontSiz
     'source must reference the literal storage-key string for the font-size preference');
 });
 
-// ── Stage 6.10: AI Sessions Read-mode layout fix bundle ──────────────────
+// ── Stage 6.10: retained shared workspace layout guards ──────────────────
 //
-// The bug: in AI Sessions Read mode, the rendered transcript widened past
-// the viewport's right edge by 100–200px depending on window width. Left
-// padding stayed; right padding was eaten by the off-screen overflow. The
-// content also stopped shrinking with the window. Other note modes
-// (Write/Preview, which use CM6 / Toast UI internal scrollers) were
-// unaffected — the issue was specific to .read-view-mount where the
-// transcript renders directly into raw HTML.
-//
-// Fix bundle (CSS-only): A) tighter workspace-body padding + scrollbar
-// gutter; B) remove the 720px floor from .editor-stack max-width;
-// C) read-view-mount horizontal padding removed + scrollbar gutter +
-// user-turn margin no longer uses -16px trick; D) min-width: 0 on the
-// flex chain (.editor-stack / .live-editor-container / .read-view-mount)
-// so overflow: auto can actually contain transcript width; E) defensive
-// overflow-wrap: anywhere on residual transcript elements that PR #120
-// didn't cover (h1-h6, section, code, a).
+test('Stage 6.10.A: workspace avoids stacked scrollbar gutters', () => {
+  assert.doesNotMatch(readIndexHtml(), /\.workspace-body\s*\{[^}]*scrollbar-gutter[^}]*\}/);
+});
 
 test('Stage 6.10.A: .workspace-body uses tighter clamp(16px, 3%, 48px) horizontal padding', () => {
   const html = readIndexHtml();
   const re = /\.workspace-body\s*\{[^}]*padding\s*:\s*24px\s+clamp\(16px,\s*3%,\s*48px\)[^}]*\}/;
   assert.ok(re.test(html),
     '.workspace-body must declare padding: 24px clamp(16px, 3%, 48px)');
-});
-
-test('Stage 6.10.A: .workspace-body does NOT declare scrollbar-gutter (avoid nested gutter stacking with .read-view-mount on classic-scrollbar platforms)', () => {
-  const html = readIndexHtml();
-  const re = /\.workspace-body\s*\{[^}]*scrollbar-gutter[^}]*\}/;
-  assert.ok(!re.test(html),
-    'Codex round-1 finding: workspace-body and read-view-mount both declaring stable both-edges would stack gutters on platforms with classic scrollbars (Windows/Linux). Keep scrollbar-gutter only on .read-view-mount — the actual Read-mode scroll owner. workspace-body rarely scrolls vertically (CM6 / Toast UI / read-view-mount handle their own scrolling internally).');
 });
 
 test('Stage 6.10.B: .editor-stack max-width drops 720px floor (uses min(80vw, 1200px))', () => {
@@ -7193,30 +7149,6 @@ test('Stage 6.10.B: .editor-stack max-width drops 720px floor (uses min(80vw, 12
   const re = /\.editor-stack\s*\{[^}]*max-width\s*:\s*min\(80vw,\s*1200px\)[^}]*\}/;
   assert.ok(re.test(html),
     '.editor-stack must declare max-width: min(80vw, 1200px)');
-});
-
-test('Stage 6.10.C: .read-view-mount has zero left padding (aligns with workspace-body gutter) and a small right inset for scrollbar clearance', () => {
-  const html = readIndexHtml();
-  // 16px top, 24px right (scrollbar clearance + breathing room — overlay
-  // scrollbars on macOS would otherwise overlap the last characters of
-  // long lines, and a snug 12px still felt visually cramped),
-  // 16px bottom, 0 left (keeps Read-mode left edge aligned with
-  // Write/Preview and lets the user-turn accent stripe sit flush).
-  const re = /\.read-view-mount\s*\{[^}]*padding\s*:\s*16px\s+24px\s+16px\s+0[^}]*\}/;
-  assert.ok(re.test(html),
-    '.read-view-mount must declare padding: 16px 24px 16px 0 (T/R/B/L)');
-});
-
-test('Stage 6.10.C: .read-view-mount declares scrollbar-gutter: stable both-edges', () => {
-  const html = readIndexHtml();
-  const re = /\.read-view-mount\s*\{[^}]*scrollbar-gutter\s*:\s*stable\s+both-edges[^}]*\}/;
-  assert.ok(re.test(html));
-});
-
-test('Stage 6.10.C: .read-view-mount .read-section.user-turn margin no longer uses -16px', () => {
-  const html = readIndexHtml();
-  assert.ok(!/\.read-section\.user-turn\s*\{[^}]*margin\s*:[^}]*-16px[^}]*\}/.test(html),
-    'user-turn band must not use the old -16px horizontal margin');
 });
 
 test('Stage 6.10.D: .editor-stack declares min-width: 0', () => {
@@ -7231,95 +7163,11 @@ test('Stage 6.10.D: .live-editor-container declares min-width: 0', () => {
   assert.ok(re.test(html));
 });
 
-test('Stage 6.10.D: .read-view-mount declares min-width: 0', () => {
-  const html = readIndexHtml();
-  const re = /\.read-view-mount\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
-  assert.ok(re.test(html));
-});
-
 test('Stage 6.10.F: .workspace declares min-width: 0 — the actual root cause (grid item allowed to grow past its 1fr column)', () => {
   const html = readIndexHtml();
   const re = /\.workspace\s*\{[^}]*min-width\s*:\s*0[^}]*\}/;
   assert.ok(re.test(html),
     '.workspace is the grid item of .main-layout 1fr column. Grid items default to min-width: auto = min-content, which lets the column grow past its allocated 1fr share. Without min-width: 0 here, the previous min-width: 0 fixes on .editor-stack / .live-editor-container / .read-view-mount were downstream of the inflation source: the whole chain inherited .workspace\'s ballooned width. Measured 112px overflow at innerWidth=1038.');
-});
-
-test('Stage 6.11: .read-view-mount th/td use overflow-wrap: break-word (not anywhere) so table cells do not break mid-word', () => {
-  const html = readIndexHtml();
-  const re = /\.read-view-mount\s+th,\s*\.read-view-mount\s+td\s*\{[^}]*overflow-wrap\s*:\s*break-word[^}]*\}/;
-  assert.ok(re.test(html),
-    'table cells must use overflow-wrap: break-word; anywhere collapses cell min-content to 1 character and produces mid-word breaks like "Se / ver / ity"');
-});
-
-test('Stage 6.11: .read-view-mount .table-scroller wrapper provides max-width + overflow-x: auto (per-table horizontal scroll, no mid-word squeeze)', () => {
-  const html = readIndexHtml();
-  const block = /\.read-view-mount\s+\.table-scroller\s*\{[^}]*\}/;
-  const m = html.match(block);
-  assert.ok(m, 'must define .read-view-mount .table-scroller rule');
-  const body = m[0];
-  assert.ok(/max-width\s*:\s*100%/.test(body),
-    '.table-scroller must declare max-width: 100% so the wrapper itself does not push the parent wider than the viewport');
-  assert.ok(/overflow-x\s*:\s*auto/.test(body),
-    '.table-scroller must declare overflow-x: auto so wide tables scroll within their own region instead of squeezing column widths');
-});
-
-test('Stage 6.11: .read-view-mount table no longer pins max-width: 100% (wrapper handles containment so table can reach max-content width)', () => {
-  const html = readIndexHtml();
-  // Match the rule whose selector is exactly `.read-view-mount table` (not table-scroller etc.).
-  const rules = [...html.matchAll(/\.read-view-mount\s+table\s*\{[^}]*\}/g)];
-  assert.ok(rules.length > 0, 'must have at least one .read-view-mount table rule');
-  for (const m of rules) {
-    assert.ok(!/max-width\s*:\s*100%/.test(m[0]),
-      '.read-view-mount table must NOT pin max-width: 100% anymore; the wrapper provides containment and capping the table here re-introduces the column-squeeze');
-  }
-});
-
-test('Stage 6.11: .read-view-mount p/li/blockquote use overflow-wrap: break-word (not anywhere)', () => {
-  const html = readIndexHtml();
-  const re = /\.read-view-mount\s+p,\s*\.read-view-mount\s+li,\s*\.read-view-mount\s+blockquote\s*\{[^}]*overflow-wrap\s*:\s*break-word[^}]*\}/;
-  assert.ok(re.test(html));
-});
-
-test('Stage 6.11: .read-view-mount inline code uses accent color + monospace font only (no background, no border chip)', () => {
-  const html = readIndexHtml();
-  // Inline code = <code> NOT inside <pre>. Selector :not(pre) > code.
-  const block = /\.read-view-mount\s+:not\(pre\)\s*>\s*code\s*\{[^}]*\}/;
-  const m = html.match(block);
-  assert.ok(m, 'must define .read-view-mount :not(pre) > code rule');
-  const ruleBody = m[0];
-  assert.ok(/color\s*:\s*var\(--accent/.test(ruleBody),
-    'inline code must use --accent color so it visually stands out from prose');
-  assert.ok(/font-family\s*:\s*var\(--font-mono/.test(ruleBody),
-    'inline code must use the monospace font');
-  assert.ok(!/background\s*:/.test(ruleBody),
-    'inline code must NOT declare a background — color-only distinction, no chip');
-  assert.ok(!/border\s*:/.test(ruleBody),
-    'inline code must NOT declare a border — color-only distinction, no chip');
-});
-
-test('Stage 6.10.E / 6.11: residual transcript elements get overflow-wrap: break-word (h1-h6, section, code, a)', () => {
-  // Stage 6.11 softened the original Stage 6.10.E rule from
-  // `overflow-wrap: anywhere` to `overflow-wrap: break-word`. anywhere was
-  // breaking words mid-character in narrow table cells (e.g. "Severity"
-  // wrapping as "Se / ver / ity"). break-word preserves word boundaries
-  // unless an unbreakable token forces a fallback break.
-  const html = readIndexHtml();
-  const leafSelectors = [
-    '\\.read-view-mount\\s+h1',
-    '\\.read-view-mount\\s+h2',
-    '\\.read-view-mount\\s+h3',
-    '\\.read-view-mount\\s+h4',
-    '\\.read-view-mount\\s+h5',
-    '\\.read-view-mount\\s+h6',
-    '\\.read-view-mount\\s+section',
-    '\\.read-view-mount\\s+code',
-    '\\.read-view-mount\\s+a',
-  ];
-  for (const sel of leafSelectors) {
-    const re = new RegExp(`${sel}[^{]*\\{[^}]*overflow-wrap\\s*:\\s*break-word[^}]*\\}`);
-    assert.ok(re.test(html),
-      `${sel} must end up in a rule that declares overflow-wrap: break-word`);
-  }
 });
 
 // ── Stage 11.11: hybrid-cm6 default-readiness host-integration tests ────────

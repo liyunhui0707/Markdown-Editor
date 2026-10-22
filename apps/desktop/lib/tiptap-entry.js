@@ -28,6 +28,7 @@
 
 import { Editor } from '@tiptap/core';
 import { Slice, Fragment } from '@tiptap/pm/model';
+import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -41,7 +42,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
+import remarkMath from './remark-math-delimiters.js';
 
 import { InlineMath, MathBlock } from './tiptap-math.js';
 import { MermaidBlock } from './tiptap-mermaid.js';
@@ -210,9 +211,23 @@ function createTiptapView(parent, opts) {
   // corrupt it) and stored verbatim per the loaded note, then reattached on
   // getText. Editing frontmatter is a future source-mode concern.
   let frontmatter = '';
+  let loadedSnapshot = null;
+  let sourceSnapshot = null;
+
+  function snapshot(text) {
+    return { text: text == null ? '' : String(text), doc: editor.state.doc, frontmatter };
+  }
 
   // Full markdown of the rich (ProseMirror) document, frontmatter reattached.
   function getRichMarkdown() {
+    // An unchanged rich tree is not an edit. Keep the original spelling so
+    // navigation/Save All cannot manufacture dirty notes from normalization.
+    // Source wins for deliberate formatting-only changes with the same tree.
+    for (const saved of [sourceSnapshot, loadedSnapshot]) {
+      if (saved && saved.frontmatter === frontmatter && saved.doc.eq(editor.state.doc)) {
+        return saved.text;
+      }
+    }
     let body;
     try {
       body = docToMarkdown(editor.getJSON());
@@ -276,7 +291,10 @@ function createTiptapView(parent, opts) {
     textarea: sourceTextarea,
     richDom: editor.view.dom,
     getRichMarkdown: getRichMarkdown,
-    applyMarkdown: applyMarkdownToEditor,
+    applyMarkdown(md) {
+      applyMarkdownToEditor(md);
+      sourceSnapshot = snapshot(md);
+    },
     onChange: onChange,
     onModeChange: onModeChange,
   });
@@ -292,6 +310,14 @@ function createTiptapView(parent, opts) {
   function setText(text) {
     toggle.resetToRich();
     applyMarkdownToEditor(text);
+    // emitUpdate:false suppresses dirty notifications, not undo history. A
+    // fresh note-local state prevents undo from reverting the load (or restoring
+    // another note). Keep the schema/plugins/loaded selection; reinitialize their
+    // state. Source/Rich commits deliberately do NOT take this load-only path.
+    const { schema, doc, selection, plugins } = editor.state;
+    editor.view.updateState(EditorState.create({ schema, doc, selection, plugins }));
+    loadedSnapshot = snapshot(text);
+    sourceSnapshot = null;
   }
 
   if (initialDoc) setText(initialDoc);

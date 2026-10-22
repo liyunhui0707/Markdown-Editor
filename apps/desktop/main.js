@@ -8,21 +8,17 @@ const FileName   = require('./lib/file-name');
 const CloseGuard = require('./lib/close-guard');
 const { processOpenExternalLink } = require('./lib/external-url');
 const { performDictionaryLookup } = require('./lib/dictionary-lookup');
-const SessionImportIpc = require('./lib/session-import-ipc');
+const EditorPathPolicy = require('./lib/editor-path-policy');
 const AiIpc = require('./lib/ai-ipc');
 const AiSettingsIpc = require('./lib/ai-settings-ipc');
 const AiConnectionIpc = require('./lib/ai-connection-ipc');
-const { isSessionsImport } = require('./lib/session-viewer/sessions-filter');
-const {
-  decodeFrontmatterScalar,
-  resolveSessionTitle,
-} = require('./lib/session-title');
+const { decodeFrontmatterScalar } = require('./lib/frontmatter-scalar');
+const { assertSafeFrontmatter } = require('./lib/frontmatter-save-safety');
 
 // Stage C: AI settings persist to userData/ai-settings.json. The same path is
 // passed to the summarize/rewrite handlers so per-request settings (env >
 // stored > default) and the settings panel read/write one canonical file.
 const aiSettingsPath = path.join(app.getPath('userData'), 'ai-settings.json');
-SessionImportIpc.register(ipcMain);
 AiIpc.register(ipcMain, { settingsPath: aiSettingsPath });
 AiIpc.registerRewrite(ipcMain, { settingsPath: aiSettingsPath });
 AiIpc.registerCancel(ipcMain);
@@ -215,13 +211,7 @@ function parseFrontmatter(content) {
   const result = {
     frontmatter: {
       tags: [],
-      source: '',
-      // Stage S5 round-3 QA fix: session-import frontmatter fields.
-      // Filled when present; empty string otherwise.
-      source_session_id: '',
-      source_mtime: '',
-      source_custom_title: '',
-      source_ai_title: ''
+      source: ''
     },
     body: content
   };
@@ -264,14 +254,6 @@ function parseFrontmatter(content) {
       result.frontmatter.tags = normalizeTags(rawValue);
     } else if (key === 'source') {
       result.frontmatter.source = unquote(rawValue);
-    } else if (key === 'source_session_id') {
-      result.frontmatter.source_session_id = unquote(rawValue);
-    } else if (key === 'source_mtime') {
-      result.frontmatter.source_mtime = unquote(rawValue);
-    } else if (key === 'source_custom_title') {
-      result.frontmatter.source_custom_title = unquote(rawValue);
-    } else if (key === 'source_ai_title') {
-      result.frontmatter.source_ai_title = unquote(rawValue);
     }
   }
 
@@ -320,7 +302,7 @@ function isAiImported(relativePath, frontmatterSource) {
   return aiSources.has(source);
 }
 
-function parseMarkdownFile(relativePath, content, stat) {
+function parseMarkdownFile(relativePath, content) {
   const fileName = path.basename(relativePath);
   const { frontmatter, body: contentWithoutFrontmatter } = parseFrontmatter(content);
   const lines = contentWithoutFrontmatter.split('\n');
@@ -338,25 +320,6 @@ function parseMarkdownFile(relativePath, content, stat) {
   }
 
   const aiImported = isAiImported(relativePath, frontmatter.source);
-  const sessionsImport = isSessionsImport(relativePath);
-
-  // Stage S5 round-3 QA fix (issue C): for session imports, prefer
-  // importer-captured title metadata over the rollout filename.
-  // source_custom_title wins over source_ai_title; source_session_id
-  // is the stable fallback for sessions without a captured title.
-  if (sessionsImport) {
-    title = resolveSessionTitle(frontmatter, title);
-  }
-
-  // Stage S5 round-3 QA fix (issue D): parse source_mtime so the
-  // bucket grouper can use the session's actual activity time
-  // instead of the import-write time. Falls back to file mtime
-  // (set below by the caller) when absent or unparseable.
-  let sourceMtime;
-  if (frontmatter.source_mtime) {
-    const parsed = Date.parse(frontmatter.source_mtime);
-    if (!Number.isNaN(parsed)) sourceMtime = parsed;
-  }
 
   return {
     id: `vault:${relativePath}`,
@@ -371,18 +334,6 @@ function parseMarkdownFile(relativePath, content, stat) {
     relativePath,
     source: 'vault',
     aiImported,
-    sessionsImport,
-    // Stage S5 — file mtime as epoch ms (Date | undefined). Used by
-    // the AI Sessions grouped tree to bucket sessions by recency.
-    // `null`-safe: caller passes the fs.Stats object opportunistically;
-    // missing stat (e.g., test fixtures, in-memory drafts) leaves
-    // mtime undefined and the grouper falls back to 'older' bucket.
-    mtime: stat && stat.mtimeMs ? stat.mtimeMs : (stat && stat.mtime ? stat.mtime : undefined),
-    // Stage S5 round-3 QA fix (issue D): sourceMtime is the session's
-    // actual activity time per importer frontmatter. Used by the
-    // grouped tree for bucket assignment; renderer falls back to
-    // `mtime` when undefined.
-    sourceMtime,
     frontmatter: {
       tags: normalizeTags(frontmatter.tags),
       source: frontmatter.source || ''
@@ -391,6 +342,7 @@ function parseMarkdownFile(relativePath, content, stat) {
 }
 
 function walkMarkdownFiles(rootPath, currentPath = rootPath) {
+  if (EditorPathPolicy.isSessionLocation(currentPath)) return [];
   const entries = fs.readdirSync(currentPath, { withFileTypes: true });
   const results = [];
 
@@ -400,6 +352,9 @@ function walkMarkdownFiles(rootPath, currentPath = rootPath) {
     }
 
     const fullPath = path.join(currentPath, entry.name);
+
+    if (!entry.isDirectory() && !entry.isFile()) continue;
+    if (EditorPathPolicy.isSessionLocation(fullPath)) continue;
 
     if (entry.isDirectory()) {
       results.push(...walkMarkdownFiles(rootPath, fullPath));
@@ -435,6 +390,8 @@ function startWatchingVault(vaultPath) {
   currentWatchedVaultPath = vaultPath;
 
   currentVaultWatcher = fs.watch(vaultPath, { recursive: true }, (eventType, fileName) => {
+    // Session-manager refreshes must not reload or navigate the editor.
+    if (fileName && !EditorPathPolicy.validateEditorPath(vaultPath, String(fileName)).ok) return;
     const isMarkdownFile =
       !fileName || String(fileName).toLowerCase().endsWith('.md');
 
@@ -601,6 +558,8 @@ ipcMain.handle('watch-vault-folder', async (_event, payload) => {
       };
     }
 
+    const permitted = EditorPathPolicy.validateEditorPath(vaultPath);
+    if (!permitted.ok) return permitted;
     startWatchingVault(vaultPath);
 
     return {
@@ -638,9 +597,14 @@ ipcMain.handle('seed-demo-vault', async (_event, payload) => {
       };
     }
 
-    ensureVaultExists(vaultPath);
-
+    const permitted = EditorPathPolicy.validateEditorPath(vaultPath);
+    if (!permitted.ok) return permitted;
     const demoFiles = buildDemoVaultFiles();
+    for (const file of demoFiles) {
+      const check = EditorPathPolicy.validateEditorPath(vaultPath, file.relativePath);
+      if (!check.ok) return check;
+    }
+    ensureVaultExists(vaultPath);
 
     for (const file of demoFiles) {
       writeMarkdownNote(
@@ -675,6 +639,8 @@ ipcMain.handle('save-note', async (_event, payload) => {
       };
     }
 
+    const permitted = EditorPathPolicy.validateEditorPath(vaultPath, note?.relativePath || '');
+    if (!permitted.ok) return permitted;
     ensureVaultExists(vaultPath);
 
     const safeTitle =
@@ -682,7 +648,13 @@ ipcMain.handle('save-note', async (_event, payload) => {
         ? note.title.trim()
         : 'Untitled note';
 
+    // Check the current disk file, not a renderer flag/snapshot. Validation
+    // above precedes this read; refusal occurs before any write or rename.
+    if (note.source === 'vault' && note.relativePath) {
+      assertSafeFrontmatter(fs.readFileSync(path.join(vaultPath, note.relativePath), 'utf8'));
+    }
     const frontmatterText = serializeFrontmatter(note.frontmatter);
+    if (frontmatterText) assertSafeFrontmatter(frontmatterText);
     const markdownContent = `${frontmatterText}# ${safeTitle}\n\n${note.body || ''}`;
 
     // performSaveNote runs the rename gate, the duplicate-name check, and the
@@ -695,6 +667,7 @@ ipcMain.handle('save-note', async (_event, payload) => {
       content: markdownContent,
       fs,
       path,
+      validatePath: (relativePath) => EditorPathPolicy.validateEditorPath(vaultPath, relativePath),
     });
   } catch (error) {
     return {
@@ -722,6 +695,8 @@ ipcMain.handle('delete-note-file', async (_event, payload) => {
       };
     }
 
+    const permitted = EditorPathPolicy.validateEditorPath(vaultPath, relativePath);
+    if (!permitted.ok) return permitted;
     ensureVaultExists(vaultPath);
 
     const fullPath = path.join(vaultPath, relativePath);
@@ -759,6 +734,7 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
       };
     }
 
+    if (EditorPathPolicy.isSessionLocation(vaultPath)) return { ok: true, notes: [] };
     ensureVaultExists(vaultPath);
 
     const relativePaths = walkMarkdownFiles(vaultPath);
@@ -766,11 +742,7 @@ ipcMain.handle('load-vault-notes', async (_event, payload) => {
     const notes = relativePaths.map((relativePath) => {
       const fullPath = path.join(vaultPath, relativePath);
       const content = fs.readFileSync(fullPath, 'utf8');
-      // Stage S5: capture file mtime so the renderer can bucket
-      // AI Sessions by recency. Stat error → undefined (best-effort).
-      let stat = null;
-      try { stat = fs.statSync(fullPath); } catch (_e) { /* swallow */ }
-      return parseMarkdownFile(relativePath, content, stat);
+      return parseMarkdownFile(relativePath, content);
     });
 
     return {
@@ -802,8 +774,7 @@ ipcMain.handle('open-external-link', async (_event, payload) => {
 // `{ok: false, reason: <code>}` with reason in
 // {no-vault, invalid-path, outside-vault, not-a-file,
 //  platform-unsupported, resolution-failed}. The pure resolver lives in
-// apps/desktop/lib/image-path-ipc.js and mirrors the security pattern of
-// tools/session-import/lib/safe-read.mjs (O_NOFOLLOW open + fdStat
+// apps/desktop/lib/image-path-ipc.js (O_NOFOLLOW open + fdStat
 // identity check + realpath containment). err.message is dropped at the
 // IPC boundary — only the typed reason reaches the renderer.
 const { resolveImagePath } = require('./lib/image-path-ipc');
@@ -845,6 +816,8 @@ ipcMain.handle('save-image-to-vault', async (_event, payload) => {
   const bytes = ArrayBuffer.isView(raw)
     ? Buffer.from(raw.buffer, raw.byteOffset || 0, raw.byteLength)
     : Buffer.from(raw);
+  const permitted = EditorPathPolicy.validateEditorPath(currentWatchedVaultPath, noteDirRel);
+  if (!permitted.ok) return permitted;
   return saveImageToVault({
     vaultPath: currentWatchedVaultPath,
     noteDirRel: noteDirRel,
