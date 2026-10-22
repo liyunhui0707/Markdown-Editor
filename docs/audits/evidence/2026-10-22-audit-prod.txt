@@ -1,0 +1,34 @@
+
+> markdown-vault-desktop@0.18.0 audit:prod
+> npm audit --omit=dev --audit-level=low --registry=https://registry.npmjs.org
+
+# npm audit report
+
+dompurify  <=3.4.15
+DOMPurify: IN_PLACE: node-removing afterSanitize hook leaves detached subtree event handlers armed, causing DOM XSS - https://github.com/advisories/GHSA-p98j-92pf-mc4p
+DOMPurify: IN_PLACE returns a force-removed rawtext root whose text carries attacker markup — pure HTML reparse executes - https://github.com/advisories/GHSA-6688-9rhm-gjv2
+fix available via `npm audit fix`
+node_modules/dompurify
+
+katex  0.11.0 - 0.18.1
+KaTeX: Existing prototype pollution can bypass trust restrictions - https://github.com/advisories/GHSA-238p-pmpm-9mq7
+fix available via `npm audit fix --force`
+Will install katex@0.19.0, which is a breaking change
+node_modules/katex
+  mermaid  10.9.0-rc.1 - 12.1.0
+  Depends on vulnerable versions of katex
+  node_modules/mermaid
+  micromark-extension-math  *
+  Depends on vulnerable versions of katex
+  node_modules/micromark-extension-math
+    remark-math  >=4.0.0
+    Depends on vulnerable versions of micromark-extension-math
+    node_modules/remark-math
+
+5 low severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force

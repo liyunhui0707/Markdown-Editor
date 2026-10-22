@@ -1,0 +1,195 @@
+# AGENTS.md
+
+This file provides guidance to Codex when working with code in this repository.
+
+## Current architecture (fact-checked 2026-10-23) — READ FIRST
+
+**Active direction: ProseMirror/Tiptap WYSIWYG.** The desktop editor's WYSIWYG
+work has pivoted to a ProseMirror/Tiptap surface (vmark-style). Raw Markdown is
+still the source of truth, but the WYSIWYG editor serializes back to Markdown via
+a `remark`/`unified` bridge; CodeMirror 6 is kept as a separate **Source mode**.
+Use the branch explicitly approved for the current task; do not assume the old
+`wysiwyg-prosemirror` branch is the development target. The current recovery
+checkpoint branch is `recovery/independent-editor-baseline-20261023`.
+
+The existing app remains **Vault-based**, with Write, Preview and Source views;
+`tiptap` is opt-in and `hybrid-cm6` remains the default. A file-first macOS
+document editor with one continuous WYSIWYG surface is the proposed future
+direction, not an implemented architecture. Read the dated
+[recovery audit](docs/audits/2026-10-22-project-recovery-audit.md) before product work.
+
+The current Tiptap/ProseMirror surface uses this project's `remark`/`unified`
+bridge, not the official `@tiptap/markdown` extension. It covers paragraphs,
+headings, emphasis, links, lists/tasks, blockquotes, fenced code and aligned GFM
+tables; custom nodes handle KaTeX math, Mermaid, safe images and limited raw
+passthrough. General YAML editing and lossless handling of all syntax are not
+guaranteed by these capabilities.
+
+**Relaxed invariant:** Markdown round-trip is now **remark-normalized, not
+byte/character-identical**. This deliberately supersedes the older
+"character-identical round-trip" guarantee stated for `hybrid-cm6-lp` below.
+
+These are editor-adapter guarantees, not full-file preservation guarantees.
+The current main-process title/body/frontmatter load/save chain has reproduced
+content-loss and external-write conflict risks; unsupported frontmatter is
+refused rather than universally supported. Version **0.18.0 is an unreleased
+development checkpoint**, with failing dependency-audit gates and incomplete
+native acceptance. Dated test passes are not current release sign-off. This
+guide does not authorize product changes, GitHub publication, merges or tags;
+those require separate user approval.
+
+**SUPERSEDED — `hybrid-cm6-lp` (CM6-decoration live preview, Stages A–G.13).**
+Merged to `main` via PR #133 (`bd1aa33`) and retained only as a base / future
+Source mode. It is **no longer the WYSIWYG direction**: do not resume patching
+its click/caret/reflow behavior (this project's layout and interaction tradeoffs
+made that route unsuitable; this is not a claim that CodeMirror cannot support
+block widgets or live preview). Everything in
+the "Architecture" section below about `hybrid-cm6` / `hybrid-cm6-lp` is
+**historical reference**. Reviewers and agents (including Codex): when the task
+concerns WYSIWYG, the ProseMirror direction here overrides any `hybrid-cm6-lp`
+text further down.
+
+## Commands
+
+All npm commands run from `apps/desktop/` unless noted. Use the repository's
+mise pin, **Node 24.20.0** (`mise exec --` before npm commands); Electron has its
+own bundled runtime. Review command side effects first; see
+[DEVELOPMENT.md](DEVELOPMENT.md) for environment setup.
+
+```bash
+cd apps/desktop
+npm ci                           # fresh checkout only; replaces node_modules
+npm run dev                      # launch Electron in development
+npm test                         # full Node built-in test runner suite
+npm run test:ci                  # full suite with baseline-count gate
+npm run check:tiptap-readiness   # corpus tests + readiness gate (limited scope)
+npm run test:e2e                 # existing isolated synthetic Electron smoke
+npm run audit:prod              # security gate; current checkpoint fails
+npm run audit:full              # includes Electron runtime advisories
+npm run test:write-engine        # focused: Write engine resolver
+npm run test:cm6-write-view      # focused: CM6 write adapters + hybrid-cm6 decorations
+npm run test:perf                # opt-in perf bench (PERF_BENCH=1)
+npm run test:spike-cm6           # CM6 spike tests
+```
+
+Run a single test file:
+
+```bash
+node --test test/<file>.test.js
+node --test test/cm6-write-view/<file>.test.js
+```
+
+Renderer bundles (must rebuild after editing the matching entry file, or the app silently keeps the old bundle):
+
+```bash
+npm run build:cm6        # rebuilds lib/cm6-bundle.js     (cm6 + hybrid-cm6 engines)
+npm run build:editor     # rebuilds lib/toastui-bundle.js (Preview + legacy hybrid engine)
+npm run build:tiptap     # rebuilds lib/tiptap-bundle.js (opt-in Tiptap engine)
+npm run build:spike-cm6  # rebuilds lib/spike-cm6-bundle.js (spike only)
+npm run check:generated # checks tracked output cleanliness; does not rebuild
+```
+
+`build:generated` removes and regenerates the vendor output directories;
+`verify:generated` runs that build before the cleanliness check. Do not run
+either as a read-only inspection. A clean status alone does not establish
+reproducibility: compare rebuilt outputs against the actual commit tree in an
+isolated copy. Rebuild vendor assets with `build:katex`, `build:hljs` and
+`build:mermaid` when their approved inputs change.
+
+Packaging (macOS, unsigned):
+
+```bash
+npm run pack             # dir build to apps/desktop/dist/
+npm run dist:mac         # zip build
+```
+
+MCP ingest plugin smoke test (plugins now live in the standalone
+`~/Liyunhui/Codes/claude-plugins` repo — see "## Plugins"):
+
+```bash
+cd ~/Liyunhui/Codes/claude-plugins/mcp-note-ingest && npm run smoke
+```
+
+## Architecture
+
+> **Historical reference for the `hybrid-cm6` / `hybrid-cm6-lp` engines.** The
+> current WYSIWYG direction is ProseMirror/Tiptap — see "Current architecture"
+> at the top of this file. Do not treat the `hybrid-cm6-lp` details below as the
+> active target.
+
+Electron app split between main and renderer:
+
+```
+apps/desktop/main.js                    Electron main + IPC
+apps/desktop/lib/vault-actions.js       Vault file I/O over IPC
+apps/desktop/index.html                 Renderer entry
+apps/desktop/lib/write-engine.js        Resolves which Write engine loads
+apps/desktop/lib/cm6-write-view.js      cm6 engine
+apps/desktop/lib/cm6-hybrid-view.js     hybrid-cm6 engine (decoration walker on the cm6 bundle)
+apps/desktop/lib/hybrid-write-view.js   legacy hybrid engine (per-block Toast UI textareas)
+apps/desktop/lib/tiptap-entry.js        opt-in Tiptap editor and Markdown bridge setup
+apps/desktop/lib/markdown-mdast-pm.js    Markdown/mdast/ProseMirror conversion
+apps/desktop/lib/dirty-state.js         Unsaved-state tracking
+apps/desktop/lib/close-guard.js         Quit-with-unsaved-work dialog
+```
+
+Five Write engines coexist. Resolution priority (`lib/write-engine.js`): `?writeEngine=<name>` URL param → `localStorage.markdownVault.writeEngine` → default `hybrid-cm6`. Valid names: `hybrid-cm6` (default), `cm6` (fallback), `hybrid` (legacy fallback), `hybrid-cm6-lp` (historical live-preview opt-in), `tiptap` (current WYSIWYG opt-in).
+
+**Historical CM6 adapter invariant (BOTH `hybrid-cm6` and `hybrid-cm6-lp`, not the whole file pipeline).** `getText()` returns raw Markdown verbatim; decorations do not mutate the document. Round-trip is character-identical at the LF level within these adapters (CodeMirror normalizes line endings, so CRLF byte-equality is not promised). This does not apply to edited Tiptap serialization or guarantee safe main-process file reconstruction; see the current architecture warning above.
+
+- **`hybrid-cm6` (legacy default)** — uses `Decoration.mark` ONLY. No widgets, no `Decoration.replace`. Marker visibility is driven by CSS `display: none` on `.cm-md-syntax`, revealed via the `.cm-activeLine` / `.cm-md-active-range` selectors.
+- **`hybrid-cm6-lp` (CM6-decoration live preview, Stages A–G.13) — SUPERSEDED.** Extended `hybrid-cm6` with `Decoration.replace` + `WidgetType` widgets to render inline images, GFM tables, KaTeX math, highlight.js fenced code, and Mermaid diagrams off the active line; block-level widgets are delivered via a CodeMirror `StateField` (not a `ViewPlugin`, which CM6 forbids for block decorations). Retained only as a base / future Source mode — the active WYSIWYG direction is ProseMirror/Tiptap (see "Current architecture" at the top). Per-stage detail lives in `docs/stage-history.md` (documented through G.3).
+
+The hybrid-cm6 walker styles a subset of `@lezer/markdown` nodes (ATX/Setext headings, bold/italic, inline code, links, images, lists, blockquotes, fenced code, HR, tables, strikethrough, task list, autolinks, YAML frontmatter). The "hide off the active line / reveal on the active line" reveal mechanism follows the full selection — every line touched by selection or cursor reveals its markers (see README's "Live styling in hybrid-cm6" for the full per-construct spec and the construct-active scoping rules across Stages 26–34).
+
+Task list `[ ]` ↔ `[x]` toggle (primary click on marker, or `Cmd-Shift-X` on macOS) and Cmd-click link opening (allowlist: `https:` and `mailto:` only) are real Markdown edits routed through `onChange` → dirty state → undo/redo.
+
+## Plugins
+
+The agent plugins that used to live in this repo's `plugins/` were
+**extracted to a standalone repo at `~/Liyunhui/Codes/claude-plugins`** (2026-06-07)
+because they are cross-project tooling; history was preserved via `git subtree
+split`. Codex loads them via the `workflow-and-MCP-and-plugins` directory
+marketplace, which now points at that path (not this repo).
+
+- `mcp-note-ingest` — MCP server that writes AI chat notes into a fixed local Inbox directory. Target overridable via `MCP_INGEST_TARGET_DIR` env var. Distributed via the `workflow-and-MCP-and-plugins` marketplace.
+- `workflow-orchestrator` — engineering-workflow orchestrator plugin (skills + bin + servers, including the bundled `codex-bridge` MCP).
+- `mcp-chat-rag` — optional MCP server for local RAG over agent session history, maintained in the standalone plugin repo. Do not assume it is available: this project's `.mcp.json` currently registers no servers, and availability must be checked in the active Codex session.
+
+## Stage history
+
+The project ships in numbered stages. `docs/stage-history.md` is the canonical record; user-visible behavior changes also update `docs/test-manual.md`. Reference the relevant stage number when touching live-styling, reveal mechanics, or click/keyboard behavior in the editor.
+
+## Project Rules
+
+### Core workflow
+- Use small, reviewable changes.
+- Do not refactor unrelated files during bug fixes.
+- Prefer TDD for bug fixes.
+- Before committing, run tests and inspect git diff.
+
+### Code size
+- Try to keep files under about 300 lines.
+- If a file exceeds 300 lines, explain whether it should be split.
+- Test files (`**/*.test.js`) have a higher practical cap of ~800–1200 lines: a single test file commonly packs unit + integration + invariant + perf coverage with helper scaffolding, and splitting often balloons stage scope. Stage 25 (`link-click.test.js`, 1170 lines) and Stage 26 (`cm6-active-range.test.js`, ~600 lines) ship over the 300-line guideline with documented rationale; this is allowed for test files but each stage should still note the size in its stage-history row.
+
+### Markdown editor
+- Pay special attention to Markdown shortcuts, cursor behavior, undo/redo, Chinese IME input, and long documents.
+
+### Documentation
+- When user-facing behavior changes, update docs.
+
+### Versioning
+- Read the current app version from `apps/desktop/package.json`; that file is the version source of truth.
+- Follow SemVer (`MAJOR.MINOR.PATCH`). Pre-1.0 rules: bump **patch** for bug fixes, **minor** for user-visible features or a new stage's worth of behavior, **major** only when cutting `1.0.0` (the "ready for daily use by others" signal).
+- Before committing, propose the version bump in the same commit as the change. Map by intent, not line count:
+  - Bug fix only → patch (`0.1.0` → `0.1.1`)
+  - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
+  - Internal refactor with no behavior change → no bump
+- After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
+- The extracted plugins (now in `~/Liyunhui/Codes/claude-plugins`) have **independent** versions. Do not bump them in lockstep with the app.
+
+### AI workflow
+- Codex may implement.
+- Codex should audit important diffs.
+- Human makes final decisions.

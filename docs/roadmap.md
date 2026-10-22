@@ -1,5 +1,14 @@
 # Project Roadmap — Markdown Vault App
 
+## Latest assessment — project recovery audit (2026-10-22)
+
+The user has clarified a file-first macOS document editor with one continuous
+WYSIWYG surface. The [recovery audit](audits/2026-10-22-project-recovery-audit.md)
+records verified implementation gaps, reproduced storage defects, current failing
+security audits, and a proposed phased direction. Saving that report does not
+approve implementation or close acceptance gates. The application remains
+Vault-based and Tiptap remains opt-in; no architecture migration has occurred.
+
 ## Historical milestone — independent editor pilot baseline (scope frozen 2026-09-09)
 
 **Outcome:** a reviewed, reproducible editor build for a controlled daily-use

@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-22",
+  "baselineHead": "8926fd6f1101ed643d669074bbe4bccd3f29b7c4",
+  "workingTreeVersion": "0.18.0",
+  "scope": "Selected current runtime sources and manifests; HEAD alone does not identify the tested uncommitted patch.",
+  "files": {
+    "apps/desktop/package.json": "e45b4ccbd9f27de1adb060f3c841669c4eb9b875734ffe13424306e7551f9be6",
+    "apps/desktop/package-lock.json": "f92be64d56c04eb3f81b0448260997acecf720997b91c592cb66f0e425cd23f1",
+    "apps/desktop/main.js": "8cb6a4b0943869b41dc31999ca2ed21f222a9913140d4cca5a693d5621733dcc",
+    "apps/desktop/preload.js": "b8aaf477f2ddc3424e18e49f5c081a6ae3b74bdcc2eb27bd32c222d4901454ae",
+    "apps/desktop/index.html": "2fe8982285d6191ad37a2a20af266e5ca439b3a322a5784c0057774523c323e8",
+    "apps/desktop/lib/tiptap-entry.js": "f00f3086c6bb08eb93e248f8239e64169baa78f74279b18f8f775817134b16a5",
+    "apps/desktop/lib/tiptap-bundle.js": "4e966ddda91ec4fc42a3de8b29bd8f29b78218ad4ff466f87c5248994e8a2d8f",
+    "apps/desktop/lib/toastui-bundle.js": "515d8e89bddba952f64e370de81f1a74b75f9bb1ef22da119f2c9ccc7bafbb12",
+    "apps/desktop/lib/markdown-mdast-pm.js": "9f27d9495244be82b30f6ba9761c680175016b67b0551a0ebc9cb184127614d8",
+    "apps/desktop/lib/file-name.js": "4867c9190545ba387e1bc2fbb5bcbb1d39a9c069a8e2cdb90102d9cfcd331dc2",
+    "apps/desktop/lib/frontmatter-save-safety.js": "dbedd1a97b80c61e75aa86bff738768d1b4857e02a882f7c77afb496c809cca3",
+    "apps/desktop/lib/write-engine.js": "258eae1a7ea231c108fb416c8a4e3c8886ac7d973bf4b5120433cb8628d8f449"
+  },
+  "temporaryLogs": {
+    "test-ci-node24.log": "a2db8a907698f768d809f0f26b91cdda38ccabef4c98e11069e0a9050dd28ffd",
+    "tiptap-readiness.log": "ab2797c54f64c8c95a7211fa3a9da119b2115087b15a2f1a02a144914dac3af1",
+    "package.log": "957c873d2c290cf171ae3d3b762dc6b1787bd03910c2163a53d642d7cde308e3"
+  }
+}

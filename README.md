@@ -10,6 +10,7 @@ The setup also integrates with the `mcp-note-ingest` MCP server (installed as a 
 
 > Recovery audit (2026-10-22): isolated tests/builds pass, but file-preservation
 > defects and failing dependency audits remain. Use synthetic or backed-up files.
+> See the [audit and proposed document-first direction](docs/audits/2026-10-22-project-recovery-audit.md);
 > independent-file opening and the proposed architecture are not implemented yet.
 
 ## Headline guarantees
@@ -509,6 +510,7 @@ repository and are not part of this app tree.
 
 ## Documentation
 
+- [2026-10-22 recovery audit](docs/audits/2026-10-22-project-recovery-audit.md) — verified findings, preserved evidence, and proposed product/technical direction
 - `docs/install.md` — install and run guide
 - `docs/mcp-ingest-setup.md` — MCP setup guide
 - `docs/demo-script.md` — demo walkthrough
