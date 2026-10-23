@@ -12,7 +12,9 @@ function fixture(content, options = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-integrity-')));
   const filePath = path.join(root, 'unrelated-file-name.md');
   fs.writeFileSync(filePath, content, { flag: 'wx', mode: 0o640 });
-  const service = createDocumentService(options);
+  // Experimental replacement is confined to this synthetic private temp root.
+  // The production/default service must refuse uncoordinated replacement.
+  const service = createDocumentService({ ...options, unsafeExperimentalRoot: root });
   const opened = service.open(filePath);
   assert.equal(opened.ok, true, JSON.stringify({ code: opened.code, error: opened.error }));
   return { root, filePath, service, document: opened.document };

@@ -1,5 +1,10 @@
 # Phase 1A: complete-file document boundary
 
+Historical Phase 1A contract and evidence. In the Phase 1B worktree, the
+[save-hardening contract](document-save-hardening-phase1b.md) supersedes its
+public `acceptSaved` lifecycle and default replacement behavior. Phase 1A's
+dated results below are not new acceptance claims for real user files.
+
 Status: limited service-level verification passed on 2026-10-23; version remains
 0.18.0. This is a local, uncommitted development slice, not a release or
 replacement of the Vault UI. The legacy `load-vault-notes` / `save-note` chain

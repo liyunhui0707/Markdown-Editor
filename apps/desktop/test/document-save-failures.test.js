@@ -12,7 +12,7 @@ function fixture(override = {}) {
   const original = Buffer.from('\uFEFF# Test\r\n    code\r\n');
   fs.writeFileSync(filePath, original, { flag: 'wx', mode: 0o640 });
   const io = Object.assign(Object.create(fs), override);
-  const service = createDocumentService({ fs: io });
+  const service = createDocumentService({ fs: io, unsafeExperimentalRoot: root });
   const opened = service.open(filePath);
   assert.equal(opened.ok, true);
   const document = opened.document;

@@ -1,5 +1,6 @@
 'use strict';
 const { TextDecoder } = require('node:util');
+const { record, failure, revisionError } = require('./document-contract');
 
 // Main-process source model. No title/body/frontmatter split and no Markdown
 // normalization. A rich editor must eventually provide verified source edits.
@@ -14,7 +15,7 @@ class DocumentModel {
   #faults = {};
   #converting = false;
 
-  constructor({ filePath, bytes, identity }) {
+  constructor({ filePath, bytes, identity }, bindLifecycle) {
     this.#filePath = filePath;
     this.#identity = Object.freeze({ ...identity });
     this.#originalBytes = Buffer.from(bytes);
@@ -27,6 +28,11 @@ class DocumentModel {
     } catch {
       this.#faults.encoding = 'unsupported-encoding';
     }
+    // The service retains this closure; it is not reachable from the document.
+    bindLifecycle((text, nextIdentity) => {
+      this.#savedText = text;
+      this.#identity = Object.freeze({ ...nextIdentity });
+    });
     Object.freeze(this);
   }
 
@@ -48,7 +54,11 @@ class DocumentModel {
     return Object.freeze({ crlf, lf, cr });
   }
 
-  edit({ from, to, insert } = {}) {
+  edit(change) {
+    if (!record(change, ['from', 'to', 'insert', 'expectedRevision'])) return failure('invalid-source-edit');
+    const { from, to, insert, expectedRevision } = change;
+    const revision = revisionError(expectedRevision, this.#revision);
+    if (revision) return failure(revision);
     const source = this.#text;
     const splitsSurrogate = index => index > 0 && index < source.length
       && /[\uD800-\uDBFF]/.test(source[index - 1]) && /[\uDC00-\uDFFF]/.test(source[index]);
@@ -56,7 +66,7 @@ class DocumentModel {
         || from < 0 || to < from || to > source.length || typeof insert !== 'string'
         || insert.includes('\0') || Buffer.from(insert, 'utf8').toString('utf8') !== insert
         || splitsSurrogate(from) || splitsSurrogate(to)) {
-      return { ok: false, code: 'invalid-source-edit' };
+      return failure('invalid-source-edit');
     }
     const next = source.slice(0, from) + insert + source.slice(to);
     if (next !== source) { this.#text = next; this.#revision++; }
@@ -104,11 +114,13 @@ class DocumentModel {
     return Buffer.from((this.#bom ? '\uFEFF' : '') + this.#text, 'utf8');
   }
 
-  // Service-only lifecycle operation, not a renderer/IPC capability.
-  acceptSaved(text, identity) {
-    this.#savedText = text;
-    this.#identity = Object.freeze({ ...identity });
-  }
 }
 
-module.exports = { DocumentModel };
+// Only the creator of a NEW model receives its lifecycle capability. There is
+// no lookup that grants authority over an existing service-owned document.
+function createDocumentModel(input) {
+  let acceptSaved;
+  const document = new DocumentModel(input, capability => { acceptSaved = capability; });
+  return Object.freeze({ document, acceptSaved });
+}
+module.exports = { createDocumentModel };

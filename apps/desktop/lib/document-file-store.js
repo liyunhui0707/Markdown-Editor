@@ -3,6 +3,9 @@ const nativeFs = require('node:fs');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isSessionLocation } = require('./editor-path-policy');
+const { createSavePolicy } = require('./document-save-policy');
+// Process-local exclusion only. It does not coordinate external applications.
+const activeSaves = new Set();
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const error = (code, message) => Object.assign(Error(message), { code });
@@ -18,7 +21,8 @@ const sameSnapshot = (a, b) => a.filePath === b.filePath
 
 // Existing files only; creation/Save As and native coordinated saving are later
 // stages. All operations are synchronous to match the current main boundary.
-function createDocumentFileStore({ fs = nativeFs } = {}) {
+function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {}) {
+  const policy = createSavePolicy({ fs, unsafeExperimentalRoot });
   function read(requestedPath) {
     if (typeof requestedPath !== 'string' || !path.isAbsolute(requestedPath)
         || !/\.md$/i.test(requestedPath) || isSessionLocation(requestedPath)) {
@@ -66,13 +70,19 @@ function createDocumentFileStore({ fs = nativeFs } = {}) {
 
   function replace(expected, bytes) {
     let temp, fd, ownedIdentity, snapshot, result;
-    let committed = false, tempCreated = false;
+    let committed = false, tempCreated = false, renameAttempted = false;
+    const keys = [`path:${expected.filePath}`, `inode:${expected.identity.dev}:${expected.identity.ino}`];
+    if (keys.some(key => activeSaves.has(key))) return { ok: false, status: 'blocked', code: 'save-in-progress', committed: false };
+    keys.forEach(key => activeSaves.add(key));
     try {
       requireBaseline(expected);
       if (!(expected.identity.mode & 0o222)) throw error('read-only', 'Read-only file will not be replaced.');
+      if (expected.identity.mode & 0o7000) throw error('unsupported-file-mode', 'Special file modes are not supported.');
       fs.accessSync(expected.filePath, fs.constants.W_OK);
+      const originalMetadata = policy.capture(expected.filePath);
+      requireBaseline(expected);
       temp = path.join(path.dirname(expected.filePath), `.${path.basename(expected.filePath)}.${randomBytes(16).toString('hex')}.tmp`);
-      fd = fs.openSync(temp, fs.constants.O_WRONLY | fs.constants.O_CREAT
+      fd = fs.openSync(temp, fs.constants.O_RDWR | fs.constants.O_CREAT
         | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
       tempCreated = true;
       ownedIdentity = metadata(fs.fstatSync(fd, { bigint: true }));
@@ -86,8 +96,21 @@ function createDocumentFileStore({ fs = nativeFs } = {}) {
       }
       fs.fchmodSync(fd, expected.identity.mode);
       fs.fsyncSync(fd);
-      fs.closeSync(fd);
-      fd = undefined;
+      // Verify the pinned descriptor's bytes, not merely its inode. Keeping the
+      // descriptor open reduces identity confusion, NOT the final rename race.
+      const actual = Buffer.alloc(bytes.length);
+      for (let offset = 0; offset < actual.length;) {
+        const count = fs.readSync(fd, actual, offset, actual.length - offset, offset);
+        if (count <= 0) throw error('temporary-file-content-changed', 'Temporary content changed.');
+        offset += count;
+      }
+      const tempAfter = fs.fstatSync(fd, { bigint: true });
+      if (tempAfter.size !== BigInt(bytes.length) || !actual.equals(bytes)) throw error('temporary-file-content-changed', 'Temporary content changed.');
+      const tempMetadata = metadata(tempAfter);
+      if (tempMetadata.mode !== expected.identity.mode || tempMetadata.uid !== expected.identity.uid
+          || tempMetadata.gid !== expected.identity.gid) throw error('temporary-file-metadata-changed', 'Temporary POSIX metadata changed.');
+      policy.verify(temp, originalMetadata);
+      policy.verify(expected.filePath, originalMetadata);
       requireBaseline(expected);
       const tempStat = fs.lstatSync(temp, { bigint: true });
       if (!tempStat.isFile() || tempStat.nlink !== 1n || !sameIdentity(metadata(tempStat), ownedIdentity)) {
@@ -95,13 +118,19 @@ function createDocumentFileStore({ fs = nativeFs } = {}) {
       }
       // Not a compare-and-swap: an external writer can still race this rename
       // after the final check. Never describe this as eliminating TOCTOU.
+      renameAttempted = true;
       fs.renameSync(temp, expected.filePath);
       committed = true;
-      snapshot = read(expected.requestedPath);
-      if (!sameIdentity(snapshot.identity, ownedIdentity) || !snapshot.bytes.equals(bytes)) {
-        snapshot = undefined;
+      const candidate = read(expected.requestedPath);
+      if (!sameIdentity(candidate.identity, ownedIdentity) || !candidate.bytes.equals(bytes)) {
         throw Object.assign(error('external-change', 'Disk changed immediately after replacement.'), { status: 'conflict' });
       }
+      if (candidate.identity.mode !== expected.identity.mode || candidate.identity.uid !== expected.identity.uid
+          || candidate.identity.gid !== expected.identity.gid) {
+        throw error('replacement-posix-metadata-changed', 'Replacement POSIX metadata differs from the save expectation.');
+      }
+      policy.verify(expected.filePath, originalMetadata);
+      snapshot = candidate;
       let directory;
       try {
         directory = fs.openSync(path.dirname(expected.filePath), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
@@ -111,13 +140,27 @@ function createDocumentFileStore({ fs = nativeFs } = {}) {
       } finally { if (directory !== undefined) fs.closeSync(directory); }
       result = { ok: true, status: 'saved', committed: true, snapshot };
     } catch (cause) {
+      if (renameAttempted && !committed) {
+        // A rename error is not enough to promise no replacement happened.
+        // Only classify unchanged if BOTH original baseline and owned source
+        // are still positively observed; otherwise the outcome is unknown.
+        let unchanged = false;
+        try {
+          unchanged = check(expected).ok && sameIdentity(metadata(fs.lstatSync(temp, { bigint: true })), ownedIdentity);
+        } catch { /* uncertainty must remain explicit */ }
+        if (!unchanged) committed = null;
+      }
       result = { ok: false, status: cause.status || 'error', code: cause.code || 'save-failed',
         error: cause.message, committed, snapshot };
+      if (committed === null) { result.code = 'replacement-unverified'; result.recoveryTempPath = temp; }
     } finally {
       if (fd !== undefined) {
-        try { fs.closeSync(fd); } catch { result.descriptorCleanupFailed = true; }
+        try { fs.closeSync(fd); } catch {
+          result.descriptorCleanupFailed = true;
+          if (committed === true && snapshot) Object.assign(result, { ok: false, code: 'durability-uncertain', status: 'error' });
+        }
       }
-      if (!committed && temp && ownedIdentity) {
+      if (committed === false && temp && ownedIdentity) {
         try {
           const stat = fs.lstatSync(temp, { bigint: true });
           if (!stat.isFile() || !sameIdentity(metadata(stat), ownedIdentity)) throw Error('Not owned');
@@ -125,17 +168,43 @@ function createDocumentFileStore({ fs = nativeFs } = {}) {
         } catch (cause) {
           if (cause.code !== 'ENOENT') { result.cleanupFailed = true; result.recoveryTempPath = temp; }
         }
-      } else if (!committed && tempCreated) {
+      } else if (committed === false && tempCreated) {
         // Creation succeeded but identity capture failed: do not unlink a path
         // we cannot verify. Surface the exact recovery location instead.
         result.cleanupFailed = true;
         result.recoveryTempPath = temp;
       }
+      keys.forEach(key => activeSaves.delete(key));
     }
-    return result;
+    return { ...result, safety: policy.safety, realFileSafe: false };
   }
 
-  return { read, check, replace };
+  function confirmDurability(expected) {
+    const keys = [`path:${expected.filePath}`, `inode:${expected.identity.dev}:${expected.identity.ino}`];
+    if (keys.some(key => activeSaves.has(key))) return { ok: false, status: 'blocked', code: 'save-in-progress' };
+    keys.forEach(key => activeSaves.add(key));
+    let fd, directory;
+    try {
+      requireBaseline(expected);
+      const meta = policy.capture(expected.filePath);
+      fd = fs.openSync(expected.filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+      if (!sameMetadata(metadata(fs.fstatSync(fd, { bigint: true })), expected.identity)) throw error('external-change', 'Saved identity changed.');
+      fs.fsyncSync(fd);
+      directory = fs.openSync(path.dirname(expected.filePath), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+      fs.fsyncSync(directory);
+      policy.verify(expected.filePath, meta);
+      requireBaseline(expected);
+      return { ok: true, status: 'saved', committed: true, safety: policy.safety, realFileSafe: false };
+    } catch (cause) {
+      return { ok: false, status: cause.status || (cause.code === 'external-change' ? 'conflict' : 'error'),
+        code: cause.code || 'durability-uncertain', committed: true };
+    } finally {
+      try { if (fd !== undefined) fs.closeSync(fd); } finally {
+        try { if (directory !== undefined) fs.closeSync(directory); } finally { keys.forEach(key => activeSaves.delete(key)); }
+      }
+    }
+  }
+  return { read, check, replace, confirmDurability };
 }
 
 module.exports = { createDocumentFileStore };
