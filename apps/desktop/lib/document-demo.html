@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>Restricted synthetic document QA</title>
+<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}</style></head>
+<body><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
+<button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
+<button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
+<output id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
+<details open><summary>Complete source retained in main memory</summary><pre id="source"></pre></details>
+<script src="document-demo-bundle.js"></script></body></html>
