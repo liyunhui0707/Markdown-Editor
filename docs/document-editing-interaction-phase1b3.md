@@ -454,3 +454,127 @@ Reload acceptance gap; any other new unexpected failure must stop the commit.
 Version, lockfile, documentation, candidate fingerprints and Git integrity
 checks for this checkpoint are recorded separately. Prior security-audit
 failures are not relabelled as passing.
+
+
+## Phase 1B-3R: bounded composition-copy protection (2026-10-26)
+
+This follow-up implements **layer 1 only** in the synthetic developer demo.
+It does not resolve the historical ASAR Reload timeout or change the WIP's
+formal acceptance: **Phase 1B-3 remains FAIL**. Implementation evidence below
+was recorded at 0.20.0; the later local WIP checkpoint uses 0.21.0.
+
+### Data and interaction contract
+
+An invalid composition exposes a conditional warning and a “View / keep input
+copies” panel. The controller retains an ordered, session-scoped record with
+its complete local Markdown, the confirmed Markdown/revision at capture, and
+DOM plain text when obtainable. DOM evidence is always marked potentially
+incomplete, is not lossless Markdown, and may omit native preedit/candidate
+text outside DOM/controller. Even when local Markdown equals confirmed source,
+a DOM-only or unavailable-DOM capture can create a record. All copies remain
+in process memory only; exit, page refresh or crash may lose them.
+
+Viewing, copying and cancelling send no edit/save/snapshot/history IPC and do
+not reset source, end composition or advance main revision, dirty, save state
+or history. Normal genuine composition completion still follows the existing
+path; interacting with a panel can naturally change focus, so this is not a
+promise to freeze an operating-system candidate window. Pointer capture occurs
+before the entry button's default focus change. Cancelling hides the panel
+without deleting records or forcing an unlock. Repeated identical captures
+reuse a record; different evidence does not overwrite old copies. At 16 records,
+new captures fail explicitly without eviction or truncation, and the existing
+capacity lock remains. Per-copy text limits are 131072 UTF-16 code units; an
+oversized capture is refused with a visible error, never silently shortened.
+
+Copy actions use the retained string, not a reserialization or rendered HTML.
+Clipboard failures leave selectable, read-only text and report failure. The
+read-only view uses textContent because textarea.value normalizes CRLF to LF;
+CRLF remains exact in the retained and programmatically copied Markdown.
+Clipboard completion from a cancelled/replaced view cannot update its status.
+User text is not inserted as HTML or exported into diagnostics.
+
+`composition-invalid` now identifies an already-invalid composition refusing
+further edits; `edit-queue-full` is reserved for an actual 64-item queue. Other
+lock/capacity/history/disposal reasons remain distinct. This diagnostic fix is
+not a root-cause claim or a fix for historical Reload failure.
+
+### Layer 2 remains unavailable
+
+There is no “return to confirmed content” action, no synthetic composition-end,
+no forced composing=false and no new editor context. The current DOM event/IPC
+protocol cannot establish safe native IME context retirement. Controlled DOM
+and Chromium composition tests cannot supply native macOS Pinyin evidence.
+Without that proof, creating a replacement editable context would not satisfy
+the recovery contract. The panel explicitly explains that unlock is unavailable.
+Normal no-end safety blocking and session/close-pending authorization remain.
+
+A future layer 2 must separately prove context retirement, fence all old events
+and replies, drain known in-flight work, reject unknown outcomes/blocked sessions,
+and verify a fresh main-owned session/revision/source baseline before activation.
+It must preserve copies and main history without editing or saving Markdown.
+Nothing in this follow-up authorizes that implementation or real-file writes.
+
+### Executed focused evidence
+
+- RED: existing controller file 20 PASS / 6 new FAIL; both new Electron cases
+  fail against the old product. No original test assertions were relaxed.
+- GREEN: controller + real ProseMirror/history + session IPC + source-map suite
+  78 PASS, including 6 new controller cases. Normal composition, queue capacity,
+  prior draft protection, metadata and boundary/history checks remain covered.
+- Source Electron: 13 PASS: existing interaction test, 10 existing P1/lifecycle
+  cases and 2 new copy/cancel/capacity cases. Main snapshots before/after are
+  equal, including source, revision, dirty, save state and history flags; fixture
+  files are unchanged. Existing interaction tests also exercise actual Undo/Redo.
+- The new UI clipboard success/refusal boundary is deterministic and substituted
+  inside the isolated renderer. It verifies exact strings and failure feedback;
+  it does not read or replace the user's OS clipboard and is not native clipboard
+  or macOS input-method acceptance.
+- Demo bundle rebuilt with the existing esbuild invocation; an independent output
+  is byte-identical. No other managed renderer/vendor output was regenerated.
+- An unsigned arm64 directory package uses the copied Electron 43.4.1 runtime,
+  skips dependency rebuild, retains version 0.20.0 and matches 13 Document runtime
+  members byte-for-byte. Two focused actual-ASAR copy tests PASS. ASAR loading
+  uses app.isPackaged=false and is not Finder/install/release acceptance.
+- All 15 final source/ASAR test children exit code=0, signal=null, watchdog=false,
+  no observed main exception/error box and no remaining owned processes.
+
+All dependency and runtime directories are real isolated copies; internal links
+resolve within that copy. Node is the project's mise-selected 24.20.0 executable.
+The copied config's mise trust-state write was unavailable, so verification uses
+that exact resolved executable without changing global trust configuration.
+No installation, dependency/version change, new test framework or real document
+access is involved. Only focused tests/build/package checks were run; this is
+not a new full Node/readiness/security audit or an all-ASAR-suite pass.
+
+Layer 1 **PASS within this synthetic scope**; safe recovery editing **not
+implemented**. Real Simplified Pinyin, native clipboard behavior, complete daily
+writing, restart-persistent recovery, the historical Reload failure, real-file
+writes, cleanup/TOCTOU/metadata/concurrency gates and SEC-01 remain unaccepted.
+The existing E2E file is kept together despite exceeding 300 lines to reuse its
+actual-IPC and parent-process exit helpers rather than adding test infrastructure.
+
+
+## Restricted local WIP checkpoint and next direction (2026-10-26)
+
+Independent review E accepted layer-1 copy protection within its tested scope
+and the diagnostic-code correction, with no new P0/P1 reported. It confirmed
+an **unfixed P2**: during active composition, focus changes and page scrolling
+can cause the first copy-button click to miss. This checkpoint preserves that
+limitation; it does not repair the click behavior or open layer-2 recovery.
+
+Version 0.21.0 is an **unreleased local WIP**, not stage acceptance or release
+approval. Copies remain memory-only and native IME temporary text may be
+incomplete. Safe recovery editing is unavailable. The historical ASAR Reload
+failure is unexplained, **Phase 1B-3 formal acceptance remains FAIL**, and real
+Markdown file writes remain prohibited. Earlier 0.20.0 source/ASAR/package
+results retain their original build identity; metadata changes do not turn
+those results into 0.21.0 package or Finder-install acceptance.
+
+The next development direction prioritizes usable product capabilities while
+preserving data-safety gates. Basic writing and independent-file workflows take
+priority over new infrastructure. Run E2E according to the actual change risk.
+Reuse development session A and review session E by default; avoid new sessions,
+worktrees or complex management processes unless necessary. The next proposed
+minimal product task is Enter and empty-paragraph editing with source fidelity
+and Undo/Redo; it requires separate implementation approval. This commit does
+not start that work, another audit, native IME recovery or real-file writes.

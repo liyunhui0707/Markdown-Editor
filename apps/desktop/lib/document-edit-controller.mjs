@@ -29,7 +29,8 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   let confirmed = structuredClone(initial), source = initial.source, code = 'opened';
   const recoveries = recoveryRecords.map(r => {
     if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== 'string'
-        || r.source.length > 131072) throw Error('Invalid recovery record');
+        || r.source.length > 131072 || ('visibleText' in r && r.visibleText !== null
+          && (typeof r.visibleText !== 'string' || r.visibleText.length > 131072))) throw Error('Invalid recovery record');
     return structuredClone(r);
   });
   if (new Set(recoveries.map(r => r.id)).size !== recoveries.length) throw Error('Duplicate recovery identity');
@@ -50,7 +51,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   }
   function state() { return { confirmed, source, code, recoveryDraft: recoveries.at(-1)?.source || '',
     recoveryRecords: structuredClone(recoveries), pending: queue.length,
-    composing: !!composition, historyPending, locked: locked || disposed || atCapacity() }; }
+    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() }; }
   const notify = () => { if (!disposed) onChange(state()); };
   const settle = () => { if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve(); };
   const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise(resolve => waiters.push(resolve));
@@ -91,7 +92,8 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   function prepare(tr) {
     if (!tr.docChanged) return true;
     if (disposed || locked || atCapacity() || historyPending || composition?.invalid || queue.length >= 64) {
-      code = locked ? 'sync-unknown' : atCapacity() ? 'recovery-capacity' : historyPending ? 'history-pending' : 'edit-queue-full'; notify(); return false;
+      code = disposed ? 'controller-disposed' : locked ? 'sync-unknown' : atCapacity() ? 'recovery-capacity'
+        : historyPending ? 'history-pending' : composition?.invalid ? 'composition-invalid' : 'edit-queue-full'; notify(); return false;
     }
     let mapped;
     try { mapped = transactionEdit(source, tr); } catch { mapped = null; }
@@ -174,12 +176,29 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     } else locked = true;
     code = reply?.code || reply?.status || 'sync-unknown'; notify();
   }
+  // Evidence only: no IPC, source reset, composition completion or lifecycle authority.
+  function retainCompositionCopy(visibleText) {
+    if (disposed) return { ok: false, code: 'controller-disposed' };
+    if (!composition?.invalid && code !== 'unsafe-composition') return { ok: false, code: 'composition-copy-unavailable' };
+    if (visibleText !== null && typeof visibleText !== 'string') return { ok: false, code: 'invalid-copy-input' };
+    if (source.length > 131072 || (visibleText !== null && visibleText.length > 131072)) return { ok: false, code: 'copy-too-large' };
+    const existing = recoveries.find(r => r.reason === 'composition-copy' && r.source === source
+      && r.confirmedSource === confirmed.source && r.baseRevision === confirmed.revision && r.visibleText === visibleText);
+    if (existing) return { ok: true, record: structuredClone(existing) };
+    if (atCapacity()) return { ok: false, code: 'recovery-capacity' };
+    // source may equal confirmed.source while IME text exists only in DOM or outside our reach.
+    const record = { id: ++recoverySequence, sessionId: initial.sessionId, source, reason: 'composition-copy',
+      confirmedSource: confirmed.source, baseRevision: confirmed.revision, mainMatchesDraft: source === confirmed.source,
+      visibleText, visibleTextIncomplete: true };
+    recoveries.push(record); notify();
+    return { ok: true, record: structuredClone(record) };
+  }
   function discardRecovery(id) {
     if (disposed || flight || queue.length || composition || historyPending) return false;
     const index = recoveries.findIndex(r => r.id === id);
     if (index < 0) return false;
     recoveries.splice(index, 1); code = 'recovery-discarded'; notify(); return true;
   }
-  return { state, prepare, accept, beginComposition, endComposition, history, reload, refresh, idle, discardRecovery,
+  return { state, prepare, accept, beginComposition, endComposition, history, reload, refresh, idle, discardRecovery, retainCompositionCopy,
     dispose() { disposed = true; queue.length = 0; locked = true; for (const resolve of waiters.splice(0)) resolve(); } };
 }

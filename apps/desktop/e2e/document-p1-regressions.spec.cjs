@@ -345,3 +345,80 @@ test('P1-3 real IPC delayed, out-of-order and failed snapshots cannot activate t
   expect((await snapshot(a)).snapshot.source).toContain('A-ONLY'); expect((await snapshot(b)).snapshot.source).not.toContain('A-ONLY');
   await expect(page.locator('#status')).toContainText('switch-failed:ipc-failed');
 }, info));
+
+
+async function unsafeComposition({ page, select }, local = '') {
+  await select('#editor h1', 2);
+  await page.locator('#editor .tiptap').evaluate(node => node.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
+  if (local) await page.keyboard.insertText(local);
+  await page.keyboard.press('Enter'); // Real PM structural transaction, refused by the source-range gate.
+  await expect(page.locator('#status')).toContainText('unsafe-composition');
+}
+
+test('1B-3R copy panel and cancel preserve unconfirmed Markdown, main state and session-scoped records', async ({}, info) => usingDemo(async h => {
+  const { page, sessions, snapshot } = h, a = sessions[0].sessionId, b = sessions[1].sessionId;
+  const before = (await snapshot(a)).snapshot;
+  await unsafeComposition(h, 'LOCAL-未确认😀');
+  await expect(page.locator('#composition-warning')).toBeVisible();
+  await expect(page.locator('#reload')).toBeDisabled();
+  await page.getByRole('button', { name: 'View / keep input copies' }).click();
+  const copy = page.locator('#composition-markdown');
+  expect(await copy.textContent()).toBe(before.source.replace('合成标题', '合成LOCAL-未确认😀标题'));
+  const retained = await copy.textContent();
+  await expect(page.locator('#composition-copy-panel')).toContainText('memory only');
+  await expect(page.locator('#composition-copy-panel')).toContainText('incomplete');
+  await expect(page.locator('#composition-copy-panel')).toContainText('unavailable');
+  // Controlled clipboard boundary: exercise success/failure without reading or replacing the user's OS clipboard.
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async () => { throw Error('Synthetic clipboard refusal'); } } }));
+  await page.getByRole('button', { name: 'Copy local Markdown' }).click();
+  await expect(page.locator('#composition-copy-status')).toContainText('Copy failed');
+  expect(await copy.textContent()).toBe(retained); await expect(copy).toHaveAttribute('aria-readonly', 'true');
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async text => { window.copiedSyntheticText = text; } } }));
+  await page.getByRole('button', { name: 'Copy local Markdown' }).click();
+  await expect(page.locator('#composition-copy-status')).toContainText('Copied local Markdown');
+  expect(await page.evaluate(() => window.copiedSyntheticText)).toBe(retained);
+  await page.getByRole('button', { name: 'Cancel copy view' }).click();
+  await expect(page.locator('#composition-copy-panel')).toBeHidden();
+  await expect(page.locator('#reload')).toBeDisabled();
+  expect(JSON.parse(await page.locator('#status').textContent()).composing).toBe(true);
+  expect((await snapshot(a)).snapshot).toEqual(before);
+  await h.select('#editor h1', 2); await page.keyboard.insertText('REFUSED');
+  await expect(page.locator('#status')).toContainText('composition-invalid');
+  expect((await snapshot(a)).snapshot).toEqual(before);
+  await page.locator('#editor .tiptap').evaluate(node => node.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
+  await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
+  expect((await snapshot(a)).snapshot).toEqual(before);
+  await expect(page.locator('#recovery')).toContainText('LOCAL-未确认😀');
+  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
+  await expect(page.locator('#recovery')).not.toContainText('LOCAL-未确认😀');
+  await page.locator('#documents').selectOption(a); await expect(page.locator('#recovery')).toContainText('LOCAL-未确认😀');
+  expect((await snapshot(a)).snapshot).toEqual(before);
+}, info));
+
+test('1B-3R DOM-only partial copies and full-capacity refusal never overwrite earlier evidence', async ({}, info) => usingDemo(async h => {
+  const { page, sessions, snapshot } = h, a = sessions[0].sessionId;
+  const before = (await snapshot(a)).snapshot;
+  await unsafeComposition(h);
+  // Mutate only synthetic DOM; inspect within the same event turn before PM can restore a refused mutation.
+  const retainDOM = text => page.locator('#editor .tiptap').evaluate((node, text) => {
+    node.firstElementChild.append(document.createTextNode(text));
+    const button = document.getElementById('view-composition-copy');
+    button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })); button.click();
+  }, text);
+  await retainDOM('DOM-ONLY-<not-html>😀');
+  expect(await page.locator('#composition-markdown').textContent()).toBe(before.source);
+  expect(await page.locator('#composition-dom').textContent()).toContain('DOM-ONLY-<not-html>😀');
+  await expect(page.locator('#composition-dom not-html')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel copy view' }).click();
+  for (let i = 1; i < 16; i++) { await retainDOM(`DOM-COPY-${i}`); await page.getByRole('button', { name: 'Cancel copy view' }).click(); }
+  await retainDOM('OVERFLOW-NOT-RETAINED');
+  await expect(page.locator('#composition-copy-status')).toContainText('capacity');
+  await expect(page.locator('#composition-copy-status')).toContainText('No earlier record was removed');
+  await expect(page.locator('#recovery')).toContainText('DOM-ONLY-<not-html>😀');
+  await expect(page.locator('#recovery')).toContainText('DOM-COPY-15');
+  await expect(page.locator('#reload')).toBeDisabled();
+  expect(JSON.parse(await page.locator('#status').textContent()).composing).toBe(true);
+  expect((await snapshot(a)).snapshot).toEqual(before);
+}, info));

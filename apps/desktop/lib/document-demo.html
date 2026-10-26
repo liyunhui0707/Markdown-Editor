@@ -2,12 +2,24 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Restricted synthetic document QA</title>
-<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}</style></head>
+<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}#composition-copy-panel pre{user-select:text;max-height:240px;overflow:auto}#composition-warning,#composition-copy-panel{border:1px solid #9a6b00;padding:12px;margin:12px 0;max-width:760px}[hidden]{display:none!important}</style></head>
 <body><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
 <button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
 <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>
 <output id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
+<section id="composition-warning" hidden aria-label="Unconfirmed input warning">
+<p role="status">Some composition input could not be accepted safely. Input remains blocked until its genuine completion; no automatic reset or reload is performed.</p>
+<button id="view-composition-copy">View / keep input copies</button></section>
+<section id="composition-copy-panel" hidden aria-label="Composition input copies">
+<p>Copies are memory only. Exit, page refresh or a crash may lose them. Native IME preedit outside DOM/controller may not be captured; these copies may be incomplete.</p>
+<p>Editing recovery is unavailable: safe retirement of the native input context has not been verified. Viewing or cancelling does not unlock, submit or discard input.</p>
+<output id="composition-copy-status" role="status"></output>
+<p><label for="composition-markdown">Retained local Markdown (not necessarily confirmed or saved)</label></p>
+<pre id="composition-markdown" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="Retained local Markdown"></pre><button id="copy-composition-markdown">Copy local Markdown</button>
+<p><label for="composition-dom">Retained partial DOM plain text</label></p><p id="composition-dom-note"></p>
+<pre id="composition-dom" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="Retained partial DOM text"></pre><button id="copy-composition-dom">Copy partial DOM text</button>
+<button id="cancel-composition-copy">Cancel copy view</button></section>
 <details open><summary>Complete source retained in main memory</summary><pre id="source"></pre></details>
 <details id="recovery-panel" hidden><summary>Recovery records retained in memory</summary>
 <output id="recovery-status"></output><select id="recovery-record" aria-label="Recovery record"></select>

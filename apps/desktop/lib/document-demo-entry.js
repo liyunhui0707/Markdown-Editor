@@ -8,6 +8,49 @@ const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
+let compositionView = null, copyPanelOpen = false, copyMessage = '', copyEpoch = 0;
+function renderCompositionCopies(s) {
+  byId('composition-warning').hidden = !(s.compositionInvalid || ['unsafe-composition', 'composition-invalid'].includes(s.code));
+  byId('composition-copy-panel').hidden = !copyPanelOpen;
+  if (!copyPanelOpen) return;
+  byId('composition-markdown').textContent = compositionView?.source ?? '';
+  byId('composition-dom').textContent = compositionView?.visibleText ?? '';
+  byId('composition-dom-note').textContent = compositionView?.visibleText == null
+    ? 'DOM text was unavailable. Native IME preedit may not have been captured.'
+    : 'Partial DOM plain text only; it may be incomplete and is not lossless Markdown.';
+  byId('copy-composition-markdown').disabled = !compositionView;
+  byId('copy-composition-dom').disabled = compositionView?.visibleText == null;
+  byId('composition-copy-status').textContent = copyMessage;
+}
+function viewCompositionCopies() {
+  if (!controller) return;
+  let visibleText = null;
+  try { visibleText = editor.view.dom.textContent; } catch { /* Preserve Markdown even if DOM cannot be read. */ }
+  const result = controller.retainCompositionCopy(visibleText);
+  ++copyEpoch; copyPanelOpen = true;
+  if (result.ok) { compositionView = result.record; copyMessage = `Copy record ${result.record.id} retained in memory only.`; }
+  else {
+    copyMessage = result.code === 'recovery-capacity'
+      ? 'Recovery capacity reached. Cannot retain new input. No earlier record was removed; any displayed copy is an earlier record.'
+      : `Cannot retain a new copy: ${result.code}. No earlier record was removed.`;
+  }
+  renderCompositionCopies(controller.state());
+}
+async function copyComposition(kind) {
+  if (!compositionView) return;
+  const text = kind === 'Markdown' ? compositionView.source : compositionView.visibleText;
+  if (text == null) return;
+  const epoch = ++copyEpoch, active = controller, record = compositionView;
+  try {
+    await navigator.clipboard.writeText(text);
+    if (epoch !== copyEpoch || active !== controller || record !== compositionView || !copyPanelOpen) return;
+    copyMessage = `Copied ${kind === 'Markdown' ? 'local Markdown' : 'partial DOM text'}.`;
+  } catch {
+    if (epoch !== copyEpoch || active !== controller || record !== compositionView || !copyPanelOpen) return;
+    copyMessage = 'Copy failed. Select the unchanged text below and copy it manually; no input was discarded.';
+  }
+  renderCompositionCopies(controller.state());
+}
 const activeInvalid = () => lifecycles.has(selected);
 const lifecycleCode = id => lifecycles.get(id) === 'invalidated' ? 'unknown-session' : lifecycles.get(id);
 function show(code) {
@@ -24,7 +67,7 @@ function render(s) {
   drafts.set(selected, records);
   byId('documents').value = selected;
   byId('source').textContent = s.confirmed.source;
-  byId('recovery').textContent = records.map(r => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? 'snapshot matches' : 'not reapplied'}\n${r.source}`).join('\n\n----\n\n');
+  byId('recovery').textContent = records.map(r => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? 'snapshot matches' : 'not reapplied'}\n${r.source}${'visibleText' in r ? `\nPartial DOM text (possibly incomplete):\n${r.visibleText ?? '[unavailable]'}` : ''}`).join('\n\n----\n\n');
   byId('recovery-panel').hidden = records.length === 0;
   byId('recovery-status').textContent = `${records.length} retained record(s). Confirmed Markdown is shown separately above.`;
   const recoveryId = byId('recovery-record').value;
@@ -40,7 +83,7 @@ function render(s) {
   byId('discard-recovery').disabled = busy || records.length === 0;
   const editable = !activeInvalid() && !s.locked && !s.historyPending && !loading;
   if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
-  show();
+  renderCompositionCopies(s); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -65,6 +108,7 @@ function install(snapshot) {
   if (lifecycles.has(snapshot.sessionId)) throw Error('Blocked session');
   projectSource(snapshot.source); // Validate before changing the active identity.
   controller?.dispose(); selected = snapshot.sessionId;
+  compositionView = null; copyPanelOpen = false; copyMessage = ''; ++copyEpoch;
   controller = createEditController(snapshot, {
     send: (operation, data) => api[operation](data), onChange: render, onReset: resetSource,
     recoveryRecords: drafts.get(selected) || [],
@@ -130,6 +174,16 @@ byId('connect').onclick = async () => {
 byId('documents').onchange = load; byId('reload').onclick = () => { if (!activeInvalid() && !loading) return controller?.reload(); };
 byId('undo').onclick = () => history('undo'); byId('redo').onclick = () => history('redo');
 byId('discard-recovery').onclick = () => controller?.discardRecovery(Number(byId('recovery-record').value));
+// Capture before pointer focus changes can end/flush the native composition.
+byId('view-composition-copy').onpointerdown = event => {
+  if (event.button === 0) { event.preventDefault(); viewCompositionCopies(); }
+};
+byId('view-composition-copy').onclick = event => { if (event.detail === 0) viewCompositionCopies(); };
+byId('cancel-composition-copy').onclick = () => {
+  ++copyEpoch; copyPanelOpen = false; renderCompositionCopies(controller.state());
+};
+byId('copy-composition-markdown').onclick = () => copyComposition('Markdown');
+byId('copy-composition-dom').onclick = () => copyComposition('DOM');
 for (const operation of ['check', 'save']) byId(operation).onclick = async () => {
   if (!controller || activeInvalid()) return;
   const active = controller, s = active.state();

@@ -32199,7 +32199,7 @@ ${prefix}
   }, recoveryRecords = [] }) {
     let confirmed = structuredClone(initial), source = initial.source, code3 = "opened";
     const recoveries = recoveryRecords.map((r) => {
-      if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== "string" || r.source.length > 131072) throw Error("Invalid recovery record");
+      if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== "string" || r.source.length > 131072 || "visibleText" in r && r.visibleText !== null && (typeof r.visibleText !== "string" || r.visibleText.length > 131072)) throw Error("Invalid recovery record");
       return structuredClone(r);
     });
     if (new Set(recoveries.map((r) => r.id)).size !== recoveries.length) throw Error("Duplicate recovery identity");
@@ -32239,6 +32239,8 @@ ${prefix}
         recoveryRecords: structuredClone(recoveries),
         pending: queue.length,
         composing: !!composition,
+        compositionInvalid: !!composition?.invalid,
+        recoveryCopyCapacity: atCapacity(),
         historyPending,
         locked: locked || disposed || atCapacity()
       };
@@ -32311,7 +32313,7 @@ ${prefix}
     function prepare(tr2) {
       if (!tr2.docChanged) return true;
       if (disposed || locked || atCapacity() || historyPending || composition?.invalid || queue.length >= 64) {
-        code3 = locked ? "sync-unknown" : atCapacity() ? "recovery-capacity" : historyPending ? "history-pending" : "edit-queue-full";
+        code3 = disposed ? "controller-disposed" : locked ? "sync-unknown" : atCapacity() ? "recovery-capacity" : historyPending ? "history-pending" : composition?.invalid ? "composition-invalid" : "edit-queue-full";
         notify();
         return false;
       }
@@ -32454,6 +32456,29 @@ ${prefix}
       code3 = reply?.code || reply?.status || "sync-unknown";
       notify();
     }
+    function retainCompositionCopy(visibleText) {
+      if (disposed) return { ok: false, code: "controller-disposed" };
+      if (!composition?.invalid && code3 !== "unsafe-composition") return { ok: false, code: "composition-copy-unavailable" };
+      if (visibleText !== null && typeof visibleText !== "string") return { ok: false, code: "invalid-copy-input" };
+      if (source.length > 131072 || visibleText !== null && visibleText.length > 131072) return { ok: false, code: "copy-too-large" };
+      const existing = recoveries.find((r) => r.reason === "composition-copy" && r.source === source && r.confirmedSource === confirmed.source && r.baseRevision === confirmed.revision && r.visibleText === visibleText);
+      if (existing) return { ok: true, record: structuredClone(existing) };
+      if (atCapacity()) return { ok: false, code: "recovery-capacity" };
+      const record = {
+        id: ++recoverySequence,
+        sessionId: initial.sessionId,
+        source,
+        reason: "composition-copy",
+        confirmedSource: confirmed.source,
+        baseRevision: confirmed.revision,
+        mainMatchesDraft: source === confirmed.source,
+        visibleText,
+        visibleTextIncomplete: true
+      };
+      recoveries.push(record);
+      notify();
+      return { ok: true, record: structuredClone(record) };
+    }
     function discardRecovery(id) {
       if (disposed || flight || queue.length || composition || historyPending) return false;
       const index2 = recoveries.findIndex((r) => r.id === id);
@@ -32474,6 +32499,7 @@ ${prefix}
       refresh,
       idle,
       discardRecovery,
+      retainCompositionCopy,
       dispose() {
         disposed = true;
         queue.length = 0;
@@ -32498,6 +32524,54 @@ ${prefix}
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  var compositionView = null;
+  var copyPanelOpen = false;
+  var copyMessage = "";
+  var copyEpoch = 0;
+  function renderCompositionCopies(s) {
+    byId("composition-warning").hidden = !(s.compositionInvalid || ["unsafe-composition", "composition-invalid"].includes(s.code));
+    byId("composition-copy-panel").hidden = !copyPanelOpen;
+    if (!copyPanelOpen) return;
+    byId("composition-markdown").textContent = compositionView?.source ?? "";
+    byId("composition-dom").textContent = compositionView?.visibleText ?? "";
+    byId("composition-dom-note").textContent = compositionView?.visibleText == null ? "DOM text was unavailable. Native IME preedit may not have been captured." : "Partial DOM plain text only; it may be incomplete and is not lossless Markdown.";
+    byId("copy-composition-markdown").disabled = !compositionView;
+    byId("copy-composition-dom").disabled = compositionView?.visibleText == null;
+    byId("composition-copy-status").textContent = copyMessage;
+  }
+  function viewCompositionCopies() {
+    if (!controller) return;
+    let visibleText = null;
+    try {
+      visibleText = editor.view.dom.textContent;
+    } catch {
+    }
+    const result = controller.retainCompositionCopy(visibleText);
+    ++copyEpoch;
+    copyPanelOpen = true;
+    if (result.ok) {
+      compositionView = result.record;
+      copyMessage = `Copy record ${result.record.id} retained in memory only.`;
+    } else {
+      copyMessage = result.code === "recovery-capacity" ? "Recovery capacity reached. Cannot retain new input. No earlier record was removed; any displayed copy is an earlier record." : `Cannot retain a new copy: ${result.code}. No earlier record was removed.`;
+    }
+    renderCompositionCopies(controller.state());
+  }
+  async function copyComposition(kind) {
+    if (!compositionView) return;
+    const text5 = kind === "Markdown" ? compositionView.source : compositionView.visibleText;
+    if (text5 == null) return;
+    const epoch = ++copyEpoch, active = controller, record = compositionView;
+    try {
+      await navigator.clipboard.writeText(text5);
+      if (epoch !== copyEpoch || active !== controller || record !== compositionView || !copyPanelOpen) return;
+      copyMessage = `Copied ${kind === "Markdown" ? "local Markdown" : "partial DOM text"}.`;
+    } catch {
+      if (epoch !== copyEpoch || active !== controller || record !== compositionView || !copyPanelOpen) return;
+      copyMessage = "Copy failed. Select the unchanged text below and copy it manually; no input was discarded.";
+    }
+    renderCompositionCopies(controller.state());
+  }
   var activeInvalid = () => lifecycles.has(selected);
   var lifecycleCode = (id) => lifecycles.get(id) === "invalidated" ? "unknown-session" : lifecycles.get(id);
   function show(code3) {
@@ -32528,7 +32602,9 @@ ${prefix}
     byId("documents").value = selected;
     byId("source").textContent = s.confirmed.source;
     byId("recovery").textContent = records.map((r) => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? "snapshot matches" : "not reapplied"}
-${r.source}`).join("\n\n----\n\n");
+${r.source}${"visibleText" in r ? `
+Partial DOM text (possibly incomplete):
+${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("recovery-panel").hidden = records.length === 0;
     byId("recovery-status").textContent = `${records.length} retained record(s). Confirmed Markdown is shown separately above.`;
     const recoveryId = byId("recovery-record").value;
@@ -32547,6 +32623,7 @@ ${r.source}`).join("\n\n----\n\n");
     byId("discard-recovery").disabled = busy || records.length === 0;
     const editable = !activeInvalid() && !s.locked && !s.historyPending && !loading;
     if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
+    renderCompositionCopies(s);
     show();
   }
   function resetSource(source, selection) {
@@ -32574,6 +32651,10 @@ ${r.source}`).join("\n\n----\n\n");
     projectSource(snapshot.source);
     controller?.dispose();
     selected = snapshot.sessionId;
+    compositionView = null;
+    copyPanelOpen = false;
+    copyMessage = "";
+    ++copyEpoch;
     controller = createEditController(snapshot, {
       send: (operation, data) => api[operation](data),
       onChange: render2,
@@ -32702,6 +32783,22 @@ ${r.source}`).join("\n\n----\n\n");
   byId("undo").onclick = () => history2("undo");
   byId("redo").onclick = () => history2("redo");
   byId("discard-recovery").onclick = () => controller?.discardRecovery(Number(byId("recovery-record").value));
+  byId("view-composition-copy").onpointerdown = (event) => {
+    if (event.button === 0) {
+      event.preventDefault();
+      viewCompositionCopies();
+    }
+  };
+  byId("view-composition-copy").onclick = (event) => {
+    if (event.detail === 0) viewCompositionCopies();
+  };
+  byId("cancel-composition-copy").onclick = () => {
+    ++copyEpoch;
+    copyPanelOpen = false;
+    renderCompositionCopies(controller.state());
+  };
+  byId("copy-composition-markdown").onclick = () => copyComposition("Markdown");
+  byId("copy-composition-dom").onclick = () => copyComposition("DOM");
   for (const operation of ["check", "save"]) byId(operation).onclick = async () => {
     if (!controller || activeInvalid()) return;
     const active = controller, s = active.state();

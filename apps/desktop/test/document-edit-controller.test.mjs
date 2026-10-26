@@ -271,3 +271,100 @@ test('P1-1: recovery capacity blocks later input rather than evicting old drafts
   assert.equal(h.controller.discardRecovery(h.controller.state().recoveryRecords[0].id), true);
   assert.equal(h.controller.state().locked, false); assert.equal(h.document.text.includes('DRAFT'), false);
 });
+
+
+function invalidComposition(h, insert = '未确认😀') {
+  const from = projectSource(h.controller.state().source).spans.find(s => !s.bold && s.text.includes('Plain ')).from + 1;
+  assert.equal(h.controller.beginComposition(), true);
+  if (insert) assert.equal(h.edit(from, from, insert), true);
+  assert.equal(h.edit(from, from, '\n'), false);
+  return from;
+}
+
+test('1B-3R invalid composition at pending=0 reports its real reason and stays blocked', async () => {
+  const h = harness(), before = h.request('snapshot').snapshot, from = invalidComposition(h);
+  assert.equal(h.edit(from, from, 'REFUSED'), false);
+  assert.equal(h.controller.state().code, 'composition-invalid');
+  assert.equal(h.controller.state().compositionInvalid, true);
+  assert.equal(h.controller.state().pending, 0);
+  assert.equal(h.controller.state().composing, true);
+  assert.equal(await h.controller.reload(), false);
+  assert.equal(await h.controller.history('undo'), false);
+  assert.deepEqual(h.request('snapshot').snapshot, before);
+  assert.equal(h.requests.length, 0);
+});
+
+test('1B-3R copies preserve local Markdown and partial DOM evidence without main IPC or composition reset', () => {
+  const h = harness(), before = h.request('snapshot').snapshot;
+  invalidComposition(h); const local = h.controller.state().source;
+  const first = h.controller.retainCompositionCopy('DOM-only 未提交😀');
+  assert.equal(first.ok, true);
+  const second = h.controller.retainCompositionCopy('Later DOM-only 输入');
+  assert.equal(second.ok, true); assert.notEqual(second.record.id, first.record.id);
+  assert.equal(h.controller.retainCompositionCopy('Later DOM-only 输入').record.id, second.record.id);
+  const records = h.controller.state().recoveryRecords;
+  assert.equal(records.length, 2);
+  assert.equal(records[0].source, local); assert.equal(records[0].visibleText, 'DOM-only 未提交😀');
+  assert.equal(records[0].confirmedSource, before.source); assert.equal(records[0].baseRevision, before.revision);
+  assert.equal(records[0].visibleTextIncomplete, true);
+  first.record.source = 'cannot mutate retained input';
+  assert.equal(h.controller.state().recoveryRecords[0].source, local);
+  assert.equal(h.controller.state().composing, true); assert.equal(h.controller.state().source, local);
+  assert.deepEqual(h.request('snapshot').snapshot, before); assert.equal(h.requests.length, 0);
+  h.controller.endComposition();
+  assert.equal(h.controller.state().composing, false);
+  assert.equal(h.controller.state().source, before.source);
+  assert.deepEqual(h.controller.state().recoveryRecords, records);
+  assert.deepEqual(h.request('snapshot').snapshot, before);
+});
+
+test('1B-3R DOM-only evidence is retained even when local Markdown equals main; unavailable DOM is explicit', () => {
+  const h = harness(); invalidComposition(h, '');
+  const original = h.document.text;
+  assert.equal(h.controller.state().source, original);
+  assert.equal(h.controller.retainCompositionCopy('preedit only outside controller').ok, true);
+  assert.equal(h.controller.retainCompositionCopy(null).ok, true);
+  const records = h.controller.state().recoveryRecords;
+  assert.equal(records.length, 2); assert.equal(records[0].source, original);
+  assert.equal(records[1].visibleText, null); assert.equal(records[1].visibleTextIncomplete, true);
+  h.controller.endComposition();
+  assert.deepEqual(h.controller.state().recoveryRecords, records);
+});
+
+test('1B-3R normal composition and invalid copy requests are not recovery commands', async () => {
+  const h = harness(), from = h.span('Plain ').from;
+  h.controller.beginComposition(); h.edit(from, from, '正常');
+  assert.equal(h.controller.retainCompositionCopy('not an anomaly').code, 'composition-copy-unavailable');
+  h.controller.endComposition(); await h.controller.idle();
+  assert.equal(h.document.revision, 1); assert.equal(h.controller.state().recoveryRecords.length, 0);
+  invalidComposition(h);
+  assert.equal(h.controller.retainCompositionCopy({ text: 'bad' }).code, 'invalid-copy-input');
+  assert.equal(h.controller.retainCompositionCopy('x'.repeat(131073)).code, 'copy-too-large');
+  assert.equal(h.controller.state().recoveryRecords.length, 0);
+  h.controller.dispose();
+  assert.equal(h.controller.retainCompositionCopy('late').code, 'controller-disposed');
+});
+
+test('1B-3R capacity refuses new copies without eviction, truncation, unlock or silent end', () => {
+  const h = harness(); invalidComposition(h);
+  for (let i = 0; i < 16; i++) assert.equal(h.controller.retainCompositionCopy(`COPY-${i}`).ok, true);
+  const records = h.controller.state().recoveryRecords;
+  assert.equal(h.controller.retainCompositionCopy('COPY-15').ok, true);
+  assert.equal(h.controller.retainCompositionCopy('OVERFLOW').code, 'recovery-capacity');
+  assert.deepEqual(h.controller.state().recoveryRecords, records);
+  assert.equal(h.controller.state().locked, true); assert.equal(h.controller.state().composing, true);
+  assert.equal(h.controller.state().recoveryCopyCapacity, true);
+});
+
+test('1B-3R copies survive controller reinstall in the same session and cannot cross sessions', () => {
+  const a = harness(), b = harness(); invalidComposition(a); invalidComposition(b);
+  a.controller.retainCompositionCopy('A-DOM'); b.controller.retainCompositionCopy('B-DOM');
+  const records = a.controller.state().recoveryRecords;
+  const next = createEditController(a.request('snapshot').snapshot, { send: async () => {}, recoveryRecords: records });
+  assert.deepEqual(next.state().recoveryRecords, records);
+  assert.throws(() => createEditController(b.request('snapshot').snapshot, {
+    send: async () => {}, recoveryRecords: records,
+  }), /Invalid recovery record/);
+  assert.equal(b.controller.state().recoveryRecords[0].visibleText, 'B-DOM');
+  assert.equal(a.requests.length + b.requests.length, 0);
+});
