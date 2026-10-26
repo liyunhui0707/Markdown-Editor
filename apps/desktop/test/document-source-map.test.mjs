@@ -53,3 +53,16 @@ test('source-size limit rejects expansion as an ordinary unsafe edit', () => {
   const s = 'a'.repeat(131070), p = projectSource(s).spans[0];
   assert.equal(mapTextEdit(s, { from: p.from + 1, to: p.from + 1, insert: 'xxxx' }).ok, false);
 });
+
+test('P1-2: only an explicit trusted leaf identity resolves an inverse mark-boundary insertion', () => {
+  const bold = projectSource(source).spans.find(s => s.bold);
+  const deleted = mapTextEdit(source, { from: bold.from, to: bold.from + 1, insert: '' });
+  const point = { from: bold.from, to: bold.from, insert: '粗' };
+  assert.equal(mapTextEdit(deleted.source, point).ok, false);
+  const leaf = { blockIndex: bold.blockIndex, childIndex: bold.childIndex, bold: true };
+  const restored = mapTextEdit(deleted.source, point, leaf);
+  assert.equal(restored.ok, true); assert.equal(restored.source, source);
+  assert.equal(mapTextEdit(deleted.source, point, { ...leaf, bold: false }).ok, false);
+  assert.equal(mapTextEdit(deleted.source, { ...point, leaf }).ok, false);
+  assert.equal(mapTextEdit(deleted.source, { ...point, insert: '\ud800' }, leaf).ok, false);
+});

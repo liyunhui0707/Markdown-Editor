@@ -50,13 +50,19 @@ export function projectSource(source) {
   return { doc: { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] }, spans };
 }
 
-export function mapTextEdit(source, change) {
+export function mapTextEdit(source, change, leaf = null) {
   if (!change || Object.getPrototypeOf(change) !== Object.prototype
       || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
   const { from, to, insert } = change;
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || !validText(insert) || insert.length > 4096) return unsafe();
   const projection = projectSource(source);
-  const matches = projection.spans.filter(s => from >= s.from && to <= s.to);
+  // Only trusted history supplies this identity. IPC edit payloads cannot.
+  if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype
+      || Object.keys(leaf).length !== 3 || Object.keys(leaf).some(k => !['blockIndex', 'childIndex', 'bold'].includes(k))
+      || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0
+      || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== 'boolean')) return unsafe();
+  const matches = projection.spans.filter(s => from >= s.from && to <= s.to && (!leaf
+    || (s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold)));
   if (matches.length !== 1) return unsafe(); // ambiguous insertion between marks
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();
@@ -69,5 +75,6 @@ export function mapTextEdit(source, change) {
   const expected = structuredClone(projection.doc);
   expected.content[span.blockIndex].content[span.childIndex].text = text;
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
-  return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection };
+  return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,
+    leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };
 }

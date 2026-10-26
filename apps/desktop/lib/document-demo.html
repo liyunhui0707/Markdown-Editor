@@ -6,6 +6,11 @@
 <body><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
 <button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
+<button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>
 <output id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
 <details open><summary>Complete source retained in main memory</summary><pre id="source"></pre></details>
+<details id="recovery-panel" hidden><summary>Recovery records retained in memory</summary>
+<output id="recovery-status"></output><select id="recovery-record" aria-label="Recovery record"></select>
+<button id="discard-recovery" title="Only removes the selected in-memory record; does not change confirmed Markdown.">Discard selected recovery record</button>
+<pre id="recovery"></pre></details>
 <script src="document-demo-bundle.js"></script></body></html>

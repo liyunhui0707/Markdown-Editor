@@ -29,6 +29,57 @@ async function waitGone(ids, group) {
   }
   return ids.every(gone) && gone(-group);
 }
+// Opt-in observer-only trace: no input data, source text, timers or extra edits.
+async function observeInput(page) {
+  await page.evaluate(() => {
+    const rows = [], hooked = new WeakSet(); let dropped = 0, previous = '';
+    const flags = () => {
+      let s = {}; try { s = JSON.parse(document.querySelector('#status')?.textContent); } catch { /* not connected */ }
+      return { code: s.code, editingCode: s.editingCode, composing: s.composing, pending: s.pending,
+        locked: s.locked, historyPending: s.historyPending, loading: s.loading, lifecycle: s.lifecycle,
+        revision: s.revision, reloadDisabled: document.querySelector('#reload')?.disabled,
+        pmComposing: document.querySelector('.tiptap')?.editor?.view.composing };
+    };
+    const add = (kind, detail = {}) => {
+      rows.push({ at: performance.timeOrigin + performance.now(), kind, ...detail, flags: flags() });
+      if (rows.length > 192) { rows.shift(); dropped++; }
+    };
+    window.demoInputTrace = { read: () => ({ rows: rows.slice(), dropped }) };
+    for (const type of ['compositionstart', 'compositionupdate', 'compositionend', 'beforeinput', 'input', 'focus', 'blur', 'focusin', 'focusout']) {
+      window.addEventListener(type, e => add(type, { trusted: e.isTrusted, isComposing: e.isComposing,
+        inputType: e.inputType, target: e.target.tagName || 'window' }), true);
+    }
+    window.documentDemo.onLifecycle(s => add('lifecycle', s));
+    const observe = () => {
+      const editor = document.querySelector('.tiptap')?.editor;
+      if (editor && !hooked.has(editor)) {
+        hooked.add(editor);
+        for (const [index, plugin] of editor.state.plugins.entries()) {
+          const filter = plugin.spec.filterTransaction;
+          if (filter) plugin.spec.filterTransaction = function (tr, state) {
+            const accepted = filter.call(this, tr, state);
+            add('filter', { index, accepted, changed: tr.docChanged, steps: tr.steps.map(s => s.constructor.name) });
+            return accepted;
+          };
+        }
+        const events = editor.view.props.handleDOMEvents;
+        for (const name of ['compositionstart', 'compositionend']) {
+          const handler = events[name];
+          events[name] = function (...args) {
+            add('handler-before', { name }); const result = handler.apply(this, args);
+            add('handler-after', { name }); return result;
+          };
+        }
+        editor.on('transaction', ({ transaction: tr }) => add('transaction', { changed: tr.docChanged, steps: tr.steps.map(s => s.constructor.name) }));
+      }
+      const next = JSON.stringify(flags());
+      if (next !== previous) { previous = next; add('state'); }
+    };
+    new MutationObserver(observe).observe(document.body, { subtree: true, childList: true, characterData: true,
+      attributes: true, attributeFilter: ['disabled', 'contenteditable'] });
+    observe();
+  });
+}
 test('restricted document demo uses real Tiptap → authorized IPC → complete source; never writes', async ({}, info) => {
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   const app = await test.step('Launch synthetic main entry', () => electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
@@ -41,6 +92,7 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
   const closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   const faults = { uncaught: 0, errorDialogs: 0 };
   let functionalAssertionsComplete = false, revokedSessions = 0, stderr = '', runtimeIdentity = null;
+  let diagnosticPage = null;
   child.stderr.on('data', bytes => { stderr = (stderr + bytes.toString()).slice(-32768); });
   try {
     app.on('console', message => {
@@ -49,7 +101,15 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
       if (text === 'demo-monitor:error-dialog') faults.errorDialogs++;
       if (text.startsWith('demo-lifecycle:')) console.log(text);
     });
-    await app.evaluate(({ app, BrowserWindow, dialog }) => {
+    await app.evaluate(({ app, BrowserWindow, dialog, ipcMain }) => {
+      const trace = globalThis.demoIpcTrace = [], channel = 'document-demo:request';
+      const handler = ipcMain._invokeHandlers.get(channel);
+      ipcMain.removeHandler(channel); ipcMain.handle(channel, (event, payload) => {
+        const row = { at: Date.now(), operation: payload?.operation, sessionId: payload?.sessionId, settled: false };
+        trace.push(row); if (trace.length > 24) trace.shift();
+        try { const r = handler(event, payload); Object.assign(row, { settled: true, ok: r.ok, code: r.code }); return r; }
+        catch (error) { Object.assign(row, { settled: true, exception: true }); throw error; }
+      });
       // Monitor only: preserve Node's exception handling and the real dialog.
       process.on('uncaughtExceptionMonitor', () => console.error('demo-monitor:uncaught'));
       const original = dialog.showErrorBox;
@@ -58,6 +118,10 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
       };
       for (const name of ['before-quit', 'will-quit', 'window-all-closed']) app.on(name, () => console.log('demo-lifecycle:' + name));
       for (const win of BrowserWindow.getAllWindows()) {
+        const focus = globalThis.demoFocusTrace = [];
+        for (const name of ['focus', 'blur', 'closed']) win.on(name, () => {
+          focus.push({ at: Date.now(), name }); if (focus.length > 24) focus.shift();
+        });
         win.on('close', () => console.log('demo-lifecycle:window-close'));
         win.on('closed', () => console.log('demo-lifecycle:window-closed'));
       }
@@ -73,6 +137,8 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
     const root = path.dirname(profile); expect(path.basename(root)).toMatch(/^document-demo-/);
     const file = path.join(root, 'a.md'), disk = await fs.readFile(file);
     const page = await test.step('Find real Tiptap demo window', () => app.firstWindow({ timeout: 15000 }));
+    diagnosticPage = page;
+    if (process.env.DOCUMENT_INPUT_DIAGNOSTICS === '1') await observeInput(page);
     await page.getByRole('button', { name: 'Connect synthetic documents' }).click();
     await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
     const id = await page.locator('#documents').inputValue();
@@ -137,6 +203,7 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
     await page.getByRole('button', { name: 'Check disk' }).click();
     await expect(page.locator('#status')).toContainText('conflict');
     await expect(page.locator('#source')).toHaveText(expected);
+    if (process.env.DOCUMENT_INPUT_DIAGNOSTICS === '1') console.log('demo-input-diagnostic:' + JSON.stringify(await page.evaluate(() => window.demoInputTrace.read())));
     await page.reload();
     const invalid = await page.evaluate(ids => Promise.all(ids.map(sessionId => window.documentDemo.snapshot({ sessionId }))),
       allSessions.sessions.map(s => s.sessionId));
@@ -152,6 +219,17 @@ test('restricted document demo uses real Tiptap → authorized IPC → complete 
       timedOut = true; if (!gone(-group)) process.kill(-group, 'SIGKILL');
     }, 45000);
     try {
+      if (!functionalAssertionsComplete) try {
+        const view = await diagnosticPage?.evaluate(() => ({ status: document.querySelector('#status')?.textContent,
+          reloadDisabled: document.querySelector('#reload')?.disabled, hasFocus: document.hasFocus(),
+          focus: { tag: document.activeElement?.tagName, id: document.activeElement?.id },
+          contenteditable: document.querySelector('#editor .tiptap')?.getAttribute('contenteditable'),
+          inputTrace: window.demoInputTrace?.read() })).catch(() => ({ unavailable: true }));
+        const ipc = await app.evaluate(() => globalThis.demoIpcTrace || []).catch(() => ({ unavailable: true }));
+        const focus = await app.evaluate(() => globalThis.demoFocusTrace || []).catch(() => ({ unavailable: true }));
+        console.log('demo-failure-diagnostics:' + JSON.stringify({ view, ipc, focus }));
+        await info.attach('failure-only-ui-ipc-diagnostics', { body: JSON.stringify({ view, ipc, focus }), contentType: 'application/json' });
+      } catch { console.warn('demo-diagnostic: capture unavailable; preserving failure and cleanup'); }
       await app.close(); const result = await closed;
       clearTimeout(timeout);
       const noRemainingChildren = await waitGone(ids, group);

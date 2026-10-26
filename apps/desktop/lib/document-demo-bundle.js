@@ -429,11 +429,11 @@
     replaced by the given node.
     */
     replaceChild(index2, node2) {
-      let current2 = this.content[index2];
-      if (current2 == node2)
+      let current = this.content[index2];
+      if (current == node2)
         return this;
       let copy2 = this.content.slice();
-      let size = this.size + node2.nodeSize - current2.nodeSize;
+      let size = this.size + node2.nodeSize - current.nodeSize;
       copy2[index2] = node2;
       return new _Fragment(copy2, size);
     }
@@ -1870,17 +1870,17 @@
     computeWrapping(target) {
       let seen = /* @__PURE__ */ Object.create(null), active = [{ match: this, type: null, via: null }];
       while (active.length) {
-        let current2 = active.shift(), match = current2.match;
+        let current = active.shift(), match = current.match;
         if (match.matchType(target)) {
           let result = [];
-          for (let obj = current2; obj.type; obj = obj.via)
+          for (let obj = current; obj.type; obj = obj.via)
             result.push(obj.type);
           return result.reverse();
         }
         for (let i = 0; i < match.next.length; i++) {
           let { type, next } = match.next[i];
-          if (!type.isLeaf && !type.hasRequiredAttrs() && !(type.name in seen) && (!current2.type || next.validEnd)) {
-            active.push({ match: type.contentMatch, type, via: current2 });
+          if (!type.isLeaf && !type.hasRequiredAttrs() && !(type.name in seen) && (!current.type || next.validEnd)) {
+            active.push({ match: type.contentMatch, type, via: current });
             seen[type.name] = true;
           }
         }
@@ -13418,7 +13418,7 @@
   }
   function splitStyleDeclarations(styles) {
     const result = [];
-    let current2 = "";
+    let current = "";
     let inSingleQuote = false;
     let inDoubleQuote = false;
     let parenDepth = 0;
@@ -13427,34 +13427,34 @@
       const char = styles[i];
       if (char === "'" && !inDoubleQuote) {
         inSingleQuote = !inSingleQuote;
-        current2 += char;
+        current += char;
         continue;
       }
       if (char === '"' && !inSingleQuote) {
         inDoubleQuote = !inDoubleQuote;
-        current2 += char;
+        current += char;
         continue;
       }
       if (!inSingleQuote && !inDoubleQuote) {
         if (char === "(") {
           parenDepth += 1;
-          current2 += char;
+          current += char;
           continue;
         }
         if (char === ")" && parenDepth > 0) {
           parenDepth -= 1;
-          current2 += char;
+          current += char;
           continue;
         }
         if (char === ";" && parenDepth === 0) {
-          result.push(current2);
-          current2 = "";
+          result.push(current);
+          current = "";
           continue;
         }
       }
-      current2 += char;
+      current += char;
     }
-    if (current2) result.push(current2);
+    if (current) result.push(current);
     return result;
   }
   function parseStyleEntries(styles) {
@@ -15847,11 +15847,11 @@ ${indentedChild}`;
       var _this$decorationManag2;
       (_this$decorationManag2 = this.decorationManager) === null || _this$decorationManag2 === void 0 || _this$decorationManag2.destroy();
       this.extensions.forEach((extension2) => {
-        let current2 = extension2;
-        while (current2.parent) {
-          const parent = current2.parent;
-          if (parent.child === current2) parent.child = null;
-          current2 = parent;
+        let current = extension2;
+        while (current.parent) {
+          const parent = current.parent;
+          if (parent.child === current) parent.child = null;
+          current = parent;
         }
       });
       this.extensions = [];
@@ -21674,29 +21674,29 @@ ${prefix}
     }
   };
   var DEPTH_OVERFLOW = 20;
-  function applyTransaction(history2, state, tr2, options) {
+  function applyTransaction(history3, state, tr2, options) {
     let historyTr = tr2.getMeta(historyKey), rebased;
     if (historyTr)
       return historyTr.historyState;
     if (tr2.getMeta(closeHistoryKey))
-      history2 = new HistoryState(history2.done, history2.undone, null, 0, -1);
+      history3 = new HistoryState(history3.done, history3.undone, null, 0, -1);
     let appended = tr2.getMeta("appendedTransaction");
     if (tr2.steps.length == 0) {
-      return history2;
+      return history3;
     } else if (appended && appended.getMeta(historyKey)) {
       if (appended.getMeta(historyKey).redo)
-        return new HistoryState(history2.done.addTransform(tr2, void 0, options, mustPreserveItems(state)), history2.undone, rangesFor(tr2.mapping.maps), history2.prevTime, history2.prevComposition);
+        return new HistoryState(history3.done.addTransform(tr2, void 0, options, mustPreserveItems(state)), history3.undone, rangesFor(tr2.mapping.maps), history3.prevTime, history3.prevComposition);
       else
-        return new HistoryState(history2.done, history2.undone.addTransform(tr2, void 0, options, mustPreserveItems(state)), null, history2.prevTime, history2.prevComposition);
+        return new HistoryState(history3.done, history3.undone.addTransform(tr2, void 0, options, mustPreserveItems(state)), null, history3.prevTime, history3.prevComposition);
     } else if (tr2.getMeta("addToHistory") !== false && !(appended && appended.getMeta("addToHistory") === false)) {
       let composition = tr2.getMeta("composition");
-      let newGroup = history2.prevTime == 0 || !appended && history2.prevComposition != composition && (history2.prevTime < (tr2.time || 0) - options.newGroupDelay || !isAdjacentTo(tr2, history2.prevRanges));
-      let prevRanges = appended ? mapRanges(history2.prevRanges, tr2.mapping) : rangesFor(tr2.mapping.maps);
-      return new HistoryState(history2.done.addTransform(tr2, newGroup ? state.selection.getBookmark() : void 0, options, mustPreserveItems(state)), Branch.empty, prevRanges, tr2.time, composition == null ? history2.prevComposition : composition);
+      let newGroup = history3.prevTime == 0 || !appended && history3.prevComposition != composition && (history3.prevTime < (tr2.time || 0) - options.newGroupDelay || !isAdjacentTo(tr2, history3.prevRanges));
+      let prevRanges = appended ? mapRanges(history3.prevRanges, tr2.mapping) : rangesFor(tr2.mapping.maps);
+      return new HistoryState(history3.done.addTransform(tr2, newGroup ? state.selection.getBookmark() : void 0, options, mustPreserveItems(state)), Branch.empty, prevRanges, tr2.time, composition == null ? history3.prevComposition : composition);
     } else if (rebased = tr2.getMeta("rebased")) {
-      return new HistoryState(history2.done.rebased(tr2, rebased), history2.undone.rebased(tr2, rebased), mapRanges(history2.prevRanges, tr2.mapping), history2.prevTime, history2.prevComposition);
+      return new HistoryState(history3.done.rebased(tr2, rebased), history3.undone.rebased(tr2, rebased), mapRanges(history3.prevRanges, tr2.mapping), history3.prevTime, history3.prevComposition);
     } else {
-      return new HistoryState(history2.done.addMaps(tr2.mapping.maps), history2.undone.addMaps(tr2.mapping.maps), mapRanges(history2.prevRanges, tr2.mapping), history2.prevTime, history2.prevComposition);
+      return new HistoryState(history3.done.addMaps(tr2.mapping.maps), history3.undone.addMaps(tr2.mapping.maps), mapRanges(history3.prevRanges, tr2.mapping), history3.prevTime, history3.prevComposition);
     }
   }
   function isAdjacentTo(transform, prevRanges) {
@@ -21729,14 +21729,14 @@ ${prefix}
     }
     return result;
   }
-  function histTransaction(history2, state, redo2) {
+  function histTransaction(history3, state, redo2) {
     let preserveItems = mustPreserveItems(state);
     let histOptions = historyKey.get(state).spec.config;
-    let pop = (redo2 ? history2.undone : history2.done).popEvent(state, preserveItems);
+    let pop = (redo2 ? history3.undone : history3.done).popEvent(state, preserveItems);
     if (!pop)
       return null;
     let selection = pop.selection.resolve(pop.transform.doc);
-    let added = (redo2 ? history2.done : history2.undone).addTransform(pop.transform, state.selection.getBookmark(), histOptions, preserveItems);
+    let added = (redo2 ? history3.done : history3.undone).addTransform(pop.transform, state.selection.getBookmark(), histOptions, preserveItems);
     let newHist = new HistoryState(redo2 ? added : pop.remaining, redo2 ? pop.remaining : added, null, 0, -1);
     return pop.transform.setSelection(selection).setMeta(historyKey, { redo: redo2, historyState: newHist });
   }
@@ -22081,9 +22081,9 @@ ${prefix}
     const merged = [{ ...sorted[0] }];
     for (let i = 1; i < sorted.length; i += 1) {
       const last = merged[merged.length - 1];
-      const current2 = sorted[i];
-      if (current2.from <= last.to) last.to = Math.max(last.to, current2.to);
-      else merged.push({ ...current2 });
+      const current = sorted[i];
+      if (current.from <= last.to) last.to = Math.max(last.to, current.to);
+      else merged.push({ ...current });
     }
     return merged;
   }
@@ -23389,11 +23389,11 @@ ${prefix}
         constr.prototype
       );
       const value = proto[property];
-      const apply3 = function() {
-        return value.apply(apply3, arguments);
+      const apply2 = function() {
+        return value.apply(apply2, arguments);
       };
-      Object.setPrototypeOf(apply3, proto);
-      return apply3;
+      Object.setPrototypeOf(apply2, proto);
+      return apply2;
     })
   );
 
@@ -25530,34 +25530,34 @@ ${prefix}
     let stream;
     let previous3;
     let index2 = -1;
-    let current2 = token;
+    let current = token;
     let adjust = 0;
     let start = 0;
     const breaks = [start];
-    while (current2) {
-      while (events.get(++startPosition)[1] !== current2) {
+    while (current) {
+      while (events.get(++startPosition)[1] !== current) {
       }
       startPositions.push(startPosition);
-      if (!current2._tokenizer) {
-        stream = context.sliceStream(current2);
-        if (!current2.next) {
+      if (!current._tokenizer) {
+        stream = context.sliceStream(current);
+        if (!current.next) {
           stream.push(null);
         }
         if (previous3) {
-          tokenizer.defineSkip(current2.start);
+          tokenizer.defineSkip(current.start);
         }
-        if (current2._isInFirstContentOfListItem) {
+        if (current._isInFirstContentOfListItem) {
           tokenizer._gfmTasklistFirstContentOfListItem = true;
         }
         tokenizer.write(stream);
-        if (current2._isInFirstContentOfListItem) {
+        if (current._isInFirstContentOfListItem) {
           tokenizer._gfmTasklistFirstContentOfListItem = void 0;
         }
       }
-      previous3 = current2;
-      current2 = current2.next;
+      previous3 = current;
+      current = current.next;
     }
-    current2 = token;
+    current = token;
     while (++index2 < childEvents.length) {
       if (
         // Find a void token that includes a break.
@@ -25565,15 +25565,15 @@ ${prefix}
       ) {
         start = index2 + 1;
         breaks.push(start);
-        current2._tokenizer = void 0;
-        current2.previous = void 0;
-        current2 = current2.next;
+        current._tokenizer = void 0;
+        current.previous = void 0;
+        current = current.next;
       }
     }
     tokenizer.events = [];
-    if (current2) {
-      current2._tokenizer = void 0;
-      current2.previous = void 0;
+    if (current) {
+      current._tokenizer = void 0;
+      current.previous = void 0;
     } else {
       breaks.pop();
     }
@@ -32139,12 +32139,13 @@ ${prefix}
     }
     return { doc: { type: "doc", content: content3.length ? content3 : [{ type: "paragraph" }] }, spans };
   }
-  function mapTextEdit(source, change) {
+  function mapTextEdit(source, change, leaf = null) {
     if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return unsafe();
     const { from: from2, to, insert } = change;
     if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || !validText(insert) || insert.length > 4096) return unsafe();
     const projection = projectSource(source);
-    const matches2 = projection.spans.filter((s) => from2 >= s.from && to <= s.to);
+    if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype || Object.keys(leaf).length !== 3 || Object.keys(leaf).some((k) => !["blockIndex", "childIndex", "bold"].includes(k)) || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0 || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== "boolean")) return unsafe();
+    const matches2 = projection.spans.filter((s) => from2 >= s.from && to <= s.to && (!leaf || s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold));
     if (matches2.length !== 1) return unsafe();
     const span = matches2[0], a = from2 - span.from, b = to - span.from;
     if (splits(span.text, a) || splits(span.text, b)) return unsafe();
@@ -32157,57 +32158,452 @@ ${prefix}
     const expected = structuredClone(projection.doc);
     expected.content[span.blockIndex].content[span.childIndex].text = text5;
     if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
-    return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection };
+    return {
+      ok: true,
+      source: next,
+      change: { from: sourceFrom, to: sourceTo, insert },
+      projection: nextProjection,
+      leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold }
+    };
+  }
+
+  // lib/document-edit-controller.mjs
+  function transactionEdit(source, tr2) {
+    if (!tr2.docChanged || tr2.steps.length !== 1) return null;
+    const step = tr2.steps[0];
+    if (step.toJSON().stepType !== "replace" || !step.slice || step.slice.openStart || step.slice.openEnd || !step.slice.content.content.every((node2) => node2.isText)) return null;
+    const edit = { from: step.from, to: step.to, insert: step.slice.content.textBetween(0, step.slice.content.size, "", "") };
+    const mapped = mapTextEdit(source, edit), schema = tr2.doc.type.schema;
+    if (!tr2.before.eq(schema.nodeFromJSON(projectSource(source).doc)) || !mapped.ok || !tr2.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
+    if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
+    return { edit, source: mapped.source };
+  }
+  function composedEdit(before, after) {
+    let from2 = 0, to = before.text.length, end = after.text.length;
+    while (from2 < to && from2 < end && before.text[from2] === after.text[from2]) from2++;
+    while (to > from2 && end > from2 && before.text[to - 1] === after.text[end - 1]) {
+      to--;
+      end--;
+    }
+    const splits2 = (text5, n) => /[\uD800-\uDBFF]/.test(text5[n - 1] || "") && /[\uDC00-\uDFFF]/.test(text5[n] || "");
+    if (splits2(before.text, from2) || splits2(after.text, from2)) from2--;
+    if (splits2(before.text, to) || splits2(after.text, end)) {
+      to++;
+      end++;
+    }
+    if (to - from2 > 4096) return null;
+    return { from: before.from + from2, to: before.from + to, insert: after.text.slice(from2, end) };
+  }
+  function createEditController(initial, { send, onChange = () => {
+  }, onReset = () => {
+  }, recoveryRecords = [] }) {
+    let confirmed = structuredClone(initial), source = initial.source, code3 = "opened";
+    const recoveries = recoveryRecords.map((r) => {
+      if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== "string" || r.source.length > 131072) throw Error("Invalid recovery record");
+      return structuredClone(r);
+    });
+    if (new Set(recoveries.map((r) => r.id)).size !== recoveries.length) throw Error("Duplicate recovery identity");
+    let recoverySequence = Math.max(0, ...recoveries.map((r) => r.id));
+    let flight = false, locked = false, disposed = false, historyPending = false, composition = null, failures = 0;
+    const queue = [], prepared = /* @__PURE__ */ new WeakMap(), waiters = [];
+    const valid = (s) => {
+      if (!s || s.sessionId !== initial.sessionId || !Number.isSafeInteger(s.revision) || s.revision < 0 || typeof s.source !== "string" || typeof s.dirty !== "boolean") return false;
+      try {
+        projectSource(s.source);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const atCapacity = () => recoveries.length >= 16;
+    function rememberDraft(reason) {
+      if (source === confirmed.source || recoveries.some((r) => r.source === source)) return null;
+      const record = {
+        id: ++recoverySequence,
+        sessionId: initial.sessionId,
+        source,
+        reason,
+        confirmedSource: confirmed.source,
+        baseRevision: confirmed.revision,
+        mainMatchesDraft: false
+      };
+      recoveries.push(record);
+      return record;
+    }
+    function state() {
+      return {
+        confirmed,
+        source,
+        code: code3,
+        recoveryDraft: recoveries.at(-1)?.source || "",
+        recoveryRecords: structuredClone(recoveries),
+        pending: queue.length,
+        composing: !!composition,
+        historyPending,
+        locked: locked || disposed || atCapacity()
+      };
+    }
+    const notify = () => {
+      if (!disposed) onChange(state());
+    };
+    const settle = () => {
+      if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve();
+    };
+    const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise((resolve) => waiters.push(resolve));
+    async function reconcile(reply, reason) {
+      const recovery = rememberDraft(reason);
+      queue.length = 0;
+      locked = true;
+      failures++;
+      let snapshot = reply?.snapshot;
+      if (!valid(snapshot)) {
+        try {
+          snapshot = (await send("snapshot", { sessionId: initial.sessionId })).snapshot;
+        } catch {
+        }
+      }
+      if (disposed) return;
+      if (valid(snapshot)) {
+        confirmed = structuredClone(snapshot);
+        locked = false;
+        if (recovery) {
+          recovery.observedMainRevision = snapshot.revision;
+          recovery.mainMatchesDraft = recovery.source === snapshot.source;
+        }
+      }
+      code3 = locked ? "sync-unknown" : reason;
+      if (composition) composition.invalid = true;
+      else if (!locked) {
+        source = confirmed.source;
+        onReset(source);
+      }
+      notify();
+    }
+    async function pump() {
+      if (flight || disposed || locked) return;
+      flight = true;
+      try {
+        while (queue.length && !disposed) {
+          const item = queue[0], revision = confirmed.revision;
+          let reply;
+          try {
+            reply = await send("edit", { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit });
+          } catch {
+            await reconcile(null, "ipc-failed");
+            break;
+          }
+          if (disposed) break;
+          const next = reply?.snapshot, expected = revision + Number(item.source !== confirmed.source);
+          if (!reply?.ok || !valid(next) || next.source !== item.source || next.revision !== expected) {
+            await reconcile(reply?.ok ? null : reply, reply?.code || "ack-mismatch");
+            break;
+          }
+          confirmed = structuredClone(next);
+          queue.shift();
+          code3 = "memory-edited";
+          notify();
+        }
+      } finally {
+        flight = false;
+        settle();
+      }
+    }
+    function prepare(tr2) {
+      if (!tr2.docChanged) return true;
+      if (disposed || locked || atCapacity() || historyPending || composition?.invalid || queue.length >= 64) {
+        code3 = locked ? "sync-unknown" : atCapacity() ? "recovery-capacity" : historyPending ? "history-pending" : "edit-queue-full";
+        notify();
+        return false;
+      }
+      let mapped;
+      try {
+        mapped = transactionEdit(source, tr2);
+      } catch {
+        mapped = null;
+      }
+      if (!mapped) {
+        code3 = composition ? "unsafe-composition" : "unsafe-source-range";
+        if (composition) composition.invalid = true;
+        notify();
+        return false;
+      }
+      prepared.set(tr2, mapped);
+      return true;
+    }
+    function accept(tr2) {
+      const item = prepared.get(tr2);
+      prepared.delete(tr2);
+      if (!item || disposed) return;
+      source = item.source;
+      if (!composition) queue.push(item);
+      code3 = composition ? "composing-local" : "edit-queued";
+      notify();
+      if (!composition) void pump();
+    }
+    function beginComposition() {
+      if (disposed || locked || atCapacity() || historyPending || composition) return false;
+      composition = { base: source, invalid: false };
+      code3 = "composing-local";
+      notify();
+      return true;
+    }
+    function endComposition2() {
+      if (!composition || disposed) return;
+      const group = composition;
+      composition = null;
+      if (group.invalid || locked) {
+        rememberDraft("unsafe-composition");
+        source = locked ? source : queue.length ? group.base : confirmed.source;
+        code3 = locked ? "sync-unknown" : "unsafe-composition";
+        if (!locked) onReset(source);
+        notify();
+        return;
+      }
+      if (source === group.base) {
+        code3 = "composition-cancelled";
+        notify();
+        return;
+      }
+      const before = projectSource(group.base).spans, after = projectSource(source).spans;
+      const changed = before.filter((s, i) => s.text !== after[i]?.text);
+      const span = changed[0], index2 = before.indexOf(span);
+      const edit = before.length === after.length && changed.length === 1 && composedEdit(span, after[index2]);
+      const mapped = edit && mapTextEdit(group.base, edit);
+      if (!mapped?.ok || mapped.source !== source) {
+        rememberDraft("unsafe-composition");
+        source = group.base;
+        code3 = "unsafe-composition";
+        onReset(source);
+        notify();
+        return;
+      }
+      queue.push({ edit, source });
+      code3 = "composition-queued";
+      notify();
+      void pump();
+    }
+    async function history3(operation) {
+      if (!["undo", "redo"].includes(operation) || disposed || locked || atCapacity() || composition || historyPending) return false;
+      historyPending = true;
+      const epoch = failures;
+      notify();
+      try {
+        await idle();
+        if (disposed || locked || failures !== epoch) return false;
+        const revision = confirmed.revision;
+        let reply;
+        try {
+          reply = await send(operation, { sessionId: initial.sessionId, expectedRevision: revision });
+        } catch {
+          await reconcile(null, "ipc-failed");
+          return false;
+        }
+        if (disposed) return false;
+        if (!valid(reply?.snapshot) || !reply.ok && reply.code !== "history-empty" || reply.snapshot.revision !== revision + Number(reply.ok) || !reply.ok && reply.snapshot.source !== confirmed.source) {
+          await reconcile(reply?.ok ? null : reply, reply?.code || "ack-mismatch");
+          return false;
+        }
+        confirmed = structuredClone(reply.snapshot);
+        source = confirmed.source;
+        code3 = reply.code || operation;
+        if (reply.ok) onReset(source, reply.selection);
+        return reply.ok;
+      } finally {
+        historyPending = false;
+        notify();
+      }
+    }
+    async function reload() {
+      if (disposed || flight || queue.length || composition || historyPending) return false;
+      historyPending = true;
+      notify();
+      try {
+        const reply = await send("snapshot", { sessionId: initial.sessionId });
+        if (disposed) return false;
+        if (!reply.ok || !valid(reply.snapshot)) {
+          locked = true;
+          code3 = reply.code || "sync-unknown";
+          notify();
+          return false;
+        }
+        confirmed = structuredClone(reply.snapshot);
+        source = confirmed.source;
+        locked = false;
+        code3 = "reloaded";
+        onReset(source);
+        notify();
+        return true;
+      } catch {
+        locked = true;
+        code3 = "sync-unknown";
+        return false;
+      } finally {
+        historyPending = false;
+        notify();
+      }
+    }
+    function refresh(reply) {
+      if (disposed || flight || queue.length || composition || historyPending) return;
+      if (valid(reply?.snapshot)) {
+        if (reply.snapshot.revision !== confirmed.revision || reply.snapshot.source !== confirmed.source) {
+          void reconcile(null, "stale-response");
+          return;
+        }
+        confirmed = structuredClone(reply.snapshot);
+      } else locked = true;
+      code3 = reply?.code || reply?.status || "sync-unknown";
+      notify();
+    }
+    function discardRecovery(id) {
+      if (disposed || flight || queue.length || composition || historyPending) return false;
+      const index2 = recoveries.findIndex((r) => r.id === id);
+      if (index2 < 0) return false;
+      recoveries.splice(index2, 1);
+      code3 = "recovery-discarded";
+      notify();
+      return true;
+    }
+    return {
+      state,
+      prepare,
+      accept,
+      beginComposition,
+      endComposition: endComposition2,
+      history: history3,
+      reload,
+      refresh,
+      idle,
+      discardRecovery,
+      dispose() {
+        disposed = true;
+        queue.length = 0;
+        locked = true;
+        for (const resolve of waiters.splice(0)) resolve();
+      }
+    };
   }
 
   // lib/document-demo-entry.js
   var api = window.documentDemo;
   var byId = (id) => document.getElementById(id);
-  var current = null;
+  var controller = null;
   var editor = null;
+  var resetting = false;
   var loading = false;
-  var pending = false;
-  var prepared = null;
   var selected = null;
+  var switching = false;
+  var switchEpoch = 0;
+  var pendingSession = null;
+  var failedSession = null;
+  var navigationError = "";
+  var drafts = /* @__PURE__ */ new Map();
+  var lifecycles = /* @__PURE__ */ new Map();
+  var activeInvalid = () => lifecycles.has(selected);
+  var lifecycleCode = (id) => lifecycles.get(id) === "invalidated" ? "unknown-session" : lifecycles.get(id);
   function show(code3) {
-    byId("status").textContent = JSON.stringify({ code: code3, revision: current?.revision, dirty: current?.dirty, saveState: current?.saveState });
+    const s = controller?.state(), current = s?.confirmed;
+    byId("status").textContent = JSON.stringify({
+      code: code3 || navigationError || (switching ? "switch-pending" : s?.code),
+      editingCode: s?.code,
+      navigationError: navigationError || null,
+      lifecycle: lifecycles.get(selected) || "open",
+      historyPending: s?.historyPending,
+      loading,
+      switching,
+      activeSessionId: selected,
+      pendingSessionId: pendingSession,
+      revision: current?.revision,
+      dirty: current?.dirty,
+      saveState: current?.saveState,
+      pending: s?.pending,
+      composing: s?.composing,
+      locked: activeInvalid() || s?.locked,
+      canUndo: current?.canUndo,
+      canRedo: current?.canRedo
+    });
   }
-  function busy(value) {
-    pending = value;
-    for (const id of ["documents", "reload", "check", "save"]) byId(id).disabled = value;
+  function render2(s) {
+    const records = s.recoveryRecords;
+    drafts.set(selected, records);
+    byId("documents").value = selected;
+    byId("source").textContent = s.confirmed.source;
+    byId("recovery").textContent = records.map((r) => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? "snapshot matches" : "not reapplied"}
+${r.source}`).join("\n\n----\n\n");
+    byId("recovery-panel").hidden = records.length === 0;
+    byId("recovery-status").textContent = `${records.length} retained record(s). Confirmed Markdown is shown separately above.`;
+    const recoveryId = byId("recovery-record").value;
+    byId("recovery-record").replaceChildren(...records.map((r) => {
+      const o = document.createElement("option");
+      o.value = String(r.id);
+      o.textContent = `Record ${r.id}: ${r.reason}`;
+      return o;
+    }));
+    if (records.some((r) => String(r.id) === recoveryId)) byId("recovery-record").value = recoveryId;
+    const busy = loading || s.pending > 0 || s.composing || s.historyPending;
+    for (const id of ["documents", "reload", "check", "save"]) byId(id).disabled = busy;
+    for (const id of ["reload", "check", "save"]) byId(id).disabled ||= activeInvalid();
+    byId("undo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
+    byId("redo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
+    byId("discard-recovery").disabled = busy || records.length === 0;
+    const editable = !activeInvalid() && !s.locked && !s.historyPending && !loading;
+    if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
+    show();
   }
-  function apply2(snapshot, code3) {
-    if (!snapshot || snapshot.sessionId !== selected) return;
-    current = snapshot;
-    loading = true;
-    const doc3 = projectSource(snapshot.source).doc;
+  function resetSource(source, selection) {
+    if (!editor) return;
+    const old = selection || { from: editor.state.selection.from, to: editor.state.selection.to };
+    resetting = true;
+    try {
+      editor.commands.setContent(projectSource(source).doc, { emitUpdate: false, errorOnInvalidContent: true });
+      const doc3 = editor.state.doc, clamp = (n) => Math.max(1, Math.min(n, doc3.content.size - 1));
+      const from2 = clamp(old.from), to = clamp(old.to);
+      const next = doc3.resolve(from2).parent.inlineContent && doc3.resolve(to).parent.inlineContent ? TextSelection.create(doc3, from2, to) : TextSelection.near(doc3.resolve(from2));
+      editor.view.dispatch(editor.state.tr.setSelection(next));
+    } finally {
+      resetting = false;
+    }
+  }
+  async function history2(operation) {
+    const active = controller;
+    if (!active || activeInvalid() || loading) return;
+    await active.history(operation);
+    if (controller === active && !activeInvalid() && !active.state().locked) editor.view.focus();
+  }
+  function install(snapshot) {
+    if (lifecycles.has(snapshot.sessionId)) throw Error("Blocked session");
+    projectSource(snapshot.source);
+    controller?.dispose();
+    selected = snapshot.sessionId;
+    controller = createEditController(snapshot, {
+      send: (operation, data) => api[operation](data),
+      onChange: render2,
+      onReset: resetSource,
+      recoveryRecords: drafts.get(selected) || []
+    });
     if (!editor) {
       const gate = Extension.create({ name: "verifiedSourceRange", addProseMirrorPlugins() {
         return [new Plugin({ filterTransaction(tr2) {
-          if (loading || !tr2.docChanged) return true;
-          if (pending || tr2.steps.length !== 1) {
-            show(pending ? "edit-pending" : "unsafe-source-range");
+          if (!resetting && tr2.docChanged && (activeInvalid() || loading)) {
+            show(activeInvalid() ? "session-invalidated" : "document-loading");
             return false;
           }
-          const step = tr2.steps[0];
-          const textOnly = step.slice && step.slice.openStart === 0 && step.slice.openEnd === 0 && [...step.slice.content.content].every((n) => n.isText);
-          if (step.toJSON().stepType !== "replace" || !textOnly) {
-            show("unsafe-source-range");
-            return false;
-          }
-          const insert = step.slice.content.textBetween(0, step.slice.content.size, "", "");
-          const mapped = mapTextEdit(current.source, { from: step.from, to: step.to, insert });
-          if (!mapped.ok || !tr2.doc.type.schema.nodeFromJSON(mapped.projection.doc).eq(tr2.doc)) {
-            show("unsafe-source-range");
-            return false;
-          }
-          prepared = { from: step.from, to: step.to, insert };
-          return true;
+          return resetting || !tr2.docChanged || controller.prepare(tr2);
         } })];
+      }, addKeyboardShortcuts() {
+        return {
+          "Mod-z": () => {
+            void history2("undo");
+            return true;
+          },
+          "Mod-Shift-z": () => {
+            void history2("redo");
+            return true;
+          }
+        };
       } });
       editor = new Editor({
         element: byId("editor"),
-        content: doc3,
+        content: projectSource(snapshot.source).doc,
         enableInputRules: false,
         enablePasteRules: false,
         extensions: [src_default.configure({ undoRedo: false, trailingNode: false }), gate],
@@ -32221,45 +32617,67 @@ ${prefix}
             event.preventDefault();
             show("unsupported-drop");
             return true;
+          },
+          compositionstart: () => {
+            if (activeInvalid()) return true;
+            controller.beginComposition();
+            return false;
+          },
+          compositionend: () => {
+            const active = controller;
+            queueMicrotask(() => queueMicrotask(() => {
+              if (controller === active) active.endComposition();
+            }));
+            return false;
+          },
+          beforeinput: (_view, event) => {
+            if (!["historyUndo", "historyRedo"].includes(event.inputType)) return false;
+            event.preventDefault();
+            void history2(event.inputType === "historyUndo" ? "undo" : "redo");
+            return true;
           }
         } },
         // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
-        onUpdate: async () => {
-          if (loading || !prepared) return;
-          const id = selected, change = prepared;
-          prepared = null;
-          busy(true);
-          try {
-            const reply = await api.edit({ sessionId: id, expectedRevision: current.revision, ...change });
-            if (selected === id) apply2(reply.snapshot || current, reply.code || "memory-edited");
-          } catch {
-            apply2(current, "ipc-failed");
-          } finally {
-            busy(false);
-          }
+        onUpdate: ({ transaction }) => {
+          if (!resetting) controller.accept(transaction);
         }
       });
-    } else {
-      const cursor = editor.state.selection.from;
-      editor.commands.setContent(doc3, { emitUpdate: false, errorOnInvalidContent: true });
-      editor.commands.setTextSelection(Math.min(cursor, editor.state.doc.content.size - 1));
-    }
-    loading = false;
-    byId("source").textContent = snapshot.source;
-    show(code3 || "opened");
+    } else resetSource(snapshot.source, { from: 1, to: 1 });
+    render2(controller.state());
   }
   async function load() {
-    const id = byId("documents").value;
-    selected = id;
-    busy(true);
+    const id = byId("documents").value, s = controller?.state();
+    if (loading && !switching || s?.pending || s?.composing || s?.historyPending) {
+      byId("documents").value = selected || "";
+      show("document-busy");
+      return;
+    }
+    const epoch = ++switchEpoch;
+    loading = true;
+    switching = true;
+    pendingSession = id;
+    failedSession = null;
+    navigationError = "";
+    if (controller) render2(controller.state());
     try {
       const r = await api.snapshot({ sessionId: id });
-      if (r.ok && selected === id) apply2(r.snapshot);
-      else show(r.code);
+      if (epoch !== switchEpoch) return;
+      if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) install(r.snapshot);
+      else {
+        failedSession = id;
+        navigationError = "switch-failed:" + (lifecycleCode(id) || r.code || "invalid-snapshot");
+      }
     } catch {
-      show("ipc-failed");
+      if (epoch === switchEpoch) navigationError = "switch-failed:ipc-failed";
     } finally {
-      busy(false);
+      if (epoch === switchEpoch) {
+        loading = false;
+        switching = false;
+        pendingSession = null;
+        byId("documents").value = selected || "";
+        if (controller) render2(controller.state());
+        else show();
+      }
     }
   }
   byId("connect").onclick = async () => {
@@ -32278,19 +32696,42 @@ ${prefix}
     await load();
   };
   byId("documents").onchange = load;
-  byId("reload").onclick = load;
+  byId("reload").onclick = () => {
+    if (!activeInvalid() && !loading) return controller?.reload();
+  };
+  byId("undo").onclick = () => history2("undo");
+  byId("redo").onclick = () => history2("redo");
+  byId("discard-recovery").onclick = () => controller?.discardRecovery(Number(byId("recovery-record").value));
   for (const operation of ["check", "save"]) byId(operation).onclick = async () => {
-    if (!current || pending) return;
-    busy(true);
+    if (!controller || activeInvalid()) return;
+    const active = controller, s = active.state();
+    if (s.pending || s.composing || s.historyPending || loading) return;
+    loading = true;
+    render2(s);
     try {
-      const r = await api[operation]({ sessionId: selected, ...operation === "save" ? { expectedRevision: current.revision } : {} });
-      apply2(r.snapshot || current, r.code || r.status || "checked");
+      const r = await api[operation]({ sessionId: selected, ...operation === "save" ? { expectedRevision: s.confirmed.revision } : {} });
+      if (active === controller) active.refresh(r);
     } catch {
       show("ipc-failed");
     } finally {
-      busy(false);
+      loading = false;
+      if (active === controller) render2(active.state());
     }
   };
+  api.onLifecycle(({ sessionId, state }) => {
+    lifecycles.set(sessionId, state);
+    if (pendingSession === sessionId) {
+      ++switchEpoch;
+      loading = false;
+      switching = false;
+      pendingSession = null;
+      failedSession = sessionId;
+    }
+    if (failedSession === sessionId) navigationError = "switch-failed:" + lifecycleCode(sessionId);
+    else if (selected === sessionId) navigationError = state === "invalidated" ? "session-invalidated" : state;
+    if (controller) render2(controller.state());
+    else show();
+  });
   api.onReady(() => {
     byId("connect").disabled = false;
   });

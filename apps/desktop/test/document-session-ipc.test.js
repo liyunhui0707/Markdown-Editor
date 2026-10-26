@@ -14,13 +14,15 @@ function fixture(options = {}) {
   const windows = new Map();
   const manager = createDocumentSessions({ service, projectSource, mapTextEdit, windowFor: wc => windows.get(wc) });
   const win = new EventEmitter(), wc = new EventEmitter(), frame = { url: 'file:///synthetic/demo.html' };
-  Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url });
+  const notices = [];
+  Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url,
+    send: (channel, data) => notices.push({ channel, data }) });
   Object.assign(win, { webContents: wc, isDestroyed: () => false }); windows.set(wc, win);
   manager.grant(win, frame.url);
   const id = manager.provision(win, document, 'Synthetic A');
   const event = { sender: wc, senderFrame: frame };
   const call = request => manager.request(event, request);
-  return { root, file, service, document, manager, win, wc, frame, id, event, call, windows };
+  return { root, file, service, document, manager, win, wc, frame, id, event, call, windows, notices };
 }
 test('only trusted main provisions sessions; exact channel allowlist, no paths or capabilities', () => {
   const f = fixture(), handlers = new Map(); registerDocumentIpc({ handle: (c, h) => handlers.set(c, h) }, f.manager);
@@ -173,4 +175,98 @@ for (const kind of ['clean', 'dirty', 'durability', 'metadata']) test(`destroyed
   assert.equal(f.document.text, text); assert(fs.readFileSync(f.file).equals(bytes));
   if (kind === 'clean') assert.equal(f.service.getSaveState(f.document).code, 'unknown-document');
   else assert.deepEqual(f.service.getSaveState(f.document), state);
+});
+
+test('main invalidates only successfully closed or revoked sessions, once per ID', () => {
+  const f = fixture(), second = f.manager.provision(f.win, f.service.open(f.file).document, 'B');
+  assert.equal(f.call({ operation: 'close', sessionId: f.id, expectedRevision: 99 }).code, 'stale-revision');
+  assert.equal(f.notices.length, 0);
+  assert.equal(f.call({ operation: 'close', sessionId: f.id, expectedRevision: 0 }).ok, true);
+  assert.deepEqual(f.notices, [{ channel: 'document-demo:invalidated', data: { sessionId: f.id } }]);
+  assert.equal(f.call({ operation: 'snapshot', sessionId: second }).ok, true);
+  f.manager.revoke(f.win); f.manager.revoke(f.win);
+  assert.deepEqual(f.notices.map(n => n.data.sessionId), [f.id, second]);
+});
+
+// Transport-order unit tests supplement, rather than replace, the real IPC E2E.
+function preloadFixture() {
+  const { runInNewContext } = require('node:vm'), events = new EventEmitter(), pending = [];
+  let api;
+  events.invoke = (channel, payload) => {
+    events.beforeInvoke?.(payload);
+    return new Promise((resolve, reject) => pending.push({ channel, payload, resolve, reject }));
+  };
+  runInNewContext(fs.readFileSync(path.join(__dirname, '../lib/document-demo-preload.js'), 'utf8'), {
+    require: name => { assert.equal(name, 'electron'); return {
+      ipcRenderer: events, contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'documentDemo'); api = value; } },
+    }; },
+  });
+  return { api, events, pending };
+}
+test('preload close acknowledgement tombstones old successes before resolving to the renderer', async () => {
+  const f = preloadFixture(), id = 'synthetic-session', seen = [];
+  f.api.onInvalidated(r => seen.push(r.sessionId));
+  const snapshot = f.api.snapshot({ sessionId: id }), close = f.api.close({ sessionId: id, expectedRevision: 0 });
+  f.pending[1].resolve({ ok: true }); assert.equal((await close).ok, true);
+  assert.deepEqual(seen, [id]);
+  f.pending[0].resolve({ ok: true, snapshot: { sessionId: id, source: 'old' } });
+  const late = await snapshot; assert.equal(late.ok, false); assert.equal(late.code, 'unknown-session'); assert.equal(late.snapshot, undefined);
+  f.events.emit('document-demo:invalidated', {}, { sessionId: id }); assert.deepEqual(seen, [id]);
+  const replayed = []; f.api.onInvalidated(r => replayed.push(r.sessionId)); assert.deepEqual(replayed, [id]);
+});
+test('preload main invalidation wins over earlier snapshots even without a close request', async () => {
+  const f = preloadFixture(), id = 'synthetic-session', seen = [];
+  f.api.onInvalidated(r => seen.push(r.sessionId));
+  const snapshot = f.api.snapshot({ sessionId: id });
+  f.events.emit('document-demo:invalidated', {}, { sessionId: id });
+  f.pending[0].resolve({ ok: true, snapshot: { sessionId: id, source: 'old' } });
+  assert.equal((await snapshot).code, 'unknown-session'); assert.deepEqual(seen, [id]);
+});
+test('a refused close preserves terminal invalidation semantics but cannot automatically unlock', async () => {
+  const f = preloadFixture(), seen = []; f.api.onInvalidated(r => seen.push(r.sessionId));
+  const close = f.api.close({ sessionId: 'a', expectedRevision: 0 });
+  f.pending[0].resolve({ ok: false, code: 'unresolved-save-state' }); assert.equal((await close).ok, false);
+  const snapshot = f.api.snapshot({ sessionId: 'a' });
+  f.pending[1]?.resolve({ ok: true, snapshot: { sessionId: 'a' } }); // Completes the old, unfenced RED path.
+  assert.equal((await snapshot).code, 'close-outcome-unknown'); assert.equal(f.pending.length, 1); assert.deepEqual(seen, []);
+});
+
+test('close-pending is published synchronously before invoke; old snapshots and new edits are fenced', async () => {
+  const f = preloadFixture(), states = []; f.api.onLifecycle(s => states.push(s.state));
+  f.events.beforeInvoke = payload => { if (payload.operation === 'close') assert.deepEqual(states, ['close-pending']); };
+  const old = f.api.snapshot({ sessionId: 'b' }), close = f.api.close({ sessionId: 'b', expectedRevision: 0 });
+  assert.deepEqual(states, ['close-pending']); assert.equal(f.pending[1].payload.operation, 'close');
+  const replay = []; f.api.onLifecycle(s => replay.push(s.state)); assert.deepEqual(replay, ['close-pending']);
+  f.pending[0].resolve({ ok: true, snapshot: { sessionId: 'b', source: 'old' } });
+  assert.equal((await old).code, 'close-pending');
+  for (const op of ['snapshot', 'edit', 'undo', 'redo', 'save', 'check', 'close']) {
+    assert.equal((await f.api[op]({ sessionId: 'b' })).code, 'close-pending');
+  }
+  assert.equal(f.pending.length, 2);
+  f.pending[1].resolve({ ok: true }); await close;
+  assert.deepEqual(states, ['close-pending', 'invalidated']);
+});
+
+for (const fault of ['rejection', 'null', 'bad-ok', 'refusal']) test(`close-pending ${fault} remains uncertain until authoritative invalidation`, async () => {
+  const f = preloadFixture(), states = []; f.api.onLifecycle(s => states.push(s.state));
+  const close = f.api.close({ sessionId: 'b', expectedRevision: 0 });
+  if (fault === 'rejection') f.pending[0].reject(Error('Synthetic lost transport'));
+  else f.pending[0].resolve(fault === 'null' ? null : fault === 'bad-ok' ? { ok: 'true' } : { ok: false, code: 'unresolved-save-state', snapshot: { sessionId: 'b' } });
+  const result = await close; assert.equal(result.ok, false); assert.equal(result.snapshot, undefined);
+  assert.deepEqual(states, ['close-pending', 'close-outcome-unknown']);
+  const replay = []; f.api.onLifecycle(s => replay.push(s.state)); assert.deepEqual(replay, ['close-outcome-unknown']);
+  assert.equal((await f.api.snapshot({ sessionId: 'b' })).code, 'close-outcome-unknown');
+  const a = f.api.snapshot({ sessionId: 'a' }); f.pending[1].resolve({ ok: true, snapshot: { sessionId: 'a' } }); assert.equal((await a).ok, true);
+  f.events.emit('document-demo:invalidated', {}, { sessionId: 'b' }); assert.equal((await f.api.snapshot({ sessionId: 'b' })).code, 'unknown-session');
+});
+
+test('invalidation during close cannot be downgraded by a later refusal or transport error', async () => {
+  for (const rejects of [false, true]) {
+    const f = preloadFixture(), states = []; f.api.onLifecycle(s => states.push(s.state));
+    const close = f.api.close({ sessionId: 'b', expectedRevision: 0 });
+    f.events.emit('document-demo:invalidated', {}, { sessionId: 'b' });
+    if (rejects) f.pending[0].reject(Error('Synthetic lost reply')); else f.pending[0].resolve({ ok: false, code: 'unresolved-save-state' });
+    await close; assert.deepEqual(states, ['close-pending', 'invalidated']);
+    assert.equal((await f.api.snapshot({ sessionId: 'b' })).code, 'unknown-session');
+  }
 });
