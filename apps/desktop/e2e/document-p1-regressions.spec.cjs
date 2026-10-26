@@ -13,11 +13,26 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info) {
+async function usingDemo(body, info, secondSource = null) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
+  let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
+  if (secondSource !== null) {
+    // Same actual main lifecycle/IPC; substitute only one synthetic fixture before launch.
+    const source = await fs.readFile(entry, 'utf8');
+    const needle = "  ['b.md', '# Second synthetic document\\n\\nOriginal second body.\\n'],";
+    if (source.split(needle).length !== 2) throw Error('Unknown synthetic fixture definition');
+    const fixtureSource = source.replace(needle, `  ['b.md', ${JSON.stringify(secondSource)}],`);
+    const root = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'document-fixture-entry-'));
+    await fs.chmod(root, 0o700);
+    const wrapper = path.join(root, 'main.cjs');
+    await fs.writeFile(wrapper, `const {Module}=require('node:module');const file=${JSON.stringify(entry)};
+      const m=new Module(file);m.filename=file;m.paths=Module._nodeModulePaths(require('node:path').dirname(file));
+      m._compile(${JSON.stringify(fixtureSource)},file);`, { mode: 0o600, flag: 'wx' });
+    entry = wrapper;
+  }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: [process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js')], cwd: desktop, env, chromiumSandbox: true });
+    args: [entry], cwd: desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -63,7 +78,7 @@ async function usingDemo(body, info) {
       const remaining = !ids.every(gone) || !!(group && !gone(-group));
       const fault = /p1:(?:uncaught|error-dialog)|Object has been destroyed|Uncaught Exception/.test(stderr);
       const record = { case: info.title, functional, pid: child.pid, ...result, watchdog, fault, remaining,
-        isPackaged: identity?.isPackaged, entry: process.env.DOCUMENT_DEMO_ENTRY ? 'actual-asar' : 'source' };
+        isPackaged: identity?.isPackaged, entry: secondSource !== null ? 'source-fixture' : process.env.DOCUMENT_DEMO_ENTRY ? 'actual-asar' : 'source' };
       console.log('p1-parent-observation:' + JSON.stringify(record));
       await info.attach('p1-parent-exit', { body: JSON.stringify(record), contentType: 'application/json' });
       expect(result).toEqual({ code: 0, signal: null }); expect(watchdog).toBe(false); expect(fault).toBe(false); expect(remaining).toBe(false);
@@ -351,7 +366,8 @@ async function unsafeComposition({ page, select }, local = '') {
   await select('#editor h1', 2);
   await page.locator('#editor .tiptap').evaluate(node => node.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
   if (local) await page.keyboard.insertText(local);
-  await page.keyboard.press('Enter'); // Real PM structural transaction, refused by the source-range gate.
+  // Candidate Enter is now protected; explicitly exercise the same refused real PM structural command.
+  await page.locator('#editor .tiptap').evaluate(node => node.editor.commands.splitBlock());
   await expect(page.locator('#status')).toContainText('unsafe-composition');
 }
 
@@ -422,3 +438,77 @@ test('1B-3R DOM-only partial copies and full-capacity refusal never overwrite ea
   expect(JSON.parse(await page.locator('#status').textContent()).composing).toBe(true);
   expect((await snapshot(a)).snapshot).toEqual(before);
 }, info));
+
+
+test('writing V1 actual Enter, empty composition, middle split, Backspace and history write two paragraphs', async ({}, info) => usingDemo(async h => {
+  const { page, sessions, snapshot, select, settled } = h, a=sessions[0].sessionId, b=sessions[1].sessionId;
+  const originalA=(await snapshot(a)).snapshot;
+  await page.locator('#documents').selectOption(b);
+  await expect(page.locator('#editor p')).toHaveText('Original second body.');
+  const original=(await snapshot(b)).snapshot;
+  await select('#editor p', 'Original second body.'.length);
+  await page.keyboard.press('Enter'); await settled();
+  await expect(page.locator('#editor p')).toHaveCount(2);
+  expect(await page.locator('#editor p').nth(1).textContent()).toBe('');
+  const blank=(await snapshot(b)).snapshot;
+  expect(blank.source).toBe(original.source.replace('Original second body.', 'Original second body.\n\n'));
+  expect(blank.revision).toBe(original.revision+1);
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('Input.imeSetComposition', { text: 'ceshi', selectionStart: 5, selectionEnd: 5 });
+  await expect(page.locator('#status')).toContainText('"composing":true');
+  await page.keyboard.press('Enter'); // Must not turn a candidate-confirmation key into a paragraph split.
+  await expect(page.locator('#editor p')).toHaveCount(2);
+  expect((await snapshot(b)).snapshot).toEqual(blank);
+  await cdp.send('Input.insertText', { text: '测试' }); await settled();
+  await expect(page.locator('#editor p').nth(1)).toHaveText('测试');
+  await page.keyboard.insertText(' English 中文😀'); await settled();
+  const written=(await snapshot(b)).snapshot.source;
+  expect(written).toBe(original.source.replace('Original second body.', 'Original second body.\n\n测试 English 中文😀'));
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe('测试 English 中文😀'.length);
+  await page.keyboard.press('Meta+z'); await settled();
+  await expect(page.locator('#editor p').nth(1)).toHaveText('测试');
+  await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(b)).snapshot.source).toBe(blank.source);
+  await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(b)).snapshot.source).toBe(original.source);
+  for(let i=0;i<3;i++){await page.keyboard.press('Meta+Shift+z');await settled();}
+  expect((await snapshot(b)).snapshot.source).toBe(written);
+  await select('#editor p:first-of-type', 9); await page.keyboard.press('Enter'); await settled();
+  await expect(page.locator('#editor p')).toHaveCount(3);
+  expect(await page.locator('#editor p').nth(0).textContent()).toBe('Original ');
+  expect(await page.locator('#editor p').nth(1).textContent()).toBe('second body.');
+  const split=(await snapshot(b)).snapshot.source;
+  expect(split).toBe(written.replace('Original second body.', 'Original \n\nsecond body.'));
+  await select('#editor p:nth-of-type(2)',0);await page.keyboard.press('Backspace');await settled();
+  expect((await snapshot(b)).snapshot.source).toBe(written);
+  await page.keyboard.press('Meta+z');await settled();expect((await snapshot(b)).snapshot.source).toBe(split);
+  await page.keyboard.press('Meta+Shift+z');await settled();expect((await snapshot(b)).snapshot.source).toBe(written);
+  await select('#editor p:nth-of-type(2)','测试 English 中文😀'.length);
+  await page.keyboard.press('Enter');await settled();await expect(page.locator('#editor p')).toHaveCount(3);
+  const empty=(await snapshot(b)).snapshot;
+  await page.keyboard.press('Enter');await expect(page.locator('#status')).toContainText('unsafe-source-range');
+  expect((await snapshot(b)).snapshot).toEqual(empty);
+  await page.keyboard.press('Backspace');await settled();expect((await snapshot(b)).snapshot.source).toBe(written);
+  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await select('#editor h1',2);await page.keyboard.press('Enter');
+  await expect(page.locator('#status')).toContainText('unsafe-source-range');expect((await snapshot(a)).snapshot).toEqual(originalA);
+  await page.locator('#documents').selectOption(b);await expect(page.locator('#editor p')).toHaveCount(2);
+  expect((await snapshot(b)).snapshot.source).toBe(written);
+  await page.getByRole('button',{name:'Request save (denied)'}).click();await expect(page.locator('#status')).toContainText('coordination-required');
+},info));
+
+
+for (const nl of ['\r\n','\n']) test(`CRLF P1 actual Backspace without final newline (${JSON.stringify(nl)})`, async ({},info)=>usingDemo(async h=>{
+  const {page,sessions,snapshot,select,settled}=h,b=sessions[1].sessionId,original='first'+nl+nl+'second';
+  await page.locator('#documents').selectOption(b);await expect(page.locator('#editor p')).toHaveCount(2);
+  const initial=(await snapshot(b)).snapshot;expect(initial.source).toBe(original);
+  await select('#editor p:nth-of-type(2)',0);await page.keyboard.press('Backspace');await settled();
+  await expect(page.locator('#editor p')).toHaveCount(1);await expect(page.locator('#editor p')).toHaveText('firstsecond');
+  let actual=(await snapshot(b)).snapshot;expect(actual.source).toBe('firstsecond');expect(actual.revision).toBe(initial.revision+1);
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(5);
+  await page.keyboard.press('Meta+z');await settled();
+  await expect(page.locator('#editor p')).toHaveCount(2);expect((await snapshot(b)).snapshot.source).toBe(original);
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(0);
+  expect(await page.evaluate(()=>window.getSelection().focusNode.parentElement.closest('p')===document.querySelectorAll('#editor p')[1])).toBe(true);
+  await page.keyboard.press('Meta+Shift+z');await settled();
+  actual=(await snapshot(b)).snapshot;expect(actual.source).toBe('firstsecond');expect(actual.revision).toBe(initial.revision+3);
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(5);
+},info,'first'+nl+nl+'second'));

@@ -3,14 +3,21 @@ import { projectSource, mapTextEdit } from './document-source-map.mjs';
 function transactionEdit(source, tr) {
   if (!tr.docChanged || tr.steps.length !== 1) return null;
   const step = tr.steps[0];
-  if (step.toJSON().stepType !== 'replace' || !step.slice || step.slice.openStart || step.slice.openEnd
-      || !step.slice.content.content.every(node => node.isText)) return null;
-  const edit = { from: step.from, to: step.to, insert: step.slice.content.textBetween(0, step.slice.content.size, '', '') };
+  const json = step.toJSON();
+  if (json.stepType !== 'replace' || !step.slice) return null;
+  let insert;
+  if (!step.slice.openStart && !step.slice.openEnd && step.slice.content.content.every(node => node.isText)) {
+    insert = step.slice.content.textBetween(0, step.slice.content.size, '', '');
+  } else if (json.structure && step.from === step.to && step.slice.openStart === 1 && step.slice.openEnd === 1
+      && step.slice.content.childCount === 2 && step.slice.content.content.every(node => node.type.name === 'paragraph' && !node.content.size)) {
+    insert = '\n\n'; // Explicit paragraph split, not arbitrary multiline input.
+  } else return null;
+  const edit = { from: step.from, to: step.to, insert };
   const mapped = mapTextEdit(source, edit), schema = tr.doc.type.schema;
   if (!tr.before.eq(schema.nodeFromJSON(projectSource(source).doc)) || !mapped.ok
       || !tr.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
   if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
-  return { edit, source: mapped.source };
+  return { edit, source: mapped.source, structural: !!mapped.structural };
 }
 
 function composedEdit(before, after) {
@@ -97,7 +104,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     }
     let mapped;
     try { mapped = transactionEdit(source, tr); } catch { mapped = null; }
-    if (!mapped) {
+    if (!mapped || (composition && mapped.structural)) {
       code = composition ? 'unsafe-composition' : 'unsafe-source-range';
       if (composition) composition.invalid = true;
       notify(); return false;

@@ -12,9 +12,16 @@ const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1
 export function projectSource(source) {
   if (typeof source !== 'string' || source.length > 131072) throw Error('Unsupported source');
   const tree = parser.parse(source), content = [], spans = [];
+  const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
     ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
-  let position = 0;
+  let position = 0, previousEnd = fm;
+  // One cursor slot over existing whitespace, not a CommonMark empty-paragraph node.
+  function emptyParagraph(at) {
+    spans.push({ text: '', sourceFrom: at, sourceTo: at, bold: false,
+      from: position + 1, to: position + 1, blockIndex: content.length, childIndex: 0 });
+    content.push({ type: 'paragraph', content: [] }); position += 2;
+  }
   function opaque(text) {
     if (!text) return;
     content.push({ type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text }] });
@@ -22,8 +29,8 @@ export function projectSource(source) {
   }
   if (fm) opaque(source.slice(0, fm));
   for (const node of tree.children) {
-    const start = node.position.start.offset, end = node.position.end.offset;
-    if (start < fm) { if (end > fm) opaque(source.slice(fm, end)); continue; }
+    let start = node.position.start.offset, end = node.position.end.offset;
+    if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
     const raw = source.slice(start, end), parts = [];
     let supported = ['paragraph', 'heading'].includes(node.type) && node.position.start.line === node.position.end.line
       && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
@@ -36,6 +43,19 @@ export function projectSource(source) {
           || (bold && !['**', '__'].includes(source.slice(child.position.start.offset, a)))) { supported = false; break; }
       parts.push({ text: leaf.value, sourceFrom: a, sourceTo: b, bold });
     }
+    if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold) {
+      // Keep plain-line margin spaces: remark omits them, but a split must not.
+      const a = Math.max(source.lastIndexOf('\n', start - 1), source.lastIndexOf('\r', start - 1)) + 1;
+      const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
+      if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
+        start = a; end = b; parts[0] = { ...parts[0], sourceFrom: a, sourceTo: b, text: source.slice(a, b) };
+      }
+    }
+    const gap = lines(source.slice(previousEnd, start));
+    if ((!content.length && !fm && gap.length >= 2) || (content.length && gap.length >= 4)) {
+      emptyParagraph(!content.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+    }
+    previousEnd = end;
     if (!supported || !parts.length) { opaque(raw); continue; }
     const blockIndex = content.length;
     const block = { type: node.type, ...(node.type === 'heading' ? { attrs: { level: node.depth } } : {}), content: [] };
@@ -47,33 +67,90 @@ export function projectSource(source) {
     }
     content.push(block); position += offset + 2;
   }
-  return { doc: { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] }, spans };
+  const tail = lines(source.slice(previousEnd));
+  if (content.length && tail.length >= 2) emptyParagraph(previousEnd + tail[0].length + tail[1].length);
+  if (!content.length) {
+    if (source === '' || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
+    else content.push({ type: 'paragraph', content: [] }); // Ambiguous blank-only input remains non-editable.
+  }
+  return { doc: { type: 'doc', content }, spans };
 }
 
-export function mapTextEdit(source, change, leaf = null) {
+function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
+  const { from, to, insert } = change, plain = span => {
+    const block = projection.doc.content[span.blockIndex];
+    return block.type === 'paragraph' && !span.bold && (block.content || []).length <= 1;
+  };
+  const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
+  // A trusted history separator survives even when a join removes every newline.
+  const delimiter = paragraphSeparator ?? (source.match(/\r\n|\n|\r/)?.[0] || '\n').repeat(2);
+  let a, b, text, inverse, selection;
+  if (insert === '\n\n' && from === to) {
+    const span = spans.find(s => from >= s.from && from <= s.to);
+    if (!span || !span.text || splits(span.text, from - span.from)) return null;
+    const offset = from - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
+    const paragraph = value => ({ type: 'paragraph', content: value ? [{ type: 'text', text: value }] : [] });
+    expected.content.splice(span.blockIndex, 1, paragraph(left), paragraph(right));
+    a = b = span.sourceFrom + offset; text = delimiter;
+    inverse = { from, to: from + 2, insert: '' }; selection = from + 2;
+  } else if (insert === '' && to === from + 2) {
+    const left = spans.find(s => s.to === from), right = spans.find(s => s.from === to);
+    if (!left || !right || right.blockIndex !== left.blockIndex + 1 || (!left.text && !right.text)
+        || source.slice(left.sourceTo, right.sourceFrom) !== delimiter) return null;
+    const merged = left.text + right.text;
+    expected.content.splice(left.blockIndex, 2, { type: 'paragraph', content: merged ? [{ type: 'text', text: merged }] : [] });
+    a = left.sourceTo; b = right.sourceFrom; text = '';
+    paragraphSeparator = source.slice(a, b); // Capture the actual pre-operation bytes, never infer them from the joined result.
+    inverse = { from, to: from, insert: '\n\n' }; selection = from;
+  } else return null;
+  paragraphSeparator ??= text;
+  const next = source.slice(0, a) + text + source.slice(b);
+  if (next.length > 131072) return unsafe();
+  const nextProjection = projectSource(next);
+  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  if (verify) {
+    const back = paragraphEdit(next, nextProjection, inverse, false, paragraphSeparator);
+    if (!back?.ok || back.source !== source) return unsafe();
+  }
+  return { ok: true, source: next, change: { from: a, to: b, insert: text }, projection: nextProjection,
+    leaf: null, structural: true, inverse, paragraphSeparator, selection: { from: selection, to: selection } };
+}
+
+export function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
   if (!change || Object.getPrototypeOf(change) !== Object.prototype
       || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
   const { from, to, insert } = change;
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || !validText(insert) || insert.length > 4096) return unsafe();
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
   const projection = projectSource(source);
   // Only trusted history supplies this identity. IPC edit payloads cannot.
   if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype
       || Object.keys(leaf).length !== 3 || Object.keys(leaf).some(k => !['blockIndex', 'childIndex', 'bold'].includes(k))
       || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0
       || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== 'boolean')) return unsafe();
+  // Internal history only; renderer payloads still allow no separator/leaf fields.
+  if (paragraphSeparator !== null && (leaf !== null || !['\n\n', '\r\n\r\n', '\r\r'].includes(paragraphSeparator))) return unsafe();
+  if (leaf === null) {
+    const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
+    if (paragraph) return paragraph;
+    if (paragraphSeparator !== null) return unsafe();
+  }
+  if (!validText(insert)) return unsafe();
   const matches = projection.spans.filter(s => from >= s.from && to <= s.to && (!leaf
     || (s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold)));
   if (matches.length !== 1) return unsafe(); // ambiguous insertion between marks
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();
   const text = span.text.slice(0, a) + insert + span.text.slice(b);
-  if (!text) return unsafe(); // empty spans / structural editing are deferred
+  if (!text && (projection.doc.content[span.blockIndex].type !== 'paragraph'
+      || span.bold || projection.doc.content[span.blockIndex].content.length > 1)) return unsafe();
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > 131072) return unsafe();
   const nextProjection = projectSource(next);
   const expected = structuredClone(projection.doc);
-  expected.content[span.blockIndex].content[span.childIndex].text = text;
+  if (!span.text || !text) expected.content[span.blockIndex].content = text ? [{ type: 'text', text }] : [];
+  else expected.content[span.blockIndex].content[span.childIndex].text = text;
+  if (!text && !nextProjection.spans.some(s => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,
     leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };

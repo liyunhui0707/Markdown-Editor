@@ -127,6 +127,7 @@ test('actual keyboard, composition, history and refusal keep UI and main source 
     expect((await agrees(b)).source).toBe(remote.snapshot.source);
     await expect(page.locator('#recovery')).toContainText('LOCAL');
     await page.keyboard.press('Meta+z'); await settled(); expect((await agrees(b)).source).toBe(current.source);
+    await select('#editor h1', 2); // Plain paragraphs now split; headings still fail closed.
     await page.keyboard.press('Enter'); await expect(page.locator('#status')).toContainText('unsafe-source-range');
     expect((await snapshot(b)).source).toBe(current.source);
     await page.getByRole('button', { name: 'Request save (denied)' }).click();

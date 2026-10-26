@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
+import { splitBlock, joinBackward } from '@tiptap/pm/commands';
 import { projectSource, mapTextEdit } from '../lib/document-source-map.mjs';
 import { createEditController } from '../lib/document-edit-controller.mjs';
 const require = createRequire(import.meta.url);
@@ -16,14 +17,14 @@ const { createDocumentSessions } = require('../lib/document-session-ipc');
 const schema = getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-function harness() {
+function harness(input = null, mapper = mapTextEdit) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'document-interaction-')), file = path.join(root, 'a.md');
-  fs.writeFileSync(file, '\ufeff---\r\nx: synthetic\r\n---\r\n# 标题😀\r\n\r\nPlain **粗体** tail.\r\n\r\n![x](../x.png)\r\n\r\n::: unknown\r\n');
+  fs.writeFileSync(file, input ?? '\ufeff---\r\nx: synthetic\r\n---\r\n# 标题😀\r\n\r\nPlain **粗体** tail.\r\n\r\n![x](../x.png)\r\n\r\n::: unknown\r\n');
   const disk = fs.readFileSync(file), service = createDocumentService(), document = service.open(file).document;
   const win = new EventEmitter(), wc = new EventEmitter(), frame = { url: 'file:///synthetic/demo.html' };
   Object.assign(wc, { isDestroyed: () => false, mainFrame: frame, getURL: () => frame.url });
   Object.assign(win, { isDestroyed: () => false, webContents: wc });
-  const manager = createDocumentSessions({ service, projectSource, mapTextEdit, windowFor: () => win });
+  const manager = createDocumentSessions({ service, projectSource, mapTextEdit: mapper, windowFor: () => win });
   manager.grant(win, frame.url); const id = manager.provision(win, document, 'A');
   const request = (operation, payload = {}) => manager.request({ sender: wc, senderFrame: frame }, { operation, sessionId: id, ...payload });
   let state = EditorState.create({ schema, doc: schema.nodeFromJSON(projectSource(document.text).doc) });
@@ -48,6 +49,7 @@ function harness() {
   });
   Object.assign(h, { controller, state: () => state, span: text => projectSource(controller.state().source).spans.find(s => s.text === text),
     snapshotReplies,
+    apply(tr) { state = state.apply(tr); controller.accept(tr); },
     edit(from, to, insert) {
       const tr = state.tr.insertText(insert, from, to);
       if (!controller.prepare(tr)) return false;
@@ -367,4 +369,138 @@ test('1B-3R copies survive controller reinstall in the same session and cannot c
   }), /Invalid recovery record/);
   assert.equal(b.controller.state().recoveryRecords[0].visibleText, 'B-DOM');
   assert.equal(a.requests.length + b.requests.length, 0);
+});
+
+
+function paragraphCommand(h, command, at) {
+  h.select(at); let accepted = false;
+  command(h.state(), tr => {
+    if (h.controller.prepare(tr)) { h.apply(tr); accepted = true; }
+  });
+  return accepted;
+}
+
+for (const nl of ['\n', '\r\n']) test(`writing V1: end Enter, empty input and exact history (${JSON.stringify(nl)})`, async () => {
+  const input = '\ufeff---'+nl+'x: synthetic'+nl+'---'+nl+'# Heading'+nl+nl+'First 中文😀'+nl+nl+'::: unknown'+nl;
+  const h = harness(input), original = h.document.text;
+  const span = h.span('First 中文😀');
+  assert.equal(paragraphCommand(h, splitBlock, span.to), true);
+  await h.controller.idle();
+  assert.equal(h.document.revision, 1);
+  const blank = h.document.text; assert.equal(blank, original.replace('First 中文😀', 'First 中文😀'+nl+nl));
+  const empty = projectSource(blank).spans.find(s => s.text === ''); assert.ok(empty);
+  assert.equal(h.state().selection.from, empty.from);
+  assert.equal(h.edit(empty.from, empty.from, 'Next English 中文😀'), true); await h.controller.idle();
+  const written = h.document.text;
+  assert.equal(written, original.replace('First 中文😀', 'First 中文😀'+nl+nl+'Next English 中文😀'));
+  assert.equal(h.state().selection.from, empty.from+'Next English 中文😀'.length);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, blank);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, original);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, blank);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, written);
+  assert.deepEqual(fs.readFileSync(h.file), h.disk);
+  assert.equal(h.request('save', { expectedRevision: h.document.revision }).code, 'coordination-required');
+});
+
+test('writing V1: real PM middle split and Backspace preserve spaces and are reversible', async () => {
+  const h = harness('first second😀\n'), original = h.document.text, from = h.span('first second😀').from+6;
+  assert.equal(paragraphCommand(h, splitBlock, from), true); await h.controller.idle();
+  assert.equal(h.document.text, 'first \n\nsecond😀\n');
+  assert.equal(h.state().doc.child(0).textContent, 'first ');
+  const second = projectSource(h.document.text).spans.find(s => s.text === 'second😀');
+  assert.equal(paragraphCommand(h, joinBackward, second.from), true); await h.controller.idle();
+  assert.equal(h.document.text, original);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, 'first \n\nsecond😀\n');
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, original);
+});
+
+test('writing V1: empty end paragraph accepts composition as one main revision and backspace removes it', async () => {
+  const h = harness('first\n');
+  assert.equal(paragraphCommand(h, splitBlock, h.span('first').to), true); await h.controller.idle();
+  const blank = h.document.text, empty = projectSource(blank).spans.find(s => !s.text);
+  h.controller.beginComposition(); assert.equal(h.edit(empty.from, empty.from, 'ni'), true);
+  assert.equal(h.edit(empty.from, empty.from+2, '你好😀'), true);
+  assert.equal(h.document.revision, 1); h.controller.endComposition(); await h.controller.idle();
+  assert.equal(h.document.revision, 2); assert.equal(h.document.text, 'first\n\n你好😀\n');
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, blank);
+  assert.equal(paragraphCommand(h, joinBackward, empty.from), true); await h.controller.idle();
+  assert.equal(h.document.text, 'first\n');
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, blank);
+});
+
+test('writing V1: empty document, plain last-character deletion and empty refill are editable', async () => {
+  for (const source of ['', 'X\n']) {
+    const h = harness(source), span = projectSource(h.document.text).spans[0]; assert.ok(span);
+    if (span.text) { assert.equal(h.edit(span.from, span.to, ''), true); await h.controller.idle(); }
+    const empty = projectSource(h.document.text).spans[0];
+    assert.equal(h.edit(empty.from, empty.from, '中文😀'), true); await h.controller.idle();
+    assert.equal(h.document.text, '中文😀'+(source.endsWith('\n')?'\n':''));
+    assert.equal(await h.controller.history('undo'), true);
+  }
+});
+
+test('writing V1: no second consecutive empty, heading/marked split or broken Unicode; sessions isolated', async () => {
+  const h = harness('first😀\n'), b = harness('second\n');
+  assert.equal(paragraphCommand(h, splitBlock, h.span('first😀').to-1), false);
+  assert.equal(paragraphCommand(h, splitBlock, h.span('first😀').to), true); await h.controller.idle();
+  const blank = h.document.text, empty = projectSource(blank).spans.find(s=>!s.text);
+  assert.equal(paragraphCommand(h, splitBlock, empty.from), false);
+  assert.equal(h.document.text, blank); assert.equal(b.document.revision, 0);
+  assert.equal(await b.controller.history('undo'), false);
+  const complex = harness('# Heading\n\nA **bold** end.\n');
+  assert.equal(paragraphCommand(complex, splitBlock, complex.span('Heading').to), false);
+  assert.equal(paragraphCommand(complex, splitBlock, complex.span('bold').from+1), false);
+});
+
+
+test('writing V1: Enter and following input queue behind IPC without resetting the caret', async () => {
+  const h=harness('first\r\n'); h.delayed=true;
+  assert.equal(paragraphCommand(h,splitBlock,h.span('first').to),true);
+  const empty=projectSource(h.controller.state().source).spans.find(s=>!s.text);
+  assert.equal(h.edit(empty.from,empty.from,'中文😀'),true);
+  const selection=h.state().selection.toJSON(); await tick();
+  assert.equal(h.controller.state().pending,2); h.delayed=false; h.replies.shift()(); await h.controller.idle();
+  assert.equal(h.document.text,'first\r\n\r\n中文😀\r\n'); assert.equal(h.document.revision,2);
+  assert.deepEqual(h.requests.filter(r=>r.operation==='edit').map(r=>r.expectedRevision),[0,1]);
+  assert.deepEqual(h.state().selection.toJSON(),selection); assert.equal(h.resets.length,0);
+});
+
+test('writing V1: directly injected structure during composition still fails closed and retains accepted preedit', () => {
+  const h=harness('first\n'),from=h.span('first').to;
+  h.controller.beginComposition(); assert.equal(h.edit(from,from,'未确认'),true);
+  assert.equal(paragraphCommand(h,splitBlock,from+3),false);
+  assert.equal(h.controller.state().compositionInvalid,true); h.controller.endComposition();
+  assert.ok(h.controller.state().recoveryDraft.includes('未确认'));
+  assert.equal(h.document.text,'first\n');assert.equal(h.document.revision,0);
+});
+
+
+for (const nl of ['\r\n', '\n']) test(`CRLF P1: true joinBackward without final newline and exact undo/redo (${JSON.stringify(nl)})`, async () => {
+  const original='first'+nl+nl+'second',h=harness(original),second=h.span('second');
+  assert.equal(h.document.text,original); assert.equal(h.document.text.endsWith('\n'),false);
+  assert.equal(h.request('edit',{expectedRevision:0,from:h.span('first').to,to:second.from,insert:'',paragraphSeparator:nl+nl}).code,'invalid-request');
+  assert.equal(paragraphCommand(h,joinBackward,second.from),true);
+  await h.controller.idle(); assert.equal(h.document.text,'firstsecond');
+  assert.equal(h.document.revision,1);assert.equal(h.state().selection.from,6);
+  const joined=h.request('snapshot').snapshot;
+  assert.equal(h.request('undo',{expectedRevision:0}).code,'stale-revision');
+  assert.deepEqual(h.request('snapshot').snapshot,joined);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
+  assert.equal(h.document.revision,2);assert.equal(h.state().selection.from,second.from);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,'firstsecond');
+  assert.equal(h.document.revision,3);assert.equal(h.state().selection.from,6);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('CRLF P1: a corrupted internal separator cannot bypass the history source hash or consume undo', async () => {
+  let corrupt=false;
+  const mapper=(source,change,leaf,separator)=>mapTextEdit(source,change,leaf,corrupt?'\n\n':separator);
+  const h=harness('first\r\n\r\nsecond',mapper),second=h.span('second');
+  assert.equal(paragraphCommand(h,joinBackward,second.from),true);await h.controller.idle();
+  corrupt=true;
+  const before=h.request('snapshot').snapshot;
+  assert.equal(h.request('undo',{expectedRevision:before.revision}).code,'history-diverged');
+  assert.deepEqual(h.request('snapshot').snapshot,before);
+  corrupt=false;
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,'first\r\n\r\nsecond');
 });

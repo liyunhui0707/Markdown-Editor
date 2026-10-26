@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
 import { projectSource, mapTextEdit } from '../lib/document-source-map.mjs';
 
 const source = '---\r\nprivate: synthetic\r\n---\r\n# 标题😀\r\n\r\nA **粗体中文** end.\r\n\r\n![pic](../assets/x.png)\r\n\r\n| x | y |\r\n| - | - |\r\n| 1 | 2 |\r\n\r\n::: unknown\r\n';
@@ -65,4 +67,45 @@ test('P1-2: only an explicit trusted leaf identity resolves an inverse mark-boun
   assert.equal(mapTextEdit(deleted.source, point, { ...leaf, bold: false }).ok, false);
   assert.equal(mapTextEdit(deleted.source, { ...point, leaf }).ok, false);
   assert.equal(mapTextEdit(deleted.source, { ...point, insert: '\ud800' }, leaf).ok, false);
+});
+
+
+test('writing V1: one whitespace cursor slot is explicit and standard Markdown reparsing does not invent empty nodes', () => {
+  for (const nl of ['\n','\r\n']) {
+    const source='first'+nl+nl+nl+nl+'second'+nl;
+    const p=projectSource(source),empty=p.spans.find(s=>!s.text);
+    assert.ok(empty); assert.equal(p.doc.content.length,3);
+    assert.equal(unified().use(remarkParse).parse(source).children.length,2); // Markdown has no semantic empty paragraph here.
+    assert.equal(source.slice(empty.sourceFrom,empty.sourceTo),'');
+    const typed=mapTextEdit(source,{from:empty.from,to:empty.from,insert:'新😀'});
+    assert.equal(typed.ok,true);assert.equal(typed.source,'first'+nl+nl+'新😀'+nl+nl+'second'+nl);
+    assert.equal(unified().use(remarkParse).parse(typed.source).children.length,3);
+    assert.equal(mapTextEdit(source,{from:empty.from,to:empty.from,insert:'\n\n'}).ok,false);
+  }
+  assert.equal(projectSource('\n\n').spans.length,0); // ambiguous blank-only files are not silently rewritten
+});
+
+test('writing V1: split/join inverses protect mixed line endings and unsupported Markdown structures', () => {
+  const source='# Heading\r\n\r\none\n\ntwo\n',p=projectSource(source),one=p.spans.find(s=>s.text==='one'),two=p.spans.find(s=>s.text==='two');
+  assert.equal(mapTextEdit(source,{from:one.to,to:two.from,insert:''}).ok,false); // inverse would use a different delimiter
+  const split=mapTextEdit(source,{from:one.from+1,to:one.from+1,insert:'\n\n'});
+  assert.equal(split.ok,true);
+  const back=mapTextEdit(split.source,split.inverse);assert.equal(back.ok,true);assert.equal(back.source,source);
+  for(const text of ['# heading','- list','> quote','```\ncode\n```','A **bold** end.']){
+    const q=projectSource(text),s=q.spans.find(s=>s.text);
+    assert.equal(mapTextEdit(text,{from:s?.from||1,to:s?.from||1,insert:'\n\n'}).ok,false);
+  }
+});
+
+
+for (const nl of ['\r\n','\n']) test(`CRLF P1: inverse uses the exact removed separator after the last newline is gone (${JSON.stringify(nl)})`, () => {
+  const source='first'+nl+nl+'second',p=projectSource(source),left=p.spans[0],right=p.spans[1];
+  const joined=mapTextEdit(source,{from:left.to,to:right.from,insert:''});
+  assert.equal(joined.ok,true);assert.equal(joined.source,'firstsecond');
+  assert.equal(joined.paragraphSeparator,nl+nl);
+  for(const invalid of ['\r\n','unsafe',{},'\n\n\n']) assert.equal(mapTextEdit(joined.source,joined.inverse,null,invalid).ok,false);
+  const undo=mapTextEdit(joined.source,joined.inverse,joined.leaf,joined.paragraphSeparator);
+  assert.equal(undo.ok,true);assert.equal(undo.source,source);
+  const redo=mapTextEdit(undo.source,undo.inverse,undo.leaf,undo.paragraphSeparator);
+  assert.equal(redo.ok,true);assert.equal(redo.source,'firstsecond');
 });

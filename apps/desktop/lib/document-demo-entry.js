@@ -136,6 +136,11 @@ function install(snapshot) {
           return false;
         },
         beforeinput: (_view, event) => {
+          // Chromium may report insertParagraph/isComposing=false while IME is still active.
+          // Suppress that structural default, not the key/candidate or composition lifecycle.
+          if (event.inputType === 'insertParagraph' && (event.isComposing || _view.composing || controller?.state().composing)) {
+            event.preventDefault(); return true;
+          }
           if (!['historyUndo', 'historyRedo'].includes(event.inputType)) return false;
           event.preventDefault(); void history(event.inputType === 'historyUndo' ? 'undo' : 'redo'); return true;
         },

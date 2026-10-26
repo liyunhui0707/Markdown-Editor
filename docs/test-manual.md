@@ -1335,3 +1335,20 @@ with left, center, right, and unaligned columns.
 - [ ] Install guide is understandable  
 - [ ] MCP setup guide is understandable  
 - [ ] Demo script is usable
+
+
+## Basic writing V1 — synthetic Document demo only (0.21.0, 2026-10-26)
+
+Use only main-owned developer fixtures, not a real document or Vault. The
+following human checks are pending; automated Electron keyboard coverage is
+recorded in the [phase contract](document-editing-interaction-phase1b3.md).
+
+- [ ] Connect synthetic documents, select b.md, put the caret at the plain paragraph end and press Enter. A new empty input paragraph accepts English, Chinese and emoji without moving the caret elsewhere.
+- [ ] Split a plain paragraph in the middle (including a word boundary), then Backspace at the new paragraph start; text and spaces restore correctly. Cmd+Z / Cmd+Shift+Z restore both states.
+- [ ] Enter in the new empty paragraph again is refused; no additional semantic empty paragraph or hidden placeholder is claimed. Backspace can remove the supported empty boundary.
+- [ ] With actual macOS Simplified Pinyin, confirm a candidate using Enter; it must not create an unintended paragraph or lose the composition. Record the exact build/input method/sequence. CDP tests are not this manual acceptance.
+- [ ] Switch A/B/A: source/history remain session-scoped. Heading, marked paragraph, list, quote and code structure edits remain refused. Request save stays denied.
+
+Multiple blank-only files, consecutive independent empty paragraphs, complex
+structure and real-file writes remain outside this developer feature. Phase
+1B-3 formal acceptance remains FAIL; do not use these steps as release sign-off.

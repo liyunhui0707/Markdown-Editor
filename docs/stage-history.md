@@ -102,3 +102,15 @@ Concise record of completed stages, their key deliverables, and known deferred i
 - **Claude Design prototype** — Deferred.
 - **Auto-save** — Deferred.
 - **Multi-window support** — Deferred.
+
+
+## Basic writing V1 — limited developer implementation (2026-10-26)
+
+At 0.21.0 (uncommitted), the synthetic Document demo supports ordinary paragraph
+Enter/split, one whitespace-backed empty input slot, Backspace join and exact
+main-owned Undo/Redo. See [the bounded contract and results](document-editing-interaction-phase1b3.md#basic-writing-v1-enter-and-one-empty-input-slot-2026-10-26).
+Focused Node/PM/IPC: 88 PASS; source Electron: 14 PASS including a real two-
+paragraph keyboard chain. Continuous semantic empty paragraphs, complex block
+structure and native macOS IME remain unaccepted. This does not change the
+historical Reload failure, existing P2 or Phase 1B-3 formal FAIL. Real file writes
+remain prohibited; no version bump, commit, package or publication is implied.

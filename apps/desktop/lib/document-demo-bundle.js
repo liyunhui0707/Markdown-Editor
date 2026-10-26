@@ -32095,8 +32095,26 @@ ${prefix}
   function projectSource(source) {
     if (typeof source !== "string" || source.length > 131072) throw Error("Unsupported source");
     const tree = parser.parse(source), content3 = [], spans = [];
+    const lines = (text5) => {
+      const tokens = text5.match(/\r\n|\n|\r/g) || [];
+      return tokens.join("") === text5 ? tokens : [];
+    };
     const fm = /^---(?:\r\n|\n|\r)/.test(source) ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
-    let position2 = 0;
+    let position2 = 0, previousEnd = fm;
+    function emptyParagraph(at) {
+      spans.push({
+        text: "",
+        sourceFrom: at,
+        sourceTo: at,
+        bold: false,
+        from: position2 + 1,
+        to: position2 + 1,
+        blockIndex: content3.length,
+        childIndex: 0
+      });
+      content3.push({ type: "paragraph", content: [] });
+      position2 += 2;
+    }
     function opaque(text5) {
       if (!text5) return;
       content3.push({ type: "codeBlock", attrs: { language: null }, content: [{ type: "text", text: text5 }] });
@@ -32104,9 +32122,12 @@ ${prefix}
     }
     if (fm) opaque(source.slice(0, fm));
     for (const node2 of tree.children) {
-      const start = node2.position.start.offset, end = node2.position.end.offset;
+      let start = node2.position.start.offset, end = node2.position.end.offset;
       if (start < fm) {
-        if (end > fm) opaque(source.slice(fm, end));
+        if (end > fm) {
+          opaque(source.slice(fm, end));
+          previousEnd = end;
+        }
         continue;
       }
       const raw = source.slice(start, end), parts = [];
@@ -32122,6 +32143,20 @@ ${prefix}
         }
         parts.push({ text: leaf.value, sourceFrom: a, sourceTo: b, bold });
       }
+      if (supported && node2.type === "paragraph" && parts.length === 1 && !parts[0].bold) {
+        const a = Math.max(source.lastIndexOf("\n", start - 1), source.lastIndexOf("\r", start - 1)) + 1;
+        const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
+        if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
+          start = a;
+          end = b;
+          parts[0] = { ...parts[0], sourceFrom: a, sourceTo: b, text: source.slice(a, b) };
+        }
+      }
+      const gap = lines(source.slice(previousEnd, start));
+      if (!content3.length && !fm && gap.length >= 2 || content3.length && gap.length >= 4) {
+        emptyParagraph(!content3.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+      }
+      previousEnd = end;
       if (!supported || !parts.length) {
         opaque(raw);
         continue;
@@ -32137,26 +32172,92 @@ ${prefix}
       content3.push(block);
       position2 += offset + 2;
     }
-    return { doc: { type: "doc", content: content3.length ? content3 : [{ type: "paragraph" }] }, spans };
+    const tail = lines(source.slice(previousEnd));
+    if (content3.length && tail.length >= 2) emptyParagraph(previousEnd + tail[0].length + tail[1].length);
+    if (!content3.length) {
+      if (source === "" || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
+      else content3.push({ type: "paragraph", content: [] });
+    }
+    return { doc: { type: "doc", content: content3 }, spans };
   }
-  function mapTextEdit(source, change, leaf = null) {
+  function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
+    const { from: from2, to, insert } = change, plain = (span) => {
+      const block = projection.doc.content[span.blockIndex];
+      return block.type === "paragraph" && !span.bold && (block.content || []).length <= 1;
+    };
+    const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
+    const delimiter = paragraphSeparator ?? (source.match(/\r\n|\n|\r/)?.[0] || "\n").repeat(2);
+    let a, b, text5, inverse, selection;
+    if (insert === "\n\n" && from2 === to) {
+      const span = spans.find((s) => from2 >= s.from && from2 <= s.to);
+      if (!span || !span.text || splits(span.text, from2 - span.from)) return null;
+      const offset = from2 - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
+      const paragraph2 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+      expected.content.splice(span.blockIndex, 1, paragraph2(left), paragraph2(right));
+      a = b = span.sourceFrom + offset;
+      text5 = delimiter;
+      inverse = { from: from2, to: from2 + 2, insert: "" };
+      selection = from2 + 2;
+    } else if (insert === "" && to === from2 + 2) {
+      const left = spans.find((s) => s.to === from2), right = spans.find((s) => s.from === to);
+      if (!left || !right || right.blockIndex !== left.blockIndex + 1 || !left.text && !right.text || source.slice(left.sourceTo, right.sourceFrom) !== delimiter) return null;
+      const merged = left.text + right.text;
+      expected.content.splice(left.blockIndex, 2, { type: "paragraph", content: merged ? [{ type: "text", text: merged }] : [] });
+      a = left.sourceTo;
+      b = right.sourceFrom;
+      text5 = "";
+      paragraphSeparator = source.slice(a, b);
+      inverse = { from: from2, to: from2, insert: "\n\n" };
+      selection = from2;
+    } else return null;
+    paragraphSeparator ??= text5;
+    const next = source.slice(0, a) + text5 + source.slice(b);
+    if (next.length > 131072) return unsafe();
+    const nextProjection = projectSource(next);
+    if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+    if (verify) {
+      const back = paragraphEdit(next, nextProjection, inverse, false, paragraphSeparator);
+      if (!back?.ok || back.source !== source) return unsafe();
+    }
+    return {
+      ok: true,
+      source: next,
+      change: { from: a, to: b, insert: text5 },
+      projection: nextProjection,
+      leaf: null,
+      structural: true,
+      inverse,
+      paragraphSeparator,
+      selection: { from: selection, to: selection }
+    };
+  }
+  function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
     if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return unsafe();
     const { from: from2, to, insert } = change;
-    if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || !validText(insert) || insert.length > 4096) return unsafe();
+    if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || typeof insert !== "string" || insert.length > 4096) return unsafe();
     const projection = projectSource(source);
     if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype || Object.keys(leaf).length !== 3 || Object.keys(leaf).some((k) => !["blockIndex", "childIndex", "bold"].includes(k)) || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0 || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== "boolean")) return unsafe();
+    if (paragraphSeparator !== null && (leaf !== null || !["\n\n", "\r\n\r\n", "\r\r"].includes(paragraphSeparator))) return unsafe();
+    if (leaf === null) {
+      const paragraph2 = paragraphEdit(source, projection, change, true, paragraphSeparator);
+      if (paragraph2) return paragraph2;
+      if (paragraphSeparator !== null) return unsafe();
+    }
+    if (!validText(insert)) return unsafe();
     const matches2 = projection.spans.filter((s) => from2 >= s.from && to <= s.to && (!leaf || s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold));
     if (matches2.length !== 1) return unsafe();
     const span = matches2[0], a = from2 - span.from, b = to - span.from;
     if (splits(span.text, a) || splits(span.text, b)) return unsafe();
     const text5 = span.text.slice(0, a) + insert + span.text.slice(b);
-    if (!text5) return unsafe();
+    if (!text5 && (projection.doc.content[span.blockIndex].type !== "paragraph" || span.bold || projection.doc.content[span.blockIndex].content.length > 1)) return unsafe();
     const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
     const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
     if (next.length > 131072) return unsafe();
     const nextProjection = projectSource(next);
     const expected = structuredClone(projection.doc);
-    expected.content[span.blockIndex].content[span.childIndex].text = text5;
+    if (!span.text || !text5) expected.content[span.blockIndex].content = text5 ? [{ type: "text", text: text5 }] : [];
+    else expected.content[span.blockIndex].content[span.childIndex].text = text5;
+    if (!text5 && !nextProjection.spans.some((s) => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
     if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
     return {
       ok: true,
@@ -32171,12 +32272,19 @@ ${prefix}
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
     const step = tr2.steps[0];
-    if (step.toJSON().stepType !== "replace" || !step.slice || step.slice.openStart || step.slice.openEnd || !step.slice.content.content.every((node2) => node2.isText)) return null;
-    const edit = { from: step.from, to: step.to, insert: step.slice.content.textBetween(0, step.slice.content.size, "", "") };
+    const json = step.toJSON();
+    if (json.stepType !== "replace" || !step.slice) return null;
+    let insert;
+    if (!step.slice.openStart && !step.slice.openEnd && step.slice.content.content.every((node2) => node2.isText)) {
+      insert = step.slice.content.textBetween(0, step.slice.content.size, "", "");
+    } else if (json.structure && step.from === step.to && step.slice.openStart === 1 && step.slice.openEnd === 1 && step.slice.content.childCount === 2 && step.slice.content.content.every((node2) => node2.type.name === "paragraph" && !node2.content.size)) {
+      insert = "\n\n";
+    } else return null;
+    const edit = { from: step.from, to: step.to, insert };
     const mapped = mapTextEdit(source, edit), schema = tr2.doc.type.schema;
     if (!tr2.before.eq(schema.nodeFromJSON(projectSource(source).doc)) || !mapped.ok || !tr2.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
     if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
-    return { edit, source: mapped.source };
+    return { edit, source: mapped.source, structural: !!mapped.structural };
   }
   function composedEdit(before, after) {
     let from2 = 0, to = before.text.length, end = after.text.length;
@@ -32323,7 +32431,7 @@ ${prefix}
       } catch {
         mapped = null;
       }
-      if (!mapped) {
+      if (!mapped || composition && mapped.structural) {
         code3 = composition ? "unsafe-composition" : "unsafe-source-range";
         if (composition) composition.invalid = true;
         notify();
@@ -32712,6 +32820,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
             return false;
           },
           beforeinput: (_view, event) => {
+            if (event.inputType === "insertParagraph" && (event.isComposing || _view.composing || controller?.state().composing)) {
+              event.preventDefault();
+              return true;
+            }
             if (!["historyUndo", "historyRedo"].includes(event.inputType)) return false;
             event.preventDefault();
             void history2(event.inputType === "historyUndo" ? "undo" : "redo");

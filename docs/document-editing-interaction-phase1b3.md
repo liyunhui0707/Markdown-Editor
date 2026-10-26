@@ -578,3 +578,133 @@ worktrees or complex management processes unless necessary. The next proposed
 minimal product task is Enter and empty-paragraph editing with source fidelity
 and Undo/Redo; it requires separate implementation approval. This commit does
 not start that work, another audit, native IME recovery or real-file writes.
+
+
+## Basic writing V1: Enter and one empty input slot (2026-10-26)
+
+This limited, uncommitted implementation starts from f19efa5 at version 0.21.0.
+It enables ordinary top-level **single-line, unformatted paragraphs** to split
+at a collapsed caret using ProseMirror's existing splitBlock transaction. The
+same revision queue and main-owned history apply a verified source splice;
+Backspace uses joinBackward at an adjacent supported paragraph boundary.
+No new document state machine, session capability, serializer or dependency is
+introduced. Heading/marked paragraph/list/quote/code structure editing remains
+refused, while their existing supported text edits are unchanged.
+
+### Markdown representation and limits
+
+Two populated paragraphs are separated by two existing-style newline tokens
+(LF or CRLF; new delimiters use the document's first newline style). Source
+outside the exact splice remains unchanged, including front matter, unsupported
+blocks, relative paths and all other line endings. The document model preserves
+BOM separately; synthetic disk fixtures remain byte-identical because no save
+is enabled. Plain paragraph margin spaces are retained in text spans so a
+mid-word-boundary split does not silently trim either half.
+
+CommonMark does not encode independent empty paragraph nodes. The restricted
+projection therefore exposes **at most one whitespace cursor slot per gap**:
+leading/trailing runs of at least two newline tokens, or an internal run of at
+least four, can provide one empty paragraph input position. Its empty source
+range is anchored inside the existing whitespace. Typing fills that range;
+remark then sees an ordinary populated paragraph. The slot is an editing
+projection of whitespace, not a CommonMark semantic node or a private file
+format. No nonbreaking-space, HTML, JSON or invisible placeholder is inserted.
+Reopening through this projection follows the same rule; other Markdown tools
+can ignore those blank lines and need not show the same empty visual paragraph.
+
+A second consecutive Enter in an empty slot is refused. Multiple independent
+empty paragraphs are **not** supported or claimed to persist losslessly. Blank-
+only documents containing multiple newline tokens remain non-editable; an empty
+file or a single terminator can accept text. Multiline source paragraphs and
+cross-block selections remain outside V1. Mixed/noncanonical separators are
+refused whenever the inverse cannot restore their exact bytes. This deliberate
+boundary avoids adding a parallel transient-layout/history protocol.
+
+Every split/join must match the complete before/after projected document and
+prove that its inverse restores the exact original source before acceptance.
+Main stores the mapped inverse for CRLF-safe history and still checks revision,
+authority, source hashes, source ranges and history identity. Failed inverse
+mapping cannot advance or consume history. Queue acknowledgements do not reset
+forward-edit caret positions.
+
+### Actual UI input and evidence
+
+The first actual Electron writing case failed: during active Chromium IME,
+Enter generated beforeinput insertParagraph with isComposing=false. The browser
+then produced a structural transaction, invalidating composition under the
+existing guard. Captured events/transactions establish this specific sequence;
+it is not an attribution of the historical Reload failure.
+
+The demo's existing beforeinput handler now suppresses only insertParagraph's
+structural default while event/view/controller indicates composition. It does
+not intercept the candidate key, force compositionend, clear composing, unlock
+or drop preedit. The permanent regression confirms that commit still works.
+An older copy-protection helper now explicitly invokes the same refused real PM
+split command rather than relying on that unintended candidate-Enter default;
+its draft and main-state assertions remain intact. The old generic unsupported-
+Enter check now targets a heading, since plain paragraphs are intentionally new.
+
+- RED: original controller 26 PASS / 6 new FAIL before implementation.
+- Final focused Node/real PM/source-map/main-IPC/history: **88 PASS**, including
+  LF/CRLF, BOM/disk preservation, empty input, middle split/margin spaces,
+  Backspace, Undo/Redo, queued input/caret, Unicode boundaries, composition,
+  session isolation and unsupported edits. Actual remark parsing verifies that
+  the whitespace slot does not invent a semantic Markdown empty paragraph.
+- Final source Electron: **14 PASS**, including one new real keyboard chain
+  that writes two paragraphs, composes Chinese in the empty slot, exercises
+  candidate Enter, English/emoji/caret, splits and joins, undoes/redoes, rejects
+  repeated empty Enter and heading structure, switches A/B and verifies save
+  refusal plus unchanged synthetic files. All 14 observed children exit code=0,
+  signal=null, watchdog=false, no observed main fault or remaining owned process.
+- Demo bundle built with the existing esbuild invocation and independently
+  rebuilt byte-identically. No package/ASAR, full Node suite, security audit or
+  historical Reload E2E rerun was required for this bounded feature verification.
+
+Native macOS Simplified Pinyin remains **not manually accepted**; CDP composition
+is not native IME evidence. Existing copy-click P2, memory-only recovery, safe
+IME retirement, file-save coordination/metadata/concurrency and SEC-01 remain.
+Real user file writes stay denied; Phase 1B-3 formal acceptance remains **FAIL**.
+This is ready for a limited functional review, not commit or release approval.
+
+
+### V1 P1 follow-up: CRLF join with no final newline (2026-10-26)
+
+Independent review E correctly rejected the V1 candidate: exact source
+`first\r\n\r\nsecond` failed real PM joinBackward and keyboard Backspace.
+The join removed every newline; inverse preflight then inferred LF from the
+joined text and could not restore CRLF. This was a product defect, not an
+unresolved cursor-timing hypothesis.
+
+The minimal repair captures the actual separator from the pre-operation source
+and carries it in the existing mapped structural result and main-owned history
+entry. Inverse preflight and actual Undo/Redo receive the same trusted value;
+they do not guess the deleted separator from a newline-free result. Only known
+newline pairs are accepted, and renderer IPC cannot supply this internal field.
+Projection equality, exact source hashes, source ranges, revisions, queue and
+session authorization remain enforced. A corrupted internal separator still
+fails history verification without consuming the stack. No CRLF-to-LF rewrite
+or terminal-newline insertion occurs. No new structural history system or
+controller runtime change is needed.
+
+RED: the exact real-PM case fails; source Electron observes two paragraphs
+remaining after CRLF Backspace, while the LF control passes. Final focused
+source-map/controller/history/IPC tests are **93 PASS**, including the existing
+88 plus five new cases and explicit metadata-injection rejection. Three source
+Electron cases PASS: CRLF/LF Backspace with exact Undo/Redo and final caret,
+and the existing Enter/empty-input/middle-split/composition/history chain. All
+three children exit code=0, signal=null, watchdog=false, no observed main fault
+or remaining owned process. Synthetic fixtures retain their original bytes.
+
+The two fixture-specific source E2Es reuse the existing harness. A private
+launcher compiles the unchanged real main implementation with only the b.md
+literal fixture replaced before provisioning; it does not fabricate IPC replies
+or modify the normal main file. These fixture tests are source-only evidence,
+not ASAR/install acceptance. Demo bundle is rebuilt through the existing esbuild
+flow and independently byte-identical. No unrelated full Node, package or ASAR
+runs were performed. Version remains 0.21.0, with no Git staging or commit.
+
+The review's single delayed-IPC caret-offset discrepancy remains unconfirmed
+and recorded only; no separate investigation was started. Historical Reload,
+first-copy P2, native IME recovery, all real-file write gates and Phase 1B-3
+formal FAIL remain unchanged. This repair is suitable for targeted re-review,
+not broader product or release sign-off.

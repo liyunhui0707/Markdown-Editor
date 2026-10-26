@@ -83,8 +83,8 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
           if (removed.length > 4096) return reply(failure('history-range-limit'));
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok && s.document.text !== before) {
-            s.undo.push({ before: sourceHash(before), after: sourceHash(s.document.text), redo: change, leaf: mapped.leaf,
-              undo: { from: change.from, to: change.from + change.insert.length, insert: removed } });
+            s.undo.push({ before: sourceHash(before), after: sourceHash(s.document.text), redo: change, leaf: mapped.leaf, paragraphSeparator: mapped.paragraphSeparator || null,
+              undo: mapped.inverse || { from: change.from, to: change.from + change.insert.length, insert: removed } });
             if (s.undo.length > 64) s.undo.shift();
             s.redo = [];
           }
@@ -96,12 +96,12 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
           if (!entry) return reply(failure('history-empty'));
           const fromHash = undoing ? entry.after : entry.before, toHash = undoing ? entry.before : entry.after;
           if (sourceHash(s.document.text) !== fromHash) return reply(failure('history-diverged'));
-          const change = entry[payload.operation], mapped = mapTextEdit(s.document.text, change, entry.leaf);
+          const change = entry[payload.operation], mapped = mapTextEdit(s.document.text, change, entry.leaf, entry.paragraphSeparator);
           if (!mapped.ok || sourceHash(mapped.source) !== toHash) return reply(failure('history-diverged'));
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok) {
             stack.pop(); (undoing ? s.redo : s.undo).push(entry);
-            result.selection = { from: change.from + change.insert.length, to: change.from + change.insert.length };
+            result.selection = mapped.selection || { from: change.from + change.insert.length, to: change.from + change.insert.length };
           }
           return reply(result);
         }
