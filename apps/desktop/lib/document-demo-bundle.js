@@ -13653,6 +13653,9 @@
     if (duplicatedNames.length) console.warn(`[tiptap warn]: Duplicate extension names found: [${duplicatedNames.map((item) => `'${item}'`).join(", ")}]. This can lead to issues.`);
     return resolvedExtensions;
   }
+  function getSchema(extensions, editor2) {
+    return getSchemaByResolvedExtensions(resolveExtensions(extensions), editor2);
+  }
   function getTextBetween(startNode, range, options) {
     const { from: from2, to } = range;
     const { blockSeparator = "\n\n", textSerializers = {} } = options || {};
@@ -32632,6 +32635,8 @@ ${prefix}
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  var readOnlyWindow = false;
+  var readOnlyDocument = () => readOnlyWindow || controller?.state().confirmed.readOnly === true;
   var compositionView = null;
   var copyPanelOpen = false;
   var copyMessage = "";
@@ -32729,7 +32734,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("undo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
     byId("redo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
     byId("discard-recovery").disabled = busy || records.length === 0;
-    const editable = !activeInvalid() && !s.locked && !s.historyPending && !loading;
+    const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
     if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
     renderCompositionCopies(s);
     show();
@@ -32750,7 +32755,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   }
   async function history2(operation) {
     const active = controller;
-    if (!active || activeInvalid() || loading) return;
+    if (!active || readOnlyDocument() || activeInvalid() || loading) return;
     await active.history(operation);
     if (controller === active && !activeInvalid() && !active.state().locked) editor.view.focus();
   }
@@ -32772,8 +32777,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (!editor) {
       const gate = Extension.create({ name: "verifiedSourceRange", addProseMirrorPlugins() {
         return [new Plugin({ filterTransaction(tr2) {
-          if (!resetting && tr2.docChanged && (activeInvalid() || loading)) {
-            show(activeInvalid() ? "session-invalidated" : "document-loading");
+          if (!resetting && tr2.docChanged && (activeInvalid() || loading || readOnlyDocument())) {
+            show(readOnlyDocument() ? "read-only-document" : activeInvalid() ? "session-invalidated" : "document-loading");
             return false;
           }
           return resetting || !tr2.docChanged || controller.prepare(tr2);
@@ -32941,7 +32946,77 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (controller) render2(controller.state());
     else show();
   });
-  api.onReady(() => {
-    byId("connect").disabled = false;
+  async function openReadOnly() {
+    if (!readOnlyWindow || loading) return;
+    loading = true;
+    const epoch = ++switchEpoch;
+    byId("open-file").disabled = true;
+    byId("viewer-status").textContent = "Opening\u2026";
+    let candidate = null;
+    try {
+      const r = await api.openFile();
+      if (epoch !== switchEpoch) return;
+      if (!r.ok) {
+        const messages = {
+          "open-cancelled": "Open cancelled.",
+          "file-unavailable": "The selected file no longer exists.",
+          "read-failed": "The selected file cannot be read.",
+          "unsupported-encoding": "Only UTF-8 Markdown is supported.",
+          "unsupported-size": "The selected file exceeds the preview size limit.",
+          "parse-failed": "This content exceeds the supported preview limits.",
+          "unsupported-path": "Choose one supported .md file.",
+          "unsupported-file": "Choose a regular file, not a link.",
+          "external-change": "The file changed while it was being read."
+        };
+        byId("viewer-status").textContent = (messages[r.code] || "Unable to open the selected file.") + " Current document unchanged.";
+        return;
+      }
+      candidate = r.snapshot;
+      if (candidate?.readOnly !== true || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string" || typeof candidate.location !== "string") throw Error("Invalid read-only snapshot");
+      const projection = projectSource(candidate.source);
+      const schema = editor?.schema || getSchema([src_default.configure({ undoRedo: false, trailingNode: false })]);
+      schema.nodeFromJSON(projection.doc).check();
+      const previous3 = controller?.state().confirmed;
+      install(candidate);
+      byId("document-name").textContent = candidate.label;
+      byId("document-location").textContent = candidate.location;
+      document.title = candidate.label + " \u2014 Read-only";
+      if (previous3 && previous3.sessionId !== candidate.sessionId) {
+        try {
+          await api.close({ sessionId: previous3.sessionId, expectedRevision: previous3.revision });
+        } catch {
+        }
+      }
+      byId("viewer-status").textContent = "Read-only preview. The original file has not been modified.";
+    } catch {
+      if (candidate && selected !== candidate.sessionId) {
+        try {
+          await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision });
+        } catch {
+        }
+      }
+      byId("viewer-status").textContent = "Unable to display the selected file. Current document unchanged.";
+    } finally {
+      loading = false;
+      byId("open-file").disabled = false;
+      if (controller) render2(controller.state());
+    }
+  }
+  byId("open-file").onclick = openReadOnly;
+  api.onOpenRequest(openReadOnly);
+  window.addEventListener("keydown", (event) => {
+    if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "o") {
+      event.preventDefault();
+      void openReadOnly();
+    }
+  });
+  api.onReady((data) => {
+    readOnlyWindow = data?.readOnlyWindow === true;
+    if (readOnlyWindow) {
+      document.body.dataset.documentViewer = "true";
+      byId("document-header").hidden = false;
+      byId("open-file").disabled = false;
+      document.title = "Markdown \u2014 Read-only";
+    } else byId("connect").disabled = false;
   });
 })();

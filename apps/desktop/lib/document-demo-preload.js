@@ -34,6 +34,8 @@ const request = async (operation, data = {}) => {
   return result;
 };
 contextBridge.exposeInMainWorld('documentDemo', {
+  openFile: () => request('open-file'),
+  onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),
   list: () => request('list'),
   snapshot: data => request('snapshot', data),
   edit: data => request('edit', data),
@@ -54,5 +56,5 @@ contextBridge.exposeInMainWorld('documentDemo', {
     for (const [sessionId, state] of states) handler({ sessionId, state });
     return () => lifecycleListeners.delete(handler);
   },
-  onReady: handler => ipcRenderer.once('document-demo:ready', () => handler()),
+  onReady: handler => ipcRenderer.once('document-demo:ready', (_event, data) => handler(data)),
 });

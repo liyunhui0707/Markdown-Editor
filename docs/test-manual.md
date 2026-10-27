@@ -1352,3 +1352,27 @@ recorded in the [phase contract](document-editing-interaction-phase1b3.md).
 Multiple blank-only files, consecutive independent empty paragraphs, complex
 structure and real-file writes remain outside this developer feature. Phase
 1B-3 formal acceptance remains FAIL; do not use these steps as release sign-off.
+
+
+## Document-First Open V1 — native read-only check (2026-10-26)
+
+Use only synthetic `.md` fixtures in two temporary directories. From
+`apps/desktop`, run `mise exec -- npm run dev -- --document-readonly`.
+
+- [x] Through the actual macOS dialog, open ProjectA/x.md. Observe file name,
+  directory, read-only badge and formatted heading/bold in one surface, without
+  choosing a Vault. Native UI check performed by the development agent.
+- [x] Cmd+O: open Notes/Y.md from another directory. Identity and Unicode body
+  update together. Open Markdown… then Cancel retains Y.md and shows cancellation.
+- [x] Close the window. Both synthetic original files' SHA-256 values remain
+  identical; the source viewer process exits 0.
+- [x] Automated real Electron IPC/view test additionally verifies keyboard and
+  direct IPC edit/save/history refusal, missing/invalid-encoding retention,
+  separate session IDs and inert HTML/image text. Its chooser return is
+  controlled, so it is separate evidence from the native UI check above.
+- [ ] Future independent human QA of this exact candidate/build, including
+  native dialog focus and selecting/copying text in the read-only surface.
+
+Limits: unsupported syntax is literal text, no images/resources load, only
+bounded UTF-8 regular single-link files are accepted. No Finder, installed ASAR,
+editing/save or release acceptance is claimed. Existing Phase 1B-3 FAIL remains.

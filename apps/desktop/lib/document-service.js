@@ -20,10 +20,10 @@ function createDocumentService(options = {}) {
   }
 
   function open(filePath, options = {}) {
-    if (!record(options, ['parse'])) return failure('invalid-options');
+    if (!record(options, ['parse', 'maxBytes'])) return failure('invalid-options');
     const { parse } = options;
     try {
-      const snapshot = store.read(filePath);
+      const snapshot = store.read(filePath, options.maxBytes);
       const { document, acceptSaved } = createDocumentModel({ filePath, bytes: snapshot.bytes, identity: snapshot.identity });
       sessions.set(document, { snapshot, acceptSaved, saving: false, state: 'not-submitted', committed: false,
         pending: false, unverified: false, lastCode: null });

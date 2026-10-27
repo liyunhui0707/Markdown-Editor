@@ -1,11 +1,12 @@
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
+const path = require('node:path');
 const { record, failure } = require('./document-contract');
 const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
-// Main-owned capabilities. No path-opening or policy-construction IPC exists.
-function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor }) {
+// Main-owned capabilities. Native selection is the only open authority; no renderer paths or policies.
+function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   function invalidate(id, s) {
     sessions.delete(id); // Revoke authority before notifying the captured owner.
@@ -27,39 +28,73 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     win.once('closed', () => revoke(win));
     for (const name of ['did-start-loading', 'destroyed', 'render-process-gone']) win.webContents.once(name, () => revoke(win));
   }
-  function provision(win, document, label) {
+  function provision(win, document, label, options = {}) {
+    if (!record(options, ['readOnly']) || (options.readOnly !== undefined && typeof options.readOnly !== 'boolean')) throw Error('Invalid provisioning options');
     if (!bindings.has(win.webContents) || typeof document.text !== 'string' || document.text.length > 131072
         || !service.getSaveState(document).ok || sessions.size >= 8 || typeof label !== 'string') throw Error('Invalid provisioning');
     projectSource(document.text);
-    const id = randomUUID(); sessions.set(id, { win, sender: win.webContents, document, label, undo: [], redo: [] }); return id;
+    const id = randomUUID(); sessions.set(id, { win, sender: win.webContents, document, label, readOnly: options.readOnly === true, undo: [], redo: [] }); return id;
   }
   function snapshot(id, s) {
-    return { sessionId: id, label: s.label, source: s.document.text, revision: s.document.revision,
+    return { sessionId: id, label: s.label, ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
       dirty: s.document.dirty, blocked: s.document.blocked, bom: s.document.bom, encoding: s.document.encoding,
       canUndo: s.undo.length > 0, canRedo: s.redo.length > 0,
       lineEndings: { ...s.document.lineEndings }, saveState: { ...service.getSaveState(s.document) } };
   }
-  function request(event, payload) {
-    let binding;
+  function authorizedBinding(event) {
     try {
-      binding = bindings.get(event.sender);
+      const binding = bindings.get(event.sender);
       if (!binding || binding.win.isDestroyed() || event.sender.isDestroyed()
         || windowFor(event.sender) !== binding.win || event.senderFrame !== event.sender.mainFrame
-        || event.senderFrame.url !== binding.url || event.sender.getURL() !== binding.url) return failure('unauthorized-sender');
-    } catch { return failure('unauthorized-sender'); }
-    const fields = { list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+        || event.senderFrame.url !== binding.url || event.sender.getURL() !== binding.url) return null;
+      return binding;
+    } catch { return null; }
+  }
+  async function openSelected(event, binding) {
+    if (typeof chooseFile !== 'function') return failure('open-unavailable');
+    if (binding.opening) return failure('open-busy');
+    binding.opening = true;
+    try {
+      const selected = await chooseFile(binding.win);
+      if (authorizedBinding(event) !== binding) return failure('unauthorized-sender');
+      if (selected?.canceled === true) return failure('open-cancelled');
+      const file = selected?.filePaths?.[0];
+      if (selected?.canceled !== false || !Array.isArray(selected.filePaths) || selected.filePaths.length !== 1
+          || typeof file !== 'string' || !path.isAbsolute(file) || !/\.md$/i.test(file)
+          || path.basename(file).startsWith('.env.') || file.split(path.sep).includes('secrets')) return failure('unsupported-path');
+      const opened = service.open(file, { parse: projectSource, maxBytes: 524288 });
+      if (!opened.ok) {
+        if (opened.document) service.close(opened.document);
+        const code = ['ENOENT', 'ENOTDIR'].includes(opened.code) ? 'file-unavailable'
+          : ['EACCES', 'EPERM'].includes(opened.code) ? 'read-failed'
+          : ['unsupported-path', 'unsupported-file', 'unsupported-size', 'unsupported-encoding', 'parse-failed', 'external-change'].includes(opened.code) ? opened.code : 'open-failed';
+        return failure(code);
+      }
+      try {
+        const id = provision(binding.win, opened.document, path.basename(file), { readOnly: true });
+        return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
+      } catch { service.close(opened.document); return failure('open-failed'); }
+    } catch { return failure('open-failed'); }
+    finally { binding.opening = false; }
+  }
+  function request(event, payload) {
+    const binding = authorizedBinding(event);
+    if (!binding) return failure('unauthorized-sender');
+    const fields = { 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
     if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
+    if (payload.operation === 'open-file') return openSelected(event, binding);
     if (payload.operation === 'list') return { ok: true, sessions: [...sessions].filter(([, s]) => s.win === binding.win)
       .map(([id, s]) => ({ sessionId: id, label: s.label })) };
     const id = payload.sessionId, s = typeof id === 'string' ? sessions.get(id) : null;
     if (!s || s.win !== binding.win) return failure('unknown-session');
     const reply = result => ({ ok: result.ok, status: result.status, code: result.code,
       committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // no fs paths/objects/error strings
+    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check'].includes(payload.operation)) return reply(failure('read-only-document'));
     if (['edit', 'save', 'close', 'undo', 'redo'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));

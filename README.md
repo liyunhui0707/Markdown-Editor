@@ -11,7 +11,8 @@ The setup also integrates with the `mcp-note-ingest` MCP server (installed as a 
 > Recovery audit (2026-10-22): isolated tests/builds pass, but file-preservation
 > defects and failing dependency audits remain. Use synthetic or backed-up files.
 > See the [audit and proposed document-first direction](docs/audits/2026-10-22-project-recovery-audit.md);
-> independent-file opening and the proposed architecture are not implemented yet.
+> the default app remains Vault-based. A limited read-only independent-file entry
+> is available below; the proposed writable document architecture is not complete.
 
 ## Headline guarantees
 
@@ -42,6 +43,28 @@ npm run dev
 ```
 
 See [Getting Started](#getting-started) below for build, test, and engine-selection details.
+
+### Independent Markdown preview (read-only V1)
+
+With the existing dependencies installed, run:
+
+```bash
+cd apps/desktop
+mise exec -- npm run dev -- --document-readonly
+```
+
+Use **Open Markdown…** or **Cmd+O** to select one `.md` file from any directory,
+then open a different file in the same window. No Vault is required. The name,
+location and read-only status are shown; this entry cannot edit or save files.
+Cancel or an open error keeps the current document. The ordinary `npm run dev`
+entry continues to use the existing Vault UI.
+
+This restricted preview formats headings, paragraphs and bold. Other syntax,
+including HTML, images, links and tables, is displayed as literal text; it does
+not load external resources. Only UTF-8 regular, non-linked `.md` files up to
+512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,
+not Finder integration or release acceptance. See the
+[scope and verification](docs/document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
 
 ## Features
 

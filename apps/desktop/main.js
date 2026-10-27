@@ -1,3 +1,7 @@
+// Explicit document-first read-only entry; branch before any Vault/AI initialization.
+if (process.argv?.includes('--document-readonly')) {
+  require('./lib/document-demo-main');
+} else {
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -865,3 +869,5 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+}

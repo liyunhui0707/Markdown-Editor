@@ -23,7 +23,8 @@ const sameSnapshot = (a, b) => a.filePath === b.filePath
 // stages. All operations are synchronous to match the current main boundary.
 function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {}) {
   const policy = createSavePolicy({ fs, unsafeExperimentalRoot });
-  function read(requestedPath) {
+  function read(requestedPath, maxBytes = Infinity) {
+    if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576)) throw error('unsupported-size', 'Invalid read limit.');
     if (typeof requestedPath !== 'string' || !path.isAbsolute(requestedPath)
         || !/\.md$/i.test(requestedPath) || isSessionLocation(requestedPath)) {
       throw error('unsupported-path', 'Expected an authorized absolute Markdown file path.');
@@ -40,7 +41,18 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {})
       if (!opened.isFile() || opened.nlink !== 1n || !sameMetadata(metadata(named), metadata(opened))) {
         throw error('external-change', 'File identity changed during open.');
       }
-      const bytes = fs.readFileSync(fd);
+      let bytes;
+      if (maxBytes === Infinity) bytes = fs.readFileSync(fd);
+      else {
+        if (opened.size > BigInt(maxBytes)) throw error('unsupported-size', 'File exceeds the preview size limit.');
+        const buffer = Buffer.alloc(maxBytes + 1); let count = 0;
+        while (count < buffer.length) {
+          const n = fs.readSync(fd, buffer, count, buffer.length - count, null);
+          if (!n) break; count += n;
+        }
+        if (count > maxBytes) throw error('unsupported-size', 'File grew beyond the preview size limit.');
+        bytes = buffer.subarray(0, count);
+      }
       const after = fs.fstatSync(fd, { bigint: true });
       const current = fs.lstatSync(filePath, { bigint: true });
       if (!sameMetadata(metadata(opened), metadata(after)) || !current.isFile()

@@ -13,7 +13,7 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info, secondSource = null) {
+async function usingDemo(body, info, secondSource = null, readOnly = false) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
@@ -32,7 +32,7 @@ async function usingDemo(body, info, secondSource = null) {
     entry = wrapper;
   }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: [entry], cwd: desktop, env, chromiumSandbox: true });
+    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly'] : [entry], cwd: desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -46,11 +46,14 @@ async function usingDemo(body, info, secondSource = null) {
       return { profile: app.getPath('userData'), isPackaged: app.isPackaged, electron: process.versions.electron };
     });
     const root = path.dirname(identity.profile); expect(path.basename(root)).toMatch(/^document-demo-/);
-    const bytes = await Promise.all(['a.md', 'b.md'].map(f => fs.readFile(path.join(root, f))));
+    const bytes = readOnly ? [] : await Promise.all(['a.md', 'b.md'].map(f => fs.readFile(path.join(root, f))));
     const page = await app.firstWindow(); await page.bringToFront();
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
-    await page.getByRole('button', { name: 'Connect synthetic documents' }).click();
-    await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+    if (readOnly) await expect(page.locator('#open-file')).toBeEnabled();
+    else {
+      await page.getByRole('button', { name: 'Connect synthetic documents' }).click();
+      await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+    }
     const sessions = (await page.evaluate(() => window.documentDemo.list())).sessions;
     const snapshot = id => page.evaluate(sessionId => window.documentDemo.snapshot({ sessionId }), id);
     const select = (selector, from, to = from) => page.locator(selector).evaluate((node, range) => {
@@ -60,8 +63,8 @@ async function usingDemo(body, info, secondSource = null) {
     }, { from, to });
     const settled = () => expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).pending).toBe(0);
     const { projectSource } = await import(pathToFileURL(path.join(desktop, 'lib/document-source-map.mjs')).href);
-    await body({ app, page, sessions, snapshot, select, settled, projectSource });
-    for (const [i, f] of ['a.md', 'b.md'].entries()) expect((await fs.readFile(path.join(root, f))).equals(bytes[i])).toBe(true);
+    await body({ app, page, sessions, snapshot, select, settled, projectSource, root });
+    for (const [i, f] of (readOnly ? [] : ['a.md', 'b.md']).entries()) expect((await fs.readFile(path.join(root, f))).equals(bytes[i])).toBe(true);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.emit('did-start-loading'));
     for (const s of sessions) expect((await snapshot(s.sessionId)).ok).toBe(false);
     if (await page.locator('#editor .tiptap').count()) {
@@ -78,7 +81,7 @@ async function usingDemo(body, info, secondSource = null) {
       const remaining = !ids.every(gone) || !!(group && !gone(-group));
       const fault = /p1:(?:uncaught|error-dialog)|Object has been destroyed|Uncaught Exception/.test(stderr);
       const record = { case: info.title, functional, pid: child.pid, ...result, watchdog, fault, remaining,
-        isPackaged: identity?.isPackaged, entry: secondSource !== null ? 'source-fixture' : process.env.DOCUMENT_DEMO_ENTRY ? 'actual-asar' : 'source' };
+        isPackaged: identity?.isPackaged, entry: readOnly ? 'document-readonly' : secondSource !== null ? 'source-fixture' : process.env.DOCUMENT_DEMO_ENTRY ? 'actual-asar' : 'source' };
       console.log('p1-parent-observation:' + JSON.stringify(record));
       await info.attach('p1-parent-exit', { body: JSON.stringify(record), contentType: 'application/json' });
       expect(result).toEqual({ code: 0, signal: null }); expect(watchdog).toBe(false); expect(fault).toBe(false); expect(remaining).toBe(false);
@@ -512,3 +515,48 @@ for (const nl of ['\r\n','\n']) test(`CRLF P1 actual Backspace without final new
   actual=(await snapshot(b)).snapshot;expect(actual.source).toBe('firstsecond');expect(actual.revision).toBe(initial.revision+3);
   expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(5);
 },info,'first'+nl+nl+'second'));
+
+
+test('document-first read-only opens two directories, keeps failures and renders hostile Markdown inert', async ({},info)=>usingDemo(async h=>{
+  const {app,page,snapshot,root}=h,a=path.join(root,'ProjectA','x.md'),b=path.join(root,'DesktopNotes','Y.md');
+  await fs.mkdir(path.dirname(a));await fs.mkdir(path.dirname(b));
+  const bytesA=Buffer.from('\ufeff# File A\r\n\r\nText **粗体** 😀\r\n\r\n<script>window.__unsafeRan=true</script>\r\n\r\n![x](file:///not-authorized.png)\r\n'),bytesB=Buffer.from('# File B\n\nFrom a different directory.');
+  await fs.writeFile(a,bytesA);await fs.writeFile(b,bytesB);
+  const denied=path.join(root,'invalid.md');await fs.writeFile(denied,Buffer.from([0xff,0xfe,0]));
+  await expect(page.locator('#document-header')).toBeVisible();await expect(page.locator('#connect')).toBeHidden();
+  // Native UI itself is exercised separately; these controlled selections retain actual main read/parse/IPC/render behavior.
+  await app.evaluate(({dialog})=>{
+    globalThis.originalNativePicker=dialog.showOpenDialog;
+    globalThis.pickerQueue=[];globalThis.pickerOptions=[];
+    dialog.showOpenDialog=async(win,options)=>{globalThis.pickerOptions.push(options);return globalThis.pickerQueue.shift();};
+  });
+  const choose=choice=>app.evaluate((_,choice)=>{globalThis.pickerQueue.push(choice);},choice);
+  const identity=async()=>JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+  await choose({canceled:false,filePaths:[a]});await page.getByRole('button',{name:'Open Markdown…',exact:true}).click();
+  await expect(page.locator('#document-name')).toHaveText('x.md');await expect(page.locator('#document-location')).toHaveText(path.dirname(a));
+  await expect(page.locator('#editor h1')).toHaveText('File A');await expect(page.locator('#editor strong')).toHaveText('粗体');
+  await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+  await expect(page.locator('#editor script,#editor img,#editor iframe,#editor a')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__unsafeRan)).toBeUndefined();
+  const first=await identity(),before=(await snapshot(first)).snapshot;
+  await page.locator('#editor p').first().click();await page.keyboard.insertText('MUST NOT EDIT');
+  for(const operation of ['edit','save','undo','redo']){
+    const result=await page.evaluate(({operation,id})=>window.documentDemo[operation]({sessionId:id,expectedRevision:0,...(operation==='edit'?{from:1,to:2,insert:'bad'}:{})}),{operation,id:first});
+    expect(result.code).toBe('read-only-document');
+  }
+  expect((await snapshot(first)).snapshot).toEqual(before);
+  await choose({canceled:true,filePaths:[]});await page.keyboard.press('Meta+o');
+  await expect(page.locator('#viewer-status')).toContainText('cancelled');expect(await identity()).toBe(first);
+  await choose({canceled:false,filePaths:[path.join(root,'missing.md')]});await page.locator('#open-file').click();
+  await expect(page.locator('#viewer-status')).toContainText('no longer exists');expect(await identity()).toBe(first);
+  await choose({canceled:false,filePaths:[denied]});await page.locator('#open-file').click();
+  await expect(page.locator('#viewer-status')).toContainText('UTF-8');expect(await identity()).toBe(first);await expect(page.locator('#editor h1')).toHaveText('File A');
+  await choose({canceled:false,filePaths:[b]});await page.keyboard.press('Meta+o');
+  await expect(page.locator('#document-name')).toHaveText('Y.md');await expect(page.locator('#document-location')).toHaveText(path.dirname(b));
+  await expect(page.locator('#editor h1')).toHaveText('File B');const second=await identity();expect(second).not.toBe(first);
+  expect((await snapshot(first)).code).toBe('unknown-session');expect((await snapshot(second)).snapshot.readOnly).toBe(true);
+  const options=await app.evaluate(()=>globalThis.pickerOptions);expect(options).toHaveLength(5);
+  expect(options.every(o=>o.properties.includes('openFile')&&!o.properties.includes('multiSelections')&&o.filters[0].extensions[0]==='md')).toBe(true);
+  expect((await fs.readFile(a)).equals(bytesA)).toBe(true);expect((await fs.readFile(b)).equals(bytesB)).toBe(true);
+  await info.attach('authorized-fixtures',{body:JSON.stringify({a,b}),contentType:'application/json'});
+},info,null,true));

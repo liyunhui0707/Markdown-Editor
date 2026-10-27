@@ -114,3 +114,16 @@ paragraph keyboard chain. Continuous semantic empty paragraphs, complex block
 structure and native macOS IME remain unaccepted. This does not change the
 historical Reload failure, existing P2 or Phase 1B-3 formal FAIL. Real file writes
 remain prohibited; no version bump, commit, package or publication is implied.
+
+
+## Document-First Open V1 — read-only developer entry (2026-10-26)
+
+At 0.22.0, `--document-readonly` bypasses Vault initialization and opens one
+native-selected UTF-8 `.md` file at a time, with name/location/read-only status.
+Headings/paragraphs/bold use the restricted Tiptap projection; other syntax is
+literal text. Main denies writes and renderer paths. Two-directory source IPC/
+UI tests and an actual native-dialog A/B/cancel/close check pass with unchanged
+file bytes. See [scope and bounded evidence](document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
+No Finder integration, true-file saving or release acceptance. Existing Phase
+1B-3 formal FAIL and SEC-01 remain. Entry stays below 300 lines; the existing
+main (>800 lines) only receives a launch guard, without unrelated restructuring.

@@ -708,3 +708,78 @@ and recorded only; no separate investigation was started. Historical Reload,
 first-copy P2, native IME recovery, all real-file write gates and Phase 1B-3
 formal FAIL remain unchanged. This repair is suitable for targeted re-review,
 not broader product or release sign-off.
+
+
+## Document-First Open V1 read-only (2026-10-26)
+
+Development scope at 0.22.0: `mise exec -- npm run dev -- --document-readonly`
+from `apps/desktop` enters a single-document viewer through the existing main
+entry, before Vault/AI initialization. The default launch is unchanged. This
+mode reuses the restricted Document main/preload/Tiptap surface, with no Vault,
+synthetic-editing controls, save action or Source/Write/Preview switch. Open
+Markdown… and the File menu/Cmd+O select a file through the macOS native dialog.
+A successful open replaces the visible document and closes the old read-only
+session. File name, directory and read-only status are visible. Cancel/read/
+validation failure retains the current document with a specific message.
+
+### Capability and rendering boundary
+
+- The main process owns the chooser. IPC `open-file` accepts no renderer path,
+  policy or filesystem capability. The existing exact sender, window, main
+  frame, URL and opaque session checks apply before the dialog and again after
+  it resolves. Only one dialog is in flight per binding. Revocation/navigation
+  prevents late selection from being read. The window regains focus when the
+  native sheet returns.
+- Native-selected sessions are marked read-only in main. Edit, Undo, Redo, Save
+  and disk recheck are rejected before the service executes them. Tiptap is
+  non-editable and rejects changing transactions as a second layer. Closing a
+  session does not save. No selected file is rewritten or reconstructed.
+- Reuse the File Store's canonical path, non-symlink, regular/single-link file,
+  no-follow descriptor and identity checks. A bounded read accepts at most
+  524,288 bytes, with a further existing 131,072 UTF-16 source limit. UTF-8 only;
+  unsupported encoding, file identity changes or size/type failures are refused.
+  Reserved session-library paths and protected secrets/config paths remain
+  excluded. The optional bound does not change existing unbounded service calls
+  or any save policy.
+- Use the existing restricted `projectSource` JSON projection, not the legacy
+  HTML/Toast UI/Mermaid bridge. Headings, paragraphs and bold are formatted;
+  unsupported constructs (including HTML, images, links, lists, tables, math,
+  front matter and unknown syntax) fall back to literal code-block text. No
+  raw HTML is inserted or relative/remote resources loaded. CSP, network,
+  new-window and navigation restrictions remain. This is a safe limited view,
+  not full Markdown rendering or a SEC-01 remediation.
+
+### Bounded verification
+
+- New main-boundary tests: RED 2 PASS / 5 FAIL before implementation; final
+  7 PASS. Actual service/store/session code covers two directories, byte
+  preservation, write denial, cancel/missing/permission/encoding failures,
+  hostile literal markup, read limits, sender/frame/URL isolation and late
+  dialog results after revoke/navigation. Permission failure is injected at
+  the file-open boundary, without operating on user documents.
+- Relevant Document/source-map/controller/history tests: **162 PASS**. Focused
+  legacy Vault/save/image tests: **33 PASS**. No unrelated full test suite was required.
+- Existing source Electron harness: **4 PASS** (new read-only integration,
+  basic paragraph writing, CRLF and LF join/history). A final single read-only
+  test after focus restoration also passes. Native chooser results are
+  controlled in this automated case; file read, parsing, IPC, Tiptap and
+  permissions are real. Parent observations show code=0, signal=null, no
+  watchdog, observed main fault or remaining test process.
+- Separate actual macOS native-dialog check opened synthetic ProjectA/x.md,
+  then Notes/Y.md via Cmd+O, and canceled another open. File identity, directory,
+  rendered heading/bold/Unicode and cancel retention were observed in the
+  window. After closing it, both files' SHA-256 values match their originals;
+  the viewer exited code 0. An initial native observation showed a stale body
+  while the title updated; explicitly returning focus after the sheet passed
+  the final bounded check. This does not establish all possible focus timings.
+- Demo bundle was built and independently rebuilt byte-identically through the
+  existing esbuild flow. Other managed generated assets and dependency/version
+  files remain unchanged. No ASAR, Finder install/open-file integration or full
+  packaging matrix was exercised for this source-only change.
+
+The feature does not enable editing, save, multiple user-document windows,
+filesystem watching or Finder association. The current document is a read-time
+snapshot, not a claim about subsequent external changes. Existing true-file
+write blockers, native IME, copy-click P2, historical Reload uncertainty and
+Phase 1B-3 formal **FAIL** remain. Suitable for a limited independent feature
+review; no commit, release or publication approval is implied.
