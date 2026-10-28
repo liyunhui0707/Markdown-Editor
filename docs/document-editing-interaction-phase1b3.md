@@ -841,3 +841,105 @@ Phase 1B-3 formal FAIL, native IME/Reload/copy P2 and file-write gates remain.
 No full Node suite, ASAR, packaging or release acceptance is implied. This UI
 candidate is ready for the user's visual experience check and later review,
 with no version bump, Git staging or commit.
+
+
+## Document Writing Entry V1 (2026-10-28, uncommitted at 0.24.0)
+
+Previously, direct Electron launch of `lib/document-demo-main.js` exposed the
+synthetic fixture editor via **Connect synthetic documents**. The actual
+`--document-readonly` product window shared its HTML, bundle, controller,
+source-map and IPC but globally denied editing and had no writable session
+creation action. Automated writing passes did not make that window writable.
+
+The approved window now offers **New temporary document**, on the same Tiptap
+surface. Main alone creates a private, empty synthetic seed file (0600, inside
+the isolated 0700 demo directory), opens it through the existing service, and
+provisions an opaque `temporary: true` capability. Only the empty seed touches
+disk; writing stays in the main Document Model and renderer's existing pending
+queue/recovery records. A no-argument IPC operation cannot select a file, supply
+source text, promote a real session, or change save policy. Save always returns
+`temporary-not-persistable`, including an unchanged empty document. Existing
+real-file capabilities continue to deny edits/history/save/check in main.
+
+The renderer enables typing only for an explicit temporary capability in this
+entry. The existing paragraph/UTF-16/revision/hash/history mechanisms are reused
+unchanged. Document selection retains temporary sessions and recovery records;
+newly opened files remain read-only. Navigation is unavailable during pending
+edits, composition or history operations. Session tombstones remain authoritative.
+The existing maximum of eight active sessions applies; no silent eviction or
+automatic draft discard was added. This is an in-process view of content, not
+crash recovery or durable storage.
+
+A visible **Not saved** notice explains copying, closing/refresh/crash loss, and
+restricted paragraphs. A main-owned native close/Quit confirmation defaults to
+Cancel whenever a temporary document has been created, even after session
+revocation or while a different read-only file is visible. This intentionally
+conservative warning covers renderer-only drafts that main cannot inspect.
+Normal read-only-only windows still close without that warning. Existing copy
+and recovery panels are accessible when relevant; native preedit may be missing.
+No second editor, persistence service, history stack or Markdown mode is added.
+The entry is just over 300 lines because presentation and shared lifecycle
+bindings stay together; splitting the existing controller/IPC is not necessary
+for this bounded integration. The E2E addition stays in the existing test file.
+
+Verification and limits: 2 new creation/policy tests first failed against the
+old IPC (RED); the 7 original read-only cases remained passing. The five related
+Node/ProseMirror/IPC files then passed 102/102. Current-code Air Electron results are recorded below. There is no version/dependency change,
+real-file write enablement, full packaging or Finder acceptance. SEC-01, native
+IME, historical Reload uncertainty, copy-click P2, composition unlock limitations,
+complex structures and Phase 1B-3 formal **FAIL** remain unchanged.
+
+
+Current-candidate Air checks: 3/3 selected Electron cases PASS (Node 24.20.0,
+Electron 43.4.1, Playwright 1.63.0). These cover the new actual keyboard entry,
+old read-only/security flow and approved responsive UI. The new case checks
+empty input, two paragraphs, Chinese/emoji via synthetic text insertion, cursor,
+join/Undo/Redo, separate temporary histories, read-only IPC/keyboard rejection,
+cancel retention, actual stale-revision draft retention and native close guard
+cancellation. Dialog decisions are controlled; the real main lifecycle, IPC,
+service and editor are used. This is not native-dialog manual QA or real IME.
+All three children: code=0, signal=null, watchdog=false, fault=false, no remaining
+owned test process. After exit, five read-only synthetic files are byte-identical
+and two temporary seed files are empty. Current source hashes are unchanged by
+execution; the transferred demo bundle independently rebuilds byte-identically.
+
+No Electron GUI ran on Pro. Air used a fresh private temporary directory with
+copied (not writable symlinked) existing dependencies/runtime, an explicit
+21-file current-source manifest and SHA-256 verification. Preparation stopped
+before GUI twice: native esbuild was initially invoked as JS, and an anchored
+Playwright selector matched zero tests. Correcting only those temporary runner
+commands passed the same build/collection gates. Post-exit checking initially
+expected JSON body attachments from the list reporter; using the exact synthetic
+fixture literals completed that check. No product assertion was relaxed.
+
+The runtime changes are document-demo main/preload/entry/HTML/bundle and the
+session IPC's temporary provisioning gate. Tests change only the existing
+read-only unit file and P1 Electron spec; README, this contract, stage history
+and manual checklist record the user entry. No parallel editor or history
+state machine was introduced. Suitable for a bounded independent review, not
+formal Phase 1B-3 acceptance, native IME sign-off or permission to write files.
+
+
+### Local WIP checkpoint and native Quit QA (2026-10-28)
+
+The user reports Session E's limited independent review accepted this candidate:
+temporary writing, read-only authorization, document/draft/history isolation,
+ordinary close and actual `app.quit()` passed, with no newly confirmed P0/P1.
+That review result is distinct from the development-side Air evidence above.
+
+Native **Cmd+Q: user-reported manual PASS**, separately from `app.quit()`:
+after creating a temporary document and typing two paragraphs, Cmd+Q displayed
+the unsaved-content warning; Cancel preserved the text and allowed continued
+editing; a second Cmd+Q followed by confirmation exited normally. This is the
+user's current-candidate QA feedback, not an automated shortcut result or a
+claim that all OS shutdown/crash paths have been validated.
+
+This local WIP checkpoint raises only project version fields to 0.25.0 under
+the minor-feature rule. The runtime, tests and bundle remain the reviewed
+0.24.0 candidate; this note supplements the dated evidence without recasting
+old tests as a full 0.25.0 release pass. Temporary writing is still **Not saved**,
+with no recovery across exit; refresh/crash can lose memory contents. Actual
+Markdown files remain read-only and all real-file writing stays prohibited.
+Phase 1B-3 formal **FAIL**, SEC-01, native Chinese IME acceptance, historical
+Reload uncertainty, copy-click P2 and the existing storage safety limitations
+remain open. This checkpoint is not release, merge or GitHub push approval.

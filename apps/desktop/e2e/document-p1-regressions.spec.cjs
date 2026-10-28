@@ -65,8 +65,9 @@ async function usingDemo(body, info, secondSource = null, readOnly = false) {
     const { projectSource } = await import(pathToFileURL(path.join(desktop, 'lib/document-source-map.mjs')).href);
     await body({ app, page, sessions, snapshot, select, settled, projectSource, root });
     for (const [i, f] of (readOnly ? [] : ['a.md', 'b.md']).entries()) expect((await fs.readFile(path.join(root, f))).equals(bytes[i])).toBe(true);
+    const finalSessions = (await page.evaluate(() => window.documentDemo.list())).sessions;
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.emit('did-start-loading'));
-    for (const s of sessions) expect((await snapshot(s.sessionId)).ok).toBe(false);
+    for (const s of finalSessions) expect((await snapshot(s.sessionId)).ok).toBe(false);
     if (await page.locator('#editor .tiptap').count()) {
       await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
       expect(JSON.parse(await page.locator('#status').textContent()).locked).toBe(true);
@@ -607,4 +608,73 @@ test('document UI V1 empty, Chinese and English layouts preserve readonly open f
   expect(await fs.readFile(a,'utf8')).toBe(cn);expect(await fs.readFile(b,'utf8')).toBe(en);
   await info.attach('ui-layout-metrics',{body:JSON.stringify(metrics),contentType:'application/json'});
   await info.attach('ui-synthetic-originals',{body:JSON.stringify({a,b,sha256A:require('node:crypto').createHash('sha256').update(cn).digest('hex'),sha256B:require('node:crypto').createHash('sha256').update(en).digest('hex')}),contentType:'application/json'});
+},info,null,true));
+
+
+test('document writing entry V1 keyboard paragraphs, temporary isolation and readonly safety', async ({},info)=>usingDemo(async h=>{
+  const {app,page,root,snapshot,select,settled}=h;
+  await app.evaluate(({dialog})=>{
+    globalThis.closeChoice=1;globalThis.closePrompts=[];globalThis.writingChoices=[];
+    dialog.showMessageBoxSync=(_win,options)=>{globalThis.closePrompts.push(options);return globalThis.closeChoice;};
+    dialog.showOpenDialog=async()=>globalThis.writingChoices.shift();
+  }); // Decisions are controlled; main's actual close event/guard and IPC remain in use.
+  const id=async()=>JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+  await expect(page.locator('#empty-state')).toBeVisible();
+  await page.getByRole('button',{name:'New temporary document',exact:true}).click();
+  const a=await id();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','true');
+  await expect(page.locator('#temporary-notice')).toBeVisible();await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+  expect((await snapshot(a)).snapshot.source).toBe('');
+  await page.keyboard.type('First ');await page.keyboard.insertText('中文😀');await settled();
+  const first='First 中文😀';
+  await page.keyboard.press('Enter');await settled();await expect(page.locator('#editor p')).toHaveCount(2);
+  await page.keyboard.type('Second paragraph');await settled();const written=first+'\n\nSecond paragraph';
+  expect((await snapshot(a)).snapshot.source).toBe(written);
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe('Second paragraph'.length);
+  await select('#editor p:nth-of-type(2)',0);await page.keyboard.press('Backspace');await settled();
+  expect((await snapshot(a)).snapshot.source).toBe(first+'Second paragraph');
+  expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(first.length);
+  await page.keyboard.press('Meta+z');await settled();expect((await snapshot(a)).snapshot.source).toBe(written);
+  await page.keyboard.press('Meta+Shift+z');await settled();expect((await snapshot(a)).snapshot.source).toBe(first+'Second paragraph');
+  await page.keyboard.press('Meta+z');await settled();
+  const aBefore=(await snapshot(a)).snapshot;
+  await page.getByRole('button',{name:'New temporary document',exact:true}).click();const b=await id();expect(b).not.toBe(a);
+  await page.keyboard.insertText('Other temporary');await settled();
+  await page.keyboard.press('Meta+z');await settled();expect((await snapshot(b)).snapshot.source).toBe('');
+  expect((await snapshot(a)).snapshot).toEqual(aBefore);
+  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor p')).toHaveCount(2);
+  expect(await page.locator('#document-name').textContent()).toBe(aBefore.label);
+  const file=path.join(root,'opened-readonly.md'),bytes=Buffer.from('\ufeff# Read only\r\n\r\nOriginal body.');await fs.writeFile(file,bytes);
+  await app.evaluate((_,file)=>globalThis.writingChoices.push({canceled:false,filePaths:[file]}),file);
+  await page.keyboard.press('Meta+o');await expect(page.locator('#editor h1')).toHaveText('Read only');const real=await id();
+  await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');await expect(page.locator('#temporary-notice')).toBeHidden();
+  const realBefore=(await snapshot(real)).snapshot;
+  await page.locator('#editor p').click();await page.keyboard.type('blocked');await page.keyboard.press('Enter');await page.keyboard.press('Meta+z');
+  for(const operation of ['edit','save','undo','redo']){
+    const result=await page.evaluate(({operation,sessionId})=>window.documentDemo[operation]({sessionId,expectedRevision:0,...(operation==='edit'?{from:1,to:1,insert:'blocked'}:{})}),{operation,sessionId:real});
+    expect(result.code).toBe('read-only-document');
+  }
+  expect((await snapshot(real)).snapshot).toEqual(realBefore);expect((await snapshot(a)).snapshot).toEqual(aBefore);
+  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','true');
+  await select('#editor p:first-of-type',first.length);await page.keyboard.insertText('!');await settled();
+  await page.keyboard.press('Meta+z');await settled();expect((await snapshot(a)).snapshot.source).toBe(written);
+  await app.evaluate(()=>globalThis.writingChoices.push({canceled:true,filePaths:[]}));await page.keyboard.press('Meta+o');
+  await expect(page.locator('#viewer-status')).toContainText('cancelled');expect(await id()).toBe(a);
+  // Genuine stale revision produces a protected local draft; switching never discards it.
+  const current=(await snapshot(a)).snapshot;
+  expect((await page.evaluate(data=>window.documentDemo.edit(data),{sessionId:a,expectedRevision:current.revision,from:1,to:2,insert:'X'})).ok).toBe(true);
+  await select('#editor p:first-of-type',0,1);await page.keyboard.insertText('UNCONFIRMED');await settled();
+  await expect(page.locator('#recovery-panel')).toBeVisible();await expect(page.locator('#recovery')).toContainText('UNCONFIRMED');
+  await page.locator('#documents').selectOption(b);await expect(page.locator('#recovery-panel')).toBeHidden();
+  await page.locator('#documents').selectOption(a);await expect(page.locator('#recovery')).toContainText('UNCONFIRMED');
+  const retained=(await snapshot(a)).snapshot;
+  expect((await page.evaluate(data=>window.documentDemo.save(data),{sessionId:a,expectedRevision:retained.revision})).code).toBe('temporary-not-persistable');
+  await app.evaluate(({BrowserWindow})=>{globalThis.closeChoice=0;BrowserWindow.getAllWindows()[0].close();});
+  await expect(page.locator('#document-header')).toBeVisible();expect((await snapshot(a)).snapshot).toEqual(retained);
+  const prompts=await app.evaluate(()=>globalThis.closePrompts);expect(prompts.at(-1).detail).toContain('only in this process');
+  expect(prompts.at(-1).defaultId).toBe(0);expect(prompts.at(-1).cancelId).toBe(0);
+  await app.evaluate(()=>{globalThis.closeChoice=1;}); // Actual close completes in the shared parent-exit verification.
+  expect((await fs.readFile(file)).equals(bytes)).toBe(true);
+  const seeds=(await fs.readdir(root)).filter(n=>/^temporary-\d+\.md$/.test(n));expect(seeds).toHaveLength(2);
+  for(const seed of seeds)expect((await fs.readFile(path.join(root,seed))).length).toBe(0);
+  const screenshot=info.outputPath('temporary-writing.png');await page.screenshot({path:screenshot});await info.attach('temporary-writing',{path:screenshot,contentType:'image/png'});
 },info,null,true));

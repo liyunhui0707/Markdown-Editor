@@ -9,7 +9,8 @@ let controller = null, editor = null, resetting = false, loading = false, select
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
 let readOnlyWindow = false;
-const readOnlyDocument = () => readOnlyWindow || controller?.state().confirmed.readOnly === true;
+const readOnlyDocument = () => controller?.state().confirmed.readOnly === true
+  || (readOnlyWindow && controller?.state().confirmed.temporary !== true);
 let compositionView = null, copyPanelOpen = false, copyMessage = '', copyEpoch = 0;
 function renderCompositionCopies(s) {
   byId('composition-warning').hidden = !(s.compositionInvalid || ['unsafe-composition', 'composition-invalid'].includes(s.code));
@@ -85,6 +86,20 @@ function render(s) {
   byId('discard-recovery').disabled = busy || records.length === 0;
   const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
   if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
+  if (readOnlyWindow) {
+    for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = busy;
+    const current = s.confirmed, temporary = current.temporary === true;
+    byId('document-name').textContent = current.label; byId('document-full-name').textContent = current.label;
+    byId('document-location').textContent = temporary ? 'In this window only — no saved file' : current.location;
+    byId('document-info').querySelector('summary').title = current.label;
+    byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
+    byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Viewing only. Editing and saving are unavailable.';
+    byId('document-info-note').textContent = temporary ? 'Limited paragraph writing. No save or export is available.' : 'Read-only preview. Some Markdown formatting is shown as plain text.';
+    byId('temporary-notice').hidden = !temporary;
+    byId('documents').hidden = byId('documents').options.length < 2;
+    document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');
+    if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
+  }
   renderCompositionCopies(s); show();
 }
 function resetSource(source, selection) {
@@ -162,7 +177,7 @@ async function load() {
   try {
     const r = await api.snapshot({ sessionId: id });
     if (epoch !== switchEpoch) return;
-    if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) install(r.snapshot);
+    if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) { install(r.snapshot); if (readOnlyWindow) viewerStatus('Document selected.'); }
     else { failedSession = id; navigationError = 'switch-failed:' + (lifecycleCode(id) || r.code || 'invalid-snapshot'); }
   } catch { if (epoch === switchEpoch) navigationError = 'switch-failed:ipc-failed'; }
   finally {
@@ -216,53 +231,59 @@ function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openReadOnly() {
-  if (!readOnlyWindow || loading) return;
+async function openDocument(temporary = false) {
+  const state = controller?.state();
+  if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
   loading = true; const epoch = ++switchEpoch;
-  byId('open-file').disabled = true; byId('empty-open').disabled = true; viewerStatus('Opening…');
+  for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = true;
+  if (controller) render(controller.state());
+  viewerStatus(temporary ? 'Creating temporary document…' : 'Opening…');
   let candidate = null;
   try {
-    const r = await api.openFile();
+    const r = await (temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
     if (!r.ok) {
       const messages = { 'open-cancelled': 'Open cancelled.', 'file-unavailable': 'The selected file no longer exists.',
         'read-failed': 'The selected file cannot be read.', 'unsupported-encoding': 'Only UTF-8 Markdown is supported.',
         'unsupported-size': 'The selected file exceeds the preview size limit.', 'parse-failed': 'This content exceeds the supported preview limits.',
         'unsupported-path': 'Choose one supported .md file.', 'unsupported-file': 'Choose a regular file, not a link.',
-        'external-change': 'The file changed while it was being read.' };
+        'external-change': 'The file changed while it was being read.', 'session-limit': 'This window has reached its eight-document limit.' };
       viewerStatus((messages[r.code] || 'Unable to open the selected file.') + ' Current document unchanged.', true);
       return;
     }
     candidate = r.snapshot;
-    if (candidate?.readOnly !== true || lifecycles.has(candidate.sessionId)
-        || typeof candidate.label !== 'string' || typeof candidate.location !== 'string') throw Error('Invalid read-only snapshot');
+    if (!candidate || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
+        || lifecycles.has(candidate.sessionId) || typeof candidate.label !== 'string') throw Error('Invalid read-only snapshot');
     const projection = projectSource(candidate.source);
     const schema = editor?.schema || getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
     schema.nodeFromJSON(projection.doc).check(); // Validate before changing active identity/content.
     const previous = controller?.state().confirmed;
-    install(candidate);
-    byId('document-name').textContent = candidate.label;
-    byId('document-location').textContent = candidate.location;
-    byId('document-full-name').textContent = candidate.label;
-    byId('document-info').querySelector('summary').title = candidate.label;
+    navigationError = '';
+    const option = document.createElement('option'); option.value = candidate.sessionId; option.textContent = candidate.label;
+    byId('documents').append(option); install(candidate);
     byId('document-info').hidden = false; byId('document-info').open = false;
     byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; window.scrollTo(0, 0);
-    document.title = candidate.label + ' — Read-only';
-    if (previous && previous.sessionId !== candidate.sessionId) {
-      try { await api.close({ sessionId: previous.sessionId, expectedRevision: previous.revision }); }
+    if (previous?.readOnly && previous.sessionId !== candidate.sessionId) {
+      try {
+        const closed = await api.close({ sessionId: previous.sessionId, expectedRevision: previous.revision });
+        if (closed.ok) [...byId('documents').options].find(o => o.value === previous.sessionId)?.remove();
+      }
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
-    viewerStatus('Read-only preview. The original file has not been modified.');
+    viewerStatus(temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
   } catch {
     if (candidate && selected !== candidate.sessionId) {
       try { await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision }); } catch { /* main revokes on window close */ }
     }
     viewerStatus('Unable to display the selected file. Current document unchanged.', true);
   } finally {
-    loading = false; byId('open-file').disabled = false; byId('empty-open').disabled = false;
+    loading = false; for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = false;
     if (controller) render(controller.state());
+    if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
+const openReadOnly = () => openDocument(false);
+byId('new-temporary').onclick = () => openDocument(true);
 byId('open-file').onclick = openReadOnly;
 byId('empty-open').onclick = openReadOnly;
 api.onOpenRequest(openReadOnly);
@@ -276,6 +297,8 @@ api.onReady(data => {
   if (readOnlyWindow) {
     document.body.dataset.documentViewer = 'true'; document.body.dataset.documentState = 'empty';
     byId('document-header').hidden = false; byId('empty-state').hidden = false; byId('empty-open').disabled = false;
+    byId('writing-actions').hidden = false; byId('new-temporary').disabled = false;
+    byId('writing-actions').append(byId('documents')); byId('documents').hidden = true; byId('documents').setAttribute('aria-label', 'Open documents');
     byId('open-file').disabled = false; document.title = 'Markdown — Read-only';
   } else byId('connect').disabled = false;
 });

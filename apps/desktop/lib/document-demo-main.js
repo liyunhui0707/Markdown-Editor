@@ -22,7 +22,16 @@ for (const [name, source] of fixtures) fs.writeFileSync(path.join(root, name), s
 app.whenReady().then(async () => {
   const { projectSource, mapTextEdit } = await import('./document-source-map.mjs');
   const service = createDocumentService(); // Never unsafeExperimentalRoot here.
+  let temporaryCreated = false, temporaryNumber = 0;
   const manager = createDocumentSessions({ service, projectSource, mapTextEdit, windowFor: wc => BrowserWindow.fromWebContents(wc),
+    createTemporary: readOnlyWindow ? () => {
+      // Only an empty synthetic seed reaches disk. User writing is never persisted.
+      const file = path.join(root, `temporary-${++temporaryNumber}.md`);
+      fs.writeFileSync(file, '', { flag: 'wx', mode: 0o600 });
+      const opened = service.open(file, { parse: projectSource, maxBytes: 524288 });
+      if (opened.ok) temporaryCreated = true;
+      return opened;
+    } : null,
     chooseFile: readOnlyWindow ? async win => {
       const result = await dialog.showOpenDialog(win, { title: 'Open Markdown file',
         properties: ['openFile', 'dontAddToRecent'], filters: [{ name: 'Markdown', extensions: ['md'] }] });
@@ -41,6 +50,13 @@ app.whenReady().then(async () => {
       } }, { role: 'close' } ] },
     { label: 'Edit', submenu: [{ role: 'copy' }, { role: 'selectAll' }] },
   ]));
+  win.on('close', event => {
+    // Keep the warning even after session revocation: renderer-only drafts may exist.
+    if (temporaryCreated && dialog.showMessageBoxSync(win, { type: 'warning',
+      message: 'Close without saving temporary documents?',
+      detail: 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
+      buttons: ['Cancel', 'Close without saving'], defaultId: 0, cancelId: 0, noLink: true }) !== 1) event.preventDefault();
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => { event.preventDefault(); manager.revoke(win); });
   win.webContents.on('will-attach-webview', event => event.preventDefault());

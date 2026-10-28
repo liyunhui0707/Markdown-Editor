@@ -6,7 +6,7 @@ const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned capabilities. Native selection is the only open authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   function invalidate(id, s) {
     sessions.delete(id); // Revoke authority before notifying the captured owner.
@@ -24,19 +24,20 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
   }
   function grant(win, url) {
     if (bindings.has(win.webContents) || typeof url !== 'string' || !url.startsWith('file:')) throw Error('Invalid binding');
-    bindings.set(win.webContents, { win, url });
+    bindings.set(win.webContents, { win, url, temporaryCount: 0 });
     win.once('closed', () => revoke(win));
     for (const name of ['did-start-loading', 'destroyed', 'render-process-gone']) win.webContents.once(name, () => revoke(win));
   }
   function provision(win, document, label, options = {}) {
-    if (!record(options, ['readOnly']) || (options.readOnly !== undefined && typeof options.readOnly !== 'boolean')) throw Error('Invalid provisioning options');
+    if (!record(options, ['readOnly', 'temporary']) || (options.readOnly !== undefined && typeof options.readOnly !== 'boolean')
+        || (options.temporary !== undefined && typeof options.temporary !== 'boolean') || (options.temporary && options.readOnly)) throw Error('Invalid provisioning options');
     if (!bindings.has(win.webContents) || typeof document.text !== 'string' || document.text.length > 131072
         || !service.getSaveState(document).ok || sessions.size >= 8 || typeof label !== 'string') throw Error('Invalid provisioning');
     projectSource(document.text);
-    const id = randomUUID(); sessions.set(id, { win, sender: win.webContents, document, label, readOnly: options.readOnly === true, undo: [], redo: [] }); return id;
+    const id = randomUUID(); sessions.set(id, { win, sender: win.webContents, document, label, readOnly: options.readOnly === true, temporary: options.temporary === true, undo: [], redo: [] }); return id;
   }
   function snapshot(id, s) {
-    return { sessionId: id, label: s.label, ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
+    return { sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
       dirty: s.document.dirty, blocked: s.document.blocked, bom: s.document.bom, encoding: s.document.encoding,
       canUndo: s.undo.length > 0, canRedo: s.redo.length > 0,
       lineEndings: { ...s.document.lineEndings }, saveState: { ...service.getSaveState(s.document) } };
@@ -77,16 +78,29 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     } catch { return failure('open-failed'); }
     finally { binding.opening = false; }
   }
+  function newTemporary(binding) {
+    if (typeof createTemporary !== 'function') return failure('temporary-unavailable');
+    if (sessions.size >= 8) return failure('session-limit');
+    let opened;
+    try {
+      opened = createTemporary(); // Synchronous trusted factory; no renderer paths/content/options.
+      if (!opened?.ok) return failure('temporary-create-failed');
+      const id = provision(binding.win, opened.document, 'Temporary ' + (++binding.temporaryCount), { temporary: true });
+      return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
+    } catch { return failure('temporary-create-failed'); }
+    finally { if (opened?.document && ![...sessions.values()].some(s => s.document === opened.document)) service.close(opened.document); }
+  }
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
     if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
+    if (payload.operation === 'new-temporary') return newTemporary(binding);
     if (payload.operation === 'open-file') return openSelected(event, binding);
     if (payload.operation === 'list') return { ok: true, sessions: [...sessions].filter(([, s]) => s.win === binding.win)
       .map(([id, s]) => ({ sessionId: id, label: s.label })) };
@@ -94,6 +108,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     if (!s || s.win !== binding.win) return failure('unknown-session');
     const reply = result => ({ ok: result.ok, status: result.status, code: result.code,
       committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // no fs paths/objects/error strings
+    if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
     if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check'].includes(payload.operation)) return reply(failure('read-only-document'));
     if (['edit', 'save', 'close', 'undo', 'redo'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));

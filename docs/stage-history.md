@@ -141,3 +141,13 @@ is preserved and corrected without weakening assertions. See the
 [bounded scope and evidence](document-editing-interaction-phase1b3.md#document-uiux-v1-2026-10-28-uncommitted-at-0230).
 Real file writes remain prohibited; Phase 1B-3 formal FAIL and SEC-01 remain.
 User visual acceptance is pending; no commit, version or release is implied.
+
+
+## Document Writing Entry V1 — temporary writing in the document window
+
+Uncommitted at 0.24.0 (2026-10-28): exposes the existing restricted paragraph
+editor in the approved document window through a main-created temporary session.
+Real files remain read-only; no writeback. Reuses source-map/controller/history,
+adds a visible memory-only notice and conservative native close confirmation.
+See [contract and checks](document-editing-interaction-phase1b3.md#document-writing-entry-v1-2026-10-28-uncommitted-at-0240).
+No release or formal Phase 1B-3 PASS is implied.

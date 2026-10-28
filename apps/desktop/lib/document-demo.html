@@ -104,6 +104,10 @@ body[data-document-viewer] ::selection{background:#dce9fc}
   #empty-state h1{font-size:25px}
   #empty-state{padding-left:22px;padding-right:22px}
 }
+body[data-document-viewer] #writing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 22px;border-bottom:1px solid var(--line);font-size:12px}
+body[data-document-viewer] #writing-actions :is(button,select){margin:0;max-width:100%;min-width:0;padding:6px 9px;border:1px solid #d6d8dc;border-radius:6px;background:#fff;color:var(--ink);font:inherit}
+body[data-document-viewer] #temporary-notice,body[data-document-viewer] .input-protection{max-width:780px;margin:16px auto;padding:0 22px;font-size:13px;line-height:1.6;color:var(--muted)}
+body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
 </style></head>
 <body>
 <header id="document-header" hidden>
@@ -114,12 +118,14 @@ body[data-document-viewer] ::selection{background:#dce9fc}
   <details id="document-info" hidden>
     <summary title="Document information"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
     <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
-      <p class="document-info-note">Read-only preview. Some Markdown formatting is shown as plain text.</p></div>
+      <p id="document-info-note" class="document-info-note">Read-only preview. Some Markdown formatting is shown as plain text.</p></div>
   </details>
   <span id="readonly-badge" title="Viewing only. Editing and saving are unavailable.">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.7"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7"/></svg>Read-only
   </span>
 </header>
+<div id="writing-actions" hidden><button id="new-temporary" disabled>New temporary document</button></div>
+<p id="temporary-notice" hidden>Not saved — temporary writing and input copies stay in memory only. Closing, refreshing or a crash loses them. Select and copy any text you want to keep. Basic paragraphs only; paste and complex formatting are unavailable.</p>
 <output id="viewer-status" role="status" aria-live="polite">Open a .md file to begin.</output>
 <section id="empty-state" hidden aria-labelledby="welcome-title">
   <svg class="welcome-icon" viewBox="0 0 68 76" fill="none" aria-hidden="true"><path d="M17 4h24l14 15v49a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#f0f3f7" stroke="currentColor" stroke-width="1.5"/><path d="M40 4v16h15M24 34h20M24 43h20M24 52h13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -133,10 +139,10 @@ body[data-document-viewer] ::selection{background:#dce9fc}
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
 <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>
 </div><output class="developer-only" id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
-<section class="developer-only" id="composition-warning" hidden aria-label="Unconfirmed input warning">
+<section class="input-protection" id="composition-warning" hidden aria-label="Unconfirmed input warning">
 <p role="status">Some composition input could not be accepted safely. Input remains blocked until its genuine completion; no automatic reset or reload is performed.</p>
 <button id="view-composition-copy">View / keep input copies</button></section>
-<section class="developer-only" id="composition-copy-panel" hidden aria-label="Composition input copies">
+<section class="input-protection" id="composition-copy-panel" hidden aria-label="Composition input copies">
 <p>Copies are memory only. Exit, page refresh or a crash may lose them. Native IME preedit outside DOM/controller may not be captured; these copies may be incomplete.</p>
 <p>Editing recovery is unavailable: safe retirement of the native input context has not been verified. Viewing or cancelling does not unlock, submit or discard input.</p>
 <output id="composition-copy-status" role="status"></output>
@@ -146,7 +152,7 @@ body[data-document-viewer] ::selection{background:#dce9fc}
 <pre id="composition-dom" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="Retained partial DOM text"></pre><button id="copy-composition-dom">Copy partial DOM text</button>
 <button id="cancel-composition-copy">Cancel copy view</button></section>
 <details class="developer-only" open><summary>Complete source retained in main memory</summary><pre id="source"></pre></details>
-<details class="developer-only" id="recovery-panel" hidden><summary>Recovery records retained in memory</summary>
+<details class="input-protection" id="recovery-panel" hidden><summary>Recovery records retained in memory</summary>
 <output id="recovery-status"></output><select id="recovery-record" aria-label="Recovery record"></select>
 <button id="discard-recovery" title="Only removes the selected in-memory record; does not change confirmed Markdown.">Discard selected recovery record</button>
 <pre id="recovery"></pre></details>

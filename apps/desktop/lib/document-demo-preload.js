@@ -35,6 +35,7 @@ const request = async (operation, data = {}) => {
 };
 contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
+  newTemporary: () => request('new-temporary'),
   onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),
   list: () => request('list'),
   snapshot: data => request('snapshot', data),

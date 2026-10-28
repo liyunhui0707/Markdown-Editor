@@ -1399,3 +1399,26 @@ from apps/desktop. Keep this distinct from the default Vault application.
 
 The Pro headless probes are layout evidence only. Existing write/IME/SEC-01 and
 Phase 1B-3 limitations remain; this checklist is not release approval.
+
+
+## Document Writing Entry V1 — same window, temporary memory only (0.24.0)
+
+Run `mise exec -- npm run dev -- --document-readonly` from `apps/desktop`.
+Use synthetic material only; this checklist is not a native IME pass.
+
+- Click **New temporary document**. The same centered editor focuses an empty
+  paragraph; the header says **Not saved**, with a visible memory-only notice.
+- Type a first paragraph, Enter, and a second paragraph with English, Chinese
+  and emoji. Check cursor position. At paragraph two's start, Backspace joins;
+  Cmd+Z restores the split and Cmd+Shift+Z rejoins.
+- Create another temporary document; use the selector to return. Content and
+  history belong to their own sessions. Existing recovery records stay scoped
+  to their document and remain accessible when switching back.
+- Open a synthetic `.md` with Cmd+O. It must show **Read-only** and reject typing,
+  Enter and Undo. Switch back to the temporary document and continue writing.
+  Canceling the picker must preserve the active document and its text.
+- Close or Quit after creating a temporary document: the default is **Cancel**.
+  Cancel keeps the window/content. **Close without saving** deliberately loses
+  all temporary writing and recovery records. Verify original fixture hashes.
+- Real macOS Simplified Pinyin, native preedit completeness and IME recovery
+  still require separate acceptance. Do not refresh to recover an input lock.

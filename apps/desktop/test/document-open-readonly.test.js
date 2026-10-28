@@ -5,7 +5,7 @@ const {createDocumentService}=require('../lib/document-service');
 const {createDocumentSessions}=require('../lib/document-session-ipc');
 let projectSource,mapTextEdit;
 test.before(async()=>{({projectSource,mapTextEdit}=await import('../lib/document-source-map.mjs'));});
-function fixture(){
+function fixture(temporary = false){
   const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'document-open-unit-')));
   const a=path.join(root,'ProjectA','x.md'),b=path.join(root,'Notes','Y.md');
   fs.mkdirSync(path.dirname(a));fs.mkdirSync(path.dirname(b));
@@ -23,6 +23,7 @@ function fixture(){
   Object.assign(win,{webContents:wc,isDestroyed:()=>false});
   const choices=[],events=[],event={sender:wc,senderFrame:frame};let pickerCalls=0;
   const manager=createDocumentSessions({service,projectSource,mapTextEdit,windowFor:s=>s===wc?win:null,
+    createTemporary: temporary ? () => { const file=path.join(root,'temporary-'+reads.length+'.md'); fs.writeFileSync(file,'',{flag:'wx'}); return service.open(file,{maxBytes:524288}); } : null,
     chooseFile:async owner=>{assert.equal(owner,win);pickerCalls++;const item=choices.shift();return typeof item==='function'?item():item;}});
   manager.grant(win,frame.url);
   const call=payload=>manager.request(event,payload),snap=id=>call({operation:'snapshot',sessionId:id});
@@ -89,4 +90,31 @@ test('bounded open rejects oversize and source-limit input, while hostile markup
   const result=await f.open(html);assert.equal(result.ok,true);assert.equal(result.snapshot.source,raw);
   assert.ok(projectSource(raw).doc.content.every(n=>n.type==='codeBlock'));
   assert.deepEqual(f.writes,[]);
+});
+
+
+test('temporary creation is main-owned, bounded and isolated from read-only documents', async()=>{
+  const f=fixture(true), before=fs.readFileSync(f.a), real=(await f.open(f.a)).snapshot;
+  assert.equal(f.manager.request({sender:{},senderFrame:f.frame},{operation:'new-temporary'}).code,'unauthorized-sender');
+  for(const extra of [{path:f.a},{source:'private'},{unsafeExperimentalRoot:f.root},{sessionId:real.sessionId}])
+    assert.equal(f.call({operation:'new-temporary',...extra}).code,'invalid-request');
+  const created=f.call({operation:'new-temporary'});assert.equal(created.ok,true);
+  const s=created.snapshot;assert.equal(s.temporary,true);assert.equal(s.readOnly,false);assert.equal(s.source,'');
+  assert.equal(s.location,undefined);assert.equal(s.revision,0);
+  assert.equal(f.call({operation:'save',sessionId:s.sessionId,expectedRevision:0}).code,'temporary-not-persistable');
+  const edited=f.call({operation:'edit',sessionId:s.sessionId,expectedRevision:0,from:1,to:1,insert:'First 中文😀'});
+  assert.equal(edited.ok,true);assert.equal(edited.snapshot.dirty,true);
+  assert.deepEqual(f.snap(real.sessionId).snapshot,real);
+  const undo=f.call({operation:'undo',sessionId:s.sessionId,expectedRevision:1});assert.equal(undo.snapshot.source,'');
+  const redo=f.call({operation:'redo',sessionId:s.sessionId,expectedRevision:2});assert.equal(redo.snapshot.source,'First 中文😀');
+  assert.equal(f.call({operation:'save',sessionId:s.sessionId,expectedRevision:3}).code,'temporary-not-persistable');
+  assert.equal(f.call({operation:'close',sessionId:s.sessionId,expectedRevision:3}).code,'unresolved-save-state');
+  assert.deepEqual(fs.readFileSync(f.a),before);assert.deepEqual(f.writes,[]);
+  assert.equal(fs.readFileSync(f.reads.at(-1),'utf8'),''); // seed stays empty, edits only in memory
+  for(let i=0;i<6;i++)assert.equal(f.call({operation:'new-temporary'}).ok,true);
+  const count=f.reads.length;assert.equal(f.call({operation:'new-temporary'}).code,'session-limit');assert.equal(f.reads.length,count);
+  f.win.emit('closed');assert.equal(f.call({operation:'new-temporary'}).code,'unauthorized-sender');
+});
+test('temporary creation is unavailable unless explicitly enabled by trusted main',()=>{
+  assert.equal(fixture().call({operation:'new-temporary'}).code,'temporary-unavailable');
 });

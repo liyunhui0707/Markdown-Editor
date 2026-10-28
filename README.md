@@ -44,7 +44,7 @@ npm run dev
 
 See [Getting Started](#getting-started) below for build, test, and engine-selection details.
 
-### Independent Markdown preview (read-only V1)
+### Independent Markdown window (restricted development entry)
 
 With the existing dependencies installed, run:
 
@@ -57,9 +57,18 @@ Use **Open Markdown…** or **Cmd+O** to select one `.md` file from any director
 then open a different file in the same window. No Vault is required. A compact
 toolbar shows the document name and read-only status; click the name to view its
 full name and directory. The centered reading surface and welcome window share
-one interface. This entry cannot edit or save files.
+one interface. Opened files cannot be edited or saved.
 Cancel or an open error keeps the current document. The ordinary `npm run dev`
 entry continues to use the existing Vault UI.
+
+Click **New temporary document** to try ordinary paragraph writing in this same
+window. Type, press Enter for the next paragraph, Backspace to join paragraphs,
+and use Cmd+Z / Cmd+Shift+Z. The document selector preserves temporary sessions
+while viewing a real file. **Not saved** means memory only: copy text you want to
+keep before closing. Close/Quit asks before discarding; refresh/crash recovery
+is unavailable. No Save/Save As, file writeback, paste or complex structure
+editing is enabled. Native macOS IME remains unaccepted. The eight-session limit
+is a development constraint; this is not a daily-writing or release sign-off.
 
 This restricted preview formats headings, paragraphs and bold. Other syntax,
 including HTML, images, links and tables, is displayed as literal text; it does
