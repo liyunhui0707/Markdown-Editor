@@ -54,8 +54,10 @@ mise exec -- npm run dev -- --document-readonly
 ```
 
 Use **Open Markdown…** or **Cmd+O** to select one `.md` file from any directory,
-then open a different file in the same window. No Vault is required. The name,
-location and read-only status are shown; this entry cannot edit or save files.
+then open a different file in the same window. No Vault is required. A compact
+toolbar shows the document name and read-only status; click the name to view its
+full name and directory. The centered reading surface and welcome window share
+one interface. This entry cannot edit or save files.
 Cancel or an open error keeps the current document. The ordinary `npm run dev`
 entry continues to use the existing Vault UI.
 

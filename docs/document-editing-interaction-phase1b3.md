@@ -783,3 +783,61 @@ snapshot, not a claim about subsequent external changes. Existing true-file
 write blockers, native IME, copy-click P2, historical Reload uncertainty and
 Phase 1B-3 formal **FAIL** remain. Suitable for a limited independent feature
 review; no commit, release or publication approval is implied.
+
+
+## Document UI/UX V1 (2026-10-28, uncommitted at 0.23.0)
+
+Presentation-only refinement of the existing Document-First read-only entry.
+The native Electron window/title bar is unchanged. A 55–58px toolbar contains
+Open Markdown…, a single-line ellipsized file name and a quiet read-only label.
+The full name is available on hover; a native HTML details disclosure shows the
+full name/directory on demand. Successful-open status stays accessible to screen
+readers without occupying reading space; cancellation/errors remain visible.
+The empty window has one primary open action with the same existing open flow
+and Cmd+O. Opening another document resets page scroll, not document/history.
+
+The same Tiptap surface now has a centered 780 CSS px reading measure, responsive
+side margins, 18px body type (17px below 640px), 1.85 line height, separate heading
+levels and system/PingFang font fallbacks. Long words wrap; unsupported syntax
+keeps its existing literal representation with quieter code-block styling. No
+Markdown conversion, images, links, HTML execution, theme system or new mode is
+introduced. All new styles are scoped to the document entry; synthetic editing
+controls and their existing state machine are retained. HTML/entry stay below
+300 lines; the existing E2E file remains below its practical test-size cap.
+
+### Current-candidate checks
+
+- MacBook Pro: 7 read-only-boundary Node tests PASS using pinned Node 24.20.0.
+  Chromium headless layout probes cover Chinese/English at 390/640/1050/1440px,
+  plus reserved-scrollbar geometry. These use a mocked document API and are
+  explicitly not Electron acceptance. No foreground Electron window ran on Pro.
+- Air: the exact uncommitted source, bundle and spec were transferred with
+  SHA-256 checks. Existing isolated Electron 43.4.1/Playwright 1.63.0 dependencies
+  were cloned into a new private temporary directory. A copy of the existing
+  trusted arm64 Node 24.20.0 was used there; the Air system Node was not replaced,
+  no dependencies installed and no device settings changed.
+- Two selected real Electron cases PASS: the original read-only open/security
+  regression and one new UI case in the existing spec. The latter exercises the
+  empty-state button, Cmd+O, long Chinese/English names and on-demand paths,
+  A/B/A, cancellation, responsive centering and inert unsupported HTML. There
+  are seven actual Electron content screenshots: empty/CJK/English at 1050px,
+  CJK at 640px, English and file details at 390px, English at 1440px. Screenshots
+  show renderer content, not the native OS title-bar frame.
+- The first UI run exposed a test geometry error: it used innerWidth, including
+  a 15px native scrollbar, as the text's containing width. The strict one-pixel
+  centering assertion now uses body.clientWidth, including a deterministic
+  reserved-gutter probe. Tolerance was not relaxed and product layout did not
+  change to silence the assertion. Initial failure evidence is retained.
+- Both final test children exit code=0, signal=null, watchdog=false, fault=false,
+  remaining=false. Four synthetic CJK/English fixtures across initial/final runs
+  retain their expected SHA-256 after exit. Candidate hashes are unchanged by
+  testing. Demo bundle independently rebuilds byte-identically.
+
+Only HTML/CSS, minimal presentation bindings, the generated bundle, existing E2E
+and existing documentation change. Main/preload, Document Model, File Store,
+service, session authorization, source map, controller and history remain
+byte-identical to the base. File edits/saves stay denied. The known SEC-01,
+Phase 1B-3 formal FAIL, native IME/Reload/copy P2 and file-write gates remain.
+No full Node suite, ASAR, packaging or release acceptance is implied. This UI
+candidate is ready for the user's visual experience check and later review,
+with no version bump, Git staging or commit.

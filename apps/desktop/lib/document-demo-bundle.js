@@ -32946,12 +32946,17 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (controller) render2(controller.state());
     else show();
   });
+  function viewerStatus(message, notice = false) {
+    byId("viewer-status").textContent = message;
+    byId("viewer-status").toggleAttribute("data-notice", notice);
+  }
   async function openReadOnly() {
     if (!readOnlyWindow || loading) return;
     loading = true;
     const epoch = ++switchEpoch;
     byId("open-file").disabled = true;
-    byId("viewer-status").textContent = "Opening\u2026";
+    byId("empty-open").disabled = true;
+    viewerStatus("Opening\u2026");
     let candidate = null;
     try {
       const r = await api.openFile();
@@ -32968,7 +32973,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
           "unsupported-file": "Choose a regular file, not a link.",
           "external-change": "The file changed while it was being read."
         };
-        byId("viewer-status").textContent = (messages[r.code] || "Unable to open the selected file.") + " Current document unchanged.";
+        viewerStatus((messages[r.code] || "Unable to open the selected file.") + " Current document unchanged.", true);
         return;
       }
       candidate = r.snapshot;
@@ -32980,6 +32985,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       install(candidate);
       byId("document-name").textContent = candidate.label;
       byId("document-location").textContent = candidate.location;
+      byId("document-full-name").textContent = candidate.label;
+      byId("document-info").querySelector("summary").title = candidate.label;
+      byId("document-info").hidden = false;
+      byId("document-info").open = false;
+      byId("empty-state").hidden = true;
+      document.body.dataset.documentState = "open";
+      window.scrollTo(0, 0);
       document.title = candidate.label + " \u2014 Read-only";
       if (previous3 && previous3.sessionId !== candidate.sessionId) {
         try {
@@ -32987,7 +32999,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } catch {
         }
       }
-      byId("viewer-status").textContent = "Read-only preview. The original file has not been modified.";
+      viewerStatus("Read-only preview. The original file has not been modified.");
     } catch {
       if (candidate && selected !== candidate.sessionId) {
         try {
@@ -32995,14 +33007,16 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } catch {
         }
       }
-      byId("viewer-status").textContent = "Unable to display the selected file. Current document unchanged.";
+      viewerStatus("Unable to display the selected file. Current document unchanged.", true);
     } finally {
       loading = false;
       byId("open-file").disabled = false;
+      byId("empty-open").disabled = false;
       if (controller) render2(controller.state());
     }
   }
   byId("open-file").onclick = openReadOnly;
+  byId("empty-open").onclick = openReadOnly;
   api.onOpenRequest(openReadOnly);
   window.addEventListener("keydown", (event) => {
     if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "o") {
@@ -33014,7 +33028,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     readOnlyWindow = data?.readOnlyWindow === true;
     if (readOnlyWindow) {
       document.body.dataset.documentViewer = "true";
+      document.body.dataset.documentState = "empty";
       byId("document-header").hidden = false;
+      byId("empty-state").hidden = false;
+      byId("empty-open").disabled = false;
       byId("open-file").disabled = false;
       document.title = "Markdown \u2014 Read-only";
     } else byId("connect").disabled = false;

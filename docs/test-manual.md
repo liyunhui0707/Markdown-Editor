@@ -1376,3 +1376,26 @@ Use only synthetic `.md` fixtures in two temporary directories. From
 Limits: unsupported syntax is literal text, no images/resources load, only
 bounded UTF-8 regular single-link files are accepted. No Finder, installed ASAR,
 editing/save or release acceptance is claimed. Existing Phase 1B-3 FAIL remains.
+
+
+## Document UI/UX V1 — visual experience (2026-10-28)
+
+Launch the target worktree with `mise exec -- npm run dev -- --document-readonly`
+from apps/desktop. Keep this distinct from the default Vault application.
+
+- [x] Current-candidate Air Electron: empty welcome/primary open action, Chinese
+  and English rendered documents, compact name/read-only toolbar, long-name
+  ellipsis and full name/path disclosure. Actual content screenshots retained.
+- [x] Current-candidate Air Electron: 1050px normal, 640/390px narrow and 1440px
+  wide content sizes. Centering accounts for actual scrollbar space; no
+  horizontal overflow or toolbar overlap; opaque syntax remains literal text.
+- [x] Actual IPC/view regression: Open/Cmd+O, A/B/A, cancel and read-only refusal;
+  normal process exit and unchanged synthetic originals after close.
+- [ ] User visual check on Mac: font size, Chinese/English line/paragraph spacing,
+  preferred reading width and welcome-window balance feel comfortable.
+- [ ] User native chrome check: red/yellow/green controls, dragging and resizing
+  feel normal. Native window code is unchanged; renderer screenshots do not
+  independently prove physical system-button interaction.
+
+The Pro headless probes are layout evidence only. Existing write/IME/SEC-01 and
+Phase 1B-3 limitations remain; this checklist is not release approval.

@@ -1,9 +1,134 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Restricted synthetic document QA</title>
-<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}#composition-copy-panel pre{user-select:text;max-height:240px;overflow:auto}#composition-warning,#composition-copy-panel{border:1px solid #9a6b00;padding:12px;margin:12px 0;max-width:760px}[hidden]{display:none!important}body[data-document-viewer] .developer-only{display:none!important}#document-header{max-width:800px;margin-bottom:24px}#document-header h1{margin:12px 0 6px}#document-location{color:#666;overflow-wrap:anywhere}#viewer-status{display:block;margin:14px 0}#readonly-badge{background:#eee;border-radius:6px;padding:4px 8px}body[data-document-viewer] #editor{border:0;padding:0;line-height:1.65;max-width:760px}body[data-document-viewer]{max-width:850px;margin:32px auto;padding:0 24px}</style></head>
-<body><header id="document-header" hidden><button id="open-file" disabled>Open Markdown…</button> <span id="readonly-badge">Read-only · no file writes</span><h1 id="document-name">No document open</h1><p id="document-location">Choose a Markdown file from any folder.</p><p>Headings, paragraphs and bold are formatted. Other syntax is shown as literal text. HTML, images and external resources are not loaded.</p><output id="viewer-status" role="status" aria-live="polite">Open a .md file to begin.</output></header><div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
+<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}#composition-copy-panel pre{user-select:text;max-height:240px;overflow:auto}#composition-warning,#composition-copy-panel{border:1px solid #9a6b00;padding:12px;margin:12px 0;max-width:760px}[hidden]{display:none!important}
+
+/* Document UI V1: one quiet reading surface; synthetic editor QA is unchanged. */
+body[data-document-viewer]{
+  --paper:#fdfdfc;--ink:#282a2d;--muted:#6d7178;--line:#e5e6e7;--accent:#2864d7;
+  --reading-width:780px;--gutter:clamp(22px,5vw,52px);
+  margin:0;max-width:none;padding:0;background:var(--paper);color:var(--ink);color-scheme:light;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+body[data-document-viewer] *,body[data-document-viewer] *::before,body[data-document-viewer] *::after{box-sizing:border-box}
+body[data-document-viewer] .developer-only{display:none!important}
+body[data-document-viewer] button{font:inherit;cursor:pointer}
+body[data-document-viewer] button:disabled{opacity:.5;cursor:default}
+body[data-document-viewer] button:focus-visible,body[data-document-viewer] summary:focus-visible{
+  outline:3px solid #b7cef7;outline-offset:3px;
+}
+#document-header{
+  position:sticky;top:0;z-index:5;display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;gap:16px;min-height:58px;padding:10px 22px;
+  background:#f5f5f4;border-bottom:1px solid var(--line);
+}
+#document-header button{margin:0;display:inline-flex;align-items:center;gap:7px;
+  padding:7px 11px;border:1px solid #d6d8dc;border-radius:7px;background:#fff;color:#3d4148;
+  font-size:12px;font-weight:500;line-height:18px;white-space:nowrap;box-shadow:0 1px 1px #00000004;
+}
+#document-header button:hover:enabled{background:#f9fafb;border-color:#bfc4cd}
+#document-header svg{width:15px;height:15px;flex:none}
+#document-info{position:relative;min-width:0;justify-self:center;max-width:100%;width:fit-content}
+#document-info summary{list-style:none;display:flex;align-items:center;gap:6px;min-width:0;
+  padding:6px 8px;border-radius:6px;font-size:13px;font-weight:600;line-height:20px;cursor:pointer;
+}
+#document-info summary::-webkit-details-marker{display:none}
+#document-info summary:hover,#document-info[open] summary{background:#e9eaec}
+#document-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:480px}
+#document-info summary svg{width:11px;height:11px;color:var(--muted)}
+.document-info-panel{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  width:min(380px,calc(100vw - 36px));padding:18px;border:1px solid var(--line);border-radius:10px;
+  background:#fff;box-shadow:0 8px 30px #2027341a;font-size:12px;line-height:1.6;overflow-wrap:anywhere;
+}
+#document-full-name{margin:0 0 8px;font-size:14px;font-weight:600}
+#document-location{margin:0 0 12px;color:var(--muted);user-select:text}
+.document-info-note{margin:0;padding-top:12px;border-top:1px solid var(--line);color:var(--muted)}
+#readonly-badge{grid-column:3;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+#readonly-badge svg{width:12px;height:12px}
+#viewer-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#viewer-status[data-notice]{position:static;display:block;width:auto;height:auto;clip-path:none;white-space:normal;
+  max-width:calc(var(--reading-width) + 2 * var(--gutter));margin:0 auto;padding:15px var(--gutter) 0;
+  color:var(--muted);font-size:13px;line-height:1.5;overflow-wrap:anywhere;
+}
+#empty-state{min-height:calc(100vh - 59px);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;padding:64px 24px 100px;
+}
+.welcome-icon{width:68px;height:76px;color:#8b98ad;margin-bottom:24px}
+#empty-state h1{font-size:28px;font-weight:600;letter-spacing:-.025em;line-height:1.3;margin:0 0 13px}
+#empty-state p{max-width:34em;margin:0;color:var(--muted);font-size:15px;line-height:1.7}
+#empty-open{display:inline-flex;align-items:center;gap:17px;margin:28px 0 14px;padding:11px 17px;
+  border:1px solid #2059c7;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:500;
+  box-shadow:0 2px 4px #2864d71a;
+}
+#empty-open:hover:enabled{background:#2059c7}
+#empty-open kbd{font:12px -apple-system,BlinkMacSystemFont,sans-serif;opacity:.78}
+#empty-state .welcome-note{font-size:12px;color:#858a92}
+body[data-document-viewer] #editor{
+  width:calc(100% - 2 * var(--gutter));max-width:var(--reading-width);min-width:0;
+  margin:0 auto;border:0;padding:42px 0 90px;
+  font-size:18px;line-height:1.85;overflow-wrap:anywhere;word-break:normal;
+}
+body[data-document-viewer][data-document-state="empty"] #editor{display:none}
+body[data-document-viewer] .tiptap>:first-child{margin-top:0}
+body[data-document-viewer] .tiptap p{margin:0 0 1.05em}
+body[data-document-viewer] .tiptap :is(h1,h2,h3,h4,h5,h6){font-weight:650;line-height:1.35;letter-spacing:-.018em;margin:1.55em 0 .65em}
+body[data-document-viewer] .tiptap h1{font-size:36px;letter-spacing:-.025em}
+body[data-document-viewer] .tiptap h2{font-size:28px}
+body[data-document-viewer] .tiptap h3{font-size:23px}
+body[data-document-viewer] .tiptap h4{font-size:20px}
+body[data-document-viewer] .tiptap h5{font-size:18px}
+body[data-document-viewer] .tiptap h6{font-size:17px;color:var(--muted)}
+body[data-document-viewer] .tiptap strong{font-weight:650;color:#202329}
+body[data-document-viewer] .tiptap pre{max-width:100%;margin:1.3em 0;padding:16px 18px;
+  border:1px solid #e9eaeb;border-radius:8px;background:#f4f5f5;color:#4a5059;
+  font:13px/1.75 ui-monospace,"SFMono-Regular",Menlo,"PingFang SC",monospace;
+  white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;
+}
+body[data-document-viewer] .tiptap pre code{font:inherit;background:none;padding:0}
+body[data-document-viewer] ::selection{background:#dce9fc}
+.open-label-short{display:none}
+@media(max-width:640px){
+  #document-header{padding:9px 13px;gap:9px;min-height:55px}
+  #document-name{max-width:100%}
+  body[data-document-viewer] #editor{padding-top:30px;font-size:17px;line-height:1.85}
+  body[data-document-viewer] .tiptap h1{font-size:30px}
+  body[data-document-viewer] .tiptap h2{font-size:25px}
+  .document-info-panel{position:fixed;top:72px;left:18px;transform:none}
+}
+@media(max-width:420px){
+  .open-label{display:none}.open-label-short{display:inline}
+  #document-header button{padding:6px 9px}
+  #empty-state h1{font-size:25px}
+  #empty-state{padding-left:22px;padding-right:22px}
+}
+</style></head>
+<body>
+<header id="document-header" hidden>
+  <button id="open-file" disabled aria-label="Open Markdown…" title="Open a Markdown file (⌘O)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7V5a1 1 0 0 1 1-1h6l2 2h8a1 1 0 0 1 1 1v3M3 8h17a1 1 0 0 1 1 1l-2 10H4L2 9a1 1 0 0 1 1-1Z"/></svg>
+    <span class="open-label">Open Markdown…</span><span class="open-label-short">Open…</span>
+  </button>
+  <details id="document-info" hidden>
+    <summary title="Document information"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
+    <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
+      <p class="document-info-note">Read-only preview. Some Markdown formatting is shown as plain text.</p></div>
+  </details>
+  <span id="readonly-badge" title="Viewing only. Editing and saving are unavailable.">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.7"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7"/></svg>Read-only
+  </span>
+</header>
+<output id="viewer-status" role="status" aria-live="polite">Open a .md file to begin.</output>
+<section id="empty-state" hidden aria-labelledby="welcome-title">
+  <svg class="welcome-icon" viewBox="0 0 68 76" fill="none" aria-hidden="true"><path d="M17 4h24l14 15v49a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#f0f3f7" stroke="currentColor" stroke-width="1.5"/><path d="M40 4v16h15M24 34h20M24 43h20M24 52h13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h1 id="welcome-title">Open a Markdown document</h1>
+  <p>Choose a .md file from any folder.<br>Your document, with room to read.</p>
+  <button id="empty-open" disabled>Open Markdown file <kbd aria-hidden="true">⌘O</kbd></button>
+  <p class="welcome-note">Files open read-only in this preview.</p>
+</section>
+<div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
 <button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
 <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>

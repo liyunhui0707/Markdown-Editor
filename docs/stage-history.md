@@ -127,3 +127,17 @@ file bytes. See [scope and bounded evidence](document-editing-interaction-phase1
 No Finder integration, true-file saving or release acceptance. Existing Phase
 1B-3 formal FAIL and SEC-01 remain. Entry stays below 300 lines; the existing
 main (>800 lines) only receives a launch guard, without unrelated restructuring.
+
+
+## Document UI/UX V1 — read-only entry presentation (2026-10-28)
+
+Uncommitted at 0.23.0: compact toolbar with truncated name/on-demand path,
+read-only label, welcome open action, centered 780px responsive reading surface
+and consistent Chinese/English typography. Reuses the existing Tiptap and native
+window; no model, IPC or file capability change. Pro: 7 Node tests and separate
+headless layout probes. Air: 2 current-candidate Electron cases PASS with seven
+content screenshots and normal exit. Initial scrollbar-measurement test failure
+is preserved and corrected without weakening assertions. See the
+[bounded scope and evidence](document-editing-interaction-phase1b3.md#document-uiux-v1-2026-10-28-uncommitted-at-0230).
+Real file writes remain prohibited; Phase 1B-3 formal FAIL and SEC-01 remain.
+User visual acceptance is pending; no commit, version or release is implied.

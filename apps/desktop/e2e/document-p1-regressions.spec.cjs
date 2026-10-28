@@ -560,3 +560,51 @@ test('document-first read-only opens two directories, keeps failures and renders
   expect((await fs.readFile(a)).equals(bytesA)).toBe(true);expect((await fs.readFile(b)).equals(bytesB)).toBe(true);
   await info.attach('authorized-fixtures',{body:JSON.stringify({a,b}),contentType:'application/json'});
 },info,null,true));
+
+
+test('document UI V1 empty, Chinese and English layouts preserve readonly open flow', async ({},info)=>usingDemo(async h=>{
+  const {app,page,root,snapshot}=h;
+  const cnName='关于写作与阅读的日常观察——一份保留完整文件名称的中文文档.md';
+  const enName='Notes on a quieter writing experience and a deliberately long document filename for the reading window.md';
+  const a=path.join(root,'Chinese',cnName),b=path.join(root,'English',enName);
+  const cn='# 把文字放在中央\n\n好的阅读体验，始于恰到好处的留白。我们希望每一段文字都可以被轻松阅读，也希望思考不被多余的界面打断。\n\n## 留一点空间给思考\n\n中文与 English 可以自然共处。重要的是清晰的层级、舒适的行距，以及 **真正需要强调的内容**。\n\n### 从一段文字开始\n\n打开文件，即可阅读。路径与文件信息在需要时展开，正文始终是窗口的主角。\n\n<div>特殊语法保留为安全的纯文本，不执行 HTML。</div>\n';
+  const en='# Room to think\n\nA good document window lets the words take their place. The page should feel comfortable on a laptop, with enough room to read and a clear rhythm between paragraphs.\n\n## A quieter writing surface\n\nKeep **the important words** in focus. File details are close at hand without competing with the document itself.\n\n### Small details, considered\n\nReadable type, balanced margins and a single continuous page make it easier to stay with an idea.\n\n'+ 'UnbrokenWord'.repeat(65)+'\n\n<script>window.__uiUnsafe=true</script>\n';
+  await fs.mkdir(path.dirname(a));await fs.mkdir(path.dirname(b));await fs.writeFile(a,cn);await fs.writeFile(b,en);
+  await app.evaluate(({dialog})=>{globalThis.uiChoices=[];dialog.showOpenDialog=async()=>globalThis.uiChoices.shift();});
+  const choose=file=>app.evaluate((_,file)=>{globalThis.uiChoices.push(file?{canceled:false,filePaths:[file]}:{canceled:true,filePaths:[]});},file);
+  const metrics=[];
+  const size=async(width,height=780)=>{await app.evaluate(({BrowserWindow},{width,height})=>BrowserWindow.getAllWindows()[0].setContentSize(width,height),{width,height});await page.evaluate(async()=>{await document.fonts.ready;});};
+  const capture=async name=>{const file=info.outputPath(name+'.png');await page.screenshot({path:file,caret:'hide'});await info.attach(name,{path:file,contentType:'image/png'});};
+  const layout=async label=>{
+    const m=await page.evaluate(()=>{
+      const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height};};
+      return {viewport:document.body.clientWidth,windowWidth:innerWidth,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,open:box('open-file'),badge:box('readonly-badge'),
+        name:box('document-name'),editor:box('editor'),type:getComputedStyle(document.querySelector('#editor .tiptap')||document.body).fontSize};
+    });metrics.push({label,...m});expect(m.overflow).toBeLessThanOrEqual(1);
+    expect(m.open.right).toBeLessThanOrEqual(m.name.left);expect(m.name.right).toBeLessThanOrEqual(m.badge.left);
+    expect(m.badge.right).toBeLessThanOrEqual(m.viewport);expect(m.name.height).toBeLessThan(30);
+    expect(m.editor.width).toBeLessThanOrEqual(781);expect(Math.abs(m.editor.left-(m.viewport-m.editor.right))).toBeLessThanOrEqual(1);
+  };
+  await size(1050);await expect(page.locator('#empty-state')).toBeVisible();await expect(page.locator('#editor')).toBeHidden();
+  await expect(page.locator('#document-info')).toBeHidden();await capture('ui-v1-empty-1050');
+  await choose(a);await page.getByRole('button',{name:'Open Markdown file',exact:true}).click();
+  await expect(page.locator('#empty-state')).toBeHidden();await expect(page.locator('#editor h1')).toHaveText('把文字放在中央');
+  await expect(page.locator('#document-name')).toHaveText(cnName);await layout('Chinese 1050');await capture('ui-v1-chinese-1050');
+  await page.locator('#document-info summary').click();await expect(page.locator('#document-location')).toBeVisible();
+  await expect(page.locator('#document-full-name')).toHaveText(cnName);await expect(page.locator('#document-location')).toHaveText(path.dirname(a));
+  await page.locator('#document-info summary').click();await size(640);await layout('Chinese 640');await capture('ui-v1-chinese-640');
+  await choose(b);await page.keyboard.press('Meta+o');await expect(page.locator('#editor h1')).toHaveText('Room to think');
+  await expect(page.locator('#document-name')).toHaveText(enName);await size(1050);await layout('English 1050');await capture('ui-v1-english-1050');
+  await size(390);await layout('English 390');await capture('ui-v1-english-390');
+  await page.locator('#document-info summary').click();await expect(page.locator('#document-full-name')).toHaveText(enName);
+  await expect(page.locator('#document-location')).toBeVisible();await capture('ui-v1-file-details-390');await page.locator('#document-info summary').click();
+  await size(1440,900);await layout('English 1440');await capture('ui-v1-english-1440');
+  const id=JSON.parse(await page.locator('#status').textContent()).activeSessionId,before=(await snapshot(id)).snapshot;
+  await choose(null);await page.keyboard.press('Meta+o');await expect(page.locator('#viewer-status')).toContainText('cancelled');
+  expect((await snapshot(id)).snapshot).toEqual(before);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+  await expect(page.locator('#editor script,#editor img,#editor a')).toHaveCount(0);expect(await page.evaluate(()=>window.__uiUnsafe)).toBeUndefined();
+  await choose(a);await page.locator('#open-file').click();await expect(page.locator('#editor h1')).toHaveText('把文字放在中央');
+  expect(await fs.readFile(a,'utf8')).toBe(cn);expect(await fs.readFile(b,'utf8')).toBe(en);
+  await info.attach('ui-layout-metrics',{body:JSON.stringify(metrics),contentType:'application/json'});
+  await info.attach('ui-synthetic-originals',{body:JSON.stringify({a,b,sha256A:require('node:crypto').createHash('sha256').update(cn).digest('hex'),sha256B:require('node:crypto').createHash('sha256').update(en).digest('hex')}),contentType:'application/json'});
+},info,null,true));
