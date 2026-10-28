@@ -3,7 +3,7 @@ const nativeFs = require('node:fs');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isSessionLocation } = require('./editor-path-policy');
-const { createSavePolicy } = require('./document-save-policy');
+const { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata } = require('./document-save-policy');
 // Process-local exclusion only. It does not coordinate external applications.
 const activeSaves = new Set();
 
@@ -19,10 +19,11 @@ const sameMetadata = (a, b) => Object.keys(a).every(key => a[key] === b[key]);
 const sameSnapshot = (a, b) => a.filePath === b.filePath
   && sameMetadata(a.identity, b.identity) && a.sha256 === b.sha256 && a.bytes.equals(b.bytes);
 
-// Existing files only; creation/Save As and native coordinated saving are later
-// stages. All operations are synchronous to match the current main boundary.
-function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {}) {
+// Operations are synchronous. Existing replacement remains independently gated;
+// new-copy creation is available only inside an isolated synthetic test process.
+function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolatedCreateRoot } = {}) {
   const policy = createSavePolicy({ fs, unsafeExperimentalRoot });
+  const createPolicy = createIsolatedCreatePolicy({ fs, isolatedCreateRoot });
   function read(requestedPath, maxBytes = Infinity) {
     if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576)) throw error('unsupported-size', 'Invalid read limit.');
     if (typeof requestedPath !== 'string' || !path.isAbsolute(requestedPath)
@@ -191,6 +192,88 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {})
     return { ...result, safety: policy.safety, realFileSafe: false };
   }
 
+  // Only a synchronous, isolated test process may call this. No renderer API.
+  // Use the pinned cwd's single-component name, never a resolved parent path.
+  function createCopy(name, input) {
+    let directory, fd, owned, result, filePath, attempted = false, created = false, complete = false, verified = false;
+    let bytes, verifiedMetadata;
+    const verifyFile = () => {
+      createPolicy.verify(directory);
+      const stat = fs.fstatSync(fd, { bigint: true }), named = fs.lstatSync(name, { bigint: true });
+      const current = metadata(stat);
+      if (verifiedMetadata && !sameMetadata(current, verifiedMetadata)) throw error('created-file-changed', 'File changed after verification.');
+      if (!stat.isFile() || stat.nlink !== 1n || !named.isFile() || named.nlink !== 1n
+          || !sameIdentity(current, owned) || !sameMetadata(current, metadata(named))
+          || current.mode !== 0o600 || current.uid !== owned.uid || current.gid !== owned.gid
+          || stat.size !== BigInt(bytes.length)) throw error('created-file-changed', 'Created file identity or metadata changed.');
+      const actual = Buffer.alloc(bytes.length);
+      for (let offset = 0; offset < actual.length;) {
+        const n = fs.readSync(fd, actual, offset, actual.length - offset, offset);
+        if (n <= 0) throw error('created-file-changed', 'Created content changed.');
+        offset += n;
+      }
+      if (!actual.equals(bytes) || hash(actual) !== hash(bytes)
+          || !sameMetadata(current, metadata(fs.fstatSync(fd, { bigint: true })))) throw error('created-file-changed', 'Created content changed.');
+      inspectMacMetadata(filePath);
+      createPolicy.verify(directory);
+      if (!sameMetadata(current, metadata(fs.lstatSync(name, { bigint: true })))
+          || !sameMetadata(current, metadata(fs.fstatSync(fd, { bigint: true })))) throw error('created-file-changed', 'Created file changed during verification.');
+      return current;
+    };
+    try {
+      if (typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name)
+          || !Buffer.isBuffer(input) || input.length > 1048576) throw error('invalid-create-request', 'Expected bounded bytes and a synthetic Markdown filename.');
+      bytes = Buffer.from(input);
+      const root = createPolicy.verify(); filePath = path.join(root, name);
+      directory = fs.openSync('.', fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+      createPolicy.verify(directory);
+      attempted = true;
+      fd = fs.openSync(name, fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+      created = true;
+      const stat = fs.fstatSync(fd, { bigint: true }); owned = metadata(stat);
+      const parent = metadata(fs.fstatSync(directory, { bigint: true }));
+      if (!stat.isFile() || stat.nlink !== 1n || owned.mode !== 0o600 || owned.uid !== process.getuid()
+          || owned.gid !== parent.gid || owned.dev !== parent.dev || stat.size !== 0n) throw error('created-file-changed', 'Unexpected new file identity.');
+      createPolicy.verify(directory);
+      for (let offset = 0; offset < bytes.length;) {
+        const n = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+        if (!Number.isSafeInteger(n) || n <= 0 || n > bytes.length - offset) throw error('write-failed', 'New file write made no valid progress.');
+        offset += n;
+      }
+      complete = true;
+      verifiedMetadata = verifyFile(); verified = true;
+      fs.fsyncSync(fd);
+      fs.fsyncSync(directory);
+      verifyFile();
+      result = { ok: true, state: 'created-confirmed', created: true, filePath, sha256: hash(bytes), byteLength: bytes.length };
+    } catch (cause) {
+      let state = 'not-created', outcome = false;
+      if (created) {
+        outcome = true;
+        state = complete ? 'created-unverified' : 'created-partial';
+        if (verified) {
+          try { verifyFile(); state = 'durability-uncertain'; } catch { state = 'created-unverified'; }
+        }
+      } else if (attempted) {
+        if (cause.code === 'EEXIST') state = 'target-exists';
+        else if (!['EACCES', 'EPERM', 'EROFS'].includes(cause.code)) { state = 'create-outcome-unknown'; outcome = null; }
+      }
+      result = { ok: false, state, created: outcome, code: cause.code || 'create-failed',
+        ...(filePath ? { filePath } : {}) };
+    } finally {
+      for (const handle of [fd, directory]) if (handle !== undefined) {
+        try { fs.closeSync(handle); } catch {
+          result.ok = false; result.code = 'descriptor-close-failed';
+          if (result.state === 'created-confirmed') result.state = 'durability-uncertain';
+          result.descriptorCleanupFailed = true;
+        }
+      }
+      // Never unlink or retry: even a partial/uncertain file is retained.
+    }
+    return { ...result, ...(owned ? { fileIdentity: `${owned.dev}:${owned.ino}` } : {}),
+      realFileSafe: false, safety: 'isolated-synthetic-create-only' };
+  }
+
   function confirmDurability(expected) {
     const keys = [`path:${expected.filePath}`, `inode:${expected.identity.dev}:${expected.identity.ino}`];
     if (keys.some(key => activeSaves.has(key))) return { ok: false, status: 'blocked', code: 'save-in-progress' };
@@ -216,7 +299,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot } = {})
       }
     }
   }
-  return { read, check, replace, confirmDurability };
+  return { read, check, replace, confirmDurability, createCopy, authorizeSynthetic: createPolicy.authorizeSource };
 }
 
 module.exports = { createDocumentFileStore };

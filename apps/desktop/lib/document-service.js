@@ -1,4 +1,5 @@
 'use strict';
+const { createHash } = require('node:crypto');
 const { createDocumentModel } = require('./document-model');
 const { createDocumentFileStore } = require('./document-file-store');
 const { record, failure, revisionError } = require('./document-contract');
@@ -7,7 +8,7 @@ const { record, failure, revisionError } = require('./document-contract');
 // Future document opening must authorize paths before handing out session IDs.
 function createDocumentService(options = {}) {
   // Trusted main-process construction only, never an IPC payload.
-  if (!record(options, ['fs', 'unsafeExperimentalRoot'])) throw TypeError('Invalid service construction options');
+  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot'])) throw TypeError('Invalid service construction options');
   const store = createDocumentFileStore(options);
   const sessions = new WeakMap();
   const unknown = () => failure('unknown-document');
@@ -20,13 +21,16 @@ function createDocumentService(options = {}) {
   }
 
   function open(filePath, options = {}) {
-    if (!record(options, ['parse', 'maxBytes'])) return failure('invalid-options');
+    if (!record(options, ['parse', 'maxBytes', 'syntheticTemporary'])
+        || (options.syntheticTemporary !== undefined && typeof options.syntheticTemporary !== 'boolean')) return failure('invalid-options');
     const { parse } = options;
     try {
+      if (options.syntheticTemporary) store.authorizeSynthetic(filePath);
       const snapshot = store.read(filePath, options.maxBytes);
+      if (options.syntheticTemporary) store.authorizeSynthetic(filePath);
       const { document, acceptSaved } = createDocumentModel({ filePath, bytes: snapshot.bytes, identity: snapshot.identity });
       sessions.set(document, { snapshot, acceptSaved, saving: false, state: 'not-submitted', committed: false,
-        pending: false, unverified: false, lastCode: null });
+        pending: false, unverified: false, lastCode: null, syntheticTemporary: options.syntheticTemporary === true, copy: null });
       if (!document.encoding) return { ok: false, status: 'blocked', code: 'unsupported-encoding', document };
       if (parse !== undefined) {
         const parsed = document.parse(parse);
@@ -54,6 +58,7 @@ function createDocumentService(options = {}) {
     if (revision) return failure(revision);
     const { serialize } = options;
     if (session.saving) return failure('save-in-progress');
+    if (unresolvedCopy(session)) return failure('unresolved-copy-state', { copyState: getCopyState(document) });
     if (session.unverified) return failure('replacement-unverified', { committed: session.committed, saveState: getSaveState(document) });
     session.saving = true;
     try {
@@ -94,6 +99,52 @@ function createDocumentService(options = {}) {
     } finally { session.saving = false; }
   }
 
+  function getCopyState(document) {
+    const s = sessions.get(document);
+    return s ? Object.freeze({ ...(s.copy || { ok: true, state: 'not-created', created: false }) }) : unknown();
+  }
+  const unresolvedCopy = s => s.copy && !s.copy.ok && s.copy.created !== false;
+  function createIsolatedCopy(document, options = {}) {
+    if (!record(options, ['name', 'expectedRevision', 'expectedSha256', 'cancelled'])) return failure('invalid-options');
+    const s = sessions.get(document);
+    if (!s) return unknown();
+    if (!s.syntheticTemporary) return failure('synthetic-copy-required');
+    if (s.saving) return failure('save-in-progress');
+    if (s.pending || s.unverified) return failure('unresolved-save-state');
+    if (unresolvedCopy(s)) return failure('unresolved-copy-state', { copyState: getCopyState(document) });
+    if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) return failure('invalid-revision');
+    const revision = revisionError(options.expectedRevision, document.revision);
+    if (revision) return failure(revision);
+    if (typeof options.expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(options.expectedSha256)
+        || (options.cancelled !== undefined && typeof options.cancelled !== 'boolean')) return failure('invalid-create-request');
+    if (document.blocked) return failure('conversion-blocked');
+    const bytes = document.bytesForSave(), sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (sha256 !== options.expectedSha256) return failure('source-hash-mismatch');
+    if (options.cancelled) return { ok: false, code: 'create-cancelled', state: 'not-created', created: false };
+    s.saving = true;
+    let creationStarted = false;
+    try {
+      store.authorizeSynthetic(document.filePath);
+      const checked = store.check(s.snapshot);
+      if (!checked.ok) return { ...checked, state: 'not-created', created: false };
+      creationStarted = true;
+      const result = store.createCopy(options.name, bytes);
+      // The synchronous operation has no await point. Still check for reentrant
+      // trusted callbacks, rather than blessing a different source revision.
+      if (sessions.get(document) !== s || document.revision !== options.expectedRevision
+          || document.blocked || !document.bytesForSave().equals(bytes)) {
+        result.ok = false; result.code = 'copy-source-changed';
+        if (result.created !== false) result.state = 'created-unverified';
+      }
+      s.copy = Object.freeze({ ...result, revision: options.expectedRevision, expectedSha256: sha256 });
+      return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
+    } catch (cause) {
+      s.copy = Object.freeze({ ok: false, state: creationStarted ? 'create-outcome-unknown' : 'not-created',
+        created: creationStarted ? null : false, code: cause.code || 'create-rejected' });
+      return getCopyState(document);
+    } finally { s.saving = false; }
+  }
+
   function retryDurability(document, options = {}) {
     if (!record(options, [])) return failure('invalid-options');
     const s = sessions.get(document);
@@ -117,12 +168,13 @@ function createDocumentService(options = {}) {
     const session = sessions.get(document);
     if (!session) return unknown();
     if (session.saving) return { ok: false, code: 'save-in-progress' };
+    if (unresolvedCopy(session)) return failure('unresolved-copy-state', { copyState: getCopyState(document) });
     if (session.pending || session.unverified) return failure('unresolved-save-state', { saveState: getSaveState(document) });
     sessions.delete(document); // No write, conversion or destruction of retained source.
     return { ok: true };
   }
 
-  return { open, save, checkExternal, close, getSaveState, retryDurability };
+  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, getCopyState };
 }
 
 module.exports = { createDocumentService };

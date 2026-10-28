@@ -212,3 +212,138 @@ References: [Node filesystem API](https://nodejs.org/docs/latest-v24.x/api/fs.ht
 [Apple rename semantics](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/rename.2.html).
 The archived manual and API documentation inform limitations; actual pinned
 runtime and synthetic native tests determine this phase's verification results.
+
+## Safe Create V1 — isolated new-copy prototype (0.25.0, uncommitted)
+
+This addition is a test-process capability inside the existing File Store and
+Document Service. It is NOT a Save As UI, an Electron IPC operation, or permission
+to write user documents. `save()` still requires coordination. The Model,
+source map, renderer/controller, preload, IPC allowlist and bundles are unchanged.
+
+### Authority and scope
+
+- Only trusted construction with `isolatedCreateRoot` enables creation. The root
+  must be a canonical, owned 0700 `document-safe-create-*` direct child of the
+  canonical OS temporary directory, on the same device and verified local APFS.
+  Bounded native filesystem/metadata probes fail closed on unsupported output,
+  ACL, flags or xattrs (existing provenance-only exception remains).
+- The dedicated synthetic test process must already have that directory as its
+  cwd. The service never calls `chdir`. Named-directory, cwd and opened-directory
+  descriptor identities/permissions must agree before and after creation.
+  Creation uses a single-component ASCII `.md` name relative to the kernel cwd,
+  not a user-supplied absolute path. A parent rename cannot redirect that relative
+  open to a replacement directory; observed identity changes reject confirmation.
+- A trusted `open(..., {syntheticTemporary: true})` must additionally authorize a
+  private, owned, single-link seed inside the same root. Ordinary opens, including
+  real read-only document sessions, never receive this capability.
+- This is not an OS sandbox or protection against privileged actors, malicious
+  same-UID processes continuously mutating files, native code changing cwd, or
+  untrusted filesystem adapters. The harness exclusively owns the root/process.
+  No arbitrary-directory, network/cloud/sync-folder or production-filesystem
+  coordination guarantee is claimed. Unknown/changed scope is refused.
+
+### Source and lifecycle contract
+
+`createIsolatedCopy(document, {name, expectedRevision, expectedSha256, cancelled?})`
+is synchronous and local to the trusted test harness. Explicit revision and
+SHA-256 of `document.bytesForSave()` are required; bytes come only from the
+service-owned model. No Markdown reserialization or renderer body is accepted.
+Conversion errors and changed seed baselines reject creation. A per-session
+single-flight guard blocks reentrant create/save/close; source revision and bytes
+are rechecked afterward. There is no asynchronous selection/activation phase.
+
+No UI/IPC creation route exists: create requests, including forged paths, stale
+or invalid sessions and requests during composing/pending states, have no
+allowlisted operation. Consequently this prototype does not claim to solve GUI
+quiescence, IME preedit capture or asynchronous IPC-outcome handling. A future UI
+connection must explicitly establish those fences before requesting creation;
+the local method alone is not authorization to connect it to a renderer.
+
+`getCopyState()` records a separate immutable copy outcome. Success describes a
+copy of revision R, not a saved temporary document. It never calls `acceptSaved`,
+rebinds a path, clears dirty, changes revision, edits the original seed, or changes
+Undo/Redo history. Unknown/partial outcomes remain sticky across later edits,
+cancel requests and ordinary save attempts; create/save/close cannot discard them.
+This prototype has no automatic retry or uncertainty-resolution operation.
+
+### Creation and failure semantics
+
+The File Store uses `O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW`, mode 0600, without
+`O_TRUNC`, rename, staging files or deletion. Partial writes are completed in a
+bounded loop; zero progress or errors stop. The pinned descriptor and named file
+must be the same regular single-link inode with expected mode/ownership/device.
+Exact bytes, SHA-256 and stat metadata are checked before and after file and
+directory `fsync`. Post-sync same-byte rewrites cannot reuse earlier sync evidence.
+
+| Copy state | Meaning |
+| --- | --- |
+| `not-created` | Scope/input/cancel/pre-create refusal; no target created by this operation |
+| `target-exists` | Exclusive open refused; existing file/symlink was not overwritten |
+| `created-partial` | Exclusive open succeeded, but complete verified contents are not established |
+| `created-unverified` | Full write or later source/identity/content/metadata checks are inconsistent |
+| `durability-uncertain` | Verified bytes exist, but synchronization or descriptor closure was not confirmed |
+| `create-outcome-unknown` | An attempted creation failed without a trustworthy creation outcome |
+| `created-confirmed` | Exact copy verified, file/directory fsync and descriptor closure returned successfully |
+
+`created` is false / true / null (unknown); it is independent of original-document
+`dirty` and `getSaveState()`. Failure receipts preserve the expected `filePath`
+and captured inode identity where available. If a directory/file was moved, the
+recorded path is only a locator to investigate, not proof it still names that
+inode. Nothing automatically unlinks, overwrites or retries a residual file.
+An injected lost descriptor is explicitly closed by its owning test fixture.
+
+`created-confirmed` is an observed fsync-level result, not proof against power
+loss, storage-controller cache failure or subsequent external modification.
+No F_FULLFSYNC, cross-restart recovery journal or durable error receipt is added.
+The test directory may later be removed by the OS; it is not long-term user storage.
+
+### Bounded verification and remaining gates
+
+`test/document-safe-create.test.js` extends the existing Node test runner. The
+initial 18 cases failed before implementation. Coverage includes exact UTF-8,
+Chinese/emoji, BOM, LF/CRLF, absent EOF newline, untouched syntax, existing and
+dangling-link targets, competing exclusive creation, private-root/cwd identity,
+permissions/xattrs/filesystem rejection, partial/no-progress writes, file/directory
+sync failure, unknown open results, close failure, revision/hash/session checks,
+source drift and unchanged IPC Undo/Redo. A same-byte post-sync interference
+regression separately failed before the metadata-epoch check and then passed.
+
+A creator Node process writes two synthetic paragraphs and exits with code 0;
+a fresh Node process opens the copy via the existing `open-file` native-choice
+authorization flow (trusted chooser fixture), verifies read-only save refusal,
+source and SHA-256, then exits with code 0. This exercises the actual Service and
+session manager, not a mocked save result. It is NOT an Electron GUI/dialog or
+Air run. No UI is added, so no GUI, bundle rebuild, ASAR or packaging test is needed
+for this isolated layer. Final counts and private log location are reported with
+the candidate fingerprint; prior phase results above remain historical. Final local
+verification: 25 Safe Create cases PASS; 189 combined Document/IPC/controller/
+source-map cases PASS, zero FAIL/SKIP, Node 24.20.0 on macOS arm64. No GUI run.
+
+The File Store now slightly exceeds the ~300-line guideline. Its new local
+creation function stays beside the shared read/hash/metadata helpers; existing
+replacement code is left intact instead of introducing a parallel save service.
+The regression file uses the existing higher test-file size allowance.
+
+Session E must independently review the scope, exclusive-open semantics,
+uncertainty receipts and tests before any further enablement. Real-file write
+gates, P2 replacement cleanup race, replacement TOCTOU, external coordination,
+general ACL/xattr support, SEC-01 and stage 1B-3 formal FAIL remain unchanged.
+
+
+### Local WIP checkpoint review record
+
+The preceding section records the originally uncommitted implementation candidate
+and its development-version test evidence. Session E subsequently accepted this
+isolated capability for a restricted local WIP checkpoint: exclusive creation,
+directory/authorization boundaries, failure semantics, byte integrity and the
+unchanged save/readonly gates passed. Reported independent evidence is 25 Safe
+Create tests, 164 related Document regressions and two supplementary probes;
+no new confirmed P0/P1 was reported. Cross-process reopening is covered by this
+limited review, not GUI or production Save As acceptance.
+
+This checkpoint is unreleased and is not merge/release approval. User-selected
+directory saving remains unavailable, existing user Markdown stays read-only,
+and the coordination-required gate remains in force. All failure-state,
+filesystem, power-loss, concurrency, restart-recovery, SEC-01 and stage 1B-3
+formal FAIL limitations above remain unchanged. Any further enablement requires
+its own authorization and review.
