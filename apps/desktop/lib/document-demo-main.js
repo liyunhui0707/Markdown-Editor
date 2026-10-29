@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 const { createDocumentService } = require('./document-service');
 const { createDocumentSessions, registerDocumentIpc } = require('./document-session-ipc');
 const readOnlyWindow = process.argv.includes('--document-readonly');
+const testCopies = readOnlyWindow && !app.isPackaged && process.argv.includes('--document-test-copy');
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-demo-')));
 fs.chmodSync(root, 0o700);
 const profile = path.join(root, 'profile'); fs.mkdirSync(profile, { mode: 0o700 });
@@ -21,14 +22,14 @@ const fixtures = readOnlyWindow ? [] : [
 for (const [name, source] of fixtures) fs.writeFileSync(path.join(root, name), source, { flag: 'wx', mode: 0o640 });
 app.whenReady().then(async () => {
   const { projectSource, mapTextEdit } = await import('./document-source-map.mjs');
-  const service = createDocumentService(); // Never unsafeExperimentalRoot here.
+  const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd() } : {}); // Never unsafeExperimentalRoot.
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, projectSource, mapTextEdit, windowFor: wc => BrowserWindow.fromWebContents(wc),
+  const manager = createDocumentSessions({ service, allowTestCopies: testCopies, projectSource, mapTextEdit, windowFor: wc => BrowserWindow.fromWebContents(wc),
     createTemporary: readOnlyWindow ? () => {
-      // Only an empty synthetic seed reaches disk. User writing is never persisted.
-      const file = path.join(root, `temporary-${++temporaryNumber}.md`);
+      // Empty seed only. Explicit test-copy authority does not enable ordinary saving.
+      const file = path.join(testCopies ? process.cwd() : root, `temporary-${++temporaryNumber}.md`);
       fs.writeFileSync(file, '', { flag: 'wx', mode: 0o600 });
-      const opened = service.open(file, { parse: projectSource, maxBytes: 524288 });
+      const opened = service.open(file, { parse: projectSource, maxBytes: 524288, ...(testCopies ? { syntheticTemporary: true } : {}) });
       if (opened.ok) temporaryCreated = true;
       return opened;
     } : null,
@@ -54,7 +55,7 @@ app.whenReady().then(async () => {
     // Keep the warning even after session revocation: renderer-only drafts may exist.
     if (temporaryCreated && dialog.showMessageBoxSync(win, { type: 'warning',
       message: 'Close without saving temporary documents?',
-      detail: 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
+      detail: testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. Later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
       buttons: ['Cancel', 'Close without saving'], defaultId: 0, cancelId: 0, noLink: true }) !== 1) event.preventDefault();
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

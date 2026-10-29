@@ -6,7 +6,7 @@ const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned capabilities. Native selection is the only open authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   function invalidate(id, s) {
     sessions.delete(id); // Revoke authority before notifying the captured owner.
@@ -18,7 +18,8 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     for (const [id, s] of sessions) if (s.win === win) {
       invalidate(id, s);
       const state = service.getSaveState(s.document);
-      if (s.document.dirty || state.durabilityUncertain || state.replacementUnverified) retained.add(s.document);
+      if (s.copying || s.document.dirty || state.durabilityUncertain || state.replacementUnverified
+          || service.getCopyState(s.document).created !== false && !service.getCopyState(s.document).ok) retained.add(s.document);
       else service.close(s.document);
     }
   }
@@ -36,8 +37,18 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     projectSource(document.text);
     const id = randomUUID(); sessions.set(id, { win, sender: win.webContents, document, label, readOnly: options.readOnly === true, temporary: options.temporary === true, undo: [], redo: [] }); return id;
   }
+  function copyState(s) {
+    const receipt = service.getCopyState(s.document), safe = {};
+    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength'])
+      if (Object.hasOwn(receipt, key)) safe[key] = receipt[key];
+    return safe;
+  }
   function snapshot(id, s) {
-    return { sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
+    let copySha256 = null;
+    if (allowTestCopies && s.temporary && !s.document.blocked) {
+      try { copySha256 = sourceHash(s.document.bytesForSave()); } catch { /* No create authority for unconvertible contents. */ }
+    }
+    return { ...(allowTestCopies && s.temporary ? { copyEnabled: true, copySha256, copyState: copyState(s) } : {}), sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
       dirty: s.document.dirty, blocked: s.document.blocked, bom: s.document.bom, encoding: s.document.encoding,
       canUndo: s.undo.length > 0, canRedo: s.redo.length > 0,
       lineEndings: { ...s.document.lineEndings }, saveState: { ...service.getSaveState(s.document) } };
@@ -93,11 +104,11 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
-    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'])
+    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
     if (payload.operation === 'new-temporary') return newTemporary(binding);
@@ -107,15 +118,31 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     const id = payload.sessionId, s = typeof id === 'string' ? sessions.get(id) : null;
     if (!s || s.win !== binding.win) return failure('unknown-session');
     const reply = result => ({ ok: result.ok, status: result.status, code: result.code,
-      committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // no fs paths/objects/error strings
+      committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // Only bounded snapshots/receipts; no fs objects or raw exception strings
+    if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
-    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['edit', 'save', 'close', 'undo', 'redo'].includes(payload.operation)) {
+    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check', 'create-test-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
+    if (['edit', 'save', 'close', 'undo', 'redo', 'create-test-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
     try {
       switch (payload.operation) {
+        case 'create-test-copy': {
+          if (!allowTestCopies || !s.temporary) return reply(failure('test-copy-unavailable'));
+          s.copying = true;
+          try {
+            // Main chooses both directory (Service capability) and new filename.
+            // Synchronous Service call is single-flight; never accept renderer source/path.
+            const result = service.createIsolatedCopy(s.document, { name: `copy-${randomUUID()}.md`,
+              expectedRevision: payload.expectedRevision, expectedSha256: payload.expectedSha256 });
+            if (authorizedBinding(event) !== binding || sessions.get(id) !== s) {
+              retained.add(s.document);
+              return { ok: false, code: 'copy-session-invalidated', copy: copyState(s) };
+            }
+            return { ...reply(result), copy: copyState(s) };
+          } finally { s.copying = false; }
+        }
         case 'snapshot': return reply({ ok: true });
         case 'check': return reply(service.checkExternal(s.document));
         case 'save': return reply(service.save(s.document, { expectedRevision: payload.expectedRevision }));

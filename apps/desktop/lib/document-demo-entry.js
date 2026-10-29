@@ -2,6 +2,7 @@ import { Editor, Extension, getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { projectSource } from './document-source-map.mjs';
+import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
@@ -55,6 +56,11 @@ async function copyComposition(kind) {
   renderCompositionCopies(controller.state());
 }
 const activeInvalid = () => lifecycles.has(selected);
+const testCopyView = createTestCopyView({ api, byId,
+  context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+  busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
+  focus: () => { if (editor?.isEditable) editor.view.focus(); },
+});
 const lifecycleCode = id => lifecycles.get(id) === 'invalidated' ? 'unknown-session' : lifecycles.get(id);
 function show(code) {
   const s = controller?.state(), current = s?.confirmed;
@@ -94,13 +100,13 @@ function render(s) {
     byId('document-info').querySelector('summary').title = current.label;
     byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
     byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Viewing only. Editing and saving are unavailable.';
-    byId('document-info-note').textContent = temporary ? 'Limited paragraph writing. No save or export is available.' : 'Read-only preview. Some Markdown formatting is shown as plain text.';
+    byId('document-info-note').textContent = temporary ? (current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
   }
-  renderCompositionCopies(s); show();
+  testCopyView.render(s); renderCompositionCopies(s); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;

@@ -347,3 +347,79 @@ and the coordination-required gate remains in force. All failure-state,
 filesystem, power-loss, concurrency, restart-recovery, SEC-01 and stage 1B-3
 formal FAIL limitations above remain unchanged. Any further enablement requires
 its own authorization and review.
+
+
+## Save Copy UI V1 — restricted development entry (0.26.0, uncommitted)
+
+This extension connects the reviewed isolated-copy Service to the existing unified
+Document window. It does not enable ordinary Save As, user-selected creation
+paths, overwrites or the old `save()` path. Safe Create's File Store, policy,
+Service and Document Model are unchanged. The launcher creates an owned 0700
+`document-safe-create-*` directory directly under the canonical OS temporary
+directory and starts the same Electron main entry **with that cwd**. It does not
+change cwd inside a running Electron process. Existing root identity, local APFS,
+metadata and exclusive-create checks still decide whether creation is allowed.
+
+From `apps/desktop`, run:
+
+```sh
+mise exec -- node tools/run-document-copy-demo.cjs
+```
+
+Choose **New temporary document**, write ordinary paragraphs, then click
+**创建测试副本** and **Create new test copy**. Cancel sends no create IPC.
+The receipt displays the generated filename/full path, confirmed revision and
+SHA-256. Use **Open Markdown… / Cmd+O**, then **Cmd+Shift+G** in the native chooser
+to select that path. It opens through the existing read-only authorization flow.
+The same copy can be reopened after this application exits. The OS may clean the
+test directory: these copies are not appropriate long-term storage.
+
+### Authority and UI result contract
+
+- Only an explicit unpackaged `--document-readonly --document-test-copy` launch
+  enables main-owned temporary-session copy capability. Ordinary document startup
+  and user-selected read-only files have no creation authority. Arbitrary cwd,
+  unsupported filesystems or invalid metadata fail closed, not fallback to saving.
+- Main supplies a random new filename and takes bytes from the existing model.
+  The strict `create-test-copy` IPC accepts only session ID, expected revision and
+  the hash of main's previously confirmed bytes. Renderer paths, text, names and
+  policy options are rejected. Sender/window/frame/URL authorization is retained.
+- Service creation is synchronous and single-flight; main checks session binding
+  again before publishing a response. Preload fences pending calls, composition,
+  known transport uncertainty and in-flight copy operations. Unknown outcomes
+  remain blocked for this page; no retry/automatic unlock is provided.
+- The UI also refuses local unconfirmed source, retained recovery records,
+  invalid composition, blocked documents or history operations. Confirmation
+  freezes edits and navigation until cancel or response. Native IME content that
+  has not reached DOM/controller cannot be claimed captured; native Chinese IME
+  acceptance remains outstanding.
+- Copy receipts are separate from dirty/save state. No `acceptSaved()` or history
+  reset occurs. The temporary document continues to say **Not saved**, and later
+  edits never update the earlier copy. Existing memory-only drafts still require
+  attention before closing or refreshing.
+- Partial, uncertain and failed creation display distinct state/created/path
+  evidence. A recorded path is a locator, not proof of current identity after
+  external changes. There is no automatic deletion, overwrite or residual-file
+  retry. A lifecycle/transport ambiguity never displays confirmed success.
+
+### Verification and remaining limits
+
+The existing Node test files cover capability denial, readonly/path/hash/revision
+rejection, partial/sync/existing-target outcomes, reentrant operation exclusion,
+revocation, preload transport/composition guards and the UI's refusal predicate.
+The original Safe Create byte-fidelity and no-overwrite tests remain in use.
+The existing Electron regression file adds a real keyboard/copy/reopen chain;
+its only controlled native UI part is the chooser/close decision, not the Service
+or IPC result. Creator and reader are separate, actually exited Electron processes.
+This is source Electron verification, not a packaged application/Finder acceptance.
+Current candidate fingerprints and results are kept outside Git; the accompanying
+report gives actual counts, device, bundle equality and exit results.
+
+A small presentation helper and development launcher keep copy UI out of the
+Document Model/history implementation; there is no second saving service. The
+existing entry remains slightly over 300 lines; only wiring was added, while the
+new copy view is separate. Test additions reuse existing files and runners.
+The old save coordination-required gate, P2 cleanup race, TOCTOU, concurrent
+same-user interference, ACL/xattr restrictions, power-loss/restart recovery,
+SEC-01, native IME gaps and stage 1B-3 formal FAIL remain. This prototype requires
+session E's limited safety review before a checkpoint; no release is approved.

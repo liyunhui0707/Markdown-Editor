@@ -191,17 +191,18 @@ test('main invalidates only successfully closed or revoked sessions, once per ID
 // Transport-order unit tests supplement, rather than replace, the real IPC E2E.
 function preloadFixture() {
   const { runInNewContext } = require('node:vm'), events = new EventEmitter(), pending = [];
-  let api;
+  let api; const dom = new EventEmitter();
   events.invoke = (channel, payload) => {
     events.beforeInvoke?.(payload);
     return new Promise((resolve, reject) => pending.push({ channel, payload, resolve, reject }));
   };
   runInNewContext(fs.readFileSync(path.join(__dirname, '../lib/document-demo-preload.js'), 'utf8'), {
+    document: { addEventListener: (name, fn) => dom.on(name, fn) },
     require: name => { assert.equal(name, 'electron'); return {
       ipcRenderer: events, contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'documentDemo'); api = value; } },
     }; },
   });
-  return { api, events, pending };
+  return { api, events, pending, dom };
 }
 test('preload close acknowledgement tombstones old successes before resolving to the renderer', async () => {
   const f = preloadFixture(), id = 'synthetic-session', seen = [];
@@ -269,4 +270,71 @@ test('invalidation during close cannot be downgraded by a later refusal or trans
     await close; assert.deepEqual(states, ['close-pending', 'invalidated']);
     assert.equal((await f.api.snapshot({ sessionId: 'b' })).code, 'unknown-session');
   }
+});
+
+
+test('preload test copy fences pending IPC and unknown results without resetting lifecycle', async () => {
+  const f = preloadFixture(), request = { sessionId: 'a', expectedRevision: 0, expectedSha256: 'a'.repeat(64) };
+  const edit = f.api.edit({ sessionId: 'a' });
+  assert.equal((await f.api.createTestCopy(request)).code, 'document-busy');
+  f.pending[0].resolve({ ok: true }); await edit;
+  const copy = f.api.createTestCopy(request);
+  assert.equal((await f.api.edit({ sessionId: 'a' })).code, 'copy-in-progress');
+  assert.equal((await f.api.createTestCopy(request)).code, 'document-busy');
+  f.pending[1].reject(Error('Synthetic response loss'));
+  assert.equal((await copy).code, 'copy-outcome-unknown');
+  assert.equal((await f.api.createTestCopy(request)).code, 'copy-outcome-unknown');
+  assert.equal(f.pending.length, 2);
+});
+test('preload test copy refuses composition, but does not interfere with normal completion', async () => {
+  const f = preloadFixture(), request = { sessionId: 'a' };
+  f.dom.emit('compositionstart');
+  assert.equal((await f.api.createTestCopy(request)).code, 'composition-active'); assert.equal(f.pending.length, 0);
+  f.dom.emit('compositionend'); const call = f.api.createTestCopy(request);
+  f.pending[0].resolve({ ok: true, copy: { state: 'created-confirmed', created: true } }); assert.equal((await call).ok, true);
+});
+test('preload malformed copy receipt and previous edit transport loss stay fail closed', async () => {
+  for (const kind of ['malformed', 'edit']) {
+    const f = preloadFixture();
+    if (kind === 'edit') { const edit = f.api.edit({ sessionId: 'a' }); f.pending[0].reject(Error('lost')); await assert.rejects(edit); }
+    else { const copy = f.api.createTestCopy({ sessionId: 'a' }); f.pending[0].resolve(null); assert.equal((await copy).code, 'copy-outcome-unknown'); }
+    assert.equal((await f.api.createTestCopy({ sessionId: 'a' })).ok, false); assert.equal(f.pending.length, 1);
+  }
+});
+
+
+test('copy UI refuses unconfirmed/composing/busy/locked source without mutating it', async () => {
+  const { copyRefusal } = await import('../lib/document-test-copy-view.mjs');
+  const base = { confirmed: { temporary: true, copyEnabled: true, source: 'x', copySha256: 'a'.repeat(64) }, source: 'x', recoveryRecords: [], pending: 0 };
+  assert.equal(copyRefusal(base), null);
+  for (const [change, code] of [[{ composing: true }, 'composition-active'], [{ compositionInvalid: true }, 'composition-active'],
+    [{ pending: 1 }, 'document-busy'], [{ historyPending: true }, 'document-busy'], [{ source: 'unsent' }, 'unconfirmed-input'],
+    [{ recoveryRecords: [{}] }, 'unconfirmed-input'], [{ locked: true }, 'document-locked']]) {
+    assert.equal(copyRefusal({ ...base, ...change }), code);
+  }
+  assert.equal(copyRefusal(base, { invalid: true }), 'document-locked');
+  assert.equal(copyRefusal({ ...base, confirmed: { ...base.confirmed, readOnly: true } }), 'test-copy-unavailable');
+  assert.equal(copyRefusal({ ...base, confirmed: { ...base.confirmed, copyState: { ok: false, created: null } } }), 'unresolved-copy-state');
+});
+
+
+test('preload unknown native-choice IPC blocks test creation without claiming a copy was attempted', async () => {
+  const f = preloadFixture(), opening = f.api.openFile();
+  f.pending[0].reject(Error('lost dialog response')); await assert.rejects(opening);
+  assert.equal((await f.api.createTestCopy({ sessionId: 'a' })).code, 'ipc-outcome-unknown');
+  assert.equal(f.pending.length, 1);
+});
+test('development launcher only spawns the same document window in a fresh private root', () => {
+  const { runInNewContext } = require('node:vm'); const calls = [], child = new EventEmitter();
+  const runtime = __filename; // Existing regular file; never executed by this spawn stub.
+  runInNewContext(fs.readFileSync(path.join(__dirname, '../tools/run-document-copy-demo.cjs'), 'utf8'), {
+    __dirname: path.join(__dirname, '../tools'), console: { log() {}, error() {} },
+    process: { platform: 'darwin', argv: ['node', 'launcher.cjs'], env: { PATH: '/usr/bin:/bin', SECRET_SENTINEL: 'not-forwarded' } },
+    require: name => name === 'electron' ? runtime : name === 'node:child_process' ? { spawn: (...a) => { calls.push(a); return child; } } : require(name),
+  });
+  assert.equal(calls.length, 1); const [binary, args, opts] = calls[0];
+  assert.equal(binary, runtime); assert.equal(args[0], path.resolve(__dirname, '../main.js'));
+  assert.deepEqual(Array.from(args.slice(1)), ['--document-readonly', '--document-test-copy']);
+  assert.match(path.basename(opts.cwd), /^document-safe-create-/); assert.equal(fs.statSync(opts.cwd).mode & 0o777, 0o700);
+  assert.equal(path.dirname(opts.cwd), fs.realpathSync(os.tmpdir())); assert.equal(opts.env.SECRET_SENTINEL, undefined);
 });

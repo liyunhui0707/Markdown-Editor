@@ -13,7 +13,7 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info, secondSource = null, readOnly = false) {
+async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
@@ -31,8 +31,14 @@ async function usingDemo(body, info, secondSource = null, readOnly = false) {
       m._compile(${JSON.stringify(fixtureSource)},file);`, { mode: 0o600, flag: 'wx' });
     entry = wrapper;
   }
+  let copyRoot = null;
+  if (testCopy) {
+    if (!readOnly) throw Error('Copy test requires the document window');
+    copyRoot = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'document-safe-create-')));
+    await fs.chmod(copyRoot, 0o700);
+  }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly'] : [entry], cwd: desktop, env, chromiumSandbox: true });
+    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly', ...(testCopy ? ['--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -63,7 +69,7 @@ async function usingDemo(body, info, secondSource = null, readOnly = false) {
     }, { from, to });
     const settled = () => expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).pending).toBe(0);
     const { projectSource } = await import(pathToFileURL(path.join(desktop, 'lib/document-source-map.mjs')).href);
-    await body({ app, page, sessions, snapshot, select, settled, projectSource, root });
+    await body({ app, page, sessions, snapshot, select, settled, projectSource, root, copyRoot });
     for (const [i, f] of (readOnly ? [] : ['a.md', 'b.md']).entries()) expect((await fs.readFile(path.join(root, f))).equals(bytes[i])).toBe(true);
     const finalSessions = (await page.evaluate(() => window.documentDemo.list())).sessions;
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.emit('did-start-loading'));
@@ -678,3 +684,71 @@ test('document writing entry V1 keyboard paragraphs, temporary isolation and rea
   for(const seed of seeds)expect((await fs.readFile(path.join(root,seed))).length).toBe(0);
   const screenshot=info.outputPath('temporary-writing.png');await page.screenshot({path:screenshot});await info.attach('temporary-writing',{path:screenshot,contentType:'image/png'});
 },info,null,true));
+
+
+test('save copy UI V1 creates confirmed revision, preserves writing and reopens after process exit', async ({}, info) => {
+  let receipt, original;
+  await usingDemo(async ({ app, page, snapshot, select, settled, copyRoot }) => {
+    await app.evaluate(({ dialog }) => {
+      globalThis.copyClose = 1; globalThis.copyChoices = [];
+      dialog.showMessageBoxSync = () => globalThis.copyClose;
+      dialog.showOpenDialog = async () => globalThis.copyChoices.shift();
+    });
+    const id = async () => JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    await page.getByRole('button', { name: 'New temporary document', exact: true }).click(); const temporary = await id();
+    await page.keyboard.type('First '); await page.keyboard.insertText('中文😀'); await settled();
+    await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('Second paragraph'); await settled();
+    const written = 'First 中文😀\n\nSecond paragraph';
+    await select('#editor p:nth-of-type(2)', 0); await page.keyboard.press('Backspace'); await settled();
+    expect((await snapshot(temporary)).snapshot.source).toBe('First 中文😀Second paragraph');
+    await page.keyboard.press('Meta+z'); await settled(); await page.keyboard.press('Meta+Shift+z'); await settled();
+    await page.keyboard.press('Meta+z'); await settled();
+    const before = (await snapshot(temporary)).snapshot; expect(before.source).toBe(written);
+    await page.getByRole('button', { name: '创建测试副本', exact: true }).click();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await page.locator('#cancel-test-copy').click();
+    expect((await snapshot(temporary)).snapshot).toEqual(before);
+    expect((await fs.readdir(copyRoot)).filter(n => n.startsWith('copy-'))).toHaveLength(0);
+    // Composition protection uses real DOM events, but is not native macOS IME acceptance.
+    await page.locator('#editor .tiptap').evaluate(el => el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
+    await expect(page.locator('#create-test-copy')).toBeDisabled();
+    expect((await page.evaluate(s => window.documentDemo.createTestCopy({ sessionId: s.sessionId, expectedRevision: s.revision, expectedSha256: s.copySha256 }), before)).code).toBe('composition-active');
+    await page.locator('#editor .tiptap').evaluate(el => el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
+    await expect(page.locator('#create-test-copy')).toBeEnabled();
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#test-copy-result')).toContainText('Test copy created: revision');
+    const after = (await snapshot(temporary)).snapshot; receipt = after.copyState;
+    for (const k of ['source', 'revision', 'dirty', 'canUndo', 'canRedo', 'saveState']) expect(after[k]).toEqual(before[k]);
+    expect(receipt.state).toBe('created-confirmed'); expect(path.dirname(receipt.filePath)).toBe(copyRoot);
+    original = await fs.readFile(receipt.filePath); expect(original.toString()).toBe(written);
+    expect(require('node:crypto').createHash('sha256').update(original).digest('hex')).toBe(receipt.sha256);
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await select('#editor p:nth-of-type(2)', 'Second paragraph'.length); await page.keyboard.insertText(' later'); await settled();
+    expect((await fs.readFile(receipt.filePath)).equals(original)).toBe(true);
+    await expect(page.locator('#test-copy-result')).toContainText('revision ' + receipt.revision);
+    expect((await snapshot(temporary)).snapshot.revision).toBeGreaterThan(receipt.revision);
+    await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(temporary)).snapshot.source).toBe(written);
+    await app.evaluate((_, file) => globalThis.copyChoices.push({ canceled: false, filePaths: [file] }), receipt.filePath);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    const real = (await snapshot(await id())).snapshot;
+    await expect(page.locator('#create-test-copy')).toBeHidden();
+    expect((await page.evaluate(s => window.documentDemo.createTestCopy({ sessionId: s.sessionId, expectedRevision: s.revision, expectedSha256: '0'.repeat(64) }), real)).code).toBe('read-only-document');
+    expect((await page.evaluate(s => window.documentDemo.save({ sessionId: s.sessionId, expectedRevision: s.revision }), real)).code).toBe('read-only-document');
+    await page.locator('#documents').selectOption(temporary); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
+    await app.evaluate(({ BrowserWindow }) => { globalThis.copyClose = 0; BrowserWindow.getAllWindows()[0].close(); });
+    expect((await snapshot(temporary)).snapshot.source).toBe(written);
+    await app.evaluate(() => { globalThis.copyClose = 1; });
+    const shot = info.outputPath('test-copy-created.png'); await page.screenshot({ path: shot }); await info.attach('test-copy-created', { path: shot, contentType: 'image/png' });
+  }, info, null, true, true);
+  // The creator's actual OS process has exited (shared helper verifies code/signal/watchdog).
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, receipt.filePath);
+    await page.locator('#open-file').click(); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    const id = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    expect((await snapshot(id)).snapshot.source).toBe(original.toString());
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    const bytes = await fs.readFile(receipt.filePath); expect(bytes.equals(original)).toBe(true);
+    expect(require('node:crypto').createHash('sha256').update(bytes).digest('hex')).toBe(receipt.sha256);
+    await expect(page.locator('#create-test-copy')).toBeHidden();
+  }, info, null, true);
+});

@@ -352,3 +352,71 @@ test('same-byte rewrite after fsync cannot reuse the earlier synchronization evi
   assert.equal(r.created, true); assert.equal(r.sha256, undefined);
   assert.deepEqual(fs.readFileSync(f.target), f.document.bytesForSave());
 });
+
+
+async function copyIpc({ enabled = true, readOnly = false } = {}) {
+  const f = fixture(Buffer.from('first\r\n\r\n第二段😀'));
+  const { projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs');
+  const wc = new EventEmitter(), win = new EventEmitter(), frame = { url: 'file:///synthetic/copy.html' };
+  Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url, send: () => {} });
+  Object.assign(win, { webContents: wc, isDestroyed: () => false });
+  const manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => win, allowTestCopies: enabled });
+  manager.grant(win, frame.url);
+  const id = manager.provision(win, f.document, 'Synthetic', readOnly ? { readOnly: true } : { temporary: true });
+  const event = { sender: wc, senderFrame: frame };
+  const call = (operation, data = {}) => manager.request(event, { operation, sessionId: id, ...data });
+  const copy = (data = {}) => call('create-test-copy', { expectedRevision: f.document.revision, expectedSha256: hash(f.document.bytesForSave()), ...data });
+  return { ...f, manager, win, wc, frame, id, event, call, copy };
+}
+test('test copy IPC uses authoritative bytes; receipt never advances dirty/revision/history', async () => {
+  const f = await copyIpc();
+  const edit = f.call('edit', { expectedRevision: 0, from: 1, to: 1, insert: '新' }); assert.equal(edit.ok, true);
+  const before = f.call('snapshot').snapshot, result = f.copy();
+  assert.equal(result.ok, true); assert.equal(result.copy.state, 'created-confirmed');
+  assert.equal(result.copy.revision, before.revision); assert.equal(result.copy.sha256, before.copySha256);
+  assert.deepEqual(fs.readFileSync(result.copy.filePath), f.document.bytesForSave());
+  for (const key of ['source', 'revision', 'dirty', 'canUndo', 'canRedo', 'saveState']) assert.deepEqual(result.snapshot[key], before[key]);
+  assert.equal(f.call('undo', { expectedRevision: before.revision }).ok, true);
+  assert.equal(f.call('redo', { expectedRevision: f.document.revision }).ok, true);
+  assert.equal(f.copy().ok, true); // A new main-generated name, never overwrite the first receipt.
+  assert.deepEqual(fs.readFileSync(result.copy.filePath), Buffer.from(before.source));
+});
+test('test copy IPC refuses default capability, readonly sessions, arbitrary paths and stale identity', async () => {
+  for (const options of [{ enabled: false }, { readOnly: true }]) {
+    const f = await copyIpc(options); assert.equal(f.copy().ok, false); assert.deepEqual(fs.readdirSync(f.root), ['seed.md']);
+  }
+  const f = await copyIpc();
+  for (const data of [{ name: 'x.md' }, { filePath: '/private/tmp/forbidden.md' }, { source: 'FAKE' }, { unsafeExperimentalRoot: f.root },
+    { expectedRevision: 99 }, { expectedSha256: '0'.repeat(64) }]) assert.equal(f.copy(data).ok, false);
+  assert.equal(f.manager.request({ sender: f.wc, senderFrame: {} }, { operation: 'create-test-copy', sessionId: f.id }).code, 'unauthorized-sender');
+  assert.deepEqual(fs.readdirSync(f.root), ['seed.md']);
+  f.manager.revoke(f.win); assert.equal(f.copy().ok, false);
+});
+test('test copy IPC propagates partial and uncertain receipts without retry or memory loss', async () => {
+  for (const kind of ['partial', 'sync', 'exists']) {
+    const f = await copyIpc(), before = memory(f); let target;
+    f.io.openSync = (p, flags, ...rest) => {
+      if (flags & fs.constants.O_CREAT) { target = path.join(f.root, p); if (kind === 'exists') fs.writeFileSync(target, 'OTHER', { flag: 'wx' }); }
+      return fs.openSync(p, flags, ...rest);
+    };
+    if (kind === 'partial') f.io.writeSync = () => { throw fault('ENOSPC'); };
+    if (kind === 'sync') f.io.fsyncSync = () => { throw fault(); };
+    const result = f.copy(); assert.equal(result.ok, false);
+    assert.equal(result.copy.state, kind === 'partial' ? 'created-partial' : kind === 'sync' ? 'durability-uncertain' : 'target-exists');
+    assert.equal(result.copy.filePath, target); retained(f, before);
+    if (kind !== 'exists') { assert.equal(f.copy().code, 'unresolved-copy-state'); assert.equal(fs.readdirSync(f.root).length, 2); }
+    else assert.equal(fs.readFileSync(target, 'utf8'), 'OTHER');
+  }
+});
+test('test copy IPC serializes reentrant edits and refuses a revoked response', async () => {
+  const f = await copyIpc(); let during, nested, once = false;
+  f.io.fsyncSync = fd => {
+    if (!once) { once = true; during = f.call('edit', { expectedRevision: 0, from: 1, to: 1, insert: 'BAD' }); nested = f.copy(); }
+    return fs.fsyncSync(fd);
+  };
+  assert.equal(f.copy().ok, true); assert.equal(during.code, 'copy-in-progress'); assert.equal(nested.code, 'copy-in-progress');
+  const g = await copyIpc(); let revoked = false;
+  g.io.fsyncSync = fd => { if (!revoked) { revoked = true; g.manager.revoke(g.win); } fs.fsyncSync(fd); };
+  const result = g.copy(); assert.equal(result.ok, false); assert.equal(result.code, 'copy-session-invalidated');
+  assert.equal(result.snapshot, undefined); assert.equal(g.manager.retainedCount(), 1);
+});

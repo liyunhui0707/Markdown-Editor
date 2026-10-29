@@ -32271,6 +32271,93 @@ ${prefix}
     };
   }
 
+  // lib/document-test-copy-view.mjs
+  function copyRefusal(s, { loading: loading2 = false, invalid = false } = {}) {
+    if (!s || !s.confirmed.temporary || s.confirmed.readOnly || !s.confirmed.copyEnabled) return "test-copy-unavailable";
+    if (invalid || s.locked || s.confirmed.blocked) return "document-locked";
+    if (s.composing || s.compositionInvalid) return "composition-active";
+    if (loading2 || s.pending || s.historyPending) return "document-busy";
+    if (s.source !== s.confirmed.source || s.recoveryRecords.length) return "unconfirmed-input";
+    if (!/^[a-f0-9]{64}$/.test(s.confirmed.copySha256 || "")) return "unverified-source";
+    const receipt = s.confirmed.copyState;
+    if (receipt && !receipt.ok && receipt.created !== false) return "unresolved-copy-state";
+    return null;
+  }
+  function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
+    const receipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
+    let confirmation = null;
+    const refusal = (c) => unknown.has(c.selected) ? "copy-outcome-unknown" : copyRefusal(c.controller?.state(), c);
+    function render3(s) {
+      const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
+      byId2("create-test-copy").hidden = !enabled;
+      byId2("test-copy-panel").hidden = !enabled;
+      if (!enabled) return;
+      const reason = refusal(c);
+      byId2("create-test-copy").disabled = !!reason;
+      byId2("test-copy-reason").textContent = confirmation ? "Review the revision below, then confirm or cancel." : reason ? `Copy unavailable: ${reason}. Current writing is retained.` : "";
+      byId2("test-copy-confirmation").hidden = !confirmation || confirmation.sessionId !== c.selected;
+      const receipt = receipts.get(c.selected) || s.confirmed.copyState;
+      const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
+      byId2("test-copy-result").textContent = confirmed ? `Test copy created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.
+${receipt.filePath}
+SHA-256: ${receipt.sha256}` : receipt && (receipt.code || receipt.state !== "not-created") ? `Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || "not-created"}; created: ${String(receipt.created ?? "unknown")}. No automatic retry or cleanup.
+${receipt.filePath || ""}` : "";
+    }
+    function finish() {
+      confirmation = null;
+      busy(false);
+      rerender();
+      const c = context();
+      if (!c.invalid && !c.controller?.state().locked) focus2();
+    }
+    byId2("create-test-copy").onpointerdown = (event) => {
+      if (refusal(context())) event.preventDefault();
+    };
+    byId2("create-test-copy").onclick = () => {
+      const c = context();
+      if (refusal(c)) return;
+      const s = c.controller.state().confirmed;
+      confirmation = { controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
+      busy(true);
+      byId2("test-copy-confirm-revision").textContent = `Create a new test copy of confirmed revision ${s.revision}?`;
+      byId2("confirm-test-copy").disabled = false;
+      byId2("cancel-test-copy").disabled = false;
+      rerender();
+    };
+    byId2("cancel-test-copy").onclick = () => {
+      if (confirmation) finish();
+    };
+    byId2("confirm-test-copy").onclick = async () => {
+      const q = confirmation, c = context();
+      if (!q) return;
+      const s = c.controller?.state();
+      if (c.controller !== q.controller || c.selected !== q.sessionId || copyRefusal(s, { invalid: c.invalid }) || s.confirmed.revision !== q.revision || s.confirmed.source !== q.source || s.confirmed.copySha256 !== q.hash) {
+        finish();
+        return;
+      }
+      byId2("confirm-test-copy").disabled = true;
+      byId2("cancel-test-copy").disabled = true;
+      try {
+        const r = await api2.createTestCopy({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
+        const now = context();
+        const valid = now.controller === q.controller && now.selected === q.sessionId && !now.invalid && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;
+        if (!valid || r.ok && (r.copy?.state !== "created-confirmed" || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash)) {
+          unknown.add(q.sessionId);
+          receipts.set(q.sessionId, { ...r?.copy, ok: false, code: r?.code || "copy-outcome-unknown", state: "create-outcome-unknown", created: null });
+        } else {
+          receipts.set(q.sessionId, r.ok ? r.copy : { ...r.copy, ok: false, code: r.code || r.copy?.code });
+          q.controller.refresh(r);
+        }
+      } catch {
+        unknown.add(q.sessionId);
+        receipts.set(q.sessionId, { ok: false, state: "create-outcome-unknown", created: null, code: "copy-outcome-unknown" });
+      } finally {
+        finish();
+      }
+    };
+    return { render: render3 };
+  }
+
   // lib/document-edit-controller.mjs
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
@@ -32686,6 +32773,20 @@ ${prefix}
     renderCompositionCopies(controller.state());
   }
   var activeInvalid = () => lifecycles.has(selected);
+  var testCopyView = createTestCopyView({
+    api,
+    byId,
+    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    busy: (value) => {
+      loading = value;
+    },
+    rerender: () => {
+      if (controller) render2(controller.state());
+    },
+    focus: () => {
+      if (editor?.isEditable) editor.view.focus();
+    }
+  });
   var lifecycleCode = (id) => lifecycles.get(id) === "invalidated" ? "unknown-session" : lifecycles.get(id);
   function show(code3) {
     const s = controller?.state(), current = s?.confirmed;
@@ -32745,12 +32846,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("document-info").querySelector("summary").title = current.label;
       byId("readonly-badge").textContent = temporary ? "Not saved" : "Read-only";
       byId("readonly-badge").title = temporary ? "Temporary writing is memory only." : "Viewing only. Editing and saving are unavailable.";
-      byId("document-info-note").textContent = temporary ? "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
+      byId("document-info-note").textContent = temporary ? current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
       document.title = current.label + (temporary ? " \u2014 Not saved" : " \u2014 Read-only");
       if (navigationError || activeInvalid() || s.locked) viewerStatus("Editing unavailable: " + (navigationError || lifecycleCode(selected) || s.code) + ". Retained input copies remain in this window.", true);
     }
+    testCopyView.render(s);
     renderCompositionCopies(s);
     show();
   }
