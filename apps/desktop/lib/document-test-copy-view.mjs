@@ -13,9 +13,16 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
 export function createTestCopyView({ api, byId, context, busy, rerender, focus }) {
   const receipts = new Map(), unknown = new Set();
   let confirmation = null;
+  let persistent = false;
   const refusal = c => unknown.has(c.selected) ? 'copy-outcome-unknown' : copyRefusal(c.controller?.state(), c);
   function render(s) {
     const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
+    persistent = enabled && s.confirmed.persistentCopyEnabled === true;
+    byId('create-test-copy').textContent = persistent ? 'Create persistent test copy…' : '创建测试副本';
+    byId('confirm-test-copy').textContent = persistent ? 'Choose location…' : 'Create new test copy';
+    byId('test-copy-description').textContent = persistent
+      ? 'New copy only, in a dedicated EMPTY local APFS test folder. Current writing remains in memory and Not saved. No overwrite or general Save As.'
+      : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;
     if (!enabled) return;
@@ -26,7 +33,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     const receipt = receipts.get(c.selected) || s.confirmed.copyState;
     const confirmed = receipt?.ok === true && receipt.state === 'created-confirmed';
     byId('test-copy-result').textContent = confirmed
-      ? `Test copy created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${receipt.filePath}\nSHA-256: ${receipt.sha256}`
+      ? `${persistent ? 'Persistent test copy' : 'Test copy'} created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${receipt.filePath}\nSHA-256: ${receipt.sha256}`
       : receipt && (receipt.code || receipt.state !== 'not-created')
         ? `Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || 'not-created'}; created: ${String(receipt.created ?? 'unknown')}. No automatic retry or cleanup.\n${receipt.filePath || ''}` : '';
   }
@@ -40,7 +47,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
   byId('create-test-copy').onclick = () => {
     const c = context(); if (refusal(c)) return;
     const s = c.controller.state().confirmed;
-    confirmation = { controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
+    confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
     busy(true); // Freeze edits, history and switching through confirmation and response.
     byId('test-copy-confirm-revision').textContent = `Create a new test copy of confirmed revision ${s.revision}?`;
     byId('confirm-test-copy').disabled = false; byId('cancel-test-copy').disabled = false; rerender();
@@ -53,7 +60,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
       || s.confirmed.revision !== q.revision || s.confirmed.source !== q.source || s.confirmed.copySha256 !== q.hash) { finish(); return; }
     byId('confirm-test-copy').disabled = true; byId('cancel-test-copy').disabled = true;
     try {
-      const r = await api.createTestCopy({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
+      const r = await (q.persistent ? api.createPersistentCopy : api.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
       const now = context();
       const valid = now.controller === q.controller && now.selected === q.sessionId && !now.invalid
         && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;

@@ -13,7 +13,7 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false) {
+async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
@@ -38,7 +38,7 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     await fs.chmod(copyRoot, 0o700);
   }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly', ...(testCopy ? ['--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
+    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly', ...(testCopy ? [persistentCopy ? '--document-persistent-copy' : '--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -750,5 +750,59 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
     const bytes = await fs.readFile(receipt.filePath); expect(bytes.equals(original)).toBe(true);
     expect(require('node:crypto').createHash('sha256').update(bytes).digest('hex')).toBe(receipt.sha256);
     await expect(page.locator('#create-test-copy')).toBeHidden();
+  }, info, null, true);
+});
+
+
+test('persistent copy V1 creates a selected new file and reopens after Electron exit', async ({}, info) => {
+  const dir = await fs.mkdtemp(path.join(require('node:os').homedir(), 'Markdown-Persistent-Test-E2E-'));
+  await fs.chmod(dir, 0o700); const target = path.join(dir, 'persistent.md');
+  let receipt, original;
+  await usingDemo(async ({ app, page, snapshot, settled, select }) => {
+    await page.locator('#new-temporary').click(); await expect(page.locator('#editor p')).toHaveCount(1);
+    const id = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+    await page.locator('#editor p').click(); await page.keyboard.type('First '); await page.keyboard.insertText('中文😀'); await settled();
+    await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('Second paragraph.'); await settled();
+    const temporary = await id(), before = (await snapshot(temporary)).snapshot;
+    expect(before.source).toBe('First 中文😀\n\nSecond paragraph.');
+    await app.evaluate(({ dialog }, filePath) => {
+      globalThis.persistentDialog = { canceled: true, filePath, calls: [] };
+      dialog.showMessageBox = async () => ({ response: 1 }); // Consent fixture, no native automation claim.
+      dialog.showSaveDialog = async (_win, options) => {
+        globalThis.persistentDialog.calls.push({ bookmarks: options.securityScopedBookmarks, title: options.title });
+        return { canceled: globalThis.persistentDialog.canceled, filePath: globalThis.persistentDialog.filePath };
+      };
+      dialog.showMessageBoxSync = () => 1;
+    }, target);
+    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('create-cancelled');
+    expect((await snapshot(temporary)).snapshot.source).toBe(before.source);
+    await expect.poll(async () => { try { await fs.lstat(target); return true; } catch { return false; } }).toBe(false);
+    await app.evaluate(() => { globalThis.persistentDialog.canceled = false; });
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('Persistent test copy created: revision');
+    const after = (await snapshot(temporary)).snapshot; receipt = after.copyState;
+    expect(receipt.ok).toBe(true); expect(receipt.filePath).toBe(target); expect(after.revision).toBe(before.revision);
+    expect(after.dirty).toBe(before.dirty); expect(after.canUndo).toBe(before.canUndo); expect(after.canRedo).toBe(before.canRedo);
+    original = await fs.readFile(target); expect(original.toString()).toBe(before.source);
+    expect(require('node:crypto').createHash('sha256').update(original).digest('hex')).toBe(receipt.sha256);
+    expect(await app.evaluate(() => globalThis.persistentDialog.calls)).toEqual([
+      { bookmarks: false, title: 'Create NEW persistent test copy' }, { bookmarks: false, title: 'Create NEW persistent test copy' }
+    ]);
+    await select('#editor p:last-child', 'Second paragraph.'.length);
+    await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('THIRD'); await settled();
+    expect((await snapshot(temporary)).snapshot.source).toContain('THIRD'); expect((await fs.readFile(target)).equals(original)).toBe(true);
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('target-exists');
+    expect((await fs.readFile(target)).equals(original)).toBe(true);
+    const shot = info.outputPath('persistent-copy.png'); await page.screenshot({ path: shot }); await info.attach('persistent-copy', { path: shot, contentType: 'image/png' });
+  }, info, null, true, true, true);
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('persistent.md');
+    const id = await page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+    const reopened = (await snapshot(id)).snapshot; expect(reopened.readOnly).toBe(true); expect(reopened.source).toBe(original.toString());
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false'); await expect(page.locator('#create-test-copy')).toBeHidden();
+    for (const op of ['save','createPersistentCopy']) expect((await page.evaluate(async ({ op, id, revision }) => window.documentDemo[op]({ sessionId: id, expectedRevision: revision }), { op, id, revision: reopened.revision })).code).toBe('read-only-document');
+    expect((await fs.readFile(target)).equals(original)).toBe(true);
   }, info, null, true);
 });

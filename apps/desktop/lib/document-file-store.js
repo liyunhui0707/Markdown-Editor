@@ -3,7 +3,7 @@ const nativeFs = require('node:fs');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isSessionLocation } = require('./editor-path-policy');
-const { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata } = require('./document-save-policy');
+const { createSavePolicy, createIsolatedCreatePolicy, createPersistentCreatePolicy, inspectMacMetadata } = require('./document-save-policy');
 // Process-local exclusion only. It does not coordinate external applications.
 const activeSaves = new Set();
 
@@ -21,9 +21,10 @@ const sameSnapshot = (a, b) => a.filePath === b.filePath
 
 // Operations are synchronous. Existing replacement remains independently gated;
 // new-copy creation is available only inside an isolated synthetic test process.
-function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolatedCreateRoot } = {}) {
+function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolatedCreateRoot, persistentCreateTask } = {}) {
   const policy = createSavePolicy({ fs, unsafeExperimentalRoot });
-  const createPolicy = createIsolatedCreatePolicy({ fs, isolatedCreateRoot });
+  if (persistentCreateTask && isolatedCreateRoot !== undefined) throw error('invalid-create-policy', 'Conflicting create authority.');
+  const createPolicy = persistentCreateTask ? createPersistentCreatePolicy(persistentCreateTask) : createIsolatedCreatePolicy({ fs, isolatedCreateRoot });
   function read(requestedPath, maxBytes = Infinity) {
     if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576)) throw error('unsupported-size', 'Invalid read limit.');
     if (typeof requestedPath !== 'string' || !path.isAbsolute(requestedPath)
@@ -271,7 +272,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       // Never unlink or retry: even a partial/uncertain file is retained.
     }
     return { ...result, ...(owned ? { fileIdentity: `${owned.dev}:${owned.ino}` } : {}),
-      realFileSafe: false, safety: 'isolated-synthetic-create-only' };
+      realFileSafe: false, safety: persistentCreateTask ? 'dedicated-persistent-test-copy-only' : 'isolated-synthetic-create-only' };
   }
 
   function confirmDurability(expected) {

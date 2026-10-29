@@ -1422,3 +1422,36 @@ Use synthetic material only; this checklist is not a native IME pass.
   all temporary writing and recovery records. Verify original fixture hashes.
 - Real macOS Simplified Pinyin, native preedit completeness and IME recovery
   still require separate acceptance. Do not refresh to recover an input lock.
+
+
+## Persistent Copy V1 — native save sheet user QA (limited PASS)
+
+Use only synthetic text and a newly prepared empty `~/Markdown-Persistent-Test-Manual`
+folder (owned by you, no group/other write permission, local APFS, no synchronization).
+From `apps/desktop`, run `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. New temporary document; type two paragraphs containing English, Chinese and emoji.
+2. Create persistent test copy; confirm the limited scope; cancel the native sheet.
+   Confirm no file exists and all text/revision/history remain unchanged.
+3. Repeat and select `copy.md` inside the dedicated folder. Confirm the receipt's
+   revision, actual path and SHA-256; the temporary document must still say Not saved.
+4. Add a third paragraph. Confirm the earlier file still contains only the copied
+   revision. Choose the same target again: reject without changing its bytes.
+5. Quit using the unsaved warning, restart, Open Markdown… and select the copy.
+   Verify the exact two paragraphs and read-only state. No edit/overwrite capability.
+6. Verify a symlink target, nonempty folder and ordinary cloud paths outside the
+   dedicated home-folder scope are refused. A custom sync agent watching an otherwise
+   allowed folder cannot be automatically detected; never select such a folder. Never use real notes or change file permissions to force acceptance.
+
+User-reported result on MacBook Pro, reviewed 0.27.0 candidate: **PASS** for
+native directory/name selection, cancel without creation or lost text, new-file
+creation without abnormal precreation/overwrite, matching receipt/path/revision/
+SHA-256, unchanged earlier copy after later edits, read-only reopening after a
+full quit, and the temporary document's persistent Not saved label.
+
+This is user manual QA, separate from Air automation's stubbed dialog selections.
+Do not infer new manual symlink, unsupported-directory, full IME or installed-app
+coverage beyond the seven observations explicitly reported. The 0.28.0 checkpoint
+adds the small receipt-dependent information-note correction with directed tests;
+that wording change is not itself covered by the earlier human QA. Existing
+release and file-safety limitations remain; no general Save As or overwrite.

@@ -9,6 +9,16 @@ const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
+function persistentCopyNote(receipt) {
+  if (receipt?.ok === true && receipt.state === 'created-confirmed' && receipt.created === true
+      && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
+    return `Confirmed copy: revision ${receipt.revision}. Later edits are not included; this temporary document remains Not saved.`;
+  }
+  if (receipt && receipt.created !== false && receipt.state !== 'not-created') {
+    return 'Copy result is unconfirmed; a file may exist. This temporary document remains Not saved.';
+  }
+  return 'No confirmed copy receipt. This temporary document remains Not saved.';
+}
 let readOnlyWindow = false;
 const readOnlyDocument = () => controller?.state().confirmed.readOnly === true
   || (readOnlyWindow && controller?.state().confirmed.temporary !== true);
@@ -100,7 +110,7 @@ function render(s) {
     byId('document-info').querySelector('summary').title = current.label;
     byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
     byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Viewing only. Editing and saving are unavailable.';
-    byId('document-info-note').textContent = temporary ? (current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
+    byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');

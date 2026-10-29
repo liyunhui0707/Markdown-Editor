@@ -32286,9 +32286,14 @@ ${prefix}
   function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
     const receipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
     let confirmation = null;
+    let persistent = false;
     const refusal = (c) => unknown.has(c.selected) ? "copy-outcome-unknown" : copyRefusal(c.controller?.state(), c);
     function render3(s) {
       const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
+      persistent = enabled && s.confirmed.persistentCopyEnabled === true;
+      byId2("create-test-copy").textContent = persistent ? "Create persistent test copy\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
+      byId2("confirm-test-copy").textContent = persistent ? "Choose location\u2026" : "Create new test copy";
+      byId2("test-copy-description").textContent = persistent ? "New copy only, in a dedicated EMPTY local APFS test folder. Current writing remains in memory and Not saved. No overwrite or general Save As." : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
       byId2("create-test-copy").hidden = !enabled;
       byId2("test-copy-panel").hidden = !enabled;
       if (!enabled) return;
@@ -32298,7 +32303,7 @@ ${prefix}
       byId2("test-copy-confirmation").hidden = !confirmation || confirmation.sessionId !== c.selected;
       const receipt = receipts.get(c.selected) || s.confirmed.copyState;
       const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
-      byId2("test-copy-result").textContent = confirmed ? `Test copy created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.
+      byId2("test-copy-result").textContent = confirmed ? `${persistent ? "Persistent test copy" : "Test copy"} created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.
 ${receipt.filePath}
 SHA-256: ${receipt.sha256}` : receipt && (receipt.code || receipt.state !== "not-created") ? `Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || "not-created"}; created: ${String(receipt.created ?? "unknown")}. No automatic retry or cleanup.
 ${receipt.filePath || ""}` : "";
@@ -32317,7 +32322,7 @@ ${receipt.filePath || ""}` : "";
       const c = context();
       if (refusal(c)) return;
       const s = c.controller.state().confirmed;
-      confirmation = { controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
+      confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
       busy(true);
       byId2("test-copy-confirm-revision").textContent = `Create a new test copy of confirmed revision ${s.revision}?`;
       byId2("confirm-test-copy").disabled = false;
@@ -32338,7 +32343,7 @@ ${receipt.filePath || ""}` : "";
       byId2("confirm-test-copy").disabled = true;
       byId2("cancel-test-copy").disabled = true;
       try {
-        const r = await api2.createTestCopy({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
+        const r = await (q.persistent ? api2.createPersistentCopy : api2.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
         const now = context();
         const valid = now.controller === q.controller && now.selected === q.sessionId && !now.invalid && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;
         if (!valid || r.ok && (r.copy?.state !== "created-confirmed" || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash)) {
@@ -32722,6 +32727,15 @@ ${receipt.filePath || ""}` : "";
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  function persistentCopyNote(receipt) {
+    if (receipt?.ok === true && receipt.state === "created-confirmed" && receipt.created === true && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
+      return `Confirmed copy: revision ${receipt.revision}. Later edits are not included; this temporary document remains Not saved.`;
+    }
+    if (receipt && receipt.created !== false && receipt.state !== "not-created") {
+      return "Copy result is unconfirmed; a file may exist. This temporary document remains Not saved.";
+    }
+    return "No confirmed copy receipt. This temporary document remains Not saved.";
+  }
   var readOnlyWindow = false;
   var readOnlyDocument = () => controller?.state().confirmed.readOnly === true || readOnlyWindow && controller?.state().confirmed.temporary !== true;
   var compositionView = null;
@@ -32846,7 +32860,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("document-info").querySelector("summary").title = current.label;
       byId("readonly-badge").textContent = temporary ? "Not saved" : "Read-only";
       byId("readonly-badge").title = temporary ? "Temporary writing is memory only." : "Viewing only. Editing and saving are unavailable.";
-      byId("document-info-note").textContent = temporary ? current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
+      byId("document-info-note").textContent = temporary ? current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
       document.title = current.label + (temporary ? " \u2014 Not saved" : " \u2014 Read-only");

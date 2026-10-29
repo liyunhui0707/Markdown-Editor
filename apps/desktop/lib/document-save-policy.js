@@ -126,4 +126,66 @@ function createIsolatedCreatePolicy({ fs = nativeFs, isolatedCreateRoot } = {}) 
   return { verify, authorizeSource };
 }
 
-module.exports = { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata };
+
+// Persistent Copy V1: explicitly selected, EMPTY dedicated test folders only.
+// No automatic chmod, deletion, marker creation or expansion to normal folders.
+const directoryIdentity = s => ({ dev: String(s.dev), ino: String(s.ino),
+  mode: Number(s.mode & 0o7777n), uid: Number(s.uid), gid: Number(s.gid) });
+const equalDirectory = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const copyName = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name);
+function persistentDirectory(root) {
+  const home = nativeFs.realpathSync(os.homedir());
+  if (process.platform !== 'darwin' || typeof root !== 'string' || !path.isAbsolute(root)
+      || path.dirname(root) !== home || !/^Markdown-Persistent-Test-[A-Za-z0-9_-]{1,64}$/.test(path.basename(root))
+      || nativeFs.realpathSync(root) !== root) return deny('unsupported-copy-directory');
+  const s = nativeFs.lstatSync(root, { bigint: true });
+  if (!s.isDirectory() || s.isSymbolicLink() || s.dev !== nativeFs.statSync(home, { bigint: true }).dev || Number(s.uid) !== process.getuid()
+      || (s.mode & 0o022n) !== 0n) return deny('unsupported-copy-directory');
+  const run = (exe, args) => {
+    const r = spawnSync(exe, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 131072,
+      env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LC_ALL: 'C' } });
+    if (r.error || r.signal || r.status !== 0) return deny('unsupported-filesystem');
+    return r.stdout;
+  };
+  const rows = run('/bin/df', ['-P', root]).trim().split('\n');
+  const mount = rows.length === 2 && /^\S+\s+\d+\s+\d+\s+\d+\s+\d+%\s+(.+)$/.exec(rows[1])?.[1];
+  if (!mount || !run('/sbin/mount', []).split('\n').some(line => line.includes(` on ${mount} (apfs, local`))) return deny('unsupported-filesystem');
+  const state = { identity: directoryIdentity(s), filesystem: nativeFs.statfsSync(root).type, metadata: inspectMacMetadata(root) };
+  if (!equalDirectory(state.identity, directoryIdentity(nativeFs.lstatSync(root, { bigint: true })))) return deny('copy-directory-changed');
+  return state;
+}
+function captureCopyDestination(filePath) {
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !copyName(path.basename(filePath))) return deny('invalid-copy-name');
+  const root = path.dirname(filePath), name = path.basename(filePath), state = persistentDirectory(root);
+  let fd;
+  try {
+    fd = nativeFs.openSync(root, nativeFs.constants.O_RDONLY | nativeFs.constants.O_DIRECTORY | nativeFs.constants.O_NOFOLLOW);
+    if (!equalDirectory(directoryIdentity(nativeFs.fstatSync(fd, { bigint: true })), state.identity)) return deny('copy-directory-changed');
+    const verify = () => {
+      if (fd === undefined || !equalDirectory(persistentDirectory(root), state)
+          || !equalDirectory(directoryIdentity(nativeFs.fstatSync(fd, { bigint: true })), state.identity)) return deny('copy-directory-changed');
+    };
+    // lstat also detects dangling symlinks. Never consult existsSync for exclusion.
+    try { nativeFs.lstatSync(filePath); return deny('target-exists'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (nativeFs.readdirSync(root).length !== 0) return deny('copy-directory-not-empty');
+    verify();
+    return { root, name, filePath, state, verify,
+      close() { if (fd !== undefined) { const owned = fd; fd = undefined; nativeFs.closeSync(owned); } } };
+  } catch (e) { if (fd !== undefined) nativeFs.closeSync(fd); throw e; }
+}
+function createPersistentCreatePolicy(task) {
+  if (!task || typeof task !== 'object') return deny('persistent-create-disabled');
+  const { root, state } = task;
+  function verify(fd) {
+    const now = persistentDirectory(root), cwd = nativeFs.statSync('.', { bigint: true });
+    if (!equalDirectory(now, state) || !equalDirectory(directoryIdentity(cwd), state.identity)
+        || (fd !== undefined && !equalDirectory(directoryIdentity(nativeFs.fstatSync(fd, { bigint: true })), state.identity))) return deny('copy-directory-changed');
+    return root;
+  }
+  verify();
+  // A raced-in file after this check is still protected by O_EXCL.
+  if (nativeFs.readdirSync('.').length !== 0) return deny('copy-directory-not-empty');
+  return { verify, authorizeSource() { return deny('synthetic-copy-required'); } };
+}
+module.exports = { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata,
+  captureCopyDestination, createPersistentCreatePolicy, copyName };

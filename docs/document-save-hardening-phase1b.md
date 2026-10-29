@@ -423,3 +423,110 @@ The old save coordination-required gate, P2 cleanup race, TOCTOU, concurrent
 same-user interference, ACL/xattr restrictions, power-loss/restart recovery,
 SEC-01, native IME gaps and stage 1B-3 formal FAIL remain. This prototype requires
 session E's limited safety review before a checkpoint; no release is approved.
+
+
+## Persistent Copy V1 — restricted local WIP checkpoint (0.28.0)
+
+This extends the existing copy flow; it does not enable ordinary `save()` or
+editing existing user files. The implementation was tested and independently
+reviewed at 0.27.0; this local WIP checkpoint is 0.28.0, including the small P2
+status-text correction described below.
+Run from `apps/desktop`:
+
+```sh
+mise exec -- node tools/run-document-copy-demo.cjs --persistent
+```
+
+Create a temporary document, write ordinary paragraphs, then choose **Create
+persistent test copy… → Choose location…**. Main asks for explicit test-folder
+consent and shows the native save sheet. The renderer supplies only session ID,
+revision and source hash, never a destination or replacement Markdown body.
+
+The initial destination contract is deliberately narrow: an EMPTY directory
+named `Markdown-Persistent-Test-*`, directly inside the current user's real home
+folder, owned by that user and not writable by group/others. It must be on the
+home volume's local APFS, have no symlink alias, and pass existing ACL/xattr/flags
+checks. No important documents or external sync software may use it (explicit
+user confirmation; arbitrary third-party sync configuration is not detectable).
+The new filename uses 1–64 ASCII letters/digits/hyphens/underscores, starts with a
+letter/digit, and ends in `.md`. Existing files and dangling symlinks are refused.
+After a copy exists, a different name in the same now-nonempty folder is also
+refused in this first version. These are temporary product-test restrictions,
+not proposed permanent requirements for all macOS folders.
+
+Main pins the selected directory identity and delegates one bounded task to
+Electron `utilityProcess.fork({cwd})`. The trusted writer checks the selected
+identity against `.` and reuses the existing relative `O_EXCL | O_NOFOLLOW`
+File Store loop, including byte/hash/metadata checks and file/directory fsync.
+No Electron-main `chdir`, system Node runtime, native addon, Fuse changes or
+parallel save framework is introduced. Source authority remains the existing
+isolated temporary-document capability, separate from destination authority.
+
+Success requires a matching request/revision/hash receipt, actual utility exit
+code 0, current authorization, the original directory identity and independent
+parent re-reading of the same file identity/bytes/hash. Cancellation, timeout,
+lost/malformed response, abnormal exit and lifecycle changes cannot become a
+confirmed success. Async Service single-flight and post-operation source checks
+preserve the Model baseline, dirty flag and history. The original document stays
+**Not saved**; later edits never update a previous copy. Partial/unverified and
+unknown files are retained; no automatic deletion, overwrite or retry is allowed.
+
+`cwd` is an anchor, not a filesystem sandbox or full openat equivalent. A renamed
+original directory may retain a partial/complete copy. The receipt path is only
+last verified, not a permanent path lease. Malicious same-user interference,
+power-loss durability, network/cloud filesystems and cross-restart recovery
+remain outside the guarantee. General save still returns `coordination-required`.
+SEC-01, native IME limitations and phase 1B-3 formal FAIL remain unresolved.
+
+Historical automated validation for the reviewed 0.27.0 candidate:
+
+- MacBook Pro Node 24.20.0: 85 focused Persistent Copy/Safe Create/IPC tests and
+  62 existing Document/save regression tests passed. Faults use synthetic files;
+  permission and I/O failures are controlled injections, not real disk failures.
+- Air Electron 43.4.1: one actual UI/IPC/utility-writer E2E passed across two
+  Electron processes. It verifies new creation, cancel, existing-target refusal,
+  unchanged earlier copy after later typing, and read-only reopening/hash equality.
+  Both application exits were 0/null; watchdog, main-process fault and leftovers
+  were false. Native dialog results/consent were stubbed with synthetic selections:
+  that automated run did not validate manual interaction with the native sheet
+  or its no-precreation behavior. Later user manual QA is recorded separately below. The non-MAS development path explicitly disables security-scoped
+  bookmarks; it does not request bookmark-driven file precreation.
+- Actual source and ASAR writer compatibility passed on Air using bundled Node
+  24.18.1. The final writer-only ASAR test created a CRLF Unicode copy; five ASAR
+  member hashes match candidate sources. This uses `app.isPackaged=false`, not
+  a signed/installed app or Finder-launch acceptance. Packaged enablement remains
+  disabled. No full packaging or unrelated E2E matrix was run.
+- Two additional windowless actual-ASAR utility-process probes passed: directory replacement before task delivery returned not-created, and replacement after the child receipt returned created-unverified. Both replacement directories stayed empty; no obsolete success was accepted.
+- Demo bundle independently rebuilt on Air and matched exactly. Initial Air
+  preparation corrected a native-esbuild invocation and an overly restrictive
+  test filter before GUI execution; those were runner errors, not hidden passes.
+
+Two small runtime modules hold the one-shot writer and its bounded parent process
+handling. Existing policy, File Store, Service, session IPC, preload and copy UI
+are extended in place. The File Store already exceeds the 300-line guideline;
+its creation loop is intentionally retained rather than split during this change.
+Session E's limited security review is PASS, as reported by the user. The user
+also reported native Save Dialog manual QA PASS on MacBook Pro for the reviewed
+0.27.0 candidate. This is human-reported acceptance, not an automated test result:
+
+1. Selected the dedicated APFS persistent test directory and new filename.
+2. Cancel created no file and retained the temporary writing.
+3. Created the new `.md` without unexpected precreation or overwrite.
+4. Receipt path, revision and SHA-256 matched the actual file.
+5. Later edits did not change the earlier copy.
+6. After quitting and restarting, the file reopened with the same body, read-only.
+7. The temporary document continued to display **Not saved**.
+
+P2 checkpoint correction: the information note no longer assumes a copy exists.
+No confirmed receipt is described as such; confirmed success identifies the copied
+revision and excludes later edits; partial/unknown outcomes say a file may exist.
+This changes presentation only. Writer, Service, authorization, IPC, save policy,
+Model and history behavior are unchanged from the reviewed candidate. The demo
+bundle is regenerated; the note and badge are covered by targeted renderer-header
+regressions. User native-dialog QA is not a claim of human re-testing this wording.
+
+Arbitrary-directory Save As remains unavailable. Existing real Markdown files
+remain read-only; general save is still gated. SEC-01, phase 1B-3 formal FAIL,
+full native IME acceptance, full installed-package acceptance, malicious same-user
+concurrency and power-loss durability remain unresolved. No release, merge or
+real overwrite approval; this is only a recoverable local WIP checkpoint.

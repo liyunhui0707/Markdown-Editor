@@ -6,7 +6,7 @@ const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned capabilities. Native selection is the only open authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   function invalidate(id, s) {
     sessions.delete(id); // Revoke authority before notifying the captured owner.
@@ -48,7 +48,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     if (allowTestCopies && s.temporary && !s.document.blocked) {
       try { copySha256 = sourceHash(s.document.bytesForSave()); } catch { /* No create authority for unconvertible contents. */ }
     }
-    return { ...(allowTestCopies && s.temporary ? { copyEnabled: true, copySha256, copyState: copyState(s) } : {}), sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
+    return { ...(allowTestCopies && s.temporary ? { copyEnabled: true, persistentCopyEnabled: typeof chooseCopy === 'function', copySha256, copyState: copyState(s) } : {}), sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath) } : {}), source: s.document.text, revision: s.document.revision,
       dirty: s.document.dirty, blocked: s.document.blocked, bom: s.document.bom, encoding: s.document.encoding,
       canUndo: s.undo.length > 0, canRedo: s.redo.length > 0,
       lineEndings: { ...s.document.lineEndings }, saveState: { ...service.getSaveState(s.document) } };
@@ -101,10 +101,28 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
     } catch { return failure('temporary-create-failed'); }
     finally { if (opened?.document && ![...sessions.values()].some(s => s.document === opened.document)) service.close(opened.document); }
   }
+  async function persistentCopy(event, binding, id, s, payload) {
+    if (!allowTestCopies || !s.temporary || typeof chooseCopy !== 'function') return failure('persistent-copy-unavailable');
+    s.copying = true;
+    const authorized = () => authorizedBinding(event) === binding && sessions.get(id) === s;
+    try {
+      if (payload.expectedSha256 !== sourceHash(s.document.bytesForSave())) return failure('source-hash-mismatch');
+      const selected = await chooseCopy(binding.win);
+      if (!authorized()) return failure('copy-session-invalidated');
+      let result;
+      if (selected?.canceled === true) result = { ok: false, code: 'create-cancelled', state: 'not-created', created: false };
+      else if (selected?.canceled !== false || typeof selected.filePath !== 'string') result = failure('invalid-copy-selection');
+      else result = await service.createPersistentCopy(s.document, { filePath: selected.filePath,
+        expectedRevision: payload.expectedRevision, expectedSha256: payload.expectedSha256, isAuthorized: authorized });
+      if (!authorized()) { retained.add(s.document); return { ok: false, code: 'copy-session-invalidated', copy: copyState(s) }; }
+      return { ok: result.ok, code: result.code, snapshot: snapshot(id, s), copy: result.state ? result : copyState(s) };
+    } catch { return { ok: false, code: 'persistent-copy-failed', copy: copyState(s), ...(authorized() ? { snapshot: snapshot(id, s) } : {}) }; }
+    finally { s.copying = false; }
+  }
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
@@ -121,13 +139,14 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
       committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // Only bounded snapshots/receipts; no fs objects or raw exception strings
     if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
-    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check', 'create-test-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['edit', 'save', 'close', 'undo', 'redo', 'create-test-copy'].includes(payload.operation)) {
+    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
+    if (['edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
     try {
       switch (payload.operation) {
+        case 'create-persistent-copy': return persistentCopy(event, binding, id, s, payload);
         case 'create-test-copy': {
           if (!allowTestCopies || !s.temporary) return reply(failure('test-copy-unavailable'));
           s.copying = true;

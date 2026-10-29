@@ -8,8 +8,10 @@ const { record, failure, revisionError } = require('./document-contract');
 // Future document opening must authorize paths before handing out session IDs.
 function createDocumentService(options = {}) {
   // Trusted main-process construction only, never an IPC payload.
-  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot'])) throw TypeError('Invalid service construction options');
-  const store = createDocumentFileStore(options);
+  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot', 'persistentWriter'])) throw TypeError('Invalid service construction options');
+  const { persistentWriter, ...storeOptions } = options;
+  if (persistentWriter !== undefined && typeof persistentWriter !== 'function') throw TypeError('Invalid writer capability');
+  const store = createDocumentFileStore(storeOptions);
   const sessions = new WeakMap();
   const unknown = () => failure('unknown-document');
   function getSaveState(document) {
@@ -104,6 +106,45 @@ function createDocumentService(options = {}) {
     return s ? Object.freeze({ ...(s.copy || { ok: true, state: 'not-created', created: false }) }) : unknown();
   }
   const unresolvedCopy = s => s.copy && !s.copy.ok && s.copy.created !== false;
+  async function createPersistentCopy(document, options = {}) {
+    if (!record(options, ['filePath', 'expectedRevision', 'expectedSha256', 'isAuthorized'])) return failure('invalid-options');
+    const s = sessions.get(document);
+    if (!s) return unknown();
+    if (!s.syntheticTemporary || !persistentWriter) return failure('persistent-copy-unavailable');
+    if (s.saving) return failure('save-in-progress');
+    if (s.pending || s.unverified) return failure('unresolved-save-state');
+    if (unresolvedCopy(s)) return failure('unresolved-copy-state', { copyState: getCopyState(document) });
+    if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) return failure('invalid-revision');
+    if (options.expectedRevision !== document.revision) return failure('stale-revision');
+    if (typeof options.expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(options.expectedSha256)
+        || typeof options.isAuthorized !== 'function') return failure('invalid-create-request');
+    if (document.blocked) return failure('conversion-blocked');
+    let bytes, started = false;
+    s.saving = true;
+    const valid = () => sessions.get(document) === s && !document.blocked && document.revision === options.expectedRevision
+      && document.bytesForSave().equals(bytes) && options.isAuthorized();
+    try {
+      bytes = document.bytesForSave();
+      const sha256 = createHash('sha256').update(bytes).digest('hex');
+      if (sha256 !== options.expectedSha256) return failure('source-hash-mismatch');
+      store.authorizeSynthetic(document.filePath);
+      const checked = store.check(s.snapshot);
+      if (!checked.ok) return { ...checked, state: 'not-created', created: false };
+      if (!valid()) return failure('copy-authorization-expired');
+      started = true;
+      const result = await persistentWriter({ filePath: options.filePath, bytes: Buffer.from(bytes), revision: options.expectedRevision, isAuthorized: valid });
+      if (!valid()) {
+        result.ok = false; result.code = 'copy-source-changed';
+        if (result.created !== false) result.state = 'created-unverified';
+      }
+      s.copy = Object.freeze({ ...result, revision: options.expectedRevision, expectedSha256: sha256 });
+      return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
+    } catch (cause) {
+      s.copy = Object.freeze({ ok: false, state: started ? 'create-outcome-unknown' : 'not-created',
+        created: started ? null : false, code: cause.code || 'persistent-copy-rejected' });
+      return getCopyState(document);
+    } finally { s.saving = false; }
+  }
   function createIsolatedCopy(document, options = {}) {
     if (!record(options, ['name', 'expectedRevision', 'expectedSha256', 'cancelled'])) return failure('invalid-options');
     const s = sessions.get(document);
@@ -174,7 +215,7 @@ function createDocumentService(options = {}) {
     return { ok: true };
   }
 
-  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, getCopyState };
+  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState };
 }
 
 module.exports = { createDocumentService };

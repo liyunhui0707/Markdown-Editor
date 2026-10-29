@@ -17,7 +17,7 @@ ipcRenderer.on('document-demo:invalidated', (_event, data) => lifecycle(data?.se
 const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
-  const creating = operation === 'create-test-copy';
+  const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
   if (creating) {
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
   createTestCopy: data => request('create-test-copy', data),
+  createPersistentCopy: data => request('create-persistent-copy', data),
   onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),
   list: () => request('list'),
   snapshot: data => request('snapshot', data),

@@ -338,3 +338,55 @@ test('development launcher only spawns the same document window in a fresh priva
   assert.match(path.basename(opts.cwd), /^document-safe-create-/); assert.equal(fs.statSync(opts.cwd).mode & 0o777, 0o700);
   assert.equal(path.dirname(opts.cwd), fs.realpathSync(os.tmpdir())); assert.equal(opts.env.SECRET_SENTINEL, undefined);
 });
+
+
+test('persistent-copy preload preserves composition, pending and unknown-response fences', async () => {
+  const f = preloadFixture(), q = { sessionId: 'a', expectedRevision: 0, expectedSha256: 'a'.repeat(64) };
+  f.dom.emit('compositionstart'); assert.equal((await f.api.createPersistentCopy(q)).code, 'composition-active');
+  f.dom.emit('compositionend'); const edit = f.api.edit({ sessionId: 'a' });
+  assert.equal((await f.api.createPersistentCopy(q)).code, 'document-busy'); f.pending[0].resolve({ ok: true }); await edit;
+  const copy = f.api.createPersistentCopy(q); assert.equal(f.pending[1].payload.operation, 'create-persistent-copy');
+  assert.equal((await f.api.edit({ sessionId: 'a' })).code, 'copy-in-progress');
+  f.pending[1].reject(Error('Synthetic lost response')); assert.equal((await copy).code, 'copy-outcome-unknown');
+  assert.equal((await f.api.createPersistentCopy(q)).code, 'copy-outcome-unknown');
+});
+
+
+// Evaluate the actual renderer header statements without launching Electron.
+// This covers the visible note AND Not saved badge, not a duplicate formatter.
+function copyHeader(confirmed) {
+  const entry = fs.readFileSync(path.join(__dirname, '../lib/document-demo-entry.js'), 'utf8');
+  const block = entry.match(/    const current = s\.confirmed, temporary = current\.temporary === true;[\s\S]*?byId\('document-info-note'\)\.textContent = [^\n]+;/);
+  assert.ok(block, 'Actual document header block must be found');
+  const helper = entry.match(/function persistentCopyNote\(receipt\) \{[\s\S]*?\n\}/)?.[0] || '';
+  const nodes = new Map();
+  const byId = id => { if (!nodes.has(id)) nodes.set(id, { querySelector: () => ({}) }); return nodes.get(id); };
+  require('node:vm').runInNewContext(helper + '\n' + block[0], { s: { confirmed }, byId });
+  return { note: byId('document-info-note').textContent, badge: byId('readonly-badge').textContent };
+}
+for (const receipt of [undefined, { ok: true, state: 'not-created', created: false },
+  { ok: false, state: 'target-exists', created: false }]) {
+  test('persistent copy note: no confirmed receipt does not imply an existing copy ' + (receipt?.state || 'initial'), () => {
+    const h = copyHeader({ temporary: true, persistentCopyEnabled: true, copyState: receipt });
+    assert.match(h.note, /No confirmed copy receipt/); assert.doesNotMatch(h.note, /exists on disk|no file exists|no file was created/i);
+    assert.equal(h.badge, 'Not saved');
+  });
+}
+test('persistent copy note: only confirmed success names the copied revision and excludes later edits', () => {
+  const h = copyHeader({ temporary: true, persistentCopyEnabled: true, revision: 9,
+    copyState: { ok: true, state: 'created-confirmed', created: true, revision: 7 } });
+  assert.match(h.note, /revision 7/); assert.doesNotMatch(h.note, /revision 9/);
+  assert.match(h.note, /Later edits are not included/); assert.equal(h.badge, 'Not saved');
+});
+for (const state of ['create-outcome-unknown', 'created-partial', 'created-unverified', 'durability-uncertain']) {
+  test('persistent copy note: ' + state + ' never claims absence or confirmed success', () => {
+    const h = copyHeader({ temporary: true, persistentCopyEnabled: true,
+      copyState: { ok: false, state, created: state === 'create-outcome-unknown' ? null : true, revision: 7 } });
+    assert.match(h.note, /unconfirmed; a file may exist/); assert.doesNotMatch(h.note, /Confirmed copy:|no file/i);
+    assert.equal(h.badge, 'Not saved');
+  });
+}
+test('copy wording leaves normal temporary and readonly header behavior unchanged', () => {
+  assert.match(copyHeader({ temporary: true }).note, /No save or export/);
+  const ro = copyHeader({ readOnly: true }); assert.match(ro.note, /Read-only preview/); assert.equal(ro.badge, 'Read-only');
+});
