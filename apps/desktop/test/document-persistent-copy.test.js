@@ -111,7 +111,8 @@ async function managerFixture(choose) {
   const {projectSource,mapTextEdit}=await import('../lib/document-source-map.mjs');
   const f=fixture(createCopyProcess({fork:nodeFork()}).create),wc=new EventEmitter(),win=new EventEmitter(),frame={url:'file:///synthetic/document.html'};
   Object.assign(wc,{mainFrame:frame,isDestroyed:()=>false,getURL:()=>frame.url,send:()=>{}});Object.assign(win,{webContents:wc,isDestroyed:()=>false});
-  const manager=createDocumentSessions({service:f.service,projectSource,mapTextEdit,windowFor:()=>win,allowTestCopies:true,chooseCopy:choose});
+  const manager=createDocumentSessions({service:f.service,projectSource,mapTextEdit,windowFor:()=>win,allowTestCopies:true,chooseCopy:choose,
+    createTemporary: bytes => { const file=path.join(f.root,'seed-'+require('node:crypto').randomUUID()+'.md'); fs.writeFileSync(file,bytes,{flag:'wx',mode:0o600}); return f.service.open(file,{syntheticTemporary:true,parse:projectSource}); }});
   manager.grant(win,frame.url);const id=manager.provision(win,f.document,'Temporary',{temporary:true}),event={sender:wc,senderFrame:frame};
   const q={operation:'create-persistent-copy',sessionId:id,expectedRevision:f.document.revision,expectedSha256:hash(f.document.bytesForSave())};
   return {...f,wc,win,frame,manager,event,id,q};
@@ -146,3 +147,40 @@ test('unresponsive writer is bounded and remains unknown, with no dangerous retr
   const r = await processCopy.create({ filePath: d.filePath, bytes: Buffer.from(text), revision: 1, isAuthorized: () => true });
   assert.equal(r.ok, false); assert.equal(r.state, 'create-outcome-unknown'); assert.equal(r.created, null);
 });
+
+
+for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r\nSecond.', 'First 中文😀\n\nSecond.\n']) {
+  test('editable original creates exact persistent bytes without accepting its baseline: ' + (raw.startsWith('\ufeff') ? 'BOM/CRLF' : 'LF/end newline'), async () => {
+    let selected = { canceled: true };
+    const f = await managerFixture(async () => selected), originalPath = path.join(f.root, 'original.md');
+    const bytes = Buffer.from(raw); fs.writeFileSync(originalPath, bytes, { flag: 'wx' });
+    const source = f.service.open(originalPath).document;
+    const id = f.manager.provision(f.win, source, 'original.md', { readOnly: true });
+    const call = q => f.manager.request(f.event, q);
+    const original = call({ operation: 'snapshot', sessionId: id }).snapshot;
+    const created = call({ operation: 'edit-copy', sessionId: id, expectedRevision: 0, expectedSha256: original.editCopySha256 });
+    assert.equal(created.ok, true); let copy = created.snapshot;
+    const { projectSource } = await import('../lib/document-source-map.mjs');
+    const span = projectSource(copy.source).spans.find(s => s.text === 'First 中文😀');
+    const edited = call({ operation: 'edit', sessionId: copy.sessionId, expectedRevision: 0, from: span.to, to: span.to, insert: ' EDITED' });
+    assert.equal(edited.ok, true); copy = edited.snapshot;
+    const q = { operation: 'create-persistent-copy', sessionId: copy.sessionId, expectedRevision: copy.revision, expectedSha256: copy.copySha256 };
+    const cancelled = await call(q); assert.equal(cancelled.code, 'create-cancelled'); assert.deepEqual(cancelled.snapshot, copy);
+    const d = destination(); selected = { canceled: false, filePath: d.filePath };
+    const result = await call(q); assert.equal(result.ok, true, JSON.stringify(result));
+    const expected = Buffer.from(raw.replace('First 中文😀', 'First 中文😀 EDITED'));
+    assert.deepEqual(fs.readFileSync(d.filePath), expected); assert.equal(result.copy.sha256, hash(expected));
+    for (const field of ['source','revision','dirty','canUndo','canRedo']) assert.equal(result.snapshot[field], copy[field]);
+    assert.deepEqual(call({ operation: 'snapshot', sessionId: id }).snapshot, original);
+    assert.deepEqual(fs.readFileSync(originalPath), bytes);
+    assert.equal((await call(q)).code, 'target-exists');
+    const undo = call({ operation: 'undo', sessionId: copy.sessionId, expectedRevision: copy.revision });
+    assert.equal(undo.ok, true); assert.equal(undo.snapshot.source, original.source);
+    assert.equal(call({ operation: 'redo', sessionId: copy.sessionId, expectedRevision: undo.snapshot.revision }).snapshot.source, copy.source);
+    assert.deepEqual(fs.readFileSync(d.filePath), expected);
+    const reader = spawnSync(process.execPath, ['-e', `const r=require(${JSON.stringify(require.resolve('../lib/document-service'))}).createDocumentService().open(${JSON.stringify(d.filePath)});if(!r.ok)process.exit(1);console.log(r.document.bytesForSave().toString('base64'));`], { encoding: 'utf8', timeout: 5000 });
+    assert.equal(reader.status, 0); assert.deepEqual(Buffer.from(reader.stdout.trim(), 'base64'), expected);
+    assert.equal(call({ operation: 'save', sessionId: id, expectedRevision: 0 }).code, 'read-only-document');
+    assert.equal(call({ operation: 'save', sessionId: copy.sessionId, expectedRevision: 3 }).code, 'temporary-not-persistable');
+  });
+}

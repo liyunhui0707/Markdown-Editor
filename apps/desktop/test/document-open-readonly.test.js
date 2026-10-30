@@ -23,7 +23,7 @@ function fixture(temporary = false){
   Object.assign(win,{webContents:wc,isDestroyed:()=>false});
   const choices=[],events=[],event={sender:wc,senderFrame:frame};let pickerCalls=0;
   const manager=createDocumentSessions({service,projectSource,mapTextEdit,windowFor:s=>s===wc?win:null,
-    createTemporary: temporary ? () => { const file=path.join(root,'temporary-'+reads.length+'.md'); fs.writeFileSync(file,'',{flag:'wx'}); return service.open(file,{maxBytes:524288}); } : null,
+    createTemporary: temporary ? (bytes = Buffer.alloc(0)) => { const file=path.join(root,'temporary-'+reads.length+'.md'); fs.writeFileSync(file,bytes,{flag:'wx'}); return service.open(file,{maxBytes:524288}); } : null,
     chooseFile:async owner=>{assert.equal(owner,win);pickerCalls++;const item=choices.shift();return typeof item==='function'?item():item;}});
   manager.grant(win,frame.url);
   const call=payload=>manager.request(event,payload),snap=id=>call({operation:'snapshot',sessionId:id});
@@ -117,4 +117,96 @@ test('temporary creation is main-owned, bounded and isolated from read-only docu
 });
 test('temporary creation is unavailable unless explicitly enabled by trusted main',()=>{
   assert.equal(fixture().call({operation:'new-temporary'}).code,'temporary-unavailable');
+});
+
+const digest = value => require('node:crypto').createHash('sha256').update(value).digest('hex');
+const forkRequest = s => ({ operation: 'edit-copy', sessionId: s.sessionId, expectedRevision: s.revision, expectedSha256: s.editCopySha256 });
+test('editable copy preserves BOM/CRLF and independently edits, splits and replays history', async () => {
+  const f = fixture(true), bytes = Buffer.from('\ufeff---\r\nkind: synthetic\r\n---\r\n\r\nFirst 中文😀\r\n\r\nSecond.');
+  fs.writeFileSync(f.a, bytes); const original = (await f.open(f.a)).snapshot;
+  assert.equal(original.editCopyEnabled, true); assert.equal(original.editCopySha256, digest(bytes));
+  const made = f.call(forkRequest(original)); assert.equal(made.ok, true, JSON.stringify(made));
+  let copy = made.snapshot;
+  assert.notEqual(copy.sessionId, original.sessionId); assert.equal(copy.temporary, true); assert.equal(copy.readOnly, false);
+  assert.equal(copy.source, original.source); assert.equal(copy.bom, true); assert.equal(copy.revision, 0); assert.equal(copy.canUndo, false);
+  assert.deepEqual(fs.readFileSync(f.reads.at(-1)), bytes);
+  const change = (operation, fields = {}) => {
+    const result = f.call({ operation, sessionId: copy.sessionId, expectedRevision: copy.revision, ...fields });
+    assert.equal(result.ok, true, JSON.stringify(result)); copy = result.snapshot;
+  };
+  const span = projectSource(copy.source).spans.find(s => s.text === 'First 中文😀');
+  change('edit', { from: span.to, to: span.to, insert: ' added' });
+  const beforeSplit = copy.source, at = span.from + 5;
+  change('edit', { from: at, to: at, insert: '\n\n' });
+  const split = copy.source;
+  change('undo'); assert.equal(copy.source, beforeSplit); change('redo'); assert.equal(copy.source, split);
+  change('edit', { from: at, to: at + 2, insert: '' }); assert.equal(copy.source, beforeSplit);
+  change('undo'); assert.equal(copy.source, split); change('redo');
+  change('edit', { from: span.from, to: span.from + 1, insert: '' });
+  assert.equal(copy.dirty, true); assert.ok(copy.source.endsWith('Second.')); assert.ok(copy.source.startsWith('---\r\nkind: synthetic\r\n---'));
+  assert.equal(f.call({ operation: 'save', sessionId: copy.sessionId, expectedRevision: copy.revision }).code, 'temporary-not-persistable');
+  for (const operation of ['edit', 'save', 'undo', 'redo', 'create-persistent-copy'])
+    assert.equal(f.call({ operation, sessionId: original.sessionId, expectedRevision: 0 }).code, 'read-only-document');
+  assert.deepEqual(f.snap(original.sessionId).snapshot, original);
+  assert.deepEqual(fs.readFileSync(f.a), bytes); assert.equal(digest(fs.readFileSync(f.a)), digest(bytes)); assert.deepEqual(f.writes, []);
+});
+test('copy authority rejects stale/hash/path/body/foreign frame requests before factory use', async () => {
+  const f = fixture(true), s = (await f.open(f.a)).snapshot, q = forkRequest(s), count = f.reads.length;
+  assert.equal(f.call({ ...q, expectedRevision: 1 }).code, 'stale-revision');
+  assert.equal(f.call({ ...q, expectedSha256: '0'.repeat(64) }).code, 'source-hash-mismatch');
+  for (const extra of [{ source: 'forged' }, { filePath: f.a }, { readOnly: false }]) assert.equal(f.call({ ...q, ...extra }).code, 'invalid-request');
+  assert.equal(f.manager.request({ ...f.event, senderFrame: {} }, q).code, 'unauthorized-sender');
+  assert.equal(f.call({ ...q, sessionId: 'other-window' }).code, 'unknown-session'); assert.equal(f.reads.length, count);
+  const temporary = f.call({ operation: 'new-temporary' }).snapshot;
+  assert.equal(f.call({ ...q, sessionId: temporary.sessionId }).code, 'read-only-source-required');
+  assert.equal(f.call({ operation: 'close', sessionId: s.sessionId, expectedRevision: 0 }).ok, true);
+  assert.equal(f.call(q).code, 'unknown-session');
+});
+test('copies use the opened snapshot, retain unsupported syntax and have separate histories', async () => {
+  const f = fixture(true), source = 'Plain paragraph.\n\n<table>inert</table>\n\n::: unknown';
+  fs.writeFileSync(f.a, source); const s = (await f.open(f.a)).snapshot;
+  fs.writeFileSync(f.a, 'EXTERNAL synthetic');
+  const a = f.call(forkRequest(s)), b = f.call(forkRequest(s)); assert.equal(a.ok, true); assert.equal(b.ok, true);
+  const first = a.snapshot, second = b.snapshot;
+  assert.equal(first.source, source); assert.equal(second.source, source);
+  const from = source.indexOf('<table>');
+  assert.equal(f.call({ operation: 'edit', sessionId: first.sessionId, expectedRevision: 0, from, to: from + 1, insert: 'X' }).code, 'unsafe-source-range');
+  const span = projectSource(source).spans[0];
+  const result = f.call({ operation: 'edit', sessionId: first.sessionId, expectedRevision: 0, from: span.from, to: span.from + 1, insert: 'p' });
+  assert.equal(result.ok, true); assert.equal(result.snapshot.source.slice(from), source.slice(from));
+  assert.equal(f.call({ operation: 'undo', sessionId: second.sessionId, expectedRevision: 0 }).code, 'history-empty');
+  assert.deepEqual(f.snap(second.sessionId).snapshot, second); assert.equal(fs.readFileSync(f.a, 'utf8'), 'EXTERNAL synthetic');
+});
+test('copy refuses unavailable factory and capacity without reading a seed', async () => {
+  const disabled = fixture(), s = (await disabled.open(disabled.a)).snapshot;
+  assert.equal(disabled.call(forkRequest(s)).ok, false);
+  const f = fixture(true), original = (await f.open(f.a)).snapshot;
+  for (let i = 0; i < 7; ++i) assert.equal(f.call(forkRequest(original)).ok, true);
+  const count = f.reads.length; assert.equal(f.call(forkRequest(original)).code, 'session-limit'); assert.equal(f.reads.length, count);
+});
+
+
+test('failed or invalidated trusted copy creation never publishes authority or changes the original', async () => {
+  for (const fault of ['throw', 'same-document', 'wrong-bytes', 'revoked']) {
+    const f = fixture(), loaded = f.service.open(f.a, { maxBytes: 524288 }), bytes = fs.readFileSync(f.a);
+    assert.equal(loaded.ok, true); const original = loaded.document;
+    let manager;
+    manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => f.win,
+      createTemporary: input => {
+        if (fault === 'throw') throw Error('synthetic creation failure');
+        if (fault === 'same-document') return { ok: true, document: original };
+        const seed = path.join(f.root, 'copy-seed.md'); fs.writeFileSync(seed, fault === 'wrong-bytes' ? 'WRONG' : input, { flag: 'wx' });
+        const opened = f.service.open(seed, { maxBytes: 524288 }); assert.equal(opened.ok, true);
+        if (fault === 'revoked') manager.revoke(f.win);
+        return opened;
+      } });
+    manager.grant(f.win, f.frame.url); const id = manager.provision(f.win, original, 'original', { readOnly: true });
+    const before = manager.request(f.event, { operation: 'snapshot', sessionId: id }).snapshot;
+    const result = manager.request(f.event, forkRequest(before)); assert.equal(result.ok, false); assert.equal(result.snapshot, undefined);
+    if (fault !== 'revoked') {
+      assert.deepEqual(manager.request(f.event, { operation: 'snapshot', sessionId: id }).snapshot, before);
+      assert.equal(manager.request(f.event, { operation: 'list' }).sessions.length, 1);
+    }
+    assert.deepEqual(fs.readFileSync(f.a), bytes);
+  }
 });

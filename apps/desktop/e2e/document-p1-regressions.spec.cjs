@@ -806,3 +806,202 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     expect((await fs.readFile(target)).equals(original)).toBe(true);
   }, info, null, true);
 });
+
+
+test('existing document editing V1 forks, writes paragraphs and persistently reopens without touching original', async ({}, info) => {
+  const os = require('node:os'), hash = b => require('node:crypto').createHash('sha256').update(b).digest('hex');
+  const inputs = await fs.mkdtemp(path.join(os.tmpdir(), 'existing-edit-input-'));
+  const originalPath = path.join(inputs, 'original.md');
+  const raw = '\ufeff---\r\nkind: synthetic\r\n---\r\n\r\nFirst 中文😀\r\n\r\nSecond.\r\n\r\n::: untouched';
+  const bytes = Buffer.from(raw); await fs.writeFile(originalPath, bytes, { flag: 'wx', mode: 0o600 });
+  const dest = await fs.mkdtemp(path.join(os.homedir(), 'Markdown-Persistent-Test-Editing-')); await fs.chmod(dest, 0o700);
+  const target = path.join(dest, 'edited.md'); let written, receipt;
+  await usingDemo(async ({ app, page, snapshot, select, settled, projectSource }) => {
+    await app.evaluate(({ dialog }, filePath) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] });
+      dialog.showMessageBoxSync = () => 1;
+    }, originalPath);
+    await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('original.md');
+    const active = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+    const original = await active(), originalSnapshot = (await snapshot(original)).snapshot;
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    const copy = await active(); expect(copy).not.toBe(original);
+    await expect(page.locator('#document-name')).toContainText('original.md');
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
+    await select('#editor p:first-of-type', 'First 中文😀'.length);
+    await page.keyboard.type(' X'); await settled(); await page.keyboard.press('Backspace'); await settled();
+    await page.keyboard.insertText('中文😃'); await settled(); await page.keyboard.press('Enter'); await settled();
+    await page.keyboard.type('New paragraph'); await settled();
+    const split = (await snapshot(copy)).snapshot.source;
+    await select('#editor p:nth-of-type(2)', 0); await page.keyboard.press('Backspace'); await settled();
+    const joined = (await snapshot(copy)).snapshot.source; expect(joined).not.toBe(split);
+    await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(copy)).snapshot.source).toBe(split);
+    await page.keyboard.press('Meta+Shift+z'); await settled(); expect((await snapshot(copy)).snapshot.source).toBe(joined);
+    await page.keyboard.press('Meta+z'); await settled();
+    expect(split).toBe(raw.slice(1).replace('First 中文😀', 'First 中文😀 中文😃\r\n\r\nNew paragraph'));
+    const before = (await snapshot(copy)).snapshot;
+    await page.locator('#documents').selectOption(original);
+    await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    for (const operation of ['edit','save','createPersistentCopy']) {
+      const r = await page.evaluate(({ operation, id }) => window.documentDemo[operation]({ sessionId: id, expectedRevision: 0 }), { operation, id: original });
+      expect(r.code).toBe('read-only-document');
+    }
+    expect((await snapshot(original)).snapshot).toEqual(originalSnapshot);
+    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await snapshot(copy)).snapshot).toEqual(before);
+    const unsafe = await page.evaluate(q => window.documentDemo.edit(q), { sessionId: copy, expectedRevision: before.revision, from: 0, to: 1, insert: 'X' });
+    expect(unsafe.code).toBe('unsafe-source-range'); expect(unsafe.snapshot.source).toBe(split);
+    await app.evaluate(({ dialog }, filePath) => {
+      globalThis.editingSaveCancel = true;
+      dialog.showMessageBox = async () => ({ response: 1 });
+      dialog.showSaveDialog = async () => ({ canceled: globalThis.editingSaveCancel, filePath });
+    }, target);
+    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('create-cancelled');
+    expect((await snapshot(copy)).snapshot.source).toBe(split); await expect.poll(() => fs.access(target).then(() => true, () => false)).toBe(false);
+    await app.evaluate(() => { globalThis.editingSaveCancel = false; });
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('Persistent test copy created: revision');
+    const after = (await snapshot(copy)).snapshot; receipt = after.copyState; written = await fs.readFile(target);
+    expect(written.equals(Buffer.from('\ufeff' + split))).toBe(true); expect(hash(written)).toBe(receipt.sha256);
+    for (const key of ['source','revision','dirty','canUndo','canRedo']) expect(after[key]).toBe(before[key]);
+    await select('#editor p:first-of-type', 0); await page.keyboard.type('LATER '); await settled();
+    expect((await fs.readFile(target)).equals(written)).toBe(true);
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('target-exists');
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
+    const shot = info.outputPath('existing-document-copy.png'); await page.screenshot({ path: shot });
+    await info.attach('existing-document-copy', { path: shot, contentType: 'image/png' });
+  }, info, null, true, true, true);
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('edited.md');
+    const id = await page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+    const reopened = (await snapshot(id)).snapshot;
+    expect(reopened.readOnly).toBe(true); expect(reopened.bom).toBe(true); expect(reopened.source).toBe(written.toString().slice(1));
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    expect(hash(await fs.readFile(target))).toBe(receipt.sha256); expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
+  }, info, null, true);
+});
+
+test('existing document editing V1 lost copy response keeps original identity and existing drafts', async ({}, info) => usingDemo(async ({ app, page, snapshot, select, settled }) => {
+  const root = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'editing-copy-lost-'));
+  const file = path.join(root, 'original.md'); await fs.writeFile(file, 'Original synthetic text.');
+  await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); dialog.showMessageBoxSync = () => 1; }, file);
+  await page.locator('#new-temporary').click(); await page.locator('#editor p').click(); await page.keyboard.type('Retained writing'); await settled();
+  const temp = await page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+  // Genuine stale revision produces a recovery record before switching away.
+  // Do not assume keyboard batching; obtain the authoritative revision first.
+  const current = (await snapshot(temp)).snapshot;
+  await page.evaluate(q => window.documentDemo.edit(q), { sessionId: temp, expectedRevision: current.revision, from: 1, to: 1, insert: 'MAIN ' });
+  await select('#editor p', 0); await page.keyboard.type('D'); await settled(); await expect(page.locator('#status')).toContainText('stale-revision');
+  const savedDraft = await page.locator('#recovery').textContent(); expect(savedDraft).toContain('DRetained writing');
+  await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('original.md');
+  const original = await page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+  const originalState = (await snapshot(original)).snapshot;
+  await app.evaluate(({ ipcMain }) => {
+    const channel = 'document-demo:request', actual = ipcMain._invokeHandlers.get(channel);
+    ipcMain.removeHandler(channel); ipcMain.handle(channel, async (event, q) => {
+      const result = await actual(event, q); if (q.operation === 'edit-copy') throw Error('synthetic lost copy response'); return result;
+    });
+  });
+  await page.locator('#edit-copy').click(); await expect(page.locator('#viewer-status')).toContainText('outcome is unknown');
+  await expect(page.locator('#documents')).toHaveValue(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+  await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+  await page.locator('#editor p').click(); await page.keyboard.type('MUST NOT WRITE');
+  expect((await snapshot(original)).snapshot).toEqual(originalState);
+  await page.locator('#documents').selectOption(temp); await expect(page.locator('#recovery')).toHaveText(savedDraft);
+  expect((await fs.readFile(file, 'utf8'))).toBe('Original synthetic text.');
+}, info, null, true));
+
+for (const complex of [false, true]) test(`existing editing QA browser composition continues after selected Chinese replacement ${complex ? 'complex' : 'plain'}`, async ({}, info) => usingDemo(async h => {
+  const { app, page, snapshot, select, settled } = h;
+  const root = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'editing-ime-'));
+  const originalPath = path.join(root, 'synthetic.md');
+  const original = (complex ? '# Synthetic heading\r\n\r\n' : '') + '第一段中文 text.\r\n\r\n第二段中文 text.'
+    + (complex ? '\r\n\r\n```js\r\nconst sample = 1;\r\n```\r\n\r\n::: opaque\r\n\r\nA **bold** tail.' : '');
+  await fs.writeFile(originalPath, '\ufeff' + original, { flag: 'wx', mode: 0o600 });
+  const bytes = await fs.readFile(originalPath);
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); dialog.showMessageBoxSync = () => 1;
+  }, originalPath);
+  await page.locator('#open-file').click(); await expect(page.locator('#edit-copy')).toBeVisible();
+  const active = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+  const originalId = await active(); await page.locator('#edit-copy').click();
+  await expect(page.locator('#readonly-badge')).toHaveText('Not saved'); const copy = await active();
+  await page.evaluate(() => {
+    const rows = []; const add = (type, extra = {}) => {
+      const s = JSON.parse(document.querySelector('#status').textContent), editor = document.querySelector('.tiptap').editor;
+      rows.push({ at: performance.now(), type, ...extra, composing: s.composing, code: s.editingCode, pending: s.pending,
+        revision: s.revision, session: s.activeSessionId, pmComposing: editor.view.composing,
+        focused: document.activeElement === editor.view.dom, disabled: document.querySelector('#documents').disabled });
+      if (rows.length > 160) rows.shift();
+    }; window.editingInputTrace = rows;
+    for (const type of ['compositionstart','compositionupdate','compositionend','beforeinput','input','focus','blur'])
+      window.addEventListener(type, e => add(type, { trusted: e.isTrusted, isComposing: e.isComposing, inputType: e.inputType }), true);
+    const editor = document.querySelector('.tiptap').editor;
+    for (const plugin of editor.state.plugins) if (plugin.spec.filterTransaction) {
+      const filter = plugin.spec.filterTransaction;
+      plugin.spec.filterTransaction = function (tr, state) { const accepted = filter.call(this, tr, state); add('transaction', { accepted, changed: tr.docChanged, steps: tr.steps.map(s => s.constructor.name) }); return accepted; };
+    }
+  });
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await select('#editor p:first-of-type', 0, 5);
+    await cdp.send('Input.imeSetComposition', { text: 'zhongwen', selectionStart: 8, selectionEnd: 8 });
+    await cdp.send('Input.imeSetComposition', { text: '改写中文', selectionStart: 4, selectionEnd: 4 });
+    await cdp.send('Input.insertText', { text: '改写中文' });
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
+    await settled(); expect((await snapshot(copy)).snapshot.source).toBe(original.replace('第一段中文', '改写中文'));
+    // Browser commits an active composition when the user clicks another paragraph.
+    await select('#editor p:nth-of-type(2)', 0, 5);
+    await cdp.send('Input.imeSetComposition', { text: '点击提交', selectionStart: 4, selectionEnd: 4 });
+    await page.locator('#editor p:first-of-type').click();
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
+    await settled(); expect((await snapshot(copy)).snapshot.source).toContain('点击提交');
+    const beforeCancel = (await snapshot(copy)).snapshot.source;
+    await cdp.send('Input.imeSetComposition', { text: 'cancel', selectionStart: 6, selectionEnd: 6 });
+    await cdp.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
+    await settled(); expect((await snapshot(copy)).snapshot.source).toBe(beforeCancel);
+    if (complex) {
+      const beforeUnsafe = (await snapshot(copy)).snapshot.source;
+      await expect(page.locator('#editor pre').first()).toHaveAttribute('contenteditable', 'false');
+      await page.locator('#editor pre').first().click();
+      await cdp.send('Input.imeSetComposition', { text: '拒绝', selectionStart: 2, selectionEnd: 2 });
+      await cdp.send('Input.insertText', { text: '拒绝' });
+      await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
+      await settled(); expect((await snapshot(copy)).snapshot.source).toBe(beforeUnsafe);
+    }
+    await page.locator('#editor p:nth-of-type(2)').click(); await page.keyboard.press('End');
+    await page.keyboard.type(' MORE'); await settled();
+    const after = (await snapshot(copy)).snapshot; expect(after.source).toContain('MORE');
+    await page.keyboard.press('Meta+z'); await settled(); await page.keyboard.press('Meta+Shift+z'); await settled();
+    expect((await snapshot(copy)).snapshot.source).toBe(after.source);
+    await page.locator('#documents').selectOption(originalId); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await snapshot(copy)).snapshot.source).toBe(after.source); expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
+  } finally {
+    const trace = info.outputPath('composition-metadata.json'); await fs.writeFile(trace, JSON.stringify(await page.evaluate(() => window.editingInputTrace), null, 2));
+    await info.attach('composition-metadata-only', { path: trace, contentType: 'application/json' });
+    await cdp.detach();
+  }
+}, info, null, true));
+
+test('existing editing QA missing compositionend preserves copies and refuses to invent completion', async ({}, info) => usingDemo(async h => {
+  const { page, snapshot, sessions } = h, id = sessions[0].sessionId;
+  const before = (await snapshot(id)).snapshot;
+  await unsafeComposition(h, 'UNCONFIRMED-中文');
+  await page.locator('#editor p').first().click();
+  await expect(page.locator('#composition-status')).toBeVisible();
+  await expect(page.locator('#documents')).toBeDisabled();
+  expect(JSON.parse(await page.locator('#status').textContent()).composing).toBe(true);
+  expect((await snapshot(id)).snapshot).toEqual(before);
+  await expect(page.locator('#recovery')).toContainText('UNCONFIRMED-中文');
+  await page.locator('#editor .tiptap').evaluate(node => node.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
+  await expect(page.locator('#documents')).toBeEnabled();
+  await expect(page.locator('#composition-status')).toBeHidden();
+  expect((await snapshot(id)).snapshot).toEqual(before);
+  await expect(page.locator('#recovery')).toContainText('UNCONFIRMED-中文');
+}, info));

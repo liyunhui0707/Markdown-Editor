@@ -1455,3 +1455,64 @@ coverage beyond the seven observations explicitly reported. The 0.28.0 checkpoin
 adds the small receipt-dependent information-note correction with directed tests;
 that wording change is not itself covered by the earlier human QA. Existing
 release and file-safety limitations remain; no general Save As or overwrite.
+
+
+## Existing Document Editing V1 — pending user manual QA
+
+Use only synthetic files. From `apps/desktop`, run:
+`mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. Cmd+O opens a synthetic `.md`. Confirm **Read-only**. Click **编辑副本 · Edit a copy**;
+   confirm the new `Copy N of …` document and **Not saved** badge.
+2. Edit a supported ordinary paragraph; Enter splits/creates a paragraph,
+   Backspace at its start rejoins, Cmd+Z and Cmd+Shift+Z undo/redo. Unsupported
+   structure/paste is still refused. This is not full native IME acceptance.
+3. Switch between the original and copy: the original stays read-only; only the
+   copy has independent writing/history. Open/cancel another file without losing
+   the copy. Do not interpret Not saved as proof that a persistent receipt failed.
+4. Prepare an empty dedicated `~/Markdown-Persistent-Test-<name>` local APFS
+   directory with no important files, not synchronized or writable by others.
+   Choose **Create persistent test copy…**, cancel first, then choose a new safe
+   filename. Check the receipt path, revision and SHA-256. Existing targets must
+   be rejected; never change permissions to force acceptance.
+5. Continue typing. The exported file must remain at its copied revision; the
+   temporary copy must remain **Not saved**. Compare original file bytes/hash
+   with the initial fixture: unchanged.
+6. Cancel the unsaved-close warning once and verify content is retained. Then quit,
+   restart and Cmd+O the exported file. It must reopen read-only with the exact
+   copied contents. Unexported later edits/recovery records do not survive exit.
+
+No new user manual PASS is recorded yet. Automated dialog stubs do not replace
+this human check. Keep all prior file-writing, release and phase 1B-3 limitations.
+
+Existing Document Editing V1 retest after composition blocker repair:
+
+- Previous user QA is **FAIL**, not superseded by automated results. On a synthetic
+  document, replace Chinese in one ordinary paragraph, finish the candidate,
+  then click another paragraph and continue Chinese/English input. Also click
+  another paragraph while preedit is active; verify the confirmed text survives.
+- Exercise Enter, Backspace, undo/redo, original → copy → original switching, then
+  persistent-copy cancel/create/quit/reopen using the same restricted test folder.
+  Confirm original bytes/hash unchanged and temporary copy still Not saved.
+- Code/opaque blocks now show a read-only tooltip and cannot receive input. Return
+  to a supported paragraph and verify continued editing. Cross-format/unsupported
+  edits remain refused, not silently normalized.
+- If input still remains composed, observe the visible status. Finish/cancel using
+  the IME or click an editable paragraph to request browser completion. If no end
+  arrives, the app deliberately stays blocked; do not refresh or quit expecting
+  memory drafts to be persisted. Report whether a candidate is still visible and
+  whether the warning remains, without sending private text. This residual case
+  is not declared fixed by synthetic tests.
+
+Awaiting new native macOS Pinyin/manual outcome; no PASS recorded yet.
+
+
+0.29.0 WIP closeout: the above native-IME retest remains NOT VERIFIED; the user's
+prior Chinese-input FAIL is retained. Pro system keyboard input produced ASCII
+under the selected WeType source with zero composition events, so its successful
+ordinary typing, undo/redo and original/copy switching do not count as Chinese IME
+acceptance. Original synthetic bytes/hash were unchanged. The completed test
+instance exited normally; an interrupted setup was separately preserved. Controlled
+Air E2E remains automation evidence only. No additional user device work is required
+for this WIP checkpoint; native IME remains a future acceptance gate. Original-file
+overwrite is still prohibited; only approved persistent test-copy creation exists.

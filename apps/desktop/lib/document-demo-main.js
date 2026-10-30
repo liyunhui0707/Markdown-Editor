@@ -38,10 +38,10 @@ app.whenReady().then(async () => {
       if (!win.isDestroyed()) win.focus();
       return selected; // Non-MAS, bookmarks disabled; no file precreation is requested.
     } : null, projectSource, mapTextEdit, windowFor: wc => BrowserWindow.fromWebContents(wc),
-    createTemporary: readOnlyWindow ? () => {
-      // Empty seed only. Explicit test-copy authority does not enable ordinary saving.
+    createTemporary: readOnlyWindow ? (bytes = Buffer.alloc(0)) => {
+      // Trusted main-owned bytes only: empty document or independent copy of an opened snapshot.
       const file = path.join(testCopies ? process.cwd() : root, `temporary-${++temporaryNumber}.md`);
-      fs.writeFileSync(file, '', { flag: 'wx', mode: 0o600 });
+      fs.writeFileSync(file, bytes, { flag: 'wx', mode: 0o600 });
       const opened = service.open(file, { parse: projectSource, maxBytes: 524288, ...(testCopies ? { syntheticTemporary: true } : {}) });
       if (opened.ok) temporaryCreated = true;
       return opened;

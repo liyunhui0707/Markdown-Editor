@@ -361,7 +361,7 @@ function copyHeader(confirmed) {
   const helper = entry.match(/function persistentCopyNote\(receipt\) \{[\s\S]*?\n\}/)?.[0] || '';
   const nodes = new Map();
   const byId = id => { if (!nodes.has(id)) nodes.set(id, { querySelector: () => ({}) }); return nodes.get(id); };
-  require('node:vm').runInNewContext(helper + '\n' + block[0], { s: { confirmed }, byId });
+  require('node:vm').runInNewContext(helper + '\n' + block[0], { s: { confirmed, recoveryRecords: [] }, byId, busy: false, activeInvalid: () => false });
   return { note: byId('document-info-note').textContent, badge: byId('readonly-badge').textContent };
 }
 for (const receipt of [undefined, { ok: true, state: 'not-created', created: false },
@@ -389,4 +389,83 @@ for (const state of ['create-outcome-unknown', 'created-partial', 'created-unver
 test('copy wording leaves normal temporary and readonly header behavior unchanged', () => {
   assert.match(copyHeader({ temporary: true }).note, /No save or export/);
   const ro = copyHeader({ readOnly: true }); assert.match(ro.note, /Read-only preview/); assert.equal(ro.badge, 'Read-only');
+});
+
+
+test('preload editable-copy fences composition, pending IPC, unknown outcomes and invalidation', async () => {
+  const f = preloadFixture(), q = { sessionId: 'original', expectedRevision: 0, expectedSha256: 'a'.repeat(64) };
+  assert.equal(typeof f.api.editCopy, 'function');
+  f.dom.emit('compositionstart'); assert.equal((await f.api.editCopy(q)).code, 'composition-active'); f.dom.emit('compositionend');
+  const snapshot = f.api.snapshot({ sessionId: 'original' }); assert.equal((await f.api.editCopy(q)).code, 'document-busy');
+  f.pending[0].resolve({ ok: true }); await snapshot;
+  const copy = f.api.editCopy(q); assert.equal((await f.api.close({ sessionId: 'original' })).code, 'copy-in-progress');
+  f.pending[1].reject(Error('synthetic response loss')); assert.equal((await copy).code, 'edit-copy-outcome-unknown');
+  assert.equal((await f.api.editCopy(q)).code, 'edit-copy-outcome-unknown'); assert.equal(f.pending.length, 2);
+  f.events.emit('document-demo:invalidated', {}, { sessionId: 'original' }); assert.equal((await f.api.editCopy(q)).code, 'unknown-session');
+});
+test('preload editable-copy validates independent identity and fences late invalidation', async () => {
+  for (const kind of ['valid', 'same-id', 'invalidated', 'malformed']) {
+    const f = preloadFixture(), q = { sessionId: 'a', expectedRevision: 0 }; assert.equal(typeof f.api.editCopy, 'function');
+    const call = f.api.editCopy(q);
+    if (kind === 'invalidated') f.events.emit('document-demo:invalidated', {}, { sessionId: 'a' });
+    f.pending[0].resolve(kind === 'malformed' ? null : { ok: true, snapshot: { sessionId: kind === 'same-id' ? 'a' : 'b', temporary: true, readOnly: false } });
+    const r = await call; assert.equal(r.ok, kind === 'valid'); if (kind !== 'valid') assert.equal(r.snapshot, undefined);
+  }
+});
+
+function pointerCompositionFixture({ composing = true, invalid = false, capacity = false, readOnly = false } = {}) {
+  const entry = fs.readFileSync(path.join(__dirname, '../lib/document-demo-entry.js'), 'utf8');
+  const helper = entry.match(/function finishCompositionForPointer\(view, event\) \{[\s\S]*?\n\}/);
+  assert.ok(helper, 'Use the actual renderer pointer handler');
+  const state = { composing, compositionInvalid: invalid }, records = [], calls = [];
+  const controller = { state: () => state, retainCompositionCopy: text => {
+    calls.push('retain'); if (capacity) return { ok: false, code: 'recovery-capacity' };
+    records.push(text); return { ok: true };
+  }, endComposition: () => { throw Error('Pointer must not manufacture compositionend'); } };
+  const handler = require('node:vm').runInNewContext(helper[0] + '\nfinishCompositionForPointer', {
+    controller, loading: false, activeInvalid: () => false, readOnlyDocument: () => readOnly,
+    viewerStatus: () => calls.push('warning'),
+  });
+  const view = { dom: { textContent: 'synthetic partial input', blur: () => calls.push('blur') } };
+  const event = { button: 0, preventDefault: () => calls.push('prevent') };
+  return { handler, controller, state, records, calls, view, event };
+}
+test('composition pointer request cannot unlock when the browser emits no end event', async () => {
+  const h = pointerCompositionFixture(), f = preloadFixture(); f.dom.emit('compositionstart');
+  assert.equal(h.handler(h.view, h.event), false); assert.deepEqual(h.calls, ['blur']);
+  assert.equal(h.state.composing, true);
+  assert.equal((await f.api.createPersistentCopy({ sessionId: 'a' })).code, 'composition-active');
+  assert.equal(f.pending.length, 0);
+});
+test('composition pointer retains available invalid input before requesting browser completion', () => {
+  const h = pointerCompositionFixture({ invalid: true }); h.handler(h.view, h.event);
+  assert.deepEqual(h.calls, ['retain','blur']); assert.deepEqual(h.records, ['synthetic partial input']);
+  assert.equal(h.state.composing, true);
+  const full = pointerCompositionFixture({ invalid: true, capacity: true });
+  assert.equal(full.handler(full.view, full.event), true); assert.equal(full.calls.includes('blur'), false);
+  assert.equal(full.calls.includes('prevent'), true); assert.equal(full.state.composing, true);
+});
+test('ordinary clicks, right clicks and readonly sessions do not request composition completion', () => {
+  for (const options of [{ composing: false }, { readOnly: true }]) {
+    const h = pointerCompositionFixture(options); assert.equal(h.handler(h.view, h.event), false); assert.deepEqual(h.calls, []);
+  }
+  const h = pointerCompositionFixture(); h.event.button = 2; h.handler(h.view, h.event); assert.deepEqual(h.calls, []);
+});
+
+test('opaque projection blocks are browser-readonly without changing original PM content or plain paragraphs', () => {
+  const entry = fs.readFileSync(path.join(__dirname, '../lib/document-demo-entry.js'), 'utf8');
+  const helper = entry.match(/function protectOpaqueBlocks\(state\) \{[\s\S]*?\n\}/);
+  assert.ok(helper, 'Use the actual projection decoration function');
+  const { getSchema } = require('@tiptap/core'), StarterKit = require('@tiptap/starter-kit').default;
+  const { EditorState } = require('@tiptap/pm/state'), { Decoration, DecorationSet } = require('@tiptap/pm/view');
+  const schema = getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
+  const state = EditorState.create({ schema, doc: schema.nodeFromJSON(projectSource('# Heading\n\nPlain 中文\n\n```js\nconst sample=1;\n```\n\n::: unknown').doc) });
+  const before = state.doc.toJSON();
+  const protect = require('node:vm').runInNewContext(helper[0] + '\nprotectOpaqueBlocks', { Decoration, DecorationSet });
+  const decorations = protect(state).find(); assert.equal(decorations.length, 2);
+  for (const d of decorations) {
+    assert.equal(state.doc.nodeAt(d.from).type.name, 'codeBlock');
+    assert.equal(d.type.attrs.contenteditable, 'false'); assert.match(d.type.attrs.title, /Read-only/);
+  }
+  assert.deepEqual(state.doc.toJSON(), before);
 });

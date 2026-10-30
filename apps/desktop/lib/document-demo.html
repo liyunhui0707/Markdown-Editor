@@ -127,7 +127,7 @@ body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.7"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7"/></svg>Read-only
   </span>
 </header>
-<div id="writing-actions" hidden><button id="new-temporary" disabled>New temporary document</button><button id="create-test-copy" hidden>创建测试副本</button></div>
+<div id="writing-actions" hidden><button id="new-temporary" disabled>New temporary document</button><button id="edit-copy" hidden>编辑副本 · Edit a copy</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <p id="temporary-notice" hidden>Not saved — temporary writing and input copies stay in memory only. Closing, refreshing or a crash loses them. Select and copy any text you want to keep. Basic paragraphs only; paste and complex formatting are unavailable.</p>
 <section id="test-copy-panel" hidden aria-label="Isolated test copy">
 <p id="test-copy-description">Development only — copies are created in a private, isolated temporary directory. They may be cleaned up. Do not use them for important or long-term documents. No ordinary Save As or overwrite is enabled.</p>
@@ -149,6 +149,7 @@ body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
 <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>
 </div><output class="developer-only" id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
+<p id="composition-status" hidden role="status">Input is still being composed. Finish or cancel it in the input method, or click an editable paragraph to request completion. Switching and copy creation stay paused until the browser confirms completion; current writing is retained.</p>
 <section class="input-protection" id="composition-warning" hidden aria-label="Unconfirmed input warning">
 <p role="status">Some composition input could not be accepted safely. Input remains blocked until its genuine completion; no automatic reset or reload is performed.</p>
 <button id="view-composition-copy">View / keep input copies</button></section>

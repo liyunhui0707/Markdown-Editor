@@ -151,3 +151,32 @@ Real files remain read-only; no writeback. Reuses source-map/controller/history,
 adds a visible memory-only notice and conservative native close confirmation.
 See [contract and checks](document-editing-interaction-phase1b3.md#document-writing-entry-v1-2026-10-28-uncommitted-at-0240).
 No release or formal Phase 1B-3 PASS is implied.
+
+
+## Existing Document Editing V1 — independent copy, not in-place editing
+
+Implemented/tested at 0.28.0 (2026-10-30), retained as a limited local WIP
+checkpoint at 0.29.0: adds Edit a copy to the existing document
+window. Main clones the opened bytes into a separate temporary session; original
+read-only permissions remain unchanged. Reuses existing paragraph/history mapping
+and Persistent Copy; no Model, Service, writer or save-policy changes. See the
+[bounded contract and evidence](document-editing-interaction-phase1b3.md#existing-document-editing-v1--independent-editable-copies-2026-10-30).
+The renderer entry stays above the ~300-line guideline to keep its existing
+lifecycle ownership intact; no general refactor is included. No release, merge,
+real-file overwrite or phase 1B-3 formal PASS is implied.
+
+Existing Document Editing V1 manual-QA repair (2026-10-30, uncommitted 0.28.0):
+confirmed pointer/IME completion mismatch and editable opaque-block rejection
+paths; narrow renderer event handling plus readonly node decorations, with source,
+session and save policies unchanged. Targeted Node 124 PASS / Air Electron 6 PASS;
+prior user QA FAIL remains pending retest. No-end-without-confirmation stays
+fail-closed. See the existing phase document; not full IME or release acceptance.
+
+
+Existing Document Editing V1 WIP closeout (0.29.0): Codex A local diff self-check
+found no new confirmed P0/P1; this was not independent model review. Reused
+matching Node 124 PASS / Air 6 PASS evidence. Pro ordinary input/history/switching
+passed, but zero composition events were produced: native Chinese IME remains
+NOT VERIFIED and the earlier user Chinese-input FAIL is not cleared. The minor
+bump only updates three project version fields. Full product/phase 1B-3 acceptance
+remains FAIL; no general Save As, original overwrite, release or GitHub approval.

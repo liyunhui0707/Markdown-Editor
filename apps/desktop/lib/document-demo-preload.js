@@ -17,8 +17,9 @@ ipcRenderer.on('document-demo:invalidated', (_event, data) => lifecycle(data?.se
 const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
+  const forking = operation === 'edit-copy';
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
-  if (creating) {
+  if (creating || forking) {
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
     if (pending) return { ok: false, code: 'document-busy' };
@@ -31,11 +32,17 @@ const request = async (operation, data = {}) => {
   ++pending;
   try { result = await ipcRenderer.invoke('document-demo:request', { ...data, operation }); }
   catch (error) {
-    unknown.set(sessionId, creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (creating) return { ok: false, code: 'copy-outcome-unknown' };
+    unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
+    if (creating || forking) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (creating) copies.delete(sessionId); }
+  } finally { --pending; if (creating || forking) copies.delete(sessionId); }
+  if (forking && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (typeof result.snapshot?.sessionId !== 'string' || result.snapshot.sessionId === sessionId
+       || result.snapshot.temporary !== true || result.snapshot.readOnly !== false)))) {
+    unknown.set(sessionId, 'edit-copy-outcome-unknown'); return { ok: false, code: 'edit-copy-outcome-unknown' };
+  }
+  if (forking && result.ok && states.has(result.snapshot.sessionId)) return blocked(result.snapshot.sessionId);
   if (creating && (!result || typeof result.ok !== 'boolean' || (result.ok && result.copy?.state !== 'created-confirmed'))) {
     unknown.set(sessionId, 'copy-outcome-unknown'); return { ok: false, code: 'copy-outcome-unknown' };
   }
@@ -54,6 +61,7 @@ const request = async (operation, data = {}) => {
 contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
+  editCopy: data => request('edit-copy', data),
   createTestCopy: data => request('create-test-copy', data),
   createPersistentCopy: data => request('create-persistent-copy', data),
   onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),

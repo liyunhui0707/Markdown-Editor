@@ -943,3 +943,214 @@ Markdown files remain read-only and all real-file writing stays prohibited.
 Phase 1B-3 formal **FAIL**, SEC-01, native Chinese IME acceptance, historical
 Reload uncertainty, copy-click P2 and the existing storage safety limitations
 remain open. This checkpoint is not release, merge or GitHub push approval.
+
+
+## Existing Document Editing V1 — independent editable copies (2026-10-30)
+
+Implemented/tested on 0.28.0; preserved as a limited local WIP at 0.29.0,
+without full feature, merge or release acceptance. In the existing
+Document-First window, open a UTF-8 `.md`, then choose **编辑副本 · Edit a copy**.
+The original stays read-only and remains selectable. A different main-owned
+session, labelled `Copy N of …`, starts at revision 0 with independent history
+and recovery records and a **Not saved** badge. It copies the already-opened
+snapshot, not an unsolicited reread of later external file changes.
+
+The exact IPC allowlist adds `edit-copy` with only session ID, expected revision
+and byte SHA-256. Main verifies sender/window/frame/URL, read-only source identity,
+revision and the hash including BOM, then passes its own `bytesForSave()` to the
+existing trusted temporary factory. Renderer paths, Markdown bodies and policy
+options are rejected. Main checks the returned model is independent, clean and
+byte-identical before provisioning. The existing private `wx`/0600 seed mechanism
+now accepts trusted initial bytes; no original file is written. This seed may
+remain in the private test directory, but subsequent edits and recovery records
+are memory-only; it is not a persistent export or cross-restart recovery feature.
+
+Preload refuses creation during composition, in-flight IPC, unknown outcomes,
+or invalidation/close-pending. A malformed/lost response does not activate a
+copy or permit an automatic repeat. Renderer validates source, BOM, independent
+identity, revision and projection before switching; it keeps the original on
+failure. Existing source-map, controller, Model, Service, writer and save policies
+are unchanged. Unsupported source ranges remain refused; no whole-file serializer
+is used. BOM, CRLF/LF, final-newline presence and untouched opaque syntax are
+preserved by the existing byte model and verified source edits.
+
+With the existing `--persistent` development launcher, an editable copy can use
+**Create persistent test copy…**. Only the already-supported dedicated empty
+local APFS home-directory test folder is accepted. Cancel, existing targets and
+unverified/partial/unknown outcomes retain the source and existing failure
+semantics. A successful receipt does not advance the model baseline, clear dirty
+or reset history. Later edits do not update the created file. Original sessions
+continue to reject edit/save/history/copy-write operations. General save remains
+`coordination-required`; temporary IPC save remains `temporary-not-persistable`.
+
+Validation evidence for this candidate is recorded separately from user manual
+QA. Six new regressions first failed for the missing copy operation/preload API;
+they then passed. Initial test harness corrections supplied the header's new
+button-state inputs and used the existing PM structural coordinates (`\n\n`
+command and two-position join); no source-map assertions or safeguards were
+weakened. The first attempted test edit had a wrong relative cwd and changed no
+files; its baseline run is not counted as RED. Final focused Pro Node evidence:
+237 Document/ProseMirror/IPC/create/save tests PASS, then 61 IPC/open tests PASS
+including one added invalid-factory/revocation regression. That extra test first
+failed in fixture setup because it used the fixture-forbidden unbounded read;
+using the same bounded read as the opening path fixed the test setup without
+changing product code. Both LF with a final
+newline and BOM/CRLF without one were copied through the actual child writer
+and read byte-exactly by a fresh Node process. No Electron GUI ran on Pro.
+
+The Air snapshot uses independent cloned dependencies/runtime, not writable
+symlinks to another worktree. Initial GUI attempts timed out because the prepared
+snapshot omitted the unchanged `editor-path-policy.js`; a single launch trace
+identified `MODULE_NOT_FOUND` before UI assertions. Those failed artifacts are
+retained; only the snapshot dependency list was corrected. This is not a product
+regression or a passed GUI test. With that unchanged dependency included, the
+three selected real Electron E2Es passed on Air (Node 24.20.0, Electron 43.4.1,
+Playwright 1.63.0): the existing two-directory/hostile-content read-only case;
+copy → real keyboard editing/Enter/Backspace/Undo/Redo → persistent writer →
+quit → fresh Electron read-only reopen; and a lost real copy-IPC response while
+preserving original identity and an existing recovery draft. Native dialog
+selections were stubbed, not manually tested. Chinese/emoji insertText is not
+native IME acceptance. All four app processes ended with code 0, signal null,
+watchdog=false, fault=false and remaining=false; a final task-scoped process
+check found no surviving Electron process. The tested 22-file snapshot remained
+hash-identical and the independently rebuilt demo bundle was byte-identical.
+
+Local evidence: `/private/tmp/existing-edit-v1-wuk3oqqv/evidence/`, including
+`node-focused.log`, `green-ipc-corrected.log`, `electron-complete.log`,
+`result-complete.json` and `existing-document-copy.png`. The corrected runtime
+snapshot is identified by `candidate-complete.json` in the parent directory;
+it includes the unchanged missing dependency added after the initial archive.
+The first archive alone is not the complete successful test snapshot.
+
+No new editing state machine, writer, framework or dependency was introduced.
+The existing renderer entry remains over the approximate 300-line guideline;
+this bounded integration stays in its established document-opening flow rather
+than splitting lifecycle ownership during a permission-sensitive change.
+Real native IME/manual interaction, installer/ASAR acceptance and arbitrary
+Save As/overwrite remain outside this change. Historical Reload/copy P2,
+SEC-01, filesystem limitations and phase 1B-3 formal FAIL remain. Independent
+review and user manual QA of this new candidate are still required.
+
+### Existing Document Editing V1 — manual-QA composition blockers (2026-10-30)
+
+User manual QA of the first uncommitted candidate was **FAIL**: after replacing
+Chinese text, further editing and switching to the original were blocked; the
+copy panel reported `composition-active`. Persistent export/reopen was not
+manually completed. The TSM/IMK/window warnings are not established causes.
+The earlier automated PASS does not override this report.
+
+Bounded synthetic Chromium/CDP tests on Air established two paths:
+
+- Explicit composition completion works in plain and mixed Markdown. However,
+  moving by mouse while a composition is active can leave PM `composing=false`
+  while controller/preload still await `compositionend`, with pending=0. PM's
+  mouse handler ends its own composition without supplying that DOM event.
+  Both plain/mixed cases failed at this boundary. Skipping PM's mouse handler
+  alone did not solve it. Requesting browser completion through blur on an
+  intentional primary text click produced a browser-delivered end event and
+  preserved the composed text. No controller/preload flag is forced clear.
+- Opaque projection blocks were visually code-like but browser-editable. Starting
+  composition inside one led to a rejected PM mutation, followed by noncomposing
+  input without an end event; controller state remained invalid/composing. All
+  such blocks are already unsupported source ranges. PM node decorations now
+  mark them `contenteditable=false`, with a read-only explanation. The original
+  PM document and source-range rejection rules are unchanged.
+
+The small renderer pointer handler requests completion before normal PM mouse
+selection. If composition is already invalid, it retains available local/DOM
+copies first; capacity refusal prevents the request rather than evicting records.
+An actual end event still drives the original grouping, revision/IPC and history
+logic. A visible status explains why switching/copy creation is paused. No end
+arriving is NOT treated as completion: the controller and preload stay blocked,
+and available invalid-input copies are retained. Native preedit outside the DOM
+cannot be guaranteed captured. This is not full exceptional-IME recovery.
+
+Final checks: **124 targeted Node tests PASS**, including four new pointer/
+readonly-decoration tests (RED before their implementations). **6 real Electron
+E2Es PASS on Air**, including CDP composition commit, pointer completion,
+cancellation, code-block rejection followed by continued paragraph typing,
+original/copy switching, undo/redo, lost IPC response/draft preservation, persistent
+export and a fresh-process read-only reopen, plus the intentionally missing-end
+retention/lock case. Seven Electron processes exited code=0/signal=null with no
+watchdog, fault or remaining task process. Air independently rebuilt the bundle
+byte-identically and verified the exact snapshot hashes. All files were synthetic;
+no GUI ran on Pro. Native dialogs were stubbed; CDP composition is **not macOS
+Pinyin manual acceptance**. The mixed-case intermediate run remained FAIL until
+the opaque-block guard was applied; it has not been discarded from evidence.
+
+Evidence: `/private/tmp/existing-edit-qa-ki604lgq/` (`node-final.log`,
+`pointer-red.log`, `opaque-red.log`, `electron-probe2.log`, `electron-green.log`,
+`electron-green2.log`, `green2.json`, `result-green2.json`). Input traces contain
+bounded event/state metadata, not document bodies. The original 13-file patch is
+preserved; this repair changes only its renderer entry/HTML/generated bundle,
+existing IPC-unit/E2E test files and existing documentation. Version/HEAD unchanged.
+
+These reproduced paths are consistent with the user's symptoms, but their exact
+identity with the native manual failure remains unproven until user retest. They
+use the historical 1B-3 composition latch; they do not establish the cause of the
+historical ASAR Reload failure. True missing-end cases, cross-leaf/unsupported
+edits and native IME remain limited; no arbitrary unlock is offered. Original
+files remain read-only, Persistent Copy scope/receipts and `coordination-required`
+are unchanged, phase 1B-3 formal FAIL and SEC-01 remain. No new manual PASS,
+checkpoint, release or full IME acceptance is recorded.
+
+
+### Existing Document Editing V1 — local WIP closeout (2026-10-30)
+
+Codex A performed a bounded self-review of the actual diff and direct session,
+controller, source-map and save dependencies. This is **not an independent second
+model review**. No new confirmed P0/P1 was found: source and editable-copy models,
+IDs/history are distinct; main retains sender/window/frame/URL, revision/hash and
+lifecycle validation; renderer/preload do not grant arbitrary paths/body/policy;
+unknown copy outcomes are not automatically retried. Persistent Copy retains
+exclusive new-file creation and actual byte/identity/hash checks. The original
+readonly session and `coordination-required` remain enforced. No product-code or
+test correction was needed during this closeout.
+
+Evidence reused with matching runtime/bundle fingerprints: 124 targeted Node
+PASS and six Air Electron E2E PASS on the 0.28.0 implementation candidate. No
+unrelated suite, GUI matrix, ASAR or packaging was rerun. Their scope includes
+controlled composition, supported paragraph editing/history, switching, unknown
+IPC/draft retention, original-byte protection and persistent new-file reopen.
+These passes do **not** establish native Chinese IME acceptance.
+
+Pro GUI follow-up used the same verified source in a private test instance.
+Native ordinary key events, undo/redo and original/copy switching passed; source
+bytes/hash stayed unchanged. WeType Pinyin was selected, but the attempted keys
+produced ASCII and **zero composition events**. The temporary source switch to
+ABC was restored. A standalone Shift action was unsupported by the GUI tool.
+The completed instance exited code=0/signal=null; the earlier paused setup hit
+its watchdog and is retained separately. Thus **native macOS Chinese composition
+remains NOT VERIFIED**, and the user's earlier native Chinese-input QA **FAIL
+has not been cleared**. No new product defect was confirmed by that attempt;
+it also did not prove the historical failure solved. The existing device/IME
+automation investigation is closed rather than extended.
+
+This is an explicitly authorized **WIP recovery checkpoint**, not a full product
+acceptance PASS. AGENTS.md requires a minor bump for the user-visible feature;
+0.28.0 -> 0.29.0 changes only package.json version and the lockfile's two root
+project version fields. Dependencies, scripts and build policy are unchanged.
+The 13 reviewed paths plus these two version files form one local checkpoint.
+No GitHub sync, merge, release or tag is authorized. Application resources match
+the tested candidate; the version-only/documentation changes do not reclassify
+historical validation as a newly packaged 0.29.0 release pass.
+
+Remaining limits: unsupported/complex and cross-leaf editing, missing-end input
+locks and incomplete IME preedit capture; memory-only drafts/later edits without
+cross-exit recovery; seed snapshots retained in the private test directory; no
+arbitrary Save As or original-file overwrite. Persistent copies remain confined
+to the approved dedicated local APFS test-folder scope. SEC-01, historical Reload,
+copy-click/cleanup P2, TOCTOU, external writers, ACL/xattrs/special filesystem and
+power-loss/restart limits remain open. Phase 1B-3 formal acceptance remains FAIL.
+
+The next proposed product slice is a controlled **in-place save/reopen** for one
+app-created synthetic file in an approved private APFS test directory. Reuse the
+current Model/Service/File Store and source-range edits; main must grant a separate
+file-bound write capability rather than mutate a readonly session's permission.
+Require trusted disk identity/byte baseline, current revision and quiescent input,
+verified replacement metadata/content and accurate uncertain durability outcomes.
+A last stat/hash plus rename or the cwd-pinned create writer does not coordinate
+external replacement; an accepted coordination mechanism must be demonstrated
+before enabling this slice. Otherwise keep `coordination-required` and refuse.
+External-change, symlink/hardlink, metadata, partial-write and unknown-result
+probes precede any real-file enablement. No such implementation starts here.

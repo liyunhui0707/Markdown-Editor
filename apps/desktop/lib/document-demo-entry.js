@@ -1,6 +1,7 @@
 import { Editor, Extension, getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
@@ -105,17 +106,20 @@ function render(s) {
   if (readOnlyWindow) {
     for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = busy;
     const current = s.confirmed, temporary = current.temporary === true;
+    byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
+    byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
     byId('document-name').textContent = current.label; byId('document-full-name').textContent = current.label;
     byId('document-location').textContent = temporary ? 'In this window only — no saved file' : current.location;
     byId('document-info').querySelector('summary').title = current.label;
     byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
-    byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Viewing only. Editing and saving are unavailable.';
+    byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Original file is read-only. Edit a copy to work in a separate unsaved document.';
     byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
   }
+  byId('composition-status').hidden = !s.composing;
   testCopyView.render(s); renderCompositionCopies(s); show();
 }
 function resetSource(source, selection) {
@@ -137,6 +141,30 @@ async function history(operation) {
   await active.history(operation);
   if (controller === active && !activeInvalid() && !active.state().locked) editor.view.focus();
 }
+function protectOpaqueBlocks(state) {
+  const decorations = [];
+  // projectSource represents unsupported syntax verbatim as codeBlock nodes.
+  // Do not let native IME start editing them only to lose its end event when
+  // the source-range gate rejects/redraws that mutation. The gate remains final.
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === 'codeBlock') decorations.push(Decoration.node(pos, pos + node.nodeSize,
+      { contenteditable: 'false', 'aria-readonly': 'true', title: 'Read-only Markdown block. Edit a supported ordinary paragraph instead.' }));
+  });
+  return DecorationSet.create(state.doc, decorations);
+}
+function finishCompositionForPointer(view, event) {
+  const s = controller?.state();
+  if (event.button !== 0 || !s?.composing || loading || activeInvalid() || readOnlyDocument()) return false;
+  if (s.compositionInvalid && !controller.retainCompositionCopy(view.dom.textContent).ok) {
+    event.preventDefault(); viewerStatus('Cannot protect more input copies. Composition remains blocked; no earlier record was removed.', true);
+    return true;
+  }
+  // PM's mousedown clears its own composing flag without necessarily ending the
+  // browser IME. Ask the browser to finish before PM moves the selection. Only
+  // the actual compositionend path may commit/clear controller or preload state.
+  view.dom.blur();
+  return false; // Keep the normal pointer selection/focus behavior.
+}
 function install(snapshot) {
   if (lifecycles.has(snapshot.sessionId)) throw Error('Blocked session');
   projectSource(snapshot.source); // Validate before changing the active identity.
@@ -148,7 +176,7 @@ function install(snapshot) {
   });
   if (!editor) {
     const gate = Extension.create({ name: 'verifiedSourceRange', addProseMirrorPlugins() {
-      return [new Plugin({ filterTransaction(tr) {
+      return [new Plugin({ props: { decorations: protectOpaqueBlocks }, filterTransaction(tr) {
         if (!resetting && tr.docChanged && (activeInvalid() || loading || readOnlyDocument())) { show(readOnlyDocument() ? 'read-only-document' : activeInvalid() ? 'session-invalidated' : 'document-loading'); return false; }
         return resetting || !tr.docChanged || controller.prepare(tr);
       } })];
@@ -159,6 +187,7 @@ function install(snapshot) {
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
       extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
       editorProps: { handleDOMEvents: {
+        mousedown: finishCompositionForPointer,
         paste: (_view, event) => { event.preventDefault(); show('unsupported-paste'); return true; },
         drop: (_view, event) => { event.preventDefault(); show('unsupported-drop'); return true; },
         compositionstart: () => { if (activeInvalid()) return true; controller.beginComposition(); return false; },
@@ -247,22 +276,28 @@ function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openDocument(temporary = false) {
+async function openDocument(temporary = false, editingCopy = false) {
   const state = controller?.state();
   if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
+  const original = state?.confirmed;
+  if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked
+      || state.recoveryRecords.length || state.source !== original.source)) return;
   loading = true; const epoch = ++switchEpoch;
   for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = true;
   if (controller) render(controller.state());
-  viewerStatus(temporary ? 'Creating temporary document…' : 'Opening…');
+  viewerStatus(editingCopy ? 'Creating independent editable copy…' : temporary ? 'Creating temporary document…' : 'Opening…');
   let candidate = null;
   try {
-    const r = await (temporary ? api.newTemporary() : api.openFile());
+    const r = await (editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
     if (!r.ok) {
       const messages = { 'open-cancelled': 'Open cancelled.', 'file-unavailable': 'The selected file no longer exists.',
         'read-failed': 'The selected file cannot be read.', 'unsupported-encoding': 'Only UTF-8 Markdown is supported.',
         'unsupported-size': 'The selected file exceeds the preview size limit.', 'parse-failed': 'This content exceeds the supported preview limits.',
         'unsupported-path': 'Choose one supported .md file.', 'unsupported-file': 'Choose a regular file, not a link.',
+        'edit-copy-outcome-unknown': 'The copy request outcome is unknown. Do not retry; the original remains read-only.',
+        'temporary-create-failed': 'Unable to create an independent copy.', 'copy-session-invalidated': 'The original session is no longer available.',
+        'source-hash-mismatch': 'The opened contents could not be verified.', 'stale-revision': 'The opened revision changed.',
         'external-change': 'The file changed while it was being read.', 'session-limit': 'This window has reached its eight-document limit.' };
       viewerStatus((messages[r.code] || 'Unable to open the selected file.') + ' Current document unchanged.', true);
       return;
@@ -270,6 +305,8 @@ async function openDocument(temporary = false) {
     candidate = r.snapshot;
     if (!candidate || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
         || lifecycles.has(candidate.sessionId) || typeof candidate.label !== 'string') throw Error('Invalid read-only snapshot');
+    if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom
+        || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error('Invalid copy snapshot');
     const projection = projectSource(candidate.source);
     const schema = editor?.schema || getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
     schema.nodeFromJSON(projection.doc).check(); // Validate before changing active identity/content.
@@ -279,14 +316,14 @@ async function openDocument(temporary = false) {
     byId('documents').append(option); install(candidate);
     byId('document-info').hidden = false; byId('document-info').open = false;
     byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; window.scrollTo(0, 0);
-    if (previous?.readOnly && previous.sessionId !== candidate.sessionId) {
+    if (!editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
       try {
         const closed = await api.close({ sessionId: previous.sessionId, expectedRevision: previous.revision });
         if (closed.ok) [...byId('documents').options].find(o => o.value === previous.sessionId)?.remove();
       }
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
-    viewerStatus(temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
+    viewerStatus(editingCopy ? 'Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported.' : temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
   } catch {
     if (candidate && selected !== candidate.sessionId) {
       try { await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision }); } catch { /* main revokes on window close */ }
@@ -300,6 +337,7 @@ async function openDocument(temporary = false) {
 }
 const openReadOnly = () => openDocument(false);
 byId('new-temporary').onclick = () => openDocument(true);
+byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;
 byId('empty-open').onclick = openReadOnly;
 api.onOpenRequest(openReadOnly);
