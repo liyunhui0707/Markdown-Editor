@@ -28,11 +28,12 @@ app.whenReady().then(async () => {
   const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd(), ...(writer ? { persistentWriter: writer.create } : {}) } : {}); // Never unsafeExperimentalRoot.
   let temporaryCreated = false, temporaryNumber = 0;
   const manager = createDocumentSessions({ service, allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
-      const accepted = await dialog.showMessageBox(win, { type: 'warning', message: 'Create a persistent test copy?',
-        detail: 'Use an EMPTY Markdown-Persistent-Test-* folder directly inside your home folder, on local APFS. No cloud/sync folder or important documents. The folder must be owned by you and not writable by others. Filename: letters, digits, hyphen or underscore, ending .md. Existing files are never replaced. Current writing remains Not saved.',
-        buttons: ['Cancel', 'Choose dedicated test location…'], defaultId: 0, cancelId: 0, noLink: true });
+      const accepted = await dialog.showMessageBox(win, { type: 'warning', message: 'Save as a new Markdown file?',
+        detail: 'Choose an existing local APFS folder directly inside your home folder, owned by you and not writable by others. The home folder itself is not a supported destination. Desktop, Documents, Library, hidden and known cloud/sync folders are not supported in V1. Only continue if the folder is not synced by another application. Existing files are never replaced, even if macOS asks to replace one. Current writing remains Not saved; later edits will not update this new file.',
+        buttons: ['Cancel', 'Choose local folder…'], defaultId: 0, cancelId: 0, noLink: true });
       if (accepted.response !== 1 || win.isDestroyed()) return { canceled: true };
-      const selected = await dialog.showSaveDialog(win, { title: 'Create NEW persistent test copy', defaultPath: path.join(os.homedir(), 'copy.md'),
+      const selected = await dialog.showSaveDialog(win, { title: 'Save as NEW Markdown file', defaultPath: 'Untitled.md',
+        message: 'Choose an existing local APFS folder directly inside your home. The home folder itself is not supported. Desktop, Documents, Library, hidden and cloud/sync folders are not supported. Existing files will not be replaced.',
         nameFieldLabel: 'New Markdown filename:', filters: [{ name: 'Markdown', extensions: ['md'] }],
         properties: ['showOverwriteConfirmation', 'dontAddToRecent'], securityScopedBookmarks: false });
       if (!win.isDestroyed()) win.focus();
@@ -68,7 +69,7 @@ app.whenReady().then(async () => {
     // Keep the warning even after session revocation: renderer-only drafts may exist.
     if (temporaryCreated && dialog.showMessageBoxSync(win, { type: 'warning',
       message: 'Close without saving temporary documents?',
-      detail: testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. Persistent test copies, when explicitly selected, remain at their last verified location; later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
+      detail: testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. New files explicitly created with Save as new file remain at their last verified location; later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
       buttons: ['Cancel', 'Close without saving'], defaultId: 0, cancelId: 0, noLink: true }) !== 1) event.preventDefault();
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

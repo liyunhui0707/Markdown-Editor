@@ -530,3 +530,159 @@ remain read-only; general save is still gated. SEC-01, phase 1B-3 formal FAIL,
 full native IME acceptance, full installed-package acceptance, malicious same-user
 concurrency and power-loss durability remain unresolved. No release, merge or
 real overwrite approval; this is only a recoverable local WIP checkpoint.
+
+
+## Controlled In-Place Save V1 — closed preflight, BLOCKED (2026-10-30)
+
+At baseline `2fb6eedb3d9ed7ebc39eb01e63e18e8da87ebfc8` (0.29.0), four bounded
+synthetic local-APFS observations confirmed the existing boundary. Default save
+refuses with `coordination-required`, retaining original bytes and dirty. A
+replacement visible before saving is a conflict. In the existing explicitly
+uncoordinated experimental branch, a separate process replacing the target after
+the final check and before rename loses its replacement; save reports
+`saved-confirmed` and clears dirty. A stable child cwd and relative rename do not
+close this target-entry race. These were real synthetic filesystem operations,
+with injected scheduling at the syscall boundary, not fabricated save responses.
+The observation assertions passed; overwrite safety did not. No production gate
+was lifted and no further random tests were run.
+
+The current Service also advances its baseline after a positively verified
+replacement even when directory synchronization is uncertain, while keeping the
+`durability-uncertain` warning. A future requirement to retain dirty until all
+success conditions are confirmed needs an explicit contract change; it cannot be
+inferred from the existing save result. Resume in-place-save work only after an
+accepted coordination mechanism covers baseline validation through replacement
+and its uncertainty semantics are reviewed. Extra stat/hash checks, provenance,
+private directory permissions or cwd pinning alone do not meet that condition.
+No native coordination framework or File Store rewrite is started. Existing-file
+overwrite and `coordination-required` stay unchanged.
+
+## Save As New File V1 — bounded product implementation (0.29.0, uncommitted)
+
+This supersedes only Persistent Copy V1's destination-name/empty-folder and
+ASCII-filename restrictions. It reuses the same native dialog, main-owned
+Service/IPC, short-lived Electron utility writer and exclusive File Store create
+operation. There is no replacement permission, new save service or history model.
+
+Run the existing development launcher with `--persistent`. Open a synthetic `.md`,
+choose **Edit a copy**, edit supported ordinary paragraphs, then choose **Save as
+new file… → Choose location…**. Confirm the local-folder restrictions in the
+native sheet and select a new filename. A confirmed receipt reports revision,
+actual path and SHA-256. The editing session remains **Not saved**; later edits
+and undo/redo do not update the created file. Cmd+O can reopen it read-only,
+including after the application exits. Original files remain byte-identical.
+
+Supported scope for V1:
+
+- A selected ordinary directory directly under the user's canonical home folder,
+  on the same local APFS volume, owned by that user, writable/searchable by the
+  owner and not writable by group/others. It may already contain files. The app
+  does not enumerate or read those unrelated files, chmod the directory, or create
+  marker files. Nested folders and other volumes are not yet supported.
+- Symlink aliases, hidden folders, Desktop/Documents/Library/Applications and
+  known cloud/sync folder names are rejected. Existing ACL, special flags and
+  unsupported-xattr refusal remains. These are conservative V1 boundaries, not
+  permanent macOS folder rules. Arbitrary third-party sync configuration cannot
+  be inferred from a path: the user must confirm that the chosen folder is local
+  and unsynchronized. A custom sync root disguised by an ordinary name is not
+  automatically detected or claimed supported.
+- A single well-formed Unicode basename ending in `.md` (case-insensitive), at
+  most 255 UTF-8 bytes. Spaces, Chinese and emoji are supported. Separators,
+  colons, hidden names, control/bidi-control characters and leading/trailing
+  whitespace are refused. Names are not silently normalized.
+
+Directory identity capture, child cwd identity checks, `O_EXCL | O_NOFOLLOW`,
+actual file identity/bytes/hash/POSIX metadata checks, file+directory fsync,
+child receipt/exit validation and parent reread remain. Existing targets,
+including dangling symlinks and raced-in files, are never overwritten. A changed
+directory cannot redirect the writer to its replacement. The original pinned
+directory may retain a file if renamed: this remains unverified, not success.
+Cancellation and pre-creation rejection retain writing. Partial, uncertain and
+unknown outcomes retain their accurate receipt and block retries; no automatic
+cleanup, overwrite or fallback exists. Ordinary save remains gated.
+
+The source revision/hash, composition, pending/unknown IPC and session checks
+are unchanged. No Model, Service, session IPC, preload, source-map, controller or
+writer lifecycle change is needed. File Store changes only persistent basename
+validation and its scope label; the replacement path is untouched. Large existing
+modules are retained to avoid unrelated refactoring.
+
+Native Chinese IME remains NOT VERIFIED; the earlier user's Chinese-input QA FAIL
+has not been cleared. Controlled input events are not native IME acceptance.
+SEC-01, phase 1B-3 formal FAIL, power-loss durability, malicious same-user races,
+post-verification path changes and cross-restart draft recovery remain open.
+No full installed-package, general Save As or original overwrite acceptance is
+claimed. The limited external review and its stopping condition are recorded below; this candidate remains uncommitted.
+
+
+Validation for this uncommitted Save As New candidate (MacBook Pro):
+
+- Four new regressions were RED against the prior policy, then GREEN after the
+  bounded destination/name change. Targeted Node 24.20.0 run: **119 PASS, 0 FAIL**
+  across Persistent Copy, Safe Create, session IPC and read-only open tests.
+  Covers nonempty ordinary folders, Unicode names, BOM/CRLF/no-final-newline,
+  fresh-process reread, sequential new copies, existing/raced-in target refusal,
+  directory replacement, readonly/stale/unknown authorization and retained
+  partial/sync/unknown outcomes. All fixtures are synthetic and retained.
+- Two selected existing Electron E2Es passed using the exact candidate snapshot
+  and a physical independent dependency/runtime copy (Electron 43.4.1,
+  Playwright 1.63.0). Real UI/IPC/utility writer covered temporary writing and
+  opened-original -> editable-copy -> new Unicode-named file in a nonempty
+  ordinary folder -> new-process readonly reopen. The original and sentinel
+  bytes were unchanged; bytes/SHA-256 matched the receipt; later typing did not
+  update the exported file. Cancel and same-name refusal preserved writing.
+- Four application processes exited code=0/signal=null; no watchdog, monitored
+  main-process fault or remaining test child. Native dialog selections/consent
+  were stubbed; this is not a new manual native-save-sheet PASS or native IME
+  acceptance. No random reruns, Air coordination, full suite or package matrix.
+- Existing esbuild flow regenerated the demo bundle; a second build from the
+  worktree matched byte-for-byte. Changed-module syntax and Git whitespace checks
+  passed. Version, dependencies, Model/Service/IPC/preload/source-map/controller,
+  replacement policy and replacement implementation remain unchanged.
+
+The initial bounded Codex A self-review found no new confirmed P0/P1. A subsequent,
+explicitly authorized Restricted DeepSeek review read all 11 approved source
+selections and the approved diff, returned five findings, then exited on its client
+budget threshold. Its result is **PARTIAL**, accepted as such by the user; no retry
+was made. Codex A verified two P2 usability issues. The Downloads/Public objection
+was not established as a policy violation; the group-inheritance finding was a
+false positive against macOS open(2); additional invisible-character restrictions
+remain an optional suggestion. No new confirmed P0/P1 was established. This is
+not complete safety or release sign-off.
+
+### Two P2 follow-ups (0.29.0 candidate, not committed)
+
+- The Save dialog now receives only the default filename `Untitled.md`, not a
+  forced home-directory destination. Both the warning and native dialog message
+  tell the user to select an existing supported local APFS folder directly under
+  home; home itself is not a supported destination. The native panel may remember
+  a location; that does not authorize it. All existing directory/name/metadata
+  checks still run, and no directory is automatically created.
+- The window separately displays **Last confirmed copy** (path, revision, SHA-256)
+  and **Latest operation**. A later cancellation, refusal, partial creation or
+  unknown result cannot erase the last verified receipt or turn it into a claim
+  that the latest operation succeeded. The per-session display record is in memory
+  only; it is not a file monitor, durable receipt history, or cross-refresh recovery.
+  Existing refusal/unknown-state blocking remains authoritative. Not saved, dirty,
+  revision, undo/redo and original-file protection are unchanged.
+- RED: the new view tests exposed eight receipt-loss failures; the selected real
+  Electron case failed on the forced home-directory default. GREEN: **10/10 Node
+  view tests** and **2/2 targeted Pro Electron E2Es** passed. Coverage includes
+  A/B/A isolation, replacing a receipt only after a validated success, cancellation,
+  existing target, partial/durability/unknown/lost or mismatched responses, and
+  composition/draft refusal. The two E2Es exercised real IPC/utility creation,
+  original/sentinel preservation, later edits, receipt retention across switches,
+  and new-process read-only reopen. Four application exits were code=0/signal=null,
+  with no watchdog, monitored main-process fault or remaining test child.
+- Native dialog choices/consent were stubbed. Dialog option assertions prove the
+  new guidance/configuration, not manual panel presentation or native IME. The
+  earlier native Chinese QA FAIL and current NOT VERIFIED status remain.
+- Demo bundle was rebuilt with the existing esbuild command and independently
+  reproduced byte-for-byte. No new Service, IPC, writer, File Store, policy,
+  dependency or version changes were needed for these fixes. The 119-test earlier
+  safety regression evidence is retained rather than rerun without cause.
+
+The combined user-visible feature is a candidate for an explicitly limited local
+WIP checkpoint, with a proposed **0.29.0 -> 0.30.0 minor** bump at commit time.
+This follow-up does not stage/commit, change the version, permit overwriting,
+clear coordination-required, or change any native IME / phase 1B-3 / SEC-01 gate.

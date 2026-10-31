@@ -32284,16 +32284,16 @@ ${prefix}
     return null;
   }
   function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
-    const receipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
+    const receipts = /* @__PURE__ */ new Map(), confirmedReceipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
     let confirmation = null;
     let persistent = false;
     const refusal = (c) => unknown.has(c.selected) ? "copy-outcome-unknown" : copyRefusal(c.controller?.state(), c);
     function render3(s) {
       const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
       persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-      byId2("create-test-copy").textContent = persistent ? "Create persistent test copy\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
+      byId2("create-test-copy").textContent = persistent ? "Save as new file\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
       byId2("confirm-test-copy").textContent = persistent ? "Choose location\u2026" : "Create new test copy";
-      byId2("test-copy-description").textContent = persistent ? "New copy only, in a dedicated EMPTY local APFS test folder. Current writing remains in memory and Not saved. No overwrite or general Save As." : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
+      byId2("test-copy-description").textContent = persistent ? "Create a new .md in a supported local APFS folder directly under your home folder. Existing files are never overwritten. Current writing remains Not saved; later edits do not update the new file. Cloud/sync folders are not supported." : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
       byId2("create-test-copy").hidden = !enabled;
       byId2("test-copy-panel").hidden = !enabled;
       if (!enabled) return;
@@ -32303,9 +32303,12 @@ ${prefix}
       byId2("test-copy-confirmation").hidden = !confirmation || confirmation.sessionId !== c.selected;
       const receipt = receipts.get(c.selected) || s.confirmed.copyState;
       const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
-      byId2("test-copy-result").textContent = confirmed ? `${persistent ? "Persistent test copy" : "Test copy"} created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.
-${receipt.filePath}
-SHA-256: ${receipt.sha256}` : receipt && (receipt.code || receipt.state !== "not-created") ? `Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || "not-created"}; created: ${String(receipt.created ?? "unknown")}. No automatic retry or cleanup.
+      if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
+      const last = confirmedReceipts.get(c.selected);
+      byId2("test-copy-result").textContent = last ? `Last confirmed copy \u2014 ${persistent ? "New Markdown file" : "Test copy"} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.
+${last.filePath}
+SHA-256: ${last.sha256}` : "";
+      byId2("test-copy-operation").textContent = confirmed ? `Latest operation: copy confirmed for revision ${receipt.revision}.` : receipt && (receipt.code || receipt.state !== "not-created") ? `Latest operation: Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || "not-created"}; created: ${String(receipt.created ?? "unknown")}. No automatic retry or cleanup.
 ${receipt.filePath || ""}` : "";
     }
     function finish() {
@@ -32324,7 +32327,7 @@ ${receipt.filePath || ""}` : "";
       const s = c.controller.state().confirmed;
       confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
       busy(true);
-      byId2("test-copy-confirm-revision").textContent = `Create a new test copy of confirmed revision ${s.revision}?`;
+      byId2("test-copy-confirm-revision").textContent = `Create a new ${persistent ? "Markdown file" : "test copy"} of confirmed revision ${s.revision}?`;
       byId2("confirm-test-copy").disabled = false;
       byId2("cancel-test-copy").disabled = false;
       rerender();

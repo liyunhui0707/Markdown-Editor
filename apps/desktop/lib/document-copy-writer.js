@@ -26,7 +26,7 @@ port.on('message', ({ data }) => {
     attempted = true;
     result = store.createCopy(data.name, bytes);
     if (result.ok) {
-      // No new emptiness test after creation: verify the authorized identity only.
+      // Recheck the authorized directory identity after creating the selected new file.
       const fs = require('node:fs');
       const named = fs.lstatSync(data.destination.root, { bigint: true });
       if (`${named.dev}:${named.ino}` !== `${data.destination.state.identity.dev}:${data.destination.state.identity.ino}`) {

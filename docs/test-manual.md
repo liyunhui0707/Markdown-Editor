@@ -1516,3 +1516,32 @@ instance exited normally; an interrupted setup was separately preserved. Control
 Air E2E remains automation evidence only. No additional user device work is required
 for this WIP checkpoint; native IME remains a future acceptance gate. Original-file
 overwrite is still prohibited; only approved persistent test-copy creation exists.
+
+
+### Save As New File V1 — limited manual acceptance pending
+
+Use only synthetic notes and a disposable ordinary folder directly under home,
+for example `~/Writing-synthetic-QA`. It must be local APFS, owned/writable by you,
+not writable by others, not synced and not a symlink. Existing unrelated synthetic
+sentinels are allowed; do not change permissions to force an unsupported folder.
+
+1. Launch from `apps/desktop` with
+   `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+2. Cmd+O a synthetic Markdown file, choose **Edit a copy**, edit ordinary text,
+   Enter/Backspace and undo/redo. Original remains read-only and byte-identical.
+3. Choose **Save as new file…**. The panel proposes only `Untitled.md` and explains
+   that home itself is unsupported: explicitly select the supported folder. Cancel;
+   writing is unchanged and no selected target is created. Repeat with a name such as
+   `编辑后的副本 😀.md` in the supported folder.
+4. Check **Last confirmed copy** revision/path/hash. Retry the same name: it must
+   be refused even if macOS offered Replace. The earlier receipt stays visible and
+   **Latest operation** independently shows the refusal. Cancel another attempt and
+   switch original -> copy: the last successful receipt must remain per session.
+   Existing sentinels and original stay unchanged.
+5. Continue typing: the receipt describes only the earlier revision, the new file
+   does not update, and the editing session still says **Not saved**.
+6. Quit, reopen the created file using Cmd+O and compare bytes/hash. It is readonly.
+
+No new manual/native-dialog PASS is claimed by automated selection stubs. Native
+Chinese IME remains NOT VERIFIED; prior Chinese-input QA FAIL and phase 1B-3
+formal FAIL remain. Overwrite and coordination-required are not relaxed.

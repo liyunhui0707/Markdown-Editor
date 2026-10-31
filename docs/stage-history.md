@@ -180,3 +180,29 @@ passed, but zero composition events were produced: native Chinese IME remains
 NOT VERIFIED and the earlier user Chinese-input FAIL is not cleared. The minor
 bump only updates three project version fields. Full product/phase 1B-3 acceptance
 remains FAIL; no general Save As, original overwrite, release or GitHub approval.
+
+
+## Save As New File V1 (0.29.0 uncommitted)
+
+Reuses Persistent Copy to create new files in ordinary nonempty user-owned local
+APFS folders directly under home; known system/sync locations stay refused.
+Adds safe Unicode/space basenames and the **Save as new file…** label. Existing
+files are never replaced; sessions remain Not saved and original readonly rights
+are unchanged. No new state machine, model, IPC or writer lifecycle. See the
+[save contract](document-save-hardening-phase1b.md#save-as-new-file-v1--bounded-product-implementation-0290-uncommitted).
+The prior controlled in-place-save preflight is closed as BLOCKED; its final-check
+race and durability/dirty semantics are retained in that contract. No further
+coordination research, version change or commit is included. Existing large File
+Store/test modules remain in place; additions use the established tests.
+
+
+Save As New File V1 P2 follow-up: remove the forced unsupported home destination
+and put folder guidance in the native Save dialog. Preserve the last confirmed
+receipt separately from the latest operation result, per session. Added one small
+Node view test file (10 tests) and extended the two existing Electron cases;
+RED/GREEN recorded, 10 Node and 2 Pro Electron PASS, four clean process exits.
+Dialogs are stubbed; native IME remains NOT VERIFIED and prior manual FAIL remains.
+The one authorized external review is PARTIAL (budget exit), not upgraded to PASS;
+Codex A verified two P2s and no new confirmed P0/P1. No further Reviewer call.
+Proposed combined-feature checkpoint version: 0.30.0; current version stays 0.29.0
+until a separately authorized commit. No safety-policy expansion in these fixes.

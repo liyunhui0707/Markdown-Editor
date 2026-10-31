@@ -11,17 +11,17 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
   return null;
 }
 export function createTestCopyView({ api, byId, context, busy, rerender, focus }) {
-  const receipts = new Map(), unknown = new Set();
+  const receipts = new Map(), confirmedReceipts = new Map(), unknown = new Set();
   let confirmation = null;
   let persistent = false;
   const refusal = c => unknown.has(c.selected) ? 'copy-outcome-unknown' : copyRefusal(c.controller?.state(), c);
   function render(s) {
     const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
     persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-    byId('create-test-copy').textContent = persistent ? 'Create persistent test copy…' : '创建测试副本';
+    byId('create-test-copy').textContent = persistent ? 'Save as new file…' : '创建测试副本';
     byId('confirm-test-copy').textContent = persistent ? 'Choose location…' : 'Create new test copy';
     byId('test-copy-description').textContent = persistent
-      ? 'New copy only, in a dedicated EMPTY local APFS test folder. Current writing remains in memory and Not saved. No overwrite or general Save As.'
+      ? 'Create a new .md in a supported local APFS folder directly under your home folder. Existing files are never overwritten. Current writing remains Not saved; later edits do not update the new file. Cloud/sync folders are not supported.'
       : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;
@@ -32,10 +32,15 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     byId('test-copy-confirmation').hidden = !confirmation || confirmation.sessionId !== c.selected;
     const receipt = receipts.get(c.selected) || s.confirmed.copyState;
     const confirmed = receipt?.ok === true && receipt.state === 'created-confirmed';
-    byId('test-copy-result').textContent = confirmed
-      ? `${persistent ? 'Persistent test copy' : 'Test copy'} created: revision ${receipt.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${receipt.filePath}\nSHA-256: ${receipt.sha256}`
+    // Display history only: never use an earlier success to clear the latest refusal/unknown state.
+    if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
+    const last = confirmedReceipts.get(c.selected);
+    byId('test-copy-result').textContent = last
+      ? `Last confirmed copy — ${persistent ? 'New Markdown file' : 'Test copy'} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${last.filePath}\nSHA-256: ${last.sha256}` : '';
+    byId('test-copy-operation').textContent = confirmed
+      ? `Latest operation: copy confirmed for revision ${receipt.revision}.`
       : receipt && (receipt.code || receipt.state !== 'not-created')
-        ? `Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || 'not-created'}; created: ${String(receipt.created ?? 'unknown')}. No automatic retry or cleanup.\n${receipt.filePath || ''}` : '';
+        ? `Latest operation: Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || 'not-created'}; created: ${String(receipt.created ?? 'unknown')}. No automatic retry or cleanup.\n${receipt.filePath || ''}` : '';
   }
   function finish() {
     confirmation = null; busy(false); rerender();
@@ -49,7 +54,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     const s = c.controller.state().confirmed;
     confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
     busy(true); // Freeze edits, history and switching through confirmation and response.
-    byId('test-copy-confirm-revision').textContent = `Create a new test copy of confirmed revision ${s.revision}?`;
+    byId('test-copy-confirm-revision').textContent = `Create a new ${persistent ? 'Markdown file' : 'test copy'} of confirmed revision ${s.revision}?`;
     byId('confirm-test-copy').disabled = false; byId('cancel-test-copy').disabled = false; rerender();
   };
   byId('cancel-test-copy').onclick = () => { if (confirmation) finish(); }; // No IPC or source mutation.

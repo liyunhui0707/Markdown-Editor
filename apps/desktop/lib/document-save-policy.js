@@ -127,20 +127,28 @@ function createIsolatedCreatePolicy({ fs = nativeFs, isolatedCreateRoot } = {}) 
 }
 
 
-// Persistent Copy V1: explicitly selected, EMPTY dedicated test folders only.
-// No automatic chmod, deletion, marker creation or expansion to normal folders.
+// Save As New File V1: explicitly selected ordinary local folders directly under home.
+// No automatic chmod, deletion or overwrite. Known cloud/system locations fail closed;
+// arbitrary third-party sync agents cannot be detected, so selection also requires user confirmation.
 const directoryIdentity = s => ({ dev: String(s.dev), ino: String(s.ino),
   mode: Number(s.mode & 0o7777n), uid: Number(s.uid), gid: Number(s.gid) });
 const equalDirectory = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const copyName = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name);
+const copyName = name => typeof name === 'string' && name.isWellFormed()
+  && name === name.trim() && !name.startsWith('.') && /\.md$/i.test(name)
+  && !/[\\/:\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/u.test(name)
+  && Buffer.byteLength(name, 'utf8') <= 255;
+const unsupportedFolder = name => name.startsWith('.')
+  || /^(?:Desktop|Documents|Library|Applications)$/i.test(name)
+  || /^(?:Dropbox|OneDrive|Google[ -]?Drive|iCloud|Box(?:[ -]|$)|Nextcloud|Syncthing)/i.test(name);
 function persistentDirectory(root) {
   const home = nativeFs.realpathSync(os.homedir());
   if (process.platform !== 'darwin' || typeof root !== 'string' || !path.isAbsolute(root)
-      || path.dirname(root) !== home || !/^Markdown-Persistent-Test-[A-Za-z0-9_-]{1,64}$/.test(path.basename(root))
+      || path.dirname(root) !== home || unsupportedFolder(path.basename(root))
       || nativeFs.realpathSync(root) !== root) return deny('unsupported-copy-directory');
   const s = nativeFs.lstatSync(root, { bigint: true });
   if (!s.isDirectory() || s.isSymbolicLink() || s.dev !== nativeFs.statSync(home, { bigint: true }).dev || Number(s.uid) !== process.getuid()
-      || (s.mode & 0o022n) !== 0n) return deny('unsupported-copy-directory');
+      || (s.mode & 0o022n) !== 0n || (s.mode & 0o300n) !== 0o300n) return deny('unsupported-copy-directory');
+  nativeFs.accessSync(root, nativeFs.constants.W_OK | nativeFs.constants.X_OK);
   const run = (exe, args) => {
     const r = spawnSync(exe, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 131072,
       env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LC_ALL: 'C' } });
@@ -167,7 +175,6 @@ function captureCopyDestination(filePath) {
     };
     // lstat also detects dangling symlinks. Never consult existsSync for exclusion.
     try { nativeFs.lstatSync(filePath); return deny('target-exists'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    if (nativeFs.readdirSync(root).length !== 0) return deny('copy-directory-not-empty');
     verify();
     return { root, name, filePath, state, verify,
       close() { if (fd !== undefined) { const owned = fd; fd = undefined; nativeFs.closeSync(owned); } } };
@@ -183,8 +190,8 @@ function createPersistentCreatePolicy(task) {
     return root;
   }
   verify();
-  // A raced-in file after this check is still protected by O_EXCL.
-  if (nativeFs.readdirSync('.').length !== 0) return deny('copy-directory-not-empty');
+  // Other directory entries are not read. O_EXCL protects the selected target even
+  // if another process creates it after authorization; cwd pins this directory.
   return { verify, authorizeSource() { return deny('synthetic-copy-required'); } };
 }
 module.exports = { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata,

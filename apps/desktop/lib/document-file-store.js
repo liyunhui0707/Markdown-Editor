@@ -3,7 +3,7 @@ const nativeFs = require('node:fs');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isSessionLocation } = require('./editor-path-policy');
-const { createSavePolicy, createIsolatedCreatePolicy, createPersistentCreatePolicy, inspectMacMetadata } = require('./document-save-policy');
+const { createSavePolicy, createIsolatedCreatePolicy, createPersistentCreatePolicy, inspectMacMetadata, copyName } = require('./document-save-policy');
 // Process-local exclusion only. It does not coordinate external applications.
 const activeSaves = new Set();
 
@@ -222,7 +222,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       return current;
     };
     try {
-      if (typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name)
+      if (typeof name !== 'string' || !(persistentCreateTask ? copyName(name) : /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name))
           || !Buffer.isBuffer(input) || input.length > 1048576) throw error('invalid-create-request', 'Expected bounded bytes and a synthetic Markdown filename.');
       bytes = Buffer.from(input);
       const root = createPolicy.verify(); filePath = path.join(root, name);
@@ -272,7 +272,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       // Never unlink or retry: even a partial/uncertain file is retained.
     }
     return { ...result, ...(owned ? { fileIdentity: `${owned.dev}:${owned.ino}` } : {}),
-      realFileSafe: false, safety: persistentCreateTask ? 'dedicated-persistent-test-copy-only' : 'isolated-synthetic-create-only' };
+      realFileSafe: false, safety: persistentCreateTask ? 'supported-local-new-file-only' : 'isolated-synthetic-create-only' };
   }
 
   function confirmDurability(expected) {

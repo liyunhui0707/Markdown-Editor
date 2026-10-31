@@ -63,11 +63,10 @@ for (const source of [text, '\ufeff---\r\na: synthetic\r\n---\r\n\r\n第一段�
     assert.equal(hash(fs.readFileSync(dest.filePath)), r.sha256);
   });
 }
-for (const kind of ['existing','symlink','nonempty','writable-by-others','tmp','wrong-name']) test('destination rejects '+kind, () => {
+for (const kind of ['existing','symlink','writable-by-others','tmp','wrong-name']) test('destination rejects '+kind, () => {
   const d = destination(); let file = d.filePath;
   if (kind === 'existing') fs.writeFileSync(file, 'SENTINEL', { flag: 'wx' });
   if (kind === 'symlink') fs.symlinkSync('missing.md', file);
-  if (kind === 'nonempty') fs.writeFileSync(path.join(d.dir,'untouched.md'), 'SENTINEL', { flag: 'wx' });
   if (kind === 'writable-by-others') fs.chmodSync(d.dir,0o777);
   if (kind === 'tmp') file = path.join(os.tmpdir(),'copy.md');
   if (kind === 'wrong-name') file = path.join(d.dir,'../escape.md');
@@ -184,3 +183,59 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
     assert.equal(call({ operation: 'save', sessionId: copy.sessionId, expectedRevision: 3 }).code, 'temporary-not-persistable');
   });
 }
+
+// Save As New File V1: only synthetic folders/files are created by these tests.
+function ordinaryDestination(name = '新文档 😀.md') {
+  const dir = fs.mkdtempSync(path.join(os.homedir(), 'Writing-synthetic-'));
+  fs.chmodSync(dir, 0o700);
+  const sentinel = path.join(dir, 'untouched.md');
+  fs.writeFileSync(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
+  return { dir, sentinel, filePath: path.join(dir, name) };
+}
+test('save as new: nonempty ordinary owned folder and Unicode filename, exact bytes and fresh reopen', async () => {
+  const d = ordinaryDestination(), f = fixture(createCopyProcess({ fork: nodeFork() }).create);
+  const bytes = Buffer.from('\ufeffFirst 中文😀\r\n\r\nSecond with no final newline');
+  f.document.edit({ from: 0, to: f.document.text.length, insert: bytes.toString() });
+  const before = { revision: f.document.revision, dirty: f.document.dirty, source: f.document.text };
+  const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.state, 'created-confirmed');
+  assert.deepEqual(fs.readFileSync(d.filePath), bytes); assert.equal(r.sha256, hash(bytes));
+  assert.equal(fs.readFileSync(d.sentinel, 'utf8'), 'UNTOUCHED');
+  assert.deepEqual({ revision: f.document.revision, dirty: f.document.dirty, source: f.document.text }, before);
+  const read = spawnSync(process.execPath, ['-e', `const r=require(${JSON.stringify(require.resolve('../lib/document-service'))}).createDocumentService().open(process.argv[1]);if(!r.ok)process.exit(1);console.log(r.document.bytesForSave().toString('base64'));`, d.filePath], { encoding: 'utf8', timeout: 5000 });
+  assert.equal(read.status, 0, read.stderr); assert.deepEqual(Buffer.from(read.stdout.trim(), 'base64'), bytes);
+  assert.equal((await f.service.createPersistentCopy(f.document, f.request(d.filePath))).code, 'target-exists');
+  assert.deepEqual(fs.readFileSync(d.filePath), bytes);
+  const again = await f.service.createPersistentCopy(f.document, f.request(path.join(d.dir, 'Another copy.md')));
+  assert.equal(again.ok, true, JSON.stringify(again));
+});
+test('save as new: raced-in target survives exclusive creation, even in a nonempty folder', async () => {
+  const d = ordinaryDestination();
+  const writer = createCopyProcess({ fork: nodeFork({ beforeTask: () => fs.writeFileSync(d.filePath, 'RACED-IN', { flag: 'wx', mode: 0o600 }) }) });
+  const r = await writer.create({ filePath: d.filePath, bytes: Buffer.from(text), revision: 1, isAuthorized: () => true });
+  assert.equal(r.ok, false); assert.equal(r.state, 'target-exists'); assert.equal(r.created, false);
+  assert.equal(fs.readFileSync(d.filePath, 'utf8'), 'RACED-IN');
+  assert.equal(fs.readFileSync(d.sentinel, 'utf8'), 'UNTOUCHED');
+});
+test('save as new: ordinary folder identity change cannot redirect writer', async () => {
+  const d = ordinaryDestination('plain.md'), moved = d.dir + '-moved';
+  const writer = createCopyProcess({ fork: nodeFork({ beforeTask: () => { fs.renameSync(d.dir, moved); fs.mkdirSync(d.dir, { mode: 0o700 }); } }) });
+  const r = await writer.create({ filePath: d.filePath, bytes: Buffer.from(text), revision: 1, isAuthorized: () => true });
+  assert.equal(r.ok, false); assert.equal(fs.existsSync(d.filePath), false);
+  assert.equal(fs.readFileSync(path.join(moved, 'untouched.md'), 'utf8'), 'UNTOUCHED');
+});
+test('save as new: unsupported locations and unsafe names fail before creation', () => {
+  const { copyName } = require('../lib/document-save-policy');
+  for (const name of ['新文档 😀.md', 'Another copy.md', 'UPPER.MD']) assert.equal(copyName(name), true, name);
+  for (const name of ['../escape.md', 'a/b.md', 'a\\b.md', '.hidden.md', 'trailing.md ', 'a:b.md', 'line\nname.md', 'a\u202ename.md', 'a\ud800.md', '中'.repeat(85) + '.md']) assert.equal(copyName(name), false, JSON.stringify(name));
+  // Reserved locations are refused before metadata/content reads; no real files accessed.
+  for (const name of ['Desktop','Documents','Library','Dropbox','OneDrive - Work','Google Drive','iCloud Drive','.hidden']) {
+    assert.throws(() => captureCopyDestination(path.join(os.homedir(), name, 'new.md')), { code: 'unsupported-copy-directory' });
+  }
+  const d = ordinaryDestination('plain.md');
+  const linked = d.dir + '-link'; fs.symlinkSync(d.dir, linked);
+  assert.throws(() => captureCopyDestination(path.join(linked, 'new.md')), { code: 'unsupported-copy-directory' });
+  fs.chmodSync(d.dir, 0o500);
+  assert.throws(() => captureCopyDestination(d.filePath), { code: 'unsupported-copy-directory' });
+  assert.equal(fs.readFileSync(d.sentinel, 'utf8'), 'UNTOUCHED');
+});

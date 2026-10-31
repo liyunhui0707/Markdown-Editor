@@ -769,30 +769,46 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
       globalThis.persistentDialog = { canceled: true, filePath, calls: [] };
       dialog.showMessageBox = async () => ({ response: 1 }); // Consent fixture, no native automation claim.
       dialog.showSaveDialog = async (_win, options) => {
-        globalThis.persistentDialog.calls.push({ bookmarks: options.securityScopedBookmarks, title: options.title });
+        globalThis.persistentDialog.calls.push({ bookmarks: options.securityScopedBookmarks, title: options.title, defaultPath: options.defaultPath, message: options.message });
         return { canceled: globalThis.persistentDialog.canceled, filePath: globalThis.persistentDialog.filePath };
       };
       dialog.showMessageBoxSync = () => 1;
     }, target);
     const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('create-cancelled');
+    await create();
+    await expect.poll(() => app.evaluate(() => globalThis.persistentDialog.calls.length)).toBe(1);
+    const saveOptions = await app.evaluate(() => globalThis.persistentDialog.calls[0]);
+    expect(saveOptions.defaultPath).toBe('Untitled.md');
+    expect(saveOptions.message).toContain('home folder itself is not supported');
+    expect(saveOptions.message).toContain('directly inside your home');
+    await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
     expect((await snapshot(temporary)).snapshot.source).toBe(before.source);
     await expect.poll(async () => { try { await fs.lstat(target); return true; } catch { return false; } }).toBe(false);
     await app.evaluate(() => { globalThis.persistentDialog.canceled = false; });
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('Persistent test copy created: revision');
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('New Markdown file created: revision');
+    const lastConfirmed = await page.locator('#test-copy-result').textContent();
     const after = (await snapshot(temporary)).snapshot; receipt = after.copyState;
     expect(receipt.ok).toBe(true); expect(receipt.filePath).toBe(target); expect(after.revision).toBe(before.revision);
     expect(after.dirty).toBe(before.dirty); expect(after.canUndo).toBe(before.canUndo); expect(after.canRedo).toBe(before.canRedo);
     original = await fs.readFile(target); expect(original.toString()).toBe(before.source);
     expect(require('node:crypto').createHash('sha256').update(original).digest('hex')).toBe(receipt.sha256);
-    expect(await app.evaluate(() => globalThis.persistentDialog.calls)).toEqual([
-      { bookmarks: false, title: 'Create NEW persistent test copy' }, { bookmarks: false, title: 'Create NEW persistent test copy' }
+    expect(await app.evaluate(() => globalThis.persistentDialog.calls.map(({ bookmarks, title }) => ({ bookmarks, title })))).toEqual([
+      { bookmarks: false, title: 'Save as NEW Markdown file' }, { bookmarks: false, title: 'Save as NEW Markdown file' }
     ]);
     await select('#editor p:last-child', 'Second paragraph.'.length);
     await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('THIRD'); await settled();
     expect((await snapshot(temporary)).snapshot.source).toContain('THIRD'); expect((await fs.readFile(target)).equals(original)).toBe(true);
     await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('target-exists');
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('target-exists');
+    await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
+    expect(lastConfirmed).toContain(receipt.filePath); expect(lastConfirmed).toContain(receipt.sha256);
+    expect(lastConfirmed).toContain('revision ' + receipt.revision);
+    expect((await fs.readFile(target)).equals(original)).toBe(true);
+    const current = (await snapshot(temporary)).snapshot;
+    await app.evaluate(() => { globalThis.persistentDialog.canceled = true; });
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
+    await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
+    expect((await snapshot(temporary)).snapshot).toEqual(current);
     expect((await fs.readFile(target)).equals(original)).toBe(true);
     const shot = info.outputPath('persistent-copy.png'); await page.screenshot({ path: shot }); await info.attach('persistent-copy', { path: shot, contentType: 'image/png' });
   }, info, null, true, true, true);
@@ -814,8 +830,9 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
   const originalPath = path.join(inputs, 'original.md');
   const raw = '\ufeff---\r\nkind: synthetic\r\n---\r\n\r\nFirst 中文😀\r\n\r\nSecond.\r\n\r\n::: untouched';
   const bytes = Buffer.from(raw); await fs.writeFile(originalPath, bytes, { flag: 'wx', mode: 0o600 });
-  const dest = await fs.mkdtemp(path.join(os.homedir(), 'Markdown-Persistent-Test-Editing-')); await fs.chmod(dest, 0o700);
-  const target = path.join(dest, 'edited.md'); let written, receipt;
+  const dest = await fs.mkdtemp(path.join(os.homedir(), 'Writing-synthetic-E2E-')); await fs.chmod(dest, 0o700);
+  const target = path.join(dest, '编辑后的副本 😀.md'); let written, receipt;
+  const sentinel = path.join(dest, 'untouched.md'); await fs.writeFile(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
   await usingDemo(async ({ app, page, snapshot, select, settled, projectSource }) => {
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] });
@@ -859,24 +876,37 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
       dialog.showSaveDialog = async () => ({ canceled: globalThis.editingSaveCancel, filePath });
     }, target);
     const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('create-cancelled');
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
     expect((await snapshot(copy)).snapshot.source).toBe(split); await expect.poll(() => fs.access(target).then(() => true, () => false)).toBe(false);
     await app.evaluate(() => { globalThis.editingSaveCancel = false; });
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('Persistent test copy created: revision');
+    await expect(page.locator('#create-test-copy')).toHaveText('Save as new file…');
+    await create(); await expect(page.locator('#test-copy-result')).toContainText('New Markdown file created: revision');
+    const lastConfirmed = await page.locator('#test-copy-result').textContent();
+    expect(await fs.readFile(sentinel, 'utf8')).toBe('UNTOUCHED');
     const after = (await snapshot(copy)).snapshot; receipt = after.copyState; written = await fs.readFile(target);
     expect(written.equals(Buffer.from('\ufeff' + split))).toBe(true); expect(hash(written)).toBe(receipt.sha256);
     for (const key of ['source','revision','dirty','canUndo','canRedo']) expect(after[key]).toBe(before[key]);
     await select('#editor p:first-of-type', 0); await page.keyboard.type('LATER '); await settled();
     expect((await fs.readFile(target)).equals(written)).toBe(true);
-    await create(); await expect(page.locator('#test-copy-result')).toContainText('target-exists');
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('target-exists');
+    await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
+    expect(lastConfirmed).toContain(receipt.filePath); expect(lastConfirmed).toContain(receipt.sha256);
+    expect(lastConfirmed).toContain('revision ' + receipt.revision);
     await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
     expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
+    const current = (await snapshot(copy)).snapshot;
+    await page.locator('#documents').selectOption(original);
+    await expect(page.locator('#test-copy-panel')).toBeHidden();
+    await page.locator('#documents').selectOption(copy);
+    await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
+    await expect(page.locator('#test-copy-operation')).toContainText('target-exists');
+    expect((await snapshot(copy)).snapshot).toEqual(current);
     const shot = info.outputPath('existing-document-copy.png'); await page.screenshot({ path: shot });
     await info.attach('existing-document-copy', { path: shot, contentType: 'image/png' });
   }, info, null, true, true, true);
   await usingDemo(async ({ app, page, snapshot }) => {
     await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
-    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('edited.md');
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('编辑后的副本 😀.md');
     const id = await page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
     const reopened = (await snapshot(id)).snapshot;
     expect(reopened.readOnly).toBe(true); expect(reopened.bom).toBe(true); expect(reopened.source).toBe(written.toString().slice(1));
