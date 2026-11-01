@@ -8,14 +8,20 @@ const { captureCopyDestination } = require('../lib/document-save-policy');
 const { createCopyProcess } = require('../lib/document-copy-process');
 const { createDocumentService } = require('../lib/document-service');
 const { createDocumentSessions } = require('../lib/document-session-ipc');
+const { createHomeFixture } = require('./helpers/home-fixture.cjs');
 const hash = b => createHash('sha256').update(b).digest('hex');
 const text = 'First 中文 😀\n\nSecond paragraph.';
 const baselineCwd = process.cwd();
-function destination() {
-  // Never reuse an existing directory or inspect real notes. Retain all fixtures.
-  const dir = fs.mkdtempSync(path.join(os.homedir(), 'Markdown-Persistent-Test-V1-'));
-  fs.chmodSync(dir, 0o700);
-  return { dir, filePath: path.join(dir, 'copy.md') };
+function destination({ cleanup = false } = {}) {
+  const owned = createHomeFixture('Markdown-Persistent-Test-V1-');
+  if (!cleanup) owned.keep('negative-or-uncertain-test-evidence');
+  return { dir: owned.dir, filePath: path.join(owned.dir, 'copy.md'), owned };
+}
+function reclaim(owned) {
+  // Last statement of a passing case, after writer exit and fresh-reader completion.
+  const result = owned.cleanup({ passed: true, quiescent: true });
+  assert.equal(result.state, 'removed', JSON.stringify(result));
+  console.log('home-fixture-cleanup:' + JSON.stringify(result));
 }
 function nodeFork(hooks = {}) {
   return (entry, args, options) => {
@@ -49,11 +55,12 @@ function fixture(writer) {
 }
 for (const source of [text, '\ufeff---\r\na: synthetic\r\n---\r\n\r\n第一段😀\r\n\r\nsecond']) {
   test('actual child creation, exit and fresh reader preserve exact source ' + (source.startsWith('\ufeff') ? 'BOM/CRLF' : 'LF'), async () => {
-    const dest = destination(), processCopy = createCopyProcess({ fork: nodeFork() });
+    const dest = destination({ cleanup: true }), processCopy = createCopyProcess({ fork: nodeFork() });
     const f = fixture(processCopy.create); f.document.edit({ from: 0, to: f.document.text.length, insert: source });
     const before = { source: f.document.text, revision: f.document.revision, dirty: f.document.dirty, original: f.document.originalBytes };
     const r = await f.service.createPersistentCopy(f.document, f.request(dest.filePath));
     assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.state, 'created-confirmed');
+    dest.owned.recordFile('copy.md', f.document.bytesForSave());
     assert.deepEqual(fs.readFileSync(dest.filePath), f.document.bytesForSave());
     assert.deepEqual({ source: f.document.text, revision: f.document.revision, dirty: f.document.dirty, original: f.document.originalBytes }, before);
     assert.equal(f.service.save(f.document, { expectedRevision: f.document.revision }).code, 'coordination-required');
@@ -61,6 +68,7 @@ for (const source of [text, '\ufeff---\r\na: synthetic\r\n---\r\n\r\n第一段�
     assert.equal(read.status, 0, read.stderr); assert.equal(read.signal, null); assert.equal(read.stdout.trim(), r.sha256);
     f.document.edit({ from: f.document.text.length, to: f.document.text.length, insert: '\n\nTHIRD' });
     assert.equal(hash(fs.readFileSync(dest.filePath)), r.sha256);
+    reclaim(dest.owned);
   });
 }
 for (const kind of ['existing','symlink','writable-by-others','tmp','wrong-name']) test('destination rejects '+kind, () => {
@@ -165,9 +173,10 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
     assert.equal(edited.ok, true); copy = edited.snapshot;
     const q = { operation: 'create-persistent-copy', sessionId: copy.sessionId, expectedRevision: copy.revision, expectedSha256: copy.copySha256 };
     const cancelled = await call(q); assert.equal(cancelled.code, 'create-cancelled'); assert.deepEqual(cancelled.snapshot, copy);
-    const d = destination(); selected = { canceled: false, filePath: d.filePath };
+    const d = destination({ cleanup: true }); selected = { canceled: false, filePath: d.filePath };
     const result = await call(q); assert.equal(result.ok, true, JSON.stringify(result));
     const expected = Buffer.from(raw.replace('First 中文😀', 'First 中文😀 EDITED'));
+    d.owned.recordFile('copy.md', expected);
     assert.deepEqual(fs.readFileSync(d.filePath), expected); assert.equal(result.copy.sha256, hash(expected));
     for (const field of ['source','revision','dirty','canUndo','canRedo']) assert.equal(result.snapshot[field], copy[field]);
     assert.deepEqual(call({ operation: 'snapshot', sessionId: id }).snapshot, original);
@@ -181,25 +190,28 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
     assert.equal(reader.status, 0); assert.deepEqual(Buffer.from(reader.stdout.trim(), 'base64'), expected);
     assert.equal(call({ operation: 'save', sessionId: id, expectedRevision: 0 }).code, 'read-only-document');
     assert.equal(call({ operation: 'save', sessionId: copy.sessionId, expectedRevision: 3 }).code, 'temporary-not-persistable');
+    reclaim(d.owned);
   });
 }
 
 // Save As New File V1: only synthetic folders/files are created by these tests.
-function ordinaryDestination(name = '新文档 😀.md') {
-  const dir = fs.mkdtempSync(path.join(os.homedir(), 'Writing-synthetic-'));
-  fs.chmodSync(dir, 0o700);
+function ordinaryDestination(name = '新文档 😀.md', { cleanup = false } = {}) {
+  const owned = createHomeFixture('Writing-synthetic-'), dir = owned.dir;
   const sentinel = path.join(dir, 'untouched.md');
   fs.writeFileSync(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
-  return { dir, sentinel, filePath: path.join(dir, name) };
+  if (cleanup) owned.recordFile('untouched.md', Buffer.from('UNTOUCHED'));
+  else owned.keep('negative-or-race-test-evidence');
+  return { dir, sentinel, filePath: path.join(dir, name), owned };
 }
 test('save as new: nonempty ordinary owned folder and Unicode filename, exact bytes and fresh reopen', async () => {
-  const d = ordinaryDestination(), f = fixture(createCopyProcess({ fork: nodeFork() }).create);
+  const d = ordinaryDestination(undefined, { cleanup: true }), f = fixture(createCopyProcess({ fork: nodeFork() }).create);
   const bytes = Buffer.from('\ufeffFirst 中文😀\r\n\r\nSecond with no final newline');
   f.document.edit({ from: 0, to: f.document.text.length, insert: bytes.toString() });
   const before = { revision: f.document.revision, dirty: f.document.dirty, source: f.document.text };
   const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
   assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.state, 'created-confirmed');
   assert.deepEqual(fs.readFileSync(d.filePath), bytes); assert.equal(r.sha256, hash(bytes));
+  d.owned.recordFile(path.basename(d.filePath), bytes);
   assert.equal(fs.readFileSync(d.sentinel, 'utf8'), 'UNTOUCHED');
   assert.deepEqual({ revision: f.document.revision, dirty: f.document.dirty, source: f.document.text }, before);
   const read = spawnSync(process.execPath, ['-e', `const r=require(${JSON.stringify(require.resolve('../lib/document-service'))}).createDocumentService().open(process.argv[1]);if(!r.ok)process.exit(1);console.log(r.document.bytesForSave().toString('base64'));`, d.filePath], { encoding: 'utf8', timeout: 5000 });
@@ -208,6 +220,8 @@ test('save as new: nonempty ordinary owned folder and Unicode filename, exact by
   assert.deepEqual(fs.readFileSync(d.filePath), bytes);
   const again = await f.service.createPersistentCopy(f.document, f.request(path.join(d.dir, 'Another copy.md')));
   assert.equal(again.ok, true, JSON.stringify(again));
+  d.owned.recordFile('Another copy.md', bytes);
+  reclaim(d.owned);
 });
 test('save as new: raced-in target survives exclusive creation, even in a nonempty folder', async () => {
   const d = ordinaryDestination();

@@ -2,6 +2,7 @@ const { test, expect, _electron: electron } = require('@playwright/test');
 const fs = require('node:fs/promises'), path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { createHomeFixture } = require('../test/helpers/home-fixture.cjs');
 const desktop = path.resolve(__dirname, '..');
 const gone = pid => { try { process.kill(pid, 0); return false; } catch (e) { if (e.code === 'ESRCH') return true; throw e; } };
 function owned(pid) {
@@ -755,8 +756,8 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
 
 
 test('persistent copy V1 creates a selected new file and reopens after Electron exit', async ({}, info) => {
-  const dir = await fs.mkdtemp(path.join(require('node:os').homedir(), 'Markdown-Persistent-Test-E2E-'));
-  await fs.chmod(dir, 0o700); const target = path.join(dir, 'persistent.md');
+  const ownedFixture = createHomeFixture('Markdown-Persistent-Test-E2E-'), dir = ownedFixture.dir;
+  const target = path.join(dir, 'persistent.md');
   let receipt, original;
   await usingDemo(async ({ app, page, snapshot, settled, select }) => {
     await page.locator('#new-temporary').click(); await expect(page.locator('#editor p')).toHaveCount(1);
@@ -791,6 +792,7 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     expect(receipt.ok).toBe(true); expect(receipt.filePath).toBe(target); expect(after.revision).toBe(before.revision);
     expect(after.dirty).toBe(before.dirty); expect(after.canUndo).toBe(before.canUndo); expect(after.canRedo).toBe(before.canRedo);
     original = await fs.readFile(target); expect(original.toString()).toBe(before.source);
+    ownedFixture.recordFile('persistent.md', original);
     expect(require('node:crypto').createHash('sha256').update(original).digest('hex')).toBe(receipt.sha256);
     expect(await app.evaluate(() => globalThis.persistentDialog.calls.map(({ bookmarks, title }) => ({ bookmarks, title })))).toEqual([
       { bookmarks: false, title: 'Save as NEW Markdown file' }, { bookmarks: false, title: 'Save as NEW Markdown file' }
@@ -821,6 +823,10 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     for (const op of ['save','createPersistentCopy']) expect((await page.evaluate(async ({ op, id, revision }) => window.documentDemo[op]({ sessionId: id, expectedRevision: revision }), { op, id, revision: reopened.revision })).code).toBe('read-only-document');
     expect((await fs.readFile(target)).equals(original)).toBe(true);
   }, info, null, true);
+  // Both Electron processes and their sessions have exited; no cleanup on failure.
+  const cleanup = ownedFixture.cleanup({ passed: true, quiescent: true });
+  expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
 });
 
 
@@ -830,9 +836,10 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
   const originalPath = path.join(inputs, 'original.md');
   const raw = '\ufeff---\r\nkind: synthetic\r\n---\r\n\r\nFirst 中文😀\r\n\r\nSecond.\r\n\r\n::: untouched';
   const bytes = Buffer.from(raw); await fs.writeFile(originalPath, bytes, { flag: 'wx', mode: 0o600 });
-  const dest = await fs.mkdtemp(path.join(os.homedir(), 'Writing-synthetic-E2E-')); await fs.chmod(dest, 0o700);
+  const ownedFixture = createHomeFixture('Writing-synthetic-E2E-'), dest = ownedFixture.dir;
   const target = path.join(dest, '编辑后的副本 😀.md'); let written, receipt;
   const sentinel = path.join(dest, 'untouched.md'); await fs.writeFile(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
+  ownedFixture.recordFile('untouched.md', Buffer.from('UNTOUCHED'));
   await usingDemo(async ({ app, page, snapshot, select, settled, projectSource }) => {
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] });
@@ -885,6 +892,7 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
     expect(await fs.readFile(sentinel, 'utf8')).toBe('UNTOUCHED');
     const after = (await snapshot(copy)).snapshot; receipt = after.copyState; written = await fs.readFile(target);
     expect(written.equals(Buffer.from('\ufeff' + split))).toBe(true); expect(hash(written)).toBe(receipt.sha256);
+    ownedFixture.recordFile(path.basename(target), written);
     for (const key of ['source','revision','dirty','canUndo','canRedo']) expect(after[key]).toBe(before[key]);
     await select('#editor p:first-of-type', 0); await page.keyboard.type('LATER '); await settled();
     expect((await fs.readFile(target)).equals(written)).toBe(true);
@@ -913,6 +921,9 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
     expect(hash(await fs.readFile(target))).toBe(receipt.sha256); expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
   }, info, null, true);
+  const cleanup = ownedFixture.cleanup({ passed: true, quiescent: true });
+  expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
 });
 
 test('existing document editing V1 lost copy response keeps original identity and existing drafts', async ({}, info) => usingDemo(async ({ app, page, snapshot, select, settled }) => {
