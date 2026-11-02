@@ -504,3 +504,49 @@ test('CRLF P1: a corrupted internal separator cannot bypass the history source h
   corrupt=false;
   assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,'first\r\n\r\nsecond');
 });
+
+
+for (const nl of ['\n','\r\n']) test(`soft paragraph V1: real PM edits and service history preserve ${JSON.stringify(nl)}`, async () => {
+  const raw = '\ufeff---'+nl+'kind: synthetic'+nl+'---'+nl+nl+'First 中文😀'+nl+'second line.'+nl+nl+'Last.';
+  const h = harness(raw), initial = h.document.text, untouched = harness('Other session.');
+  assert.equal(h.state().doc.child(1).type.name, 'paragraph');
+  for (const [text, insert] of [['First 中文😀','中😀'],['second line.','NEXT']]) {
+    const s=h.span(text); assert.ok(s);
+    h.select(s.from+1,s.from+2); assert.equal(h.edit(s.from+1,s.from+2,insert),true); await h.controller.idle();
+    assert.equal(h.state().selection.from,s.from+1+insert.length);
+  }
+  const edited=h.document.text, before=h.request('snapshot').snapshot;
+  assert.equal(edited,initial.replace('First','F中😀rst').replace('second','sNEXTcond'));
+  assert.equal(h.request('edit',{expectedRevision:0,from:1,to:1,insert:'stale'}).code,'stale-revision');
+  assert.deepEqual(h.request('snapshot').snapshot,before);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(await h.controller.history('undo'),true);
+  assert.equal(h.document.text,initial); assert.equal(await h.controller.history('redo'),true);assert.equal(await h.controller.history('redo'),true);
+  assert.equal(h.document.text,edited); assert.deepEqual(h.document.bytesForSave(),Buffer.from('\ufeff'+edited));
+  assert.equal(untouched.document.text,'Other session.');assert.equal(untouched.request('snapshot').snapshot.canUndo,false);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('soft paragraph V1: controlled composition and queued typing preserve one source range', async () => {
+  const h=harness('First\r\nsecond.'); assert.ok(h.span('second.'));
+  const s=h.span('second.'); assert.equal(h.controller.beginComposition(),true);
+  assert.equal(h.edit(s.from,s.from+1,'zhong'),true);assert.equal(h.edit(s.from,s.from+5,'中😀'),true);
+  h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,'First\r\n中😀econd.');
+  assert.equal(h.document.revision,1);assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,'First\r\nsecond.');
+  h.delayed=true;let at=h.span('second.').from+1;
+  for(const text of ['A','B','中']) {assert.equal(h.edit(at,at,text),true);at+=text.length;}
+  await tick();h.delayed=false;h.replies.shift()();await h.controller.idle();
+  assert.equal(h.document.text,'First\r\nsAB中econd.');assert.equal(h.controller.state().pending,0);
+});
+test('soft paragraph V1: rejected break edits do not lock or contaminate history', async () => {
+  const h=harness('First\nsecond.\n\nLast.'),a=h.span('First'),b=h.span('second.');assert.ok(a&&b);
+  const before=h.request('snapshot').snapshot;
+  assert.equal(h.edit(a.to,b.from,''),false);assert.equal(h.controller.state().code,'unsafe-source-range');
+  h.select(a.from+1);let split;
+  assert.equal(splitBlock(h.state(),tr=>{split=tr;}),true);assert.equal(h.controller.prepare(split),false);
+  assert.deepEqual(h.request('snapshot').snapshot,before);assert.equal(h.controller.state().locked,false);
+  assert.equal(h.edit(b.from,b.from+1,'S'),true);await h.controller.idle();
+  assert.equal(h.document.text,'First\nSecond.\n\nLast.');assert.equal(await h.controller.history('undo'),true);
+  assert.equal(h.document.text,'First\nsecond.\n\nLast.');assert.equal(h.request('snapshot').snapshot.canUndo,false);
+  h.select(h.span('Last.').from+2);let accepted=false;
+  splitBlock(h.state(),tr=>{accepted=h.controller.prepare(tr);if(accepted)h.apply(tr);});await h.controller.idle();
+  assert.equal(accepted,true);assert.equal(h.document.text,'First\nsecond.\n\nLa\n\nst.');
+});

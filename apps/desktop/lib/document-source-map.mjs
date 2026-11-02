@@ -35,7 +35,21 @@ export function projectSource(source) {
     let supported = ['paragraph', 'heading'].includes(node.type) && node.position.start.line === node.position.end.line
       && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
     if (node.type === 'heading' && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
-    for (const child of node.children || []) {
+    // Plain soft-wrapped paragraphs share one PM text node. Source line breaks
+    // render as spaces with NO editable span; each source line keeps its own range.
+    const soft = node.type === 'paragraph' && node.position.start.line !== node.position.end.line
+      && node.children?.length === 1 && node.children[0].type === 'text' && node.children[0].value === raw
+      && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
+    if (soft) {
+      let textOffset = 0;
+      for (const match of raw.matchAll(/[^\r\n]+/g)) {
+        if (!validText(match[0])) break;
+        parts.push({ text: match[0], sourceFrom: start + match.index, sourceTo: start + match.index + match[0].length,
+          bold: false, textOffset });
+        textOffset += match[0].length + 1;
+      }
+      supported = parts.length >= 2 && parts.map(p => p.text).join(' ') === raw.replace(/\r\n|\n|\r/g, ' ');
+    } else for (const child of node.children || []) {
       const bold = child.type === 'strong';
       const leaf = bold && child.children?.length === 1 ? child.children[0] : child;
       const a = leaf.position?.start.offset, b = leaf.position?.end.offset;
@@ -60,7 +74,12 @@ export function projectSource(source) {
     const blockIndex = content.length;
     const block = { type: node.type, ...(node.type === 'heading' ? { attrs: { level: node.depth } } : {}), content: [] };
     let offset = 0;
-    for (const [childIndex, part] of parts.entries()) {
+    if (soft) {
+      block.content.push({ type: 'text', text: parts.map(p => p.text).join(' ') });
+      for (const part of parts) spans.push({ ...part, from: position + 1 + part.textOffset,
+        to: position + 1 + part.textOffset + part.text.length, blockIndex, childIndex: 0 });
+      offset = block.content[0].text.length;
+    } else for (const [childIndex, part] of parts.entries()) {
       spans.push({ ...part, from: position + 1 + offset, to: position + 1 + offset + part.text.length, blockIndex, childIndex });
       block.content.push({ type: 'text', text: part.text, ...(part.bold ? { marks: [{ type: 'bold' }] } : {}) });
       offset += part.text.length;
@@ -79,7 +98,7 @@ export function projectSource(source) {
 function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
   const { from, to, insert } = change, plain = span => {
     const block = projection.doc.content[span.blockIndex];
-    return block.type === 'paragraph' && !span.bold && (block.content || []).length <= 1;
+    return block.type === 'paragraph' && span.textOffset === undefined && !span.bold && (block.content || []).length <= 1;
   };
   const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
   // A trusted history separator survives even when a join removes every newline.
@@ -141,14 +160,17 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();
   const text = span.text.slice(0, a) + insert + span.text.slice(b);
-  if (!text && (projection.doc.content[span.blockIndex].type !== 'paragraph'
+  if (!text && (span.textOffset !== undefined || projection.doc.content[span.blockIndex].type !== 'paragraph'
       || span.bold || projection.doc.content[span.blockIndex].content.length > 1)) return unsafe();
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > 131072) return unsafe();
   const nextProjection = projectSource(next);
   const expected = structuredClone(projection.doc);
-  if (!span.text || !text) expected.content[span.blockIndex].content = text ? [{ type: 'text', text }] : [];
+  if (span.textOffset !== undefined) {
+    const node = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
+    node.text = node.text.slice(0, at) + text + node.text.slice(at + span.text.length);
+  } else if (!span.text || !text) expected.content[span.blockIndex].content = text ? [{ type: 'text', text }] : [];
   else expected.content[span.blockIndex].content[span.childIndex].text = text;
   if (!text && !nextProjection.spans.some(s => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();

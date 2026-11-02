@@ -206,3 +206,24 @@ The one authorized external review is PARTIAL (budget exit), not upgraded to PAS
 Codex A verified two P2s and no new confirmed P0/P1. No further Reviewer call.
 Proposed combined-feature checkpoint version: 0.30.0; current version stays 0.29.0
 until a separately authorized commit. No safety-policy expansion in these fixes.
+
+
+### Ordinary Paragraph Compatibility V1 (2026-11-01, uncommitted at 0.30.0)
+
+Plain top-level soft-wrapped source paragraphs now project to one PM paragraph,
+with per-source-line ranges and protected separators. LF/CRLF, Unicode and
+untouched content remain exact; cross-line/structural edits are explicitly refused.
+Source-map remains 179 lines; renderer 360, controller tests 552 and existing E2E
+1113: minimal additions reuse existing ownership rather than splitting frameworks.
+RED 1 PASS/8 FAIL; final 126 focused Node PASS, one Pro Electron edit/export/reopen
+PASS, two clean app exits, reproducible demo bundle. Native IME NOT VERIFIED and
+historical manual/phase 1B-3 FAIL remain. See the existing phase-1B3 contract for
+scope/evidence; no overwrite, version bump, commit or release acceptance.
+
+
+Ordinary Paragraph Compatibility V1 closeout (2026-11-02): local WIP version
+0.31.0. Codex A self-review found no new confirmed P0/P1; not independent review.
+Unchanged candidate evidence: 126 Node PASS, 1 Pro Electron PASS with 2 clean exits;
+additional in-memory probe: 318 reversible edits, 87 safe refusals. Only project
+version fields and this closeout record change; all existing native IME, formal
+phase FAIL, SEC-01 and overwrite limitations remain. No release/merge approval.

@@ -35,8 +35,8 @@ test('surrogate splitting, mark crossing, structural syntax and empty formatted 
     { from: bold.from, to: bold.from, insert: 'x' }, // ambiguous mark boundary
   ]) assert.equal(mapTextEdit(source, change).ok, false);
 });
-test('HTML, images, tables, unknown syntax, escaped/entities and multiline paragraphs are not editable', () => {
-  for (const s of ['<script>synthetic</script>', '![p](../x.png)', '| a |\n| - |\n| b |', '::: unknown', 'a &amp; b', 'a\\*b', 'one\ntwo']) {
+test('HTML, images, tables, unknown syntax, escaped/entities and unsupported multiline syntax are not editable', () => {
+  for (const s of ['<script>synthetic</script>', '![p](../x.png)', '| a |\n| - |\n| b |', '::: unknown', 'a &amp; b', 'a\\*b', 'one  \ntwo']) {
     assert.equal(projectSource(s).spans.length, 0, s);
     assert.equal(mapTextEdit(s, { from: 1, to: 2, insert: 'x' }).ok, false);
   }
@@ -108,4 +108,42 @@ for (const nl of ['\r\n','\n']) test(`CRLF P1: inverse uses the exact removed se
   assert.equal(undo.ok,true);assert.equal(undo.source,source);
   const redo=mapTextEdit(undo.source,undo.inverse,undo.leaf,undo.paragraphSeparator);
   assert.equal(redo.ok,true);assert.equal(redo.source,'firstsecond');
+});
+
+
+for (const breaks of [['\n', '\n'], ['\r\n', '\r\n'], ['\r\n', '\n']]) {
+  test(`soft paragraph V1: rendered spaces retain exact source ranges ${JSON.stringify(breaks)}`, () => {
+    const raw = 'First 中文😀' + breaks[0] + 'second e\u0301 👩‍💻' + breaks[1] + 'third.';
+    const source = '---\r\nkind: synthetic\r\n---\r\n\r\n' + raw + '\r\n\r\n![x](../x.png)';
+    const p = projectSource(source), [first, second, third] = p.spans;
+    assert.equal(p.spans.length, 3);
+    assert.deepEqual(p.doc.content[1], { type: 'paragraph', content: [{ type: 'text', text: 'First 中文😀 second e\u0301 👩‍💻 third.' }] });
+    for (const span of [first, second, third]) {
+      assert.equal(source.slice(span.sourceFrom, span.sourceTo), span.text);
+      const change = { from: span.from + 1, to: span.from + 2, insert: '新😀' };
+      const edited = mapTextEdit(source, change);
+      assert.equal(edited.ok, true);
+      assert.equal(edited.source, source.slice(0, span.sourceFrom + 1) + '新😀' + source.slice(span.sourceFrom + 2));
+      const undo = mapTextEdit(edited.source, { from: change.from, to: change.from + 3, insert: span.text.slice(1, 2) }, edited.leaf);
+      assert.equal(undo.ok, true); assert.equal(undo.source, source);
+      assert.equal(mapTextEdit(undo.source, change, edited.leaf).source, edited.source);
+    }
+    assert.equal(second.from - first.to, 1); assert.equal(third.from - second.to, 1);
+  });
+}
+test('soft paragraph V1: soft-break deletion, crossing, structural edits and UTF-16 splits fail closed', () => {
+  const source = 'First 😀\r\nsecond.\n\nLast.', p = projectSource(source), [a,b,last] = p.spans;
+  assert.equal(p.spans.length, 3);
+  for (const edit of [
+    { from:a.to,to:b.from,insert:'' }, { from:a.to-1,to:b.from+1,insert:'X' },
+    { from:a.from,to:a.from,insert:'\n\n' }, { from:b.to,to:last.from,insert:'' },
+    { from:b.from,to:b.to,insert:'' }, { from:a.to-1,to:a.to,insert:'X' },
+    { from:b.from,to:b.from,insert:'\ud800' }, { from:b.from,to:b.from,insert:'- ' },
+  ]) assert.equal(mapTextEdit(source, edit).ok, false, JSON.stringify(edit));
+  for (const at of [a.from,a.to,b.from,b.to]) assert.equal(mapTextEdit(source,{from:at,to:at,insert:'字'}).ok,true);
+});
+test('soft paragraph V1: no new support for hard breaks, indents, markup or transformed entities', () => {
+  for (const source of ['one  \ntwo','one\\\ntwo','one\n two','one\n\ttwo','one\n**two**','one\n*two*','one\n&amp;','one\n<script>x</script>']) {
+    assert.equal(projectSource(source).spans.some(s => s.text.includes('one') && s.textOffset !== undefined), false, source);
+  }
 });

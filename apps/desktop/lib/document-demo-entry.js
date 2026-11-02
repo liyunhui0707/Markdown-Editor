@@ -118,6 +118,8 @@ function render(s) {
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
+    else if (s.code === 'unsafe-source-range') viewerStatus('Edit not applied. Change text within one supported source line; source line breaks and unsupported Markdown are protected.', true);
+    else if (s.code === 'memory-edited') viewerStatus('Changes are in this unsaved copy. Existing files have not been modified.');
   }
   byId('composition-status').hidden = !s.composing;
   testCopyView.render(s); renderCompositionCopies(s); show();

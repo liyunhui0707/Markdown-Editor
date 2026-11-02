@@ -1046,3 +1046,68 @@ test('existing editing QA missing compositionend preserves copies and refuses to
   expect((await snapshot(id)).snapshot).toEqual(before);
   await expect(page.locator('#recovery')).toContainText('UNCONFIRMED-中文');
 }, info));
+
+
+test('soft paragraph V1 edits source lines, refuses crossing and saves exact new bytes', async ({}, info) => {
+  const os=require('node:os'),hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
+  const inputs=await fs.mkdtemp(path.join(os.tmpdir(),'soft-paragraph-input-')),originalPath=path.join(inputs,'soft.md');
+  const raw='\ufeff---\r\nkind: synthetic\r\n---\r\n\r\nFirst 中文😀\r\nsecond line.\r\n\r\nLast.\r\n\r\n```js\r\nKEEP();\r\n```\r\n\r\n![x](../x.png)';
+  const bytes=Buffer.from(raw);await fs.writeFile(originalPath,bytes,{flag:'wx',mode:0o600});
+  const ownedFixture=createHomeFixture('Writing-synthetic-E2E-'),target=path.join(ownedFixture.dir,'soft-edited.md');
+  let written,receipt;
+  await usingDemo(async({app,page,snapshot,select,settled})=>{
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});dialog.showMessageBoxSync=()=>1;},originalPath);
+    await page.keyboard.press('Meta+o');await expect(page.locator('#document-name')).toHaveText('soft.md');
+    await expect(page.locator('#editor p:first-of-type')).toHaveText('First 中文😀 second line.');
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const active=()=>page.evaluate(()=>JSON.parse(document.querySelector('#status').textContent).activeSessionId);
+    const original=await active(),originalSnapshot=(await snapshot(original)).snapshot;
+    await page.locator('#edit-copy').click();await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    const copy=await active();expect(copy).not.toBe(original);
+    await select('#editor p:first-of-type',1,2);await page.keyboard.type('X');await settled();
+    expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(2);
+    const second='First 中文😀'.length+1;
+    await select('#editor p:first-of-type',second,second+1);await page.keyboard.insertText('新😀');await settled();
+    expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(second+3);
+    const changed=raw.slice(1).replace('First','FXrst').replace('second','新😀econd');
+    expect((await snapshot(copy)).snapshot.source).toBe(changed);
+    await page.keyboard.press('Meta+z');await settled();expect((await snapshot(copy)).snapshot.source).toBe(raw.slice(1).replace('First','FXrst'));
+    await page.keyboard.press('Meta+Shift+z');await settled();expect((await snapshot(copy)).snapshot.source).toBe(changed);
+    const beforeReject=(await snapshot(copy)).snapshot;
+    await select('#editor p:first-of-type',second);await page.keyboard.press('Backspace');
+    await expect(page.locator('#viewer-status')).toContainText('Edit not applied');
+    expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
+    await select('#editor p:first-of-type',2);await page.keyboard.press('Enter');
+    await expect(page.locator('#viewer-status')).toContainText('Edit not applied');
+    expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
+    await select('#editor p:first-of-type',second+3);await page.keyboard.type('Y');await settled();
+    await expect(page.locator('#viewer-status')).not.toContainText('Edit not applied');
+    const expected=changed.replace('新😀econd','新😀Yecond');
+    expect((await snapshot(copy)).snapshot.source).toBe(expected);
+    await expect(page.locator('#editor pre').last()).toHaveAttribute('contenteditable','false');
+    await page.locator('#documents').selectOption(original);await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    expect((await snapshot(original)).snapshot).toEqual(originalSnapshot);
+    expect((await page.evaluate(id=>window.documentDemo.save({sessionId:id,expectedRevision:0}),original)).code).toBe('read-only-document');
+    await page.locator('#documents').selectOption(copy);await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await snapshot(copy)).snapshot.source).toBe(expected);
+    await app.evaluate(({dialog},filePath)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath});},target);
+    const before=(await snapshot(copy)).snapshot;
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#test-copy-result')).toContainText('New Markdown file created: revision');
+    const after=(await snapshot(copy)).snapshot;receipt=after.copyState;written=await fs.readFile(target);
+    expect(written.equals(Buffer.from('\ufeff'+expected))).toBe(true);expect(hash(written)).toBe(receipt.sha256);
+    ownedFixture.recordFile('soft-edited.md',written);
+    for(const k of ['source','revision','dirty','canUndo','canRedo'])expect(after[k]).toBe(before[k]);
+    expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
+    const screenshot=info.outputPath('soft-paragraph-writing.png');await page.screenshot({path:screenshot});await info.attach('soft-paragraph-writing',{path:screenshot,contentType:'image/png'});
+  },info,null,true,true,true);
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});},target);
+    await page.keyboard.press('Meta+o');await expect(page.locator('#document-name')).toHaveText('soft-edited.md');
+    const id=await page.evaluate(()=>JSON.parse(document.querySelector('#status').textContent).activeSessionId),r=(await snapshot(id)).snapshot;
+    expect(r.readOnly).toBe(true);expect(r.bom).toBe(true);expect(r.source).toBe(written.toString().slice(1));
+    await expect(page.locator('#editor p:first-of-type')).toHaveText('FXrst 中文😀 新😀Yecond line.');
+    expect(hash(await fs.readFile(target))).toBe(receipt.sha256);expect(hash(await fs.readFile(originalPath))).toBe(hash(bytes));
+  },info,null,true);
+  const cleanup=ownedFixture.cleanup({passed:true,quiescent:true});expect(cleanup.state,JSON.stringify(cleanup)).toBe('removed');console.log('home-fixture-cleanup:'+JSON.stringify(cleanup));
+});

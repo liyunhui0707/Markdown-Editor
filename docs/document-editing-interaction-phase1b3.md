@@ -1154,3 +1154,87 @@ external replacement; an accepted coordination mechanism must be demonstrated
 before enabling this slice. Otherwise keep `coordination-required` and refuse.
 External-change, symlink/hardlink, metadata, partial-write and unknown-result
 probes precede any real-file enablement. No such implementation starts here.
+
+
+## Ordinary Paragraph Compatibility V1 — bounded soft-line editing (2026-11-01)
+
+Implemented on 0.30.0 after checkpoint `2271c8e`; uncommitted, not release or
+phase 1B-3 acceptance. In the existing Document window, an ordinary top-level
+paragraph spanning source lines can now render as one paragraph and be edited
+through **Edit a copy**. Only plain text with an exact remark/source match is
+added. Bold or other inline syntax across lines, hard breaks, normalized/indented
+continuations and complex structures do not gain editing permission.
+
+A soft LF/CRLF/CR is displayed as one space in a single existing PM text node.
+Each original source line owns a distinct UTF-16 span and an offset in that node;
+the separator has no editable span. A supported edit splices only one source
+range and must reparse to the exact expected PM projection. No full-document
+serializer, source normalization, new controller/history or new IPC is introduced.
+Existing trusted history identity, before/after hashes and revision checks remain.
+BOM is still owned by Document Model; untouched source bytes and terminal-newline
+presence remain preserved. Mixed line-ending source ranges are covered directly.
+
+V1 deliberately refuses selection/deletion across soft breaks, emptying a whole
+source-line segment, Enter within a soft-wrapped paragraph, and merging that
+paragraph with its neighbor. Existing single-line Enter/Backspace behavior remains.
+A visible "Edit not applied" message explains protected source line boundaries;
+subsequent valid typing clears the message. A visual wrap caused by window width
+is not a source-line boundary. Unsupported blocks remain non-editable.
+
+Evidence (synthetic data only):
+- Before the mapping change, the nine new focused regressions gave 1 PASS / 8
+  FAIL: missing paragraph/spans prevented the supported operations. A subsequent
+  test setup correction selected the replaced character before asserting the PM
+  caret, matching actual selected-text input; no caret assertion was weakened.
+- Final focused Node 24.20.0: **126 PASS / 0 FAIL** across source-map, controller,
+  session IPC and readonly-open tests. Covers source fidelity, UTF-16, actual PM
+  transactions, queueing, controlled composition, stale revision, isolated
+  history, Undo/Redo, rejection without history mutation, and original disk bytes.
+- One new existing-harness Pro Electron E2E: **1 PASS**, open original -> editable
+  copy -> keyboard edits of both source lines -> Undo/Redo -> rejected Backspace
+  across soft break and Enter -> continued typing -> A/B switching -> actual
+  utility-writer new-file creation -> fresh-process readonly reopen. BOM/CRLF,
+  opaque blocks and no-final-newline are preserved; original SHA-256 is unchanged.
+  Both app processes exited code=0/signal=null, watchdog=false, fault=false,
+  remaining=false. Native file-dialog choices were stubbed; Chinese insertText
+  and controlled composition are **not native macOS Pinyin acceptance**.
+- Existing esbuild demo command plus a separate output rebuild produced identical
+  bytes. No dependency or version change. The sole new Home fixture was reclaimed
+  only after successful reopen and exit using the existing ownership helper.
+
+Local logs, screenshot, synthetic inputs and candidate fingerprints are in
+`/private/var/folders/nq/gs8zmwfs575fdrm8fmhlg12c0000gn/T/markdown-soft-paragraph-o49jmh1o/`.
+Product changes are limited to source-map and two renderer status lines plus the
+required generated bundle. Source-map is 179 lines; the established 360-line
+renderer receives no lifecycle refactor. Existing controller tests (552 lines)
+and E2E file (1113 lines) keep their shared harness rather than creating a new one.
+
+No native IME manual PASS, general Markdown editing, overwrite permission,
+packaged-app acceptance or independent reviewer PASS is claimed. Native Chinese
+IME remains NOT VERIFIED, prior manual QA FAIL and phase 1B-3 formal FAIL remain.
+SEC-01, composition recovery, memory-only drafts and save coordination limitations
+are unchanged. Save As New File retains its existing destination policy, exclusive
+creation, uncertain-outcome behavior and Not saved semantics. No Git checkpoint.
+
+
+### Ordinary Paragraph Compatibility V1 — local WIP checkpoint (2026-11-02)
+
+Version 0.31.0 preserves this bounded feature as a local development checkpoint.
+Codex A reviewed the nine-file diff and direct source-map/controller/history
+contracts; this is a local self-review, not independent second-model acceptance.
+No new confirmed P0/P1 was found. An additional pure-memory boundary probe checked
+318 accepted edits and 87 safe refusals across LF/CRLF/CR; accepted edits preserved
+exact source splices and line endings and replayed Undo/Redo byte-exactly.
+
+The 126 focused Node PASS, one real Pro Electron chain PASS and two normal process
+exits above are reused against matching source/test/bundle SHA-256 fingerprints.
+No functional code, tests or bundle changed at closeout. Versioning changes only
+the package version and the lockfile's two project versions; dependencies, scripts
+and packaging configuration are unchanged. The nine feature files and two version
+files form the checkpoint. No unrelated GUI, packaging or full suite was rerun.
+
+Soft-break crossing and multiline structural edits remain refused. Native Chinese
+IME remains NOT VERIFIED and the earlier manual QA FAIL is not cleared. Phase
+1B-3 formal FAIL, SEC-01, memory-only recovery, destination restrictions and
+coordination-required remain. No manual, independent review, merge or release PASS
+is implied. Cross-line Enter work is a separate subsequent feature.

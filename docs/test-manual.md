@@ -1545,3 +1545,34 @@ sentinels are allowed; do not change permissions to force an unsupported folder.
 No new manual/native-dialog PASS is claimed by automated selection stubs. Native
 Chinese IME remains NOT VERIFIED; prior Chinese-input QA FAIL and phase 1B-3
 formal FAIL remain. Overwrite and coordination-required are not relaxed.
+
+
+### Ordinary Paragraph Compatibility V1 — synthetic soft-wrapped paragraph
+
+Pending user manual acceptance; the automated Pro Electron pass is separate.
+Launch the existing document demo with `--persistent` and use only synthetic
+files plus a supported local test destination. Prepare a file with this source:
+
+```markdown
+First 中文😀
+second line.
+
+Last.
+```
+
+1. Cmd+O opens the original readonly. The first two source lines display as one
+   paragraph. Choose **Edit a copy**; it is a different session marked Not saved.
+2. Replace characters within either source line, move the caret and continue
+   typing. Undo/Redo should restore the exact source edits. Repeat with CRLF/BOM.
+3. Try deleting the space representing the source newline, selecting across it,
+   or Enter within this paragraph: expect **Edit not applied**, unchanged text,
+   and continued editing within a supported source line. Visual screen wrapping
+   alone is not this boundary. Single-line `Last.` retains prior Enter behavior.
+4. Switch original -> copy: source identity/history remain separate. Save as a
+   new file in an already-supported folder, then quit and reopen it. Compare
+   bytes/hash: the new file has the edits and original line endings; the original
+   is unchanged. The temporary copy remains Not saved, with no overwrite ability.
+
+Chinese text insertion by automation is not native IME verification. A real
+Pinyin sequence needs separately recorded evidence; the previous manual FAIL
+is not cleared by this feature. Do not use important personal documents for QA.
