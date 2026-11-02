@@ -10,6 +10,27 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
   if (receipt && !receipt.ok && receipt.created !== false) return 'unresolved-copy-state';
   return null;
 }
+
+function operationMessage(receipt) {
+  if (!receipt || (!receipt.code && receipt.state === 'not-created')) return '';
+  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。当前编辑副本仍为 Not saved。`;
+  let text;
+  if (receipt.created === false) {
+    const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选主文件夹直属的普通本地文件夹。'
+      : receipt.code === 'target-exists' ? '同名目标已存在，没有覆盖它；请使用新文件名。'
+      : receipt.code === 'create-cancelled' ? '操作已取消。'
+      : '目标位置或创建操作未通过检查，请查看原因并选择受支持的位置。';
+    text = `未创建文件：${reason}文字仍保留在当前窗口。`;
+  } else {
+    text = ({ 'created-partial': '文件已创建，但内容可能不完整',
+      'created-unverified': '文件已创建，但完整性尚未确认',
+      'durability-uncertain': '文件已写入，但持久性尚未确认' })[receipt.state]
+      || '创建结果未知，文件可能已经存在';
+    text += '。不要覆盖或重复创建；请保留当前窗口和下方路径，检查结果。当前文字仍保留。';
+  }
+  return `${text}\n原因：${receipt.code || receipt.state}；状态：${receipt.state || 'create-outcome-unknown'}${receipt.filePath ? `\n${receipt.filePath}` : ''}`;
+}
+
 export function createTestCopyView({ api, byId, context, busy, rerender, focus }) {
   const receipts = new Map(), confirmedReceipts = new Map(), unknown = new Set();
   let confirmation = null;
@@ -21,7 +42,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     byId('create-test-copy').textContent = persistent ? 'Save as new file…' : '创建测试副本';
     byId('confirm-test-copy').textContent = persistent ? 'Choose location…' : 'Create new test copy';
     byId('test-copy-description').textContent = persistent
-      ? 'Create a new .md in a supported local APFS folder directly under your home folder. Existing files are never overwritten. Current writing remains Not saved; later edits do not update the new file. Cloud/sync folders are not supported.'
+      ? '选择主文件夹直属的普通本地 APFS 文件夹，例如你自行准备的 Markdown Writing（仍需通过权限检查）。主文件夹本身、桌面、文稿、资源库、隐藏与同步目录不受支持；下载等目录可能带有不支持的额外权限（ACL）。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
       : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;
@@ -37,10 +58,13 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     const last = confirmedReceipts.get(c.selected);
     byId('test-copy-result').textContent = last
       ? `Last confirmed copy — ${persistent ? 'New Markdown file' : 'Test copy'} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${last.filePath}\nSHA-256: ${last.sha256}` : '';
-    byId('test-copy-operation').textContent = confirmed
-      ? `Latest operation: copy confirmed for revision ${receipt.revision}.`
-      : receipt && (receipt.code || receipt.state !== 'not-created')
-        ? `Latest operation: Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || 'not-created'}; created: ${String(receipt.created ?? 'unknown')}. No automatic retry or cleanup.\n${receipt.filePath || ''}` : '';
+    byId('test-copy-summary').textContent = last
+      ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}当前编辑副本仍为 Not saved。`
+      : '';
+    byId('test-copy-receipt').hidden = !last;
+    byId('test-copy-operation').textContent = operationMessage(receipt);
+    byId('test-copy-operation').dataset.tone = confirmed ? 'success'
+      : receipt?.code === 'create-cancelled' ? 'neutral' : receipt?.ok === false ? 'error' : 'neutral';
   }
   function finish() {
     confirmation = null; busy(false); rerender();

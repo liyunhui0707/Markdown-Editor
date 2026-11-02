@@ -61,14 +61,34 @@ one interface. Opened files cannot be edited or saved.
 Cancel or an open error keeps the current document. The ordinary `npm run dev`
 entry continues to use the existing Vault UI.
 
-Click **New temporary document** to try ordinary paragraph writing in this same
-window. Type, press Enter for the next paragraph, Backspace to join paragraphs,
-and use Cmd+Z / Cmd+Shift+Z. The document selector preserves temporary sessions
-while viewing a real file. **Not saved** means memory only: copy text you want to
-keep before closing. Close/Quit asks before discarding; refresh/crash recovery
-is unavailable. No Save/Save As, file writeback, paste or complex structure
-editing is enabled. Native macOS IME remains unaccepted. The eight-session limit
-is a development constraint; this is not a daily-writing or release sign-off.
+Click **New temporary document**, or open a file and choose **Edit a copy**, to
+write in an independent in-memory session. The original file stays read-only.
+Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
+source-line boundaries and unsupported structures remain protected. Single-line
+plain-text paste is accepted within one supported text range (up to 4096 UTF-16
+units). Clipboard HTML is ignored; HTML-only, multiline, file and unsafe-range
+paste is refused as a whole. The native Edit menu includes Paste for system
+dialogs as well.
+
+To enable the existing restricted **Save as new file…** flow, use:
+
+```bash
+mise exec -- node tools/run-document-copy-demo.cjs --persistent
+```
+
+Choose an existing ordinary local APFS folder directly under your home folder,
+owned by you and not writable by others. Home itself, Desktop, Documents,
+Library, hidden and known sync folders are unsupported; extra ACLs can also
+exclude Downloads and other folders. The app does not change folder permissions.
+Only new files are created; existing targets are never overwritten. The UI
+separates the last confirmed file's path/revision/hash from later failures and
+reports uncertain outcomes without claiming that no file exists.
+
+**Not saved** still describes the editing session: later edits do not update a
+previously created file. Close/Quit asks before discarding; refresh/crash recovery
+is unavailable. The document selector retains temporary sessions while viewing
+real files. The eight-session limit is a development constraint. Native macOS IME
+remains unaccepted; this is not daily-writing or release sign-off.
 
 This restricted preview formats headings, paragraphs and bold. Other syntax,
 including HTML, images, links and tables, is displayed as literal text; it does

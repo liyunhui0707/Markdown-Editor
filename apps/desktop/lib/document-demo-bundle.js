@@ -32311,6 +32311,25 @@ ${prefix}
     if (receipt && !receipt.ok && receipt.created !== false) return "unresolved-copy-state";
     return null;
   }
+  function operationMessage(receipt) {
+    if (!receipt || !receipt.code && receipt.state === "not-created") return "";
+    if (receipt.ok && receipt.state === "created-confirmed") return `\u672C\u6B21\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002\u5F53\u524D\u7F16\u8F91\u526F\u672C\u4ECD\u4E3A Not saved\u3002`;
+    let text5;
+    if (receipt.created === false) {
+      const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
+      text5 = `\u672A\u521B\u5EFA\u6587\u4EF6\uFF1A${reason}\u6587\u5B57\u4ECD\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3\u3002`;
+    } else {
+      text5 = {
+        "created-partial": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5185\u5BB9\u53EF\u80FD\u4E0D\u5B8C\u6574",
+        "created-unverified": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5B8C\u6574\u6027\u5C1A\u672A\u786E\u8BA4",
+        "durability-uncertain": "\u6587\u4EF6\u5DF2\u5199\u5165\uFF0C\u4F46\u6301\u4E45\u6027\u5C1A\u672A\u786E\u8BA4"
+      }[receipt.state] || "\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u7ECF\u5B58\u5728";
+      text5 += "\u3002\u4E0D\u8981\u8986\u76D6\u6216\u91CD\u590D\u521B\u5EFA\uFF1B\u8BF7\u4FDD\u7559\u5F53\u524D\u7A97\u53E3\u548C\u4E0B\u65B9\u8DEF\u5F84\uFF0C\u68C0\u67E5\u7ED3\u679C\u3002\u5F53\u524D\u6587\u5B57\u4ECD\u4FDD\u7559\u3002";
+    }
+    return `${text5}
+\u539F\u56E0\uFF1A${receipt.code || receipt.state}\uFF1B\u72B6\u6001\uFF1A${receipt.state || "create-outcome-unknown"}${receipt.filePath ? `
+${receipt.filePath}` : ""}`;
+  }
   function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
     const receipts = /* @__PURE__ */ new Map(), confirmedReceipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
     let confirmation = null;
@@ -32321,7 +32340,7 @@ ${prefix}
       persistent = enabled && s.confirmed.persistentCopyEnabled === true;
       byId2("create-test-copy").textContent = persistent ? "Save as new file\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
       byId2("confirm-test-copy").textContent = persistent ? "Choose location\u2026" : "Create new test copy";
-      byId2("test-copy-description").textContent = persistent ? "Create a new .md in a supported local APFS folder directly under your home folder. Existing files are never overwritten. Current writing remains Not saved; later edits do not update the new file. Cloud/sync folders are not supported." : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
+      byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\uFF0C\u4F8B\u5982\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u684C\u9762\u3001\u6587\u7A3F\u3001\u8D44\u6E90\u5E93\u3001\u9690\u85CF\u4E0E\u540C\u6B65\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4E0B\u8F7D\u7B49\u76EE\u5F55\u53EF\u80FD\u5E26\u6709\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
       byId2("create-test-copy").hidden = !enabled;
       byId2("test-copy-panel").hidden = !enabled;
       if (!enabled) return;
@@ -32336,8 +32355,11 @@ ${prefix}
       byId2("test-copy-result").textContent = last ? `Last confirmed copy \u2014 ${persistent ? "New Markdown file" : "Test copy"} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.
 ${last.filePath}
 SHA-256: ${last.sha256}` : "";
-      byId2("test-copy-operation").textContent = confirmed ? `Latest operation: copy confirmed for revision ${receipt.revision}.` : receipt && (receipt.code || receipt.state !== "not-created") ? `Latest operation: Copy not confirmed: ${receipt.code || receipt.state}. State: ${receipt.state || "not-created"}; created: ${String(receipt.created ?? "unknown")}. No automatic retry or cleanup.
-${receipt.filePath || ""}` : "";
+      byId2("test-copy-summary").textContent = last ? `\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF1A${last.filePath}
+\u5DF2\u786E\u8BA4\u4FEE\u8BA2 ${last.revision}\u3002${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA\u3002" : "\u4EC5\u4EE3\u8868\u8BE5\u4FEE\u8BA2\u7684\u65B0\u6587\u4EF6\u526F\u672C\u3002"}\u5F53\u524D\u7F16\u8F91\u526F\u672C\u4ECD\u4E3A Not saved\u3002` : "";
+      byId2("test-copy-receipt").hidden = !last;
+      byId2("test-copy-operation").textContent = operationMessage(receipt);
+      byId2("test-copy-operation").dataset.tone = confirmed ? "success" : receipt?.code === "create-cancelled" ? "neutral" : receipt?.ok === false ? "error" : "neutral";
     }
     function finish() {
       confirmation = null;
@@ -32743,6 +32765,41 @@ ${receipt.filePath || ""}` : "";
     };
   }
 
+  // lib/document-plain-paste.mjs
+  function pastePlainText(view, event, { state, blocked = false, report }) {
+    event.preventDefault();
+    const reject = (message) => {
+      report(message, true);
+      return true;
+    };
+    if (!state || blocked || !view.editable || state.confirmed.readOnly || state.locked || state.historyPending || state.pending || state.source !== state.confirmed.source) {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+    }
+    if (view.composing || state.composing || state.compositionInvalid) {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+    }
+    let text5;
+    try {
+      const data = event.clipboardData;
+      if (!data || data.files?.length || !Array.from(data.types || []).includes("text/plain")) {
+        return reject("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u3002\u56FE\u7247\u548C\u6587\u4EF6\u6682\u4E0D\u652F\u6301\u3002");
+      }
+      text5 = data.getData("text/plain");
+    } catch {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+    }
+    if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x1f\x7f\u2028\u2029]/u.test(text5)) {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u5355\u884C\u7EAF\u6587\u672C\uFF1B\u6362\u884C\u3001\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+    }
+    if (!text5) return true;
+    const tr2 = view.state.tr.insertText(text5).scrollIntoView();
+    view.dispatch(tr2);
+    if (!view.state.doc.eq(tr2.doc)) {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u8BF7\u5728\u540C\u4E00\u666E\u901A\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+    }
+    return true;
+  }
+
   // lib/document-demo-entry.js
   var api = window.documentDemo;
   var byId = (id) => document.getElementById(id);
@@ -32992,11 +33049,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         extensions: [src_default.configure({ undoRedo: false, trailingNode: false }), gate],
         editorProps: { handleDOMEvents: {
           mousedown: finishCompositionForPointer,
-          paste: (_view, event) => {
-            event.preventDefault();
-            show("unsupported-paste");
-            return true;
-          },
+          paste: (view, event) => pastePlainText(view, event, {
+            state: controller?.state(),
+            blocked: activeInvalid() || loading || readOnlyDocument(),
+            report: viewerStatus
+          }),
           drop: (_view, event) => {
             event.preventDefault();
             show("unsupported-drop");

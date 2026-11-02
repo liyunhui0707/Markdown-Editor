@@ -29,11 +29,11 @@ app.whenReady().then(async () => {
   let temporaryCreated = false, temporaryNumber = 0;
   const manager = createDocumentSessions({ service, allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: 'Save as a new Markdown file?',
-        detail: 'Choose an existing local APFS folder directly inside your home folder, owned by you and not writable by others. The home folder itself is not a supported destination. Desktop, Documents, Library, hidden and known cloud/sync folders are not supported in V1. Only continue if the folder is not synced by another application. Existing files are never replaced, even if macOS asks to replace one. Current writing remains Not saved; later edits will not update this new file.',
+        detail: '请选择主文件夹直属的普通本地文件夹，例如你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。下载等目录可能带有不支持的额外权限（ACL）。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md，已有文件绝不覆盖。当前编辑副本仍为 Not saved，后续修改不会自动更新新文件。',
         buttons: ['Cancel', 'Choose local folder…'], defaultId: 0, cancelId: 0, noLink: true });
       if (accepted.response !== 1 || win.isDestroyed()) return { canceled: true };
       const selected = await dialog.showSaveDialog(win, { title: 'Save as NEW Markdown file', defaultPath: 'Untitled.md',
-        message: 'Choose an existing local APFS folder directly inside your home. The home folder itself is not supported. Desktop, Documents, Library, hidden and cloud/sync folders are not supported. Existing files will not be replaced.',
+        message: '请选择主文件夹直属的普通本地 APFS 文件夹；仍需通过权限检查。下载等目录可能因 ACL 被拒绝。主文件夹、桌面、文稿、资源库及同步目录不受支持。只创建新文件，不覆盖。',
         nameFieldLabel: 'New Markdown filename:', filters: [{ name: 'Markdown', extensions: ['md'] }],
         properties: ['showOverwriteConfirmation', 'dontAddToRecent'], securityScopedBookmarks: false });
       if (!win.isDestroyed()) win.focus();
@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
       { label: 'Open Markdown…', accelerator: 'CmdOrCtrl+O', click: () => {
         if (!win.isDestroyed()) win.webContents.send('document-demo:open-request');
       } }, { role: 'close' } ] },
-    { label: 'Edit', submenu: [{ role: 'copy' }, { role: 'selectAll' }] },
+    { label: 'Edit', submenu: [{ role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
   ]));
   win.on('close', event => {
     // Keep the warning even after session revocation: renderer-only drafts may exist.

@@ -780,8 +780,9 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     await expect.poll(() => app.evaluate(() => globalThis.persistentDialog.calls.length)).toBe(1);
     const saveOptions = await app.evaluate(() => globalThis.persistentDialog.calls[0]);
     expect(saveOptions.defaultPath).toBe('Untitled.md');
-    expect(saveOptions.message).toContain('home folder itself is not supported');
-    expect(saveOptions.message).toContain('directly inside your home');
+    expect(saveOptions.message).toContain('主文件夹、桌面、文稿、资源库及同步目录不受支持');
+    expect(saveOptions.message).toContain('主文件夹直属');
+    expect(saveOptions.message).toContain('下载等目录可能因 ACL 被拒绝');
     await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
     expect((await snapshot(temporary)).snapshot.source).toBe(before.source);
     await expect.poll(async () => { try { await fs.lstat(target); return true; } catch { return false; } }).toBe(false);
@@ -1111,3 +1112,91 @@ test('soft paragraph V1 edits source lines, refuses crossing and saves exact new
   },info,null,true);
   const cleanup=ownedFixture.cleanup({passed:true,quiescent:true});expect(cleanup.state,JSON.stringify(cleanup)).toBe('removed');console.log('home-fixture-cleanup:'+JSON.stringify(cleanup));
 });
+
+
+test('paste V1 accepts plain clipboard text and preserves the original session', async ({}, info) => {
+  const fixture = createHomeFixture('Writing-synthetic-E2E-'), target = path.join(fixture.dir, 'pasted.md');
+  let written, receipt, originalFile, originalBytes;
+  await usingDemo(async ({ app, page, snapshot, select, settled, root }) => {
+    const file = path.join(root, 'paste-original.md'), bytes = Buffer.from('\ufeffFirst.\r\n\r\nSecond.');
+    originalFile = file; originalBytes = bytes;
+    await fs.writeFile(file, bytes, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, filePath) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] });
+      dialog.showMessageBoxSync = () => 1;
+    }, file);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('paste-original.md');
+    const original = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    const copy = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    const paste = text => page.locator('#editor .tiptap').evaluate((node, value) => {
+      const data = new DataTransfer(); data.setData('text/plain', value);
+      data.setData('text/html', '<img src=x onerror="window.pasteExecuted=true">');
+      node.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }));
+    }, text);
+    await select('#editor p:first-of-type', 5); await paste(' 中文😀');
+    await expect(page.locator('#editor p:first-of-type')).toHaveText('First 中文😀.'); await settled();
+    expect((await snapshot(copy)).snapshot.source).toBe('First 中文😀.\r\n\r\nSecond.');
+    expect(await page.locator('#editor img').count()).toBe(0);
+    expect(await page.evaluate(() => !!window.pasteExecuted)).toBe(false);
+    await page.keyboard.press('Meta+z'); await settled(); await expect(page.locator('#editor p:first-of-type')).toHaveText('First.');
+    await page.keyboard.press('Meta+Shift+z'); await settled(); await expect(page.locator('#editor p:first-of-type')).toHaveText('First 中文😀.');
+    const beforeReject = (await snapshot(copy)).snapshot;
+    await paste('one\ntwo'); await expect(page.locator('#viewer-status')).toContainText('没有截断内容');
+    expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
+    await select('#editor p:last-of-type', 7); await page.keyboard.type(' next'); await settled();
+    await page.keyboard.press('Enter'); await page.keyboard.type('Third.'); await settled();
+    await page.keyboard.press('Meta+ArrowLeft'); await page.keyboard.press('Backspace'); await settled();
+    await page.keyboard.press('Meta+z'); await settled(); await page.keyboard.press('Meta+Shift+z'); await settled();
+    await page.locator('#documents').selectOption(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await select('#editor p:first-of-type', 2); await paste('NO');
+    expect((await snapshot(original)).snapshot.source).toBe('First.\r\n\r\nSecond.');
+    expect((await page.evaluate(id => window.documentDemo.save({ sessionId: id, expectedRevision: 0 }), original)).code).toBe('read-only-document');
+    expect((await fs.readFile(file)).equals(bytes)).toBe(true);
+    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await app.evaluate(({ dialog }, filePath) => {
+      globalThis.pasteSaveTarget = filePath; globalThis.pasteSaveCancel = false;
+      dialog.showMessageBox = async () => ({ response: 1 });
+      dialog.showSaveDialog = async () => ({ canceled: globalThis.pasteSaveCancel, filePath: globalThis.pasteSaveTarget });
+    }, target);
+    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    const beforeCreate = (await snapshot(copy)).snapshot;
+    expect(beforeCreate.source).toBe('First 中文😀.\r\n\r\nSecond. nextThird.');
+    await create(); await expect(page.locator('#test-copy-summary')).toContainText('已创建新文件');
+    const saved = (await snapshot(copy)).snapshot; receipt = saved.copyState; written = await fs.readFile(target);
+    expect(written.equals(Buffer.from('\ufeff' + beforeCreate.source))).toBe(true);
+    expect(require('node:crypto').createHash('sha256').update(written).digest('hex')).toBe(receipt.sha256);
+    for (const key of ['source', 'revision', 'dirty', 'canUndo', 'canRedo']) expect(saved[key]).toBe(beforeCreate[key]);
+    fixture.recordFile('pasted.md', written);
+    await select('#editor p:first-of-type', 0); await page.keyboard.type('Later '); await settled();
+    await expect(page.locator('#test-copy-summary')).toContainText('后续修改尚未导出');
+    const last = await page.locator('#test-copy-result').textContent();
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('同名目标已存在');
+    await expect(page.locator('#test-copy-result')).toHaveText(last);
+    await app.evaluate(() => { globalThis.pasteSaveCancel = true; });
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('操作已取消');
+    await app.evaluate((_, filePath) => { globalThis.pasteSaveCancel = false; globalThis.pasteSaveTarget = filePath; }, path.join(root, 'not-supported.md'));
+    await create(); await expect(page.locator('#test-copy-operation')).toContainText('未创建文件');
+    await expect(page.locator('#test-copy-operation')).toContainText('unsupported-copy-directory');
+    await expect(page.locator('#test-copy-result')).toHaveText(last);
+    expect((await fs.readFile(target)).equals(written)).toBe(true); expect((await fs.readFile(file)).equals(bytes)).toBe(true);
+    expect((await fs.readdir(root)).includes('not-supported.md')).toBe(false);
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.screenshot({ path: info.outputPath('paste-save-feedback.png') });
+  }, info, null, true, true, true);
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('pasted.md');
+    const id = JSON.parse(await page.locator('#status').textContent()).activeSessionId, reopened = (await snapshot(id)).snapshot;
+    expect(reopened.readOnly).toBe(true); expect(reopened.bom).toBe(true); expect(reopened.source).toBe(written.toString().slice(1));
+    expect(require('node:crypto').createHash('sha256').update(await fs.readFile(target)).digest('hex')).toBe(receipt.sha256);
+    expect((await fs.readFile(originalFile)).equals(originalBytes)).toBe(true);
+  }, info, null, true);
+  const cleanup = fixture.cleanup({ passed: true, quiescent: true }); expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
+});
+
+test('paste V1 native Edit menu provides the Paste role', async ({}, info) => usingDemo(async ({ app }) => {
+  const roles = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(i => i.label === 'Edit').submenu.items.map(i => i.role));
+  expect(roles).toContain('paste');
+}, info, null, true));

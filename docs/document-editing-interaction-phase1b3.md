@@ -1238,3 +1238,79 @@ IME remains NOT VERIFIED and the earlier manual QA FAIL is not cleared. Phase
 1B-3 formal FAIL, SEC-01, memory-only recovery, destination restrictions and
 coordination-required remain. No manual, independent review, merge or release PASS
 is implied. Cross-line Enter work is a separate subsequent feature.
+
+
+## Plain paste and clear new-file feedback V1 (2026-11-02, uncommitted)
+
+Addresses the user's inability to paste and to tell whether the Downloads save
+attempt created a file. The existing native Edit menu now includes Paste. The
+editor handles only clipboard `text/plain` before any HTML parsing, via one
+ordinary PM transaction through the unchanged source-range/controller/IPC gates.
+An empty clipboard never deletes the selection. A single line up to 4096 UTF-16
+units is supported; multiline/control characters, files, unsafe syntax/ranges,
+readonly sessions, active composition and unconfirmed operations are refused
+without truncation or automatic retry. No clipboard HTML is read or rendered.
+
+Save feedback is now concise and separated: the last confirmed file retains its
+path/revision/SHA-256, later edits are explicitly not exported, and a later
+failure cannot replace that success. A definite `created:false` refusal says no
+file was created; partial, unverified, durability-uncertain and unknown outcomes
+retain their distinct meanings and keep further attempts blocked. Folder
+restrictions and detailed receipts are expandable. ACL refusal explains why
+Downloads may be unsupported and suggests an ordinary home-child folder without
+changing permissions or creating a directory. Not saved remains visible.
+
+Evidence from synthetic data only:
+- RED: the six new view regressions failed before implementation (ten existing
+  cases passed). Two actual Electron cases reproduced rejected plain paste and
+  the absent native Paste role. Earlier command setup failures launched no app.
+- GREEN: **147/147 Node PASS** across source-map, controller, session IPC,
+  readonly-open and copy-view tests. A test-fixture selection length was corrected
+  from three to four selected characters; its exact-source assertion was retained.
+- **3/3 Pro Electron PASS**, including the existing persistent-copy case and two
+  new paste/menu cases. Actual PM editing, Undo/Redo, Enter/Backspace, readonly
+  session rejection, original byte preservation, exclusive new-file creation,
+  independent failure feedback and fresh-process readonly reopen were checked.
+  BOM/CRLF/no-final-newline and SHA-256 matched; subsequent edits did not change
+  the created file. Five child processes exited code 0, no signal/watchdog/fault
+  and no remaining process. The two owned Home fixtures were reclaimed by the
+  existing helper only after verified success and process exit.
+- Paste events used controlled ClipboardEvent/DataTransfer in real Electron;
+  menu inspection proves the native Paste role is installed. It does **not**
+  prove OS-clipboard Cmd+V in the Go To Folder dialog. Native dialog choices were
+  stubbed. The user's clipboard was neither read nor changed; native Chinese IME
+  was not exercised. The running user preview was not restarted or closed.
+- The existing esbuild command regenerated the demo bundle; a separate output
+  rebuild matches byte-for-byte. No version or dependency change.
+
+Local evidence: `/private/var/folders/nq/gs8zmwfs575fdrm8fmhlg12c0000gn/T/markdown-paste-save-df3spwc7/`
+(`node-final.log`, `electron-green.log`, screenshot under `electron-green/`).
+The 31-line paste helper keeps input policy separate; the existing 362-line
+renderer receives only the wiring. Controller tests are 624 lines; the existing
+E2E file is 1202 lines. Shared test setup is retained rather than introducing a
+new framework or unrelated file split in this bounded change.
+
+Local diff review found no new confirmed P0/P1. File Store, Document Service,
+IPC, preload, source-map and controller runtime are unchanged. No native-dialog
+manual PASS, native IME PASS, independent review, packaged acceptance or release
+approval is claimed. Prior native-IME QA FAIL/NOT VERIFIED, phase 1B-3 formal FAIL,
+SEC-01, source-line crossing restrictions, memory-only recovery, directory policy
+and coordination-required remain. No original-file overwrite or Git checkpoint.
+
+
+### Plain paste / new-file feedback — 0.32.0 local checkpoint (2026-11-02)
+
+User feedback: "粘贴的测试已经通过了。" Recorded as user manual paste QA PASS;
+the feedback does not identify every native dialog/clipboard path, and does not
+extend to native IME or clear the prior Chinese-input QA FAIL. Codex A local
+readiness review matched all 13 candidate SHA-256 values against the 147 Node /
+3 Pro Electron / five clean-exit evidence and identical independent bundle.
+No unrelated changes or new confirmed P0/P1 were found. No second-model review,
+new GUI run or full packaging matrix was required for this local checkpoint.
+
+The approved 15-path commit adds only the two version files to that scope.
+0.31.0 -> 0.32.0 follows the user-visible feature minor rule; only the three
+project version fields change, with dependencies and scripts unchanged. This is
+a restricted local WIP, not merge/release approval. All memory-only draft,
+multiline-paste, original-file overwrite, destination, native IME, SEC-01 and
+phase 1B-3 formal FAIL limitations above remain at this checkpoint.

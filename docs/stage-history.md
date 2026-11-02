@@ -2,6 +2,19 @@
 
 Concise record of completed stages, their key deliverables, and known deferred items.
 
+## Current restricted Document follow-up (2026-11-02)
+
+Plain paste / new-file feedback V1 is preserved as local WIP 0.32.0,
+not released. The user reports paste manual QA PASS; this does not certify IME. Single-line text/plain paste uses the existing PM and
+source-range gates; native Edit gains Paste. Clear failure/unknown messages stay
+separate from the last confirmed file, with directory guidance and folded details.
+147 Node and 3 Pro Electron cases PASS; five clean app exits and identical rebuilt
+bundle. Controlled clipboard events/native-dialog stubs are not native clipboard
+or IME acceptance. Runtime helper 31 lines, existing renderer 362, controller tests
+624 and shared E2E 1202; no unrelated split or new framework. See the bounded
+scope, RED/GREEN and remaining gates in
+[phase 1B-3](document-editing-interaction-phase1b3.md#plain-paste-and-clear-new-file-feedback-v1-2026-11-02-uncommitted).
+
 ## Completed stages
 
 | Stage | Title | Status | Key deliverables |

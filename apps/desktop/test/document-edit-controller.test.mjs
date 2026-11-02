@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { pastePlainText } from '../lib/document-plain-paste.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -549,4 +550,75 @@ test('soft paragraph V1: rejected break edits do not lock or contaminate history
   h.select(h.span('Last.').from+2);let accepted=false;
   splitBlock(h.state(),tr=>{accepted=h.controller.prepare(tr);if(accepted)h.apply(tr);});await h.controller.idle();
   assert.equal(accepted,true);assert.equal(h.document.text,'First\nsecond.\n\nLa\n\nst.');
+});
+
+
+function paste(h, text, options = {}) {
+  const messages = [], formats = []; let prevented = false;
+  const view = { get state() { return h.state(); }, editable: options.editable !== false, composing: !!options.composing,
+    dispatch(tr) { if (h.controller.prepare(tr)) h.apply(tr); } };
+  const event = { preventDefault() { prevented = true; }, clipboardData: options.data || {
+    types: ['text/plain', 'text/html'], files: [], getData(type) { formats.push(type); return type === 'text/plain' ? text : '<img onerror="BAD">'; },
+  } };
+  const result = pastePlainText(view, event, { state: options.state || h.controller.state(), blocked: !!options.blocked,
+    report: message => messages.push(message) });
+  assert.equal(result, true); assert.equal(prevented, true);
+  return { messages, formats };
+}
+test('plain paste: one source splice and one reversible history item; HTML is never read', async () => {
+  const h = harness('\ufeff---\r\nx: keep\r\n---\r\n\r\nFirst line\r\nsecond line\r\n\r\nPlain **粗体** tail.');
+  const before = h.document.text, at = h.span('First line').from + 1;
+  h.select(at, at + 4); const result = paste(h, '中文😀');
+  await h.controller.idle(); assert.deepEqual(result.formats, ['text/plain']); assert.deepEqual(result.messages, []);
+  assert.equal(h.document.text, before.replace('irst', '中文😀'));
+  assert.equal(h.requests.filter(r => r.operation === 'edit').length, 1);
+  assert.equal(h.state().selection.from, at + '中文😀'.length);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, before);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, before.replace('irst', '中文😀'));
+  assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+test('plain paste: empty paragraph and bold leaf preserve projection, selection and other sessions', async () => {
+  const empty = harness(''), other = harness('Independent.'); empty.select(1);
+  paste(empty, '你好 English 😀'); await empty.controller.idle();
+  assert.equal(empty.document.text, '你好 English 😀'); assert.equal(other.document.text, 'Independent.');
+  const bold = harness('A **粗体** end.'); bold.select(bold.span('粗体').from, bold.span('粗体').to);
+  paste(bold, '中文😀'); await bold.controller.idle(); assert.equal(bold.document.text, 'A **中文😀** end.');
+  assert.equal(await bold.controller.history('undo'), true); assert.equal(bold.document.text, 'A **粗体** end.');
+});
+test('plain paste: multiline, control, oversized, unsafe syntax and source crossing are atomic refusals', async () => {
+  const h = harness('First line\r\nsecond line\r\n\r\nTail.');
+  h.select(h.span('First line').from + 2); const before = h.controller.state(), selection = h.state().selection.toJSON();
+  for (const value of ['a\nb', 'a\r\nb', 'a\rb', 'a\tb', 'a\u0000b', 'a\u2028b', 'a'.repeat(4097), '[x](https://example.invalid)', '<script>x</script>', '\ud800']) {
+    assert.equal(paste(h, value).messages.length, 1);
+    assert.equal(h.document.text, before.source); assert.equal(h.document.revision, before.confirmed.revision);
+    assert.deepEqual(h.state().selection.toJSON(), selection);
+    assert.equal(h.controller.state().pending, 0); assert.equal(h.controller.state().recoveryRecords.length, 0);
+  }
+  h.select(h.span('First line').to - 1, h.span('second line').from + 1);
+  assert.equal(paste(h, 'safe').messages.length, 1); assert.equal(h.document.text, before.source);
+  assert.equal(h.requests.length, 0);
+});
+test('plain paste: composition, readonly, pending and unknown state cannot be bypassed', async () => {
+  const h = harness('First.'); h.select(2); const original = h.document.text;
+  h.controller.beginComposition(); assert.equal(paste(h, 'NO').messages.length, 1);
+  assert.equal(h.controller.state().composing, true); h.controller.endComposition();
+  for (const options of [{ composing: true }, { editable: false }, { blocked: true },
+    { state: { ...h.controller.state(), locked: true } }, { state: { ...h.controller.state(), historyPending: true } },
+    { state: { ...h.controller.state(), confirmed: { ...h.controller.state().confirmed, readOnly: true } } }]) {
+    assert.equal(paste(h, 'NO', options).messages.length, 1);
+  }
+  assert.equal(h.document.text, original); assert.equal(h.requests.length, 0);
+  h.delayed = true; h.edit(2, 2, 'X'); const pending = h.controller.state().source;
+  assert.equal(paste(h, 'NO').messages.length, 1); assert.equal(h.controller.state().source, pending);
+  h.delayed = false; h.replies.shift()(); await h.controller.idle();
+  h.select(3); paste(h, 'OK'); await h.controller.idle(); assert.equal(h.document.text, 'FXOKirst.');
+});
+test('plain paste: empty or unreadable clipboard never erases selected text', () => {
+  const h = harness('First.'); h.select(1, 6); const before = h.document.text;
+  paste(h, '');
+  for (const data of [{ types: ['text/html'], files: [] }, { types: ['text/plain'], files: [1] },
+    { types: ['text/plain'], getData() { throw Error('clipboard unavailable'); } }]) {
+    assert.equal(paste(h, 'NO', { data }).messages.length, 1);
+  }
+  assert.equal(h.document.text, before); assert.equal(h.requests.length, 0);
 });

@@ -5,6 +5,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
+import { pastePlainText } from './document-plain-paste.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
@@ -190,7 +191,8 @@ function install(snapshot) {
       extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
       editorProps: { handleDOMEvents: {
         mousedown: finishCompositionForPointer,
-        paste: (_view, event) => { event.preventDefault(); show('unsupported-paste'); return true; },
+        paste: (view, event) => pastePlainText(view, event, { state: controller?.state(),
+          blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus }),
         drop: (_view, event) => { event.preventDefault(); show('unsupported-drop'); return true; },
         compositionstart: () => { if (activeInvalid()) return true; controller.beginComposition(); return false; },
         compositionend: () => {

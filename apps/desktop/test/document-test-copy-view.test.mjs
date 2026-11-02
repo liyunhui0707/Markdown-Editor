@@ -7,7 +7,7 @@ function harness() {
   const elements = new Map(), documents = new Map(), responses = [];
   let selected = 'A', frozen = false, calls = 0;
   const byId = id => {
-    if (!elements.has(id)) elements.set(id, { textContent: '', hidden: false, disabled: false });
+    if (!elements.has(id)) elements.set(id, { textContent: '', hidden: false, disabled: false, dataset: {} });
     return elements.get(id);
   };
   const add = id => {
@@ -118,4 +118,40 @@ test('composition and unconfirmed drafts still refuse copy creation', () => {
     h.render(); assert.equal(h.byId('create-test-copy').disabled, true);
     h.byId('create-test-copy').onclick(); assert.equal(h.calls(), 0);
   }
+});
+
+
+test('save feedback: ACL refusal explicitly says no file was created and gives safe directory guidance', async () => {
+  const h = harness(); await h.attempt(refused('unsupported-acl'));
+  assert.match(h.text('test-copy-operation'), /未创建文件/);
+  assert.match(h.text('test-copy-operation'), /额外权限/);
+  assert.match(h.text('test-copy-operation'), /文字仍保留/);
+  assert.match(h.text('test-copy-description'), /主文件夹/);
+  assert.match(h.text('test-copy-description'), /下载/);
+  assert.equal(h.byId('test-copy-operation').dataset.tone, 'error');
+  assert.equal(h.text('test-copy-result'), '');
+});
+for (const [state, created, expected] of [
+  ['created-partial', true, /文件已创建，但内容可能不完整/],
+  ['created-unverified', true, /文件已创建，但完整性尚未确认/],
+  ['durability-uncertain', true, /文件已写入，但持久性尚未确认/],
+  ['create-outcome-unknown', null, /创建结果未知，文件可能已经存在/],
+]) test(`save feedback: ${state} never claims no file`, async () => {
+  const h = harness(); await h.attempt({ ok: false, state, created, code: state, filePath: '/synthetic/check.md' });
+  assert.match(h.text('test-copy-operation'), expected);
+  assert.doesNotMatch(h.text('test-copy-operation'), /未创建文件/);
+  assert.match(h.text('test-copy-operation'), /不要覆盖或重复创建/);
+  assert.equal(h.byId('create-test-copy').disabled, true);
+});
+test('save feedback: success stays separate from later failure and reports later edits truthfully', async () => {
+  const h = harness(); await h.attempt(confirmed());
+  assert.match(h.text('test-copy-summary'), /已创建新文件/);
+  assert.match(h.text('test-copy-summary'), /修订 2/);
+  const s = h.documents.get('A').state;
+  s.source += ' later'; s.confirmed.source = s.source; s.confirmed.revision++; h.render();
+  assert.match(h.text('test-copy-summary'), /后续修改尚未导出/);
+  await h.attempt(refused('unsupported-acl'));
+  assert.match(h.text('test-copy-summary'), /修订 2/);
+  assert.match(h.text('test-copy-operation'), /未创建文件/);
+  assert.equal(s.confirmed.dirty, true);
 });

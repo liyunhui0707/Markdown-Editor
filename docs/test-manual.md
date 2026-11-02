@@ -1576,3 +1576,37 @@ Last.
 Chinese text insertion by automation is not native IME verification. A real
 Pinyin sequence needs separately recorded evidence; the previous manual FAIL
 is not cleared by this feature. Do not use important personal documents for QA.
+
+
+### Plain paste and clear new-file feedback V1 — native checks still pending
+
+Use synthetic text in a new preview instance. Preserve unsaved text in any older
+window before closing it; an existing window does not hot-load the new bundle.
+Launch with `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. Copy a synthetic file path, open Cmd+O -> Cmd+Shift+G, and press Cmd+V.
+   It should paste through the native Edit menu. This native-dialog interaction
+   has not yet been manually verified; menu-role inspection alone is not a PASS.
+2. In a temporary document or Edit a copy, paste one line such as `中文 English 😀`
+   into a supported text span, then Undo/Redo. Try two lines: the entire paste
+   must be refused without truncation or deleting the selection. Readonly files,
+   active composition and protected source ranges must not become editable.
+3. Save as a new file in a supported home-child folder. Check the visible confirmed
+   path/revision and expandable SHA-256. Continue editing, then choose the same
+   filename: the earlier success remains, a separate refusal appears, and Not
+   saved plus the unexported-later-edits warning remain accurate. Original and
+   already-created files must not change.
+4. A refused ACL directory must say no file was created, keep writing and explain
+   how to choose another location. Do not alter folder permissions to bypass the
+   policy. Unknown/partial outcomes must never be described as no file; these
+   are covered with controlled tests, not induced on personal files.
+
+Automated evidence: 147 Node and 3 real Pro Electron cases PASS with five clean
+app exits; clipboard events and native dialog selections were controlled. This
+is not actual system clipboard/Go To Folder or native Pinyin acceptance. Historical
+Chinese-input manual FAIL/NOT VERIFIED and all existing release gates remain.
+
+
+2026-11-02 user feedback: paste testing passed. This is manual QA evidence for
+the reported paste experience; no additional native-dialog steps or IME coverage
+are inferred. Local WIP 0.32.0 retains the automated and remaining limits above.
