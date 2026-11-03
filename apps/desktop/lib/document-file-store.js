@@ -197,7 +197,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
   // Use the pinned cwd's single-component name, never a resolved parent path.
   function createCopy(name, input) {
     let directory, fd, owned, result, filePath, attempted = false, created = false, complete = false, verified = false;
-    let bytes, verifiedMetadata;
+    let bytes, verifiedMetadata, verifiedNativeMetadata;
     const verifyFile = () => {
       createPolicy.verify(directory);
       const stat = fs.fstatSync(fd, { bigint: true }), named = fs.lstatSync(name, { bigint: true });
@@ -215,7 +215,11 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       }
       if (!actual.equals(bytes) || hash(actual) !== hash(bytes)
           || !sameMetadata(current, metadata(fs.fstatSync(fd, { bigint: true })))) throw error('created-file-changed', 'Created content changed.');
-      inspectMacMetadata(filePath);
+      const nativeMetadata = inspectMacMetadata(filePath, { newlyCreatedFile: !!persistentCreateTask });
+      if (verifiedNativeMetadata && JSON.stringify(nativeMetadata) !== JSON.stringify(verifiedNativeMetadata)) {
+        throw error('created-file-changed', 'Created file attributes changed.');
+      }
+      verifiedNativeMetadata = nativeMetadata;
       createPolicy.verify(directory);
       if (!sameMetadata(current, metadata(fs.lstatSync(name, { bigint: true })))
           || !sameMetadata(current, metadata(fs.fstatSync(fd, { bigint: true })))) throw error('created-file-changed', 'Created file changed during verification.');
@@ -242,11 +246,17 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
         offset += n;
       }
       complete = true;
+      // The first native metadata probe in Downloads can establish MACL and
+      // advance ctime. Capture its result before the first strict stat/byte
+      // baseline; subsequent attribute, identity, content and sync checks stay
+      // strict. This neither retries a write nor reconciles an old failed copy.
+      if (persistentCreateTask) verifiedNativeMetadata = inspectMacMetadata(filePath, { newlyCreatedFile: true });
       verifiedMetadata = verifyFile(); verified = true;
       fs.fsyncSync(fd);
       fs.fsyncSync(directory);
       verifyFile();
-      result = { ok: true, state: 'created-confirmed', created: true, filePath, sha256: hash(bytes), byteLength: bytes.length };
+      result = { ok: true, state: 'created-confirmed', created: true, filePath, sha256: hash(bytes), byteLength: bytes.length,
+        ...(persistentCreateTask ? { fileMetadataSha256: hash(JSON.stringify(verifiedNativeMetadata)) } : {}) };
     } catch (cause) {
       let state = 'not-created', outcome = false;
       if (created) {

@@ -6,7 +6,7 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const deny = code => { throw Object.assign(Error(code.replaceAll('-', ' ')), { code, status: 'blocked' }); };
 
-function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform } = {}) {
+function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform, newFileDirectory = false, newlyCreatedFile = false } = {}) {
   if (platform !== 'darwin') return deny('metadata-inspection-unavailable');
   function command(executable, args) {
     const result = spawn(executable, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 128 * 1024,
@@ -18,7 +18,17 @@ function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.pl
   }
   const listing = command('/bin/ls', ['-lde', filePath]);
   if (!/^[-d][rwxstST-]{9}[@+ ]/.test(listing)) return deny('metadata-inspection-unavailable');
-  if (listing[10] === '+' || /^\s*\d+:/m.test(listing)) return deny('unsupported-acl');
+  const directoryOnly = newFileDirectory && listing[0] === 'd';
+  const createdFileOnly = newlyCreatedFile && listing[0] === '-';
+  const entries = listing.trimEnd().split('\n').slice(1);
+  let acl = false;
+  if (listing[10] === '+' || entries.length) {
+    // macOS's protection against deleting the directory itself grants no access
+    // and has no inheritance flags. No other ACE/rights/principal is supported.
+    if (!directoryOnly || entries.length !== 1
+        || !/^\s*0: (?:group:everyone|ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C) deny delete$/i.test(entries[0])) return deny('unsupported-acl');
+    acl = entries[0].trim(); // Compare the entire approved ACE at every checkpoint.
+  }
   const flags = command('/usr/bin/stat', ['-f', '%f', filePath]).trim();
   if (!/^\d+$/.test(flags)) return deny('metadata-inspection-unavailable');
   if (BigInt(flags) !== 0n) return deny('unsupported-flags');
@@ -26,14 +36,19 @@ function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.pl
   if (names !== '' && (!names.endsWith('\n') || names.slice(0, -1).split('\n').some(name => !name))) return deny('unsupported-xattrs');
   const attributes = names === '' ? [] : names.slice(0, -1).split('\n');
   if (new Set(attributes).size !== attributes.length) return deny('unsupported-xattrs');
-  if (attributes.some(name => name !== 'com.apple.provenance')) return deny('unsupported-xattrs');
+  // These opaque native attributes are fingerprinted, never used as authority.
+  // Only the persistent exclusive-create path opts in for new regular files.
+  // Existing-file replacement and isolated-create defaults remain strict.
+  if (attributes.some(name => name !== 'com.apple.provenance'
+      && !((directoryOnly || createdFileOnly) && name === 'com.apple.macl')
+      && !(createdFileOnly && name === 'com.apple.lastuseddate#PS'))) return deny('unsupported-xattrs');
   const xattrs = {};
-  for (const name of attributes) {
+  for (const name of attributes.sort()) {
     const hex = command('/usr/bin/xattr', ['-px', name, filePath]).replace(/\s/g, '');
     if (!/^(?:[0-9a-fA-F]{2})*$/.test(hex)) return deny('metadata-inspection-unavailable');
     xattrs[name] = createHash('sha256').update(Buffer.from(hex, 'hex')).digest('hex');
   }
-  return { acl: false, flags, xattrs };
+  return { acl, flags, xattrs };
 }
 
 function createSavePolicy({ fs = nativeFs, unsafeExperimentalRoot } = {}) {
@@ -158,9 +173,15 @@ function persistentDirectory(root) {
   const rows = run('/bin/df', ['-P', root]).trim().split('\n');
   const mount = rows.length === 2 && /^\S+\s+\d+\s+\d+\s+\d+\s+\d+%\s+(.+)$/.exec(rows[1])?.[1];
   if (!mount || !run('/sbin/mount', []).split('\n').some(line => line.includes(` on ${mount} (apfs, local`))) return deny('unsupported-filesystem');
-  const state = { identity: directoryIdentity(s), filesystem: nativeFs.statfsSync(root).type, metadata: inspectMacMetadata(root) };
+  const state = { identity: directoryIdentity(s), filesystem: nativeFs.statfsSync(root).type, metadata: inspectMacMetadata(root, { newFileDirectory: true }) };
   if (!equalDirectory(state.identity, directoryIdentity(nativeFs.lstatSync(root, { bigint: true })))) return deny('copy-directory-changed');
   return state;
+}
+// A dialog suggestion only. The selected destination must still be freshly
+// authorized and pinned by captureCopyDestination before any writer is started.
+function suggestCopyPath(root) {
+  try { persistentDirectory(root); return path.join(root, 'Untitled.md'); }
+  catch { return 'Untitled.md'; }
 }
 function captureCopyDestination(filePath) {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !copyName(path.basename(filePath))) return deny('invalid-copy-name');
@@ -195,4 +216,4 @@ function createPersistentCreatePolicy(task) {
   return { verify, authorizeSource() { return deny('synthetic-copy-required'); } };
 }
 module.exports = { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata,
-  captureCopyDestination, createPersistentCreatePolicy, copyName };
+  captureCopyDestination, createPersistentCreatePolicy, copyName, suggestCopyPath };

@@ -14,7 +14,7 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false) {
+async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false, createdMetadataTarget = null) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
@@ -38,8 +38,30 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     copyRoot = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'document-safe-create-')));
     await fs.chmod(copyRoot, 0o700);
   }
+  let documentEntry = path.join(desktop, 'main.js');
+  if (createdMetadataTarget) {
+    if (!persistentCopy || !readOnly || !testCopy) throw Error('Metadata fixture requires persistent test mode');
+    // Reproduce native save-panel attributes on only this fresh synthetic target.
+    // The actual main, IPC, utility writer and File Store remain unchanged.
+    const fixtureRoot = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'document-created-metadata-'));
+    const writer = path.join(desktop, 'lib/document-copy-writer.js'), wrappedWriter = path.join(fixtureRoot, 'writer.cjs');
+    await fs.writeFile(wrappedWriter, `const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
+      const original=cp.spawnSync;let installed=false;
+      cp.spawnSync=function(exe,args,opts){
+        if(!installed&&exe==='/bin/ls'&&args[0]==='-lde'&&args[1]===${JSON.stringify(createdMetadataTarget)}){
+          installed=true;
+          // Match the observed Downloads timing: first native inspection changes
+          // ctime, not the earlier exclusive open. No existing/user files touched.
+          for(const [name,value] of [['com.apple.macl','01020304'],['com.apple.lastuseddate#PS','01000000000000000000000000000000']]){
+            if(original('/usr/bin/xattr',['-wx',name,value,args[1]]).status!==0)throw Error('synthetic metadata unavailable');}}
+        return original(exe,args,opts);};require(${JSON.stringify(writer)});`, { flag: 'wx', mode: 0o600 });
+    documentEntry = path.join(fixtureRoot, 'main.cjs');
+    await fs.writeFile(documentEntry, `const {utilityProcess}=require('electron');const fork=utilityProcess.fork.bind(utilityProcess);
+      utilityProcess.fork=function(entry,args,options){if(entry!==${JSON.stringify(writer)}||options.cwd!==${JSON.stringify(path.dirname(createdMetadataTarget))})throw Error('unexpected fixture writer');return fork(${JSON.stringify(wrappedWriter)},args,options)};
+      require(${JSON.stringify(path.join(desktop, 'main.js'))});`, { flag: 'wx', mode: 0o600 });
+  }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: readOnly ? [path.join(desktop, 'main.js'), '--document-readonly', ...(testCopy ? [persistentCopy ? '--document-persistent-copy' : '--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
+    args: readOnly ? [documentEntry, '--document-readonly', ...(testCopy ? [persistentCopy ? '--document-persistent-copy' : '--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -757,15 +779,26 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
 
 test('persistent copy V1 creates a selected new file and reopens after Electron exit', async ({}, info) => {
   const ownedFixture = createHomeFixture('Markdown-Persistent-Test-E2E-'), dir = ownedFixture.dir;
+  const { spawnSync } = require('node:child_process');
+  const { inspectMacMetadata } = require('../lib/document-save-policy');
+  const acl = 'group:everyone deny delete';
+  expect(spawnSync('/bin/chmod', ['+a', acl, dir]).status).toBe(0);
+  expect(spawnSync('/usr/bin/xattr', ['-wx', 'com.apple.macl', '01020304', dir]).status).toBe(0);
+  const directoryMetadata = inspectMacMetadata(dir, { newFileDirectory: true });
+  expect(directoryMetadata.acl).not.toBe(false);
+  expect(directoryMetadata.xattrs['com.apple.macl']).toBe(require('node:crypto').createHash('sha256').update(Buffer.from('01020304', 'hex')).digest('hex'));
   const target = path.join(dir, 'persistent.md');
   let receipt, original;
   await usingDemo(async ({ app, page, snapshot, settled, select }) => {
     await page.locator('#new-temporary').click(); await expect(page.locator('#editor p')).toHaveCount(1);
     const id = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
     await page.locator('#editor p').click(); await page.keyboard.type('First '); await page.keyboard.insertText('中文😀'); await settled();
+    await page.keyboard.type(' [ ]'); await settled();
+    await page.keyboard.press('Meta+z'); await settled(); await expect(page.locator('#editor p')).toHaveText('First 中文😀 [ ');
+    await page.keyboard.press('Meta+Shift+z'); await settled(); await expect(page.locator('#editor p')).toHaveText('First 中文😀 [ ]');
     await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('Second paragraph.'); await settled();
     const temporary = await id(), before = (await snapshot(temporary)).snapshot;
-    expect(before.source).toBe('First 中文😀\n\nSecond paragraph.');
+    expect(before.source).toBe('First 中文😀 [ ]\n\nSecond paragraph.');
     await app.evaluate(({ dialog }, filePath) => {
       globalThis.persistentDialog = { canceled: true, filePath, calls: [] };
       dialog.showMessageBox = async () => ({ response: 1 }); // Consent fixture, no native automation claim.
@@ -779,10 +812,10 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     await create();
     await expect.poll(() => app.evaluate(() => globalThis.persistentDialog.calls.length)).toBe(1);
     const saveOptions = await app.evaluate(() => globalThis.persistentDialog.calls[0]);
-    expect(saveOptions.defaultPath).toBe('Untitled.md');
+    expect(['Untitled.md', path.join(require('node:os').homedir(), 'Downloads', 'Untitled.md')]).toContain(saveOptions.defaultPath);
     expect(saveOptions.message).toContain('主文件夹、桌面、文稿、资源库及同步目录不受支持');
     expect(saveOptions.message).toContain('主文件夹直属');
-    expect(saveOptions.message).toContain('下载等目录可能因 ACL 被拒绝');
+    expect(saveOptions.message).toContain('支持通过检查的下载目录');
     await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
     expect((await snapshot(temporary)).snapshot.source).toBe(before.source);
     await expect.poll(async () => { try { await fs.lstat(target); return true; } catch { return false; } }).toBe(false);
@@ -814,7 +847,7 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     expect((await snapshot(temporary)).snapshot).toEqual(current);
     expect((await fs.readFile(target)).equals(original)).toBe(true);
     const shot = info.outputPath('persistent-copy.png'); await page.screenshot({ path: shot }); await info.attach('persistent-copy', { path: shot, contentType: 'image/png' });
-  }, info, null, true, true, true);
+  }, info, null, true, true, true, target);
   await usingDemo(async ({ app, page, snapshot }) => {
     await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
     await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('persistent.md');
@@ -824,7 +857,14 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     for (const op of ['save','createPersistentCopy']) expect((await page.evaluate(async ({ op, id, revision }) => window.documentDemo[op]({ sessionId: id, expectedRevision: revision }), { op, id, revision: reopened.revision })).code).toBe('read-only-document');
     expect((await fs.readFile(target)).equals(original)).toBe(true);
   }, info, null, true);
-  // Both Electron processes and their sessions have exited; no cleanup on failure.
+  // The default protection must remain unchanged and never inherit onto the new file.
+  expect(inspectMacMetadata(dir, { newFileDirectory: true })).toEqual(directoryMetadata);
+  const createdMetadata = inspectMacMetadata(target, { newlyCreatedFile: true });
+  expect(createdMetadata.acl).toBe(false);
+  expect(Object.keys(createdMetadata.xattrs)).toEqual(expect.arrayContaining(['com.apple.macl', 'com.apple.lastuseddate#PS']));
+  expect(() => inspectMacMetadata(target)).toThrow();
+  // Both Electron processes exited. Undo only this test's exact ACE before reclaim.
+  expect(spawnSync('/bin/chmod', ['-a', acl, dir]).status).toBe(0);
   const cleanup = ownedFixture.cleanup({ passed: true, quiescent: true });
   expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
   console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
@@ -1142,7 +1182,7 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
     await page.keyboard.press('Meta+z'); await settled(); await expect(page.locator('#editor p:first-of-type')).toHaveText('First.');
     await page.keyboard.press('Meta+Shift+z'); await settled(); await expect(page.locator('#editor p:first-of-type')).toHaveText('First 中文😀.');
     const beforeReject = (await snapshot(copy)).snapshot;
-    await paste('one\ntwo'); await expect(page.locator('#viewer-status')).toContainText('没有截断内容');
+    await paste('one\n\n\ntwo'); await expect(page.locator('#viewer-status')).toContainText('没有截断内容');
     expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
     await select('#editor p:last-of-type', 7); await page.keyboard.type(' next'); await settled();
     await page.keyboard.press('Enter'); await page.keyboard.type('Third.'); await settled();
@@ -1200,3 +1240,102 @@ test('paste V1 native Edit menu provides the Paste role', async ({}, info) => us
   const roles = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(i => i.label === 'Edit').submenu.items.map(i => i.role));
   expect(roles).toContain('paste');
 }, info, null, true));
+
+
+test('multiline paste V1 writes paragraphs atomically and reopens a faithful new file', async ({}, info) => {
+  let fixture, target, savedBytes, receipt, originalFile, originalBytes;
+  await usingDemo(async ({ app, page, snapshot, select, settled, root }) => {
+    await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; });
+    try {
+    originalFile = path.join(root, 'multiline-original.md');
+    originalBytes = Buffer.from('\ufeff---\r\nx: keep\r\n---\r\n\r\nBefore OLD after.\r\n\r\nTail.\r\n\r\n```js\r\nopaque()\r\n```');
+    await fs.writeFile(originalFile, originalBytes, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, originalFile);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('multiline-original.md');
+    const original = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    const copy = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
+    const paste = text => page.locator('#editor .tiptap').evaluate((node, value) => {
+      const data = new DataTransfer(); data.setData('text/plain', value); data.setData('text/html', '<script>BAD</script>');
+      node.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }));
+    }, text);
+    await select('#editor p:first-of-type', 7, 10); await paste('第一😀\r\n\r\nSecond\n第三'); await settled();
+    const source = originalBytes.toString().slice(1), pasted = source.replace('OLD', '第一😀\r\n\r\nSecond\r\n\r\n第三');
+    expect((await snapshot(copy)).snapshot.source).toBe(pasted);
+    await expect(page.locator('#editor p')).toHaveText(['Before 第一😀', 'Second', '第三 after.', 'Tail.']);
+    expect(await page.evaluate(() => window.getSelection().anchorOffset)).toBe(2);
+    await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(copy)).snapshot.source).toBe(source);
+    await page.keyboard.press('Meta+Shift+z'); await settled(); expect((await snapshot(copy)).snapshot.source).toBe(pasted);
+    const beforeRefusal = (await snapshot(copy)).snapshot;
+    await paste('One\n\n\nTwo'); await expect(page.locator('#viewer-status')).toContainText('没有截断内容');
+    expect((await snapshot(copy)).snapshot).toEqual(beforeRefusal);
+    await select('#editor p:last-of-type', 5); await page.keyboard.press('Enter'); await page.keyboard.type('Next.'); await settled();
+    const splitSource = pasted.replace('Tail.', 'Tail.\r\n\r\nNext.'), finalSource = pasted.replace('Tail.', 'Tail.Next.');
+    expect((await snapshot(copy)).snapshot.source).toBe(splitSource);
+    // Deterministically reproduce the observed gap in one event-loop turn.
+    const gap = await page.locator('#editor .tiptap').evaluate(node => {
+      const paragraph = node.querySelector('p:last-of-type'), s = window.getSelection(), range = document.createRange();
+      range.setStart(paragraph.firstChild, 0); range.collapse(true); s.removeAllRanges(); s.addRange(range);
+      const before = { dom: s.anchorOffset, pm: node.editor.state.selection.$from.parentOffset };
+      node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', code: 'Backspace', keyCode: 8, bubbles: true, cancelable: true }));
+      return before;
+    });
+    expect(gap).toEqual({ dom: 0, pm: 5 }); await settled();
+    expect((await snapshot(copy)).snapshot.source).toBe(finalSource);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await snapshot(copy)).snapshot.source).toBe(splitSource);
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).historyPending).toBe(false);
+    await page.keyboard.press('Meta+Shift+z');
+    await expect.poll(async () => (await snapshot(copy)).snapshot.source).toBe(finalSource);
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).historyPending).toBe(false);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await snapshot(copy)).snapshot.source).toBe(splitSource);
+    await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).historyPending).toBe(false);
+    await page.keyboard.press('Meta+ArrowRight'); await page.keyboard.press('Meta+ArrowLeft');
+    await page.keyboard.press('Backspace'); await settled();
+    expect((await snapshot(copy)).snapshot.source).toBe(finalSource);
+    expect(await page.locator('#editor .tiptap').evaluate(node => node.editor.state.selection.$from.parentOffset)).toBe(5);
+    await page.locator('#documents').selectOption(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    const denied = await page.evaluate(id => window.documentDemo.edit({ sessionId: id, expectedRevision: 0, from: 1, to: 1, insert: 'NO\n\nWRITE' }), original);
+    expect(denied.code).toBe('read-only-document'); expect((await snapshot(original)).snapshot.source).toBe(source);
+    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await snapshot(copy)).snapshot.source).toBe(finalSource);
+    fixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(fixture.dir, 'multiline.md');
+    console.log('home-fixture-created:' + fixture.dir);
+    await app.evaluate(({ dialog }, filePath) => {
+      dialog.showMessageBox = async () => ({ response: 1 }); dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+    }, target);
+    const beforeSave = (await snapshot(copy)).snapshot;
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#test-copy-summary')).toContainText('已创建新文件');
+    const saved = (await snapshot(copy)).snapshot; receipt = saved.copyState; savedBytes = await fs.readFile(target);
+    expect(savedBytes.equals(Buffer.from('\ufeff' + finalSource))).toBe(true);
+    expect(require('node:crypto').createHash('sha256').update(savedBytes).digest('hex')).toBe(receipt.sha256);
+    for (const key of ['source', 'revision', 'dirty', 'canUndo', 'canRedo']) expect(saved[key]).toBe(beforeSave[key]);
+    fixture.recordFile('multiline.md', savedBytes);
+    await select('#editor p:first-of-type', 0); await page.keyboard.type('Later '); await settled();
+    await expect(page.locator('#test-copy-summary')).toContainText('后续修改尚未导出');
+    const beforeCancel = (await snapshot(copy)).snapshot.source;
+    await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true }); });
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#test-copy-operation')).toContainText('操作已取消');
+    expect((await snapshot(copy)).snapshot.source).toBe(beforeCancel);
+    expect((await fs.readFile(target)).equals(savedBytes)).toBe(true); expect((await fs.readFile(originalFile)).equals(originalBytes)).toBe(true);
+    await page.screenshot({ path: info.outputPath('multiline-paste.png') });
+    } catch (error) {
+      await info.attach('multiline-functional-error', { body: String(error.stack || error), contentType: 'text/plain' });
+      await page.screenshot({ path: info.outputPath('multiline-failure.png') });
+      throw error;
+    }
+  }, info, null, true, true, true);
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('multiline.md');
+    const id = JSON.parse(await page.locator('#status').textContent()).activeSessionId, reopened = (await snapshot(id)).snapshot;
+    expect(reopened.readOnly).toBe(true); expect(reopened.bom).toBe(true); expect(reopened.source).toBe(savedBytes.toString().slice(1));
+    expect(require('node:crypto').createHash('sha256').update(await fs.readFile(target)).digest('hex')).toBe(receipt.sha256);
+    expect((await fs.readFile(originalFile)).equals(originalBytes)).toBe(true);
+  }, info, null, true);
+  const cleanup = fixture.cleanup({ passed: true, quiescent: true }); expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
+});

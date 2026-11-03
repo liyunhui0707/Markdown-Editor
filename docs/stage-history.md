@@ -1,8 +1,85 @@
 # Stage History
 
+## 0.33.0 local WIP checkpoint (2026-11-03)
+
+This checkpoint consolidates the 22 reviewed candidate paths below with the two
+project version files. The dated "uncommitted 0.32.0" notes are historical;
+this closeout supersedes their candidate/commit status, not their evidence limits.
+The minor bump covers new multiline plain-text paste (up to 32 paragraphs) and
+checked Downloads new-file support, with native-caret Backspace, literal bracket
+and first-native-metadata timing corrections. No dependency or build setting changes.
+
+Candidate fingerprints match the saved evidence and subsequent manual-QA record.
+Reuse **187 focused Node PASS**, **one final Pro Electron PASS** with two clean
+process exits, and the earlier scoped Air multiline/caret evidence. The final
+Electron test stubs dialogs; separate native Downloads RED/GREEN runs used the
+user's Save click and confirmed source/disk/fresh-process hashes. The user then
+reported **limited manual QA PASS** for Downloads receipts, literal brackets and
+truthful subsequent-edit/Not saved status. Bundle reproduction and Git diff checks
+pass. No new product change or unrelated test matrix is part of this closeout.
+
+This is a **local recovery checkpoint, not complete acceptance or release approval**.
+The earlier DeepSeek review covers the directory-compatibility candidate only;
+subsequent metadata/timing/bracket fixes have Codex A self-review and targeted
+verification, not another independent model review. No new confirmed P0/P1 was
+found within that scope. Original files stay read-only; exclusive new-file export
+never overwrites and never clears the current session's Not saved/history state.
+Old partial/unknown outcomes remain blocked and retained. Nested/unsupported/sync
+directories, arbitrary Save As and general save() remain unavailable;
+coordination-required remains in force. Native Chinese IME remains NOT VERIFIED,
+the earlier Chinese-input manual FAIL is not lifted, and SEC-01, formal phase-1B3
+FAIL, installer/release, malicious same-user concurrency and power-loss durability
+gates remain. No push, merge, tag or release is included.
+
+
+Native Downloads save-confirmation fix (uncommitted 0.32.0): user QA found native
+MACL/last-used xattrs on the newly created file, outside the earlier directory-only
+coverage. Restricted new-file opt-in plus internal writer/parent metadata-hash
+checks; no overwrite or old-state unlock. 101 Node / one controlled Air Electron
+PASS, two clean exits. Native manual save confirmation remains pending; prior
+review does not cover this follow-up. File Store remains 311 lines; keep the
+small verification addition beside existing create ownership rather than split
+the save module during this bug fix (policy 219, parent process 94 lines). See the [native metadata follow-up](document-save-hardening-phase1b.md#native-save-dialog-new-file-attributes-follow-up-2026-11-02-uncommitted).
+
+
+Downloads new-file compatibility is an **uncommitted 0.32.0 candidate**: directory-
+only default deny-delete ACL + opaque MACL fingerprint support; verified Downloads
+suggestion and refreshed guidance. No overwrite, IPC or writer-state change.
+97 distinct targeted Node / one Air Electron case PASS (two clean exits, independent bundle,
+synthetic ACL/MACL directory and cross-process reopen; strengthened case rerun).
+One DeepSeek review completed, Codex A verified no new P0/P1 and added native MACL
+evidence. Failed-fixture retention and synchronous probe latency remain. Native dialog selection was
+stubbed; native IME and earlier manual FAIL remain. Save-policy stays 217 lines;
+persistent-copy tests 326 and shared E2E 1313 remain together to reuse fixture/process
+ownership. See [bounded save evidence](document-save-hardening-phase1b.md#downloads-directory-metadata-compatibility-2026-11-02-uncommitted-0320).
+
+
 Concise record of completed stages, their key deliverables, and known deferred items.
 
 ## Current restricted Document follow-up (2026-11-02)
+
+Native-caret Backspace follow-up is an **uncommitted fix** on the multiline
+candidate. Same-paragraph DOM/PM selection lag now reconciles only a confirmed
+collapsed caret before the existing command and source gates. Actual Air RED
+reproduced refusal; GREEN 161 Node / two Air cases with three clean app exits,
+faithful new-file reopen and unchanged original. No selection wait needed in
+the fast-key regression. User separately reports save/reopen manual PASS; ACL
+refusals and native IME NOT VERIFIED remain. Helper 26 lines, renderer 367,
+controller tests 742, shared E2E 1301; no unrelated restructuring. See the
+[bounded follow-up](document-editing-interaction-phase1b3.md#user-savereopen-qa-and-native-caret-backspace-follow-up-2026-11-02).
+
+
+Multiline plain paste V1 is now an **uncommitted candidate** on 0.32.0. Up to 32
+nonempty plain paragraphs paste atomically through one existing IPC/history
+operation. Only the selected source range changes; existing newline style, BOM
+and untouched Markdown survive. 158 targeted Node tests and two targeted Air
+Electron cases PASS, with four successful clean exits and identical rebuilt
+bundle. A rapid native-caret/PM-selection timing refusal remains documented; no
+source guard was relaxed. Runtime files: source-map 221, controller 215, paste
+helper 46 lines. Controller tests 687; shared E2E 1289 lines retain existing
+fixture/process infrastructure rather than adding a framework. See the current
+[bounded implementation and evidence](document-editing-interaction-phase1b3.md#multiline-plain-paste-v1-2026-11-02-uncommitted).
+
 
 Plain paste / new-file feedback V1 is preserved as local WIP 0.32.0,
 not released. The user reports paste manual QA PASS; this does not certify IME. Single-line text/plain paste uses the existing PM and
@@ -240,3 +317,33 @@ Unchanged candidate evidence: 126 Node PASS, 1 Pro Electron PASS with 2 clean ex
 additional in-memory probe: 318 reversible edits, 87 safe refusals. Only project
 version fields and this closeout record change; all existing native IME, formal
 phase FAIL, SEC-01 and overwrite limitations remain. No release/merge approval.
+
+
+### Literal brackets and Downloads confirmation correction (2026-11-03, WIP)
+
+User QA found two compatibility defects: ordinary ASCII brackets were rejected
+by a blanket source-map guard; native Downloads creation failed when ctime moved
+during the first metadata inspection. Permit brackets only when remark retains
+exact supported text leaves and the full projection comparison still matches.
+Link/reference/task syntax remains protected; no escaping or whole-file rewrite.
+Capture new-file native metadata before the strict verification baseline; retain
+all later metadata/byte/identity/sync checks and unknown-state blocking.
+
+RED reproduced both defects. Final: **187 focused Node PASS** (83 editing/source
+mapping, 13 persistent-copy, 91 safety/metadata/receipt), **1 Pro Electron PASS**
+with two clean exits and fresh-process read-only reopening. Separate real native
+Downloads RED/GREEN runs required the user's Save click; post-fix hashes matched
+and Not saved remained true. Native IME is not covered. Demo bundle independently
+rebuilds byte-identically; existing 22-file candidate retained, no version or Git
+commit. Codex A bounded self-review found no new confirmed P0/P1, not an independent
+second-model review. Large existing test files are extended rather than split
+for this bounded regression. Old user files and unresolved receipts remain intact;
+see the save-hardening document for native traces and retained evidence.
+
+
+2026-11-03 user manual confirmation: limited manual QA PASS for Downloads new-file
+confirmation, literal half-width brackets, and truthful subsequent-edit/Not saved
+receipts. The user explicitly reports all tested operations passed. Existing
+187 Node / one Pro Electron and native synthetic RED/GREEN evidence is retained;
+no unrelated tests repeated. This is not full native IME or release sign-off;
+version remains 0.32.0 and the candidate remains uncommitted.

@@ -132,7 +132,7 @@ body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
   </span>
 </header>
 <div id="writing-actions" hidden><button id="new-temporary" disabled>New temporary document</button><button id="edit-copy" hidden>编辑副本 · Edit a copy</button><button id="create-test-copy" hidden>创建测试副本</button></div>
-<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持同一安全文本范围内的单行纯文本粘贴；多段粘贴及复杂格式暂不支持。</p>
+<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；多段请粘贴到一个普通段落内。连续空段落及复杂格式暂不支持。</p>
 <section id="test-copy-panel" hidden aria-label="Create a new Markdown copy">
 <details id="test-copy-location-help"><summary>保存位置与限制</summary><p id="test-copy-description">Development only — copies are created in a private, isolated temporary directory. They may be cleaned up. Do not use them for important or long-term documents. No ordinary Save As or overwrite is enabled.</p></details>
 <output id="test-copy-reason" role="status"></output>

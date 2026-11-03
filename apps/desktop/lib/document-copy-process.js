@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
-const { captureCopyDestination } = require('./document-save-policy');
+const { captureCopyDestination, inspectMacMetadata } = require('./document-save-policy');
 const { createDocumentFileStore } = require('./document-file-store');
 const unknown = code => ({ ok: false, state: 'create-outcome-unknown', created: null, code });
 // Injected fork is a trusted main-process capability, never supplied by renderer.
@@ -30,7 +30,8 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
         let response, messages = 0, invalid = false, settled = false, termination;
         const finish = result => {
           if (settled) return; settled = true; clearTimeout(timer); clearTimeout(termination); active.delete(child);
-          resolve({ ...result, filePath, directoryIdentity: target.state.identity });
+          const { fileMetadataSha256, ...receipt } = result; // Internal writer proof, not renderer authority.
+          resolve({ ...receipt, filePath, directoryIdentity: target.state.identity });
         };
         const stop = code => {
           invalid = true; if (termination || settled) return;
@@ -67,10 +68,17 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
               target.verify();
               if (response.state !== 'created-confirmed' || response.created !== true || response.filePath !== filePath
                   || response.sha256 !== sha256 || response.byteLength !== bytes.length) throw Error('invalid receipt');
+              const verifyNativeMetadata = () => {
+                const actual = inspectMacMetadata(filePath, { newlyCreatedFile: true });
+                if (typeof response.fileMetadataSha256 !== 'string'
+                    || createHash('sha256').update(JSON.stringify(actual)).digest('hex') !== response.fileMetadataSha256) throw Error('created attributes changed');
+              };
+              verifyNativeMetadata();
               const read = createDocumentFileStore().read(filePath, 1048576);
               if (`${read.identity.dev}:${read.identity.ino}` !== response.fileIdentity || read.identity.mode !== 0o600
                   || read.identity.uid !== target.state.identity.uid || read.identity.gid !== target.state.identity.gid
                   || read.sha256 !== sha256 || !read.bytes.equals(bytes)) throw Error('created file changed');
+              verifyNativeMetadata();
               target.verify();
             } catch { finish({ ...response, ok: false, state: 'created-unverified', code: 'copy-post-verification-failed' }); return; }
           } else if (!Object.hasOwn({ 'not-created': false, 'target-exists': false, 'created-partial': true, 'created-unverified': true, 'durability-uncertain': true, 'create-outcome-unknown': null }, response.state)

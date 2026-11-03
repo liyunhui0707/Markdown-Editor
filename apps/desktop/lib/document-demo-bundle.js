@@ -32134,9 +32134,9 @@ ${prefix}
         continue;
       }
       const raw = source.slice(start, end), parts = [];
-      let supported = ["paragraph", "heading"].includes(node2.type) && node2.position.start.line === node2.position.end.line && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
+      let supported = ["paragraph", "heading"].includes(node2.type) && node2.position.start.line === node2.position.end.line && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\\`$|]/.test(raw);
       if (node2.type === "heading" && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
-      const soft = node2.type === "paragraph" && node2.position.start.line !== node2.position.end.line && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === raw && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
+      const soft = node2.type === "paragraph" && node2.position.start.line !== node2.position.end.line && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === raw && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
       if (soft) {
         let textOffset = 0;
         for (const match of raw.matchAll(/[^\r\n]+/g)) {
@@ -32259,6 +32259,47 @@ ${prefix}
       selection: { from: selection, to: selection }
     };
   }
+  function paragraphPaste(source, projection, change, separator, verify = true) {
+    const { from: from2, to, insert } = change, multiline = insert.includes("\n");
+    if (!multiline && separator === null) return null;
+    const parts = insert.split("\n\n");
+    if (parts.length > 32 || parts.some((p) => !validText(p)) || multiline && (parts.length < 2 || parts.some((p) => !p.trim()))) return null;
+    const spans = projection.spans.filter((s) => projection.doc.content[s.blockIndex].type === "paragraph" && s.textOffset === void 0 && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
+    const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
+    if (!left || !right || left.blockIndex > right.blockIndex || left !== right && separator === null || !multiline && left === right || splits(left.text, from2 - left.from) || splits(right.text, to - right.from)) return null;
+    const range = spans.filter((s) => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
+    const delimiter = separator ?? (source.match(/\r\n|\n|\r/)?.[0] || "\n").repeat(2);
+    if (range.length !== right.blockIndex - left.blockIndex + 1 || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
+    const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from;
+    const removed = source.slice(a, b), oldParts = range.map((s, i) => s.text.slice(i ? 0 : from2 - s.from, i === range.length - 1 ? to - s.from : void 0));
+    const inverseInsert = oldParts.join("\n\n");
+    if (removed.length > 4096 || inverseInsert.length > 4096) return unsafe();
+    const texts = [...parts];
+    texts[0] = left.text.slice(0, from2 - left.from) + texts[0];
+    texts[texts.length - 1] += right.text.slice(to - right.from);
+    const expected = structuredClone(projection.doc);
+    expected.content.splice(left.blockIndex, range.length, ...texts.map((text6) => ({ type: "paragraph", content: text6 ? [{ type: "text", text: text6 }] : [] })));
+    const text5 = parts.join(delimiter), next = source.slice(0, a) + text5 + source.slice(b);
+    if (text5.length > 4096 || next.length > 131072) return unsafe();
+    const nextProjection = projectSource(next);
+    if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+    const inverse = { from: from2, to: from2 + insert.length, insert: inverseInsert };
+    if (verify) {
+      const back = paragraphPaste(next, nextProjection, inverse, delimiter, false);
+      if (!back?.ok || back.source !== source) return unsafe();
+    }
+    return {
+      ok: true,
+      source: next,
+      change: { from: a, to: b, insert: text5 },
+      projection: nextProjection,
+      structural: true,
+      leaf: null,
+      inverse,
+      paragraphSeparator: delimiter,
+      selection: { from: from2 + insert.length, to: from2 + insert.length }
+    };
+  }
   function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
     if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return unsafe();
     const { from: from2, to, insert } = change;
@@ -32269,6 +32310,8 @@ ${prefix}
     if (leaf === null) {
       const paragraph2 = paragraphEdit(source, projection, change, true, paragraphSeparator);
       if (paragraph2) return paragraph2;
+      const paste = paragraphPaste(source, projection, change, paragraphSeparator);
+      if (paste) return paste;
       if (paragraphSeparator !== null) return unsafe();
     }
     if (!validText(insert)) return unsafe();
@@ -32316,7 +32359,7 @@ ${prefix}
     if (receipt.ok && receipt.state === "created-confirmed") return `\u672C\u6B21\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002\u5F53\u524D\u7F16\u8F91\u526F\u672C\u4ECD\u4E3A Not saved\u3002`;
     let text5;
     if (receipt.created === false) {
-      const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
+      const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u4E0B\u8F7D\u6216\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u5176\u4ED6\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\uFF0C\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
       text5 = `\u672A\u521B\u5EFA\u6587\u4EF6\uFF1A${reason}\u6587\u5B57\u4ECD\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3\u3002`;
     } else {
       text5 = {
@@ -32340,7 +32383,7 @@ ${receipt.filePath}` : ""}`;
       persistent = enabled && s.confirmed.persistentCopyEnabled === true;
       byId2("create-test-copy").textContent = persistent ? "Save as new file\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
       byId2("confirm-test-copy").textContent = persistent ? "Choose location\u2026" : "Create new test copy";
-      byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\uFF0C\u4F8B\u5982\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u684C\u9762\u3001\u6587\u7A3F\u3001\u8D44\u6E90\u5E93\u3001\u9690\u85CF\u4E0E\u540C\u6B65\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4E0B\u8F7D\u7B49\u76EE\u5F55\u53EF\u80FD\u5E26\u6709\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
+      byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\uFF0C\u4F8B\u5982\u4E0B\u8F7D\u6216\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u684C\u9762\u3001\u6587\u7A3F\u3001\u8D44\u6E90\u5E93\u3001\u9690\u85CF\u4E0E\u540C\u6B65\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4EC5\u652F\u6301\u9632\u6B62\u5220\u9664\u76EE\u5F55\u81EA\u8EAB\u7684\u9ED8\u8BA4\u6743\u9650\uFF08ACL\uFF09\uFF0C\u5176\u4ED6\u989D\u5916\u6743\u9650\u4ECD\u4F1A\u88AB\u62D2\u7EDD\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
       byId2("create-test-copy").hidden = !enabled;
       byId2("test-copy-panel").hidden = !enabled;
       if (!enabled) return;
@@ -32427,6 +32470,8 @@ SHA-256: ${last.sha256}` : "";
       insert = step.slice.content.textBetween(0, step.slice.content.size, "", "");
     } else if (json.structure && step.from === step.to && step.slice.openStart === 1 && step.slice.openEnd === 1 && step.slice.content.childCount === 2 && step.slice.content.content.every((node2) => node2.type.name === "paragraph" && !node2.content.size)) {
       insert = "\n\n";
+    } else if (step.slice.openStart === 1 && step.slice.openEnd === 1 && step.slice.content.childCount >= 2 && step.slice.content.content.every((node2) => node2.type.name === "paragraph" && node2.content.size && node2.content.content.every((child) => child.isText && !child.marks.length))) {
+      insert = step.slice.content.content.map((node2) => node2.textContent).join("\n\n");
     } else return null;
     const edit = { from: step.from, to: step.to, insert };
     const mapped = mapTextEdit(source, edit), schema = tr2.doc.type.schema;
@@ -32788,15 +32833,46 @@ SHA-256: ${last.sha256}` : "";
     } catch {
       return reject("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
-    if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x1f\x7f\u2028\u2029]/u.test(text5)) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u5355\u884C\u7EAF\u6587\u672C\uFF1B\u6362\u884C\u3001\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+    if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x09\x0b\x0c\x0e-\x1f\x7f\u2028\u2029]/u.test(text5)) {
+      return reject("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
     }
     if (!text5) return true;
-    const tr2 = view.state.tr.insertText(text5).scrollIntoView();
+    let tr2;
+    if (/[\r\n]/.test(text5)) {
+      const normalized = text5.replace(/\r\n|\r/g, "\n");
+      const lines = normalized.split(/\n\n?/);
+      const canonical = lines.join("\n\n");
+      if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical.length > 4096) {
+        return reject("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      }
+      const schema = view.state.schema;
+      const slice2 = new Slice(Fragment.fromArray(lines.map((line) => schema.nodes.paragraph.create(null, schema.text(line)))), 1, 1);
+      tr2 = view.state.tr.replaceSelection(slice2).scrollIntoView();
+    } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u8BF7\u5728\u540C\u4E00\u666E\u901A\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u5355\u884C\u53EF\u5728\u5B89\u5168\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF0C\u591A\u6BB5\u8BF7\u5728\u5355\u4E2A\u666E\u901A\u6BB5\u843D\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
+    return true;
+  }
+
+  // lib/document-native-selection.mjs
+  function syncNativeBackspaceSelection(view, event, { state, blocked = false }) {
+    if (event.key !== "Backspace" || event.defaultPrevented || event.metaKey || event.altKey || event.ctrlKey || event.isComposing || event.keyCode === 229 || view.composing || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly || state.locked || state.pending || state.historyPending || state.composing || state.compositionInvalid || state.source !== state.confirmed.source) return false;
+    let next;
+    try {
+      const dom = view.dom.ownerDocument.getSelection(), current = view.state.selection;
+      if (!dom || dom.rangeCount !== 1 || !dom.isCollapsed || !current.empty || !view.dom.contains(dom.anchorNode) || dom.anchorNode !== dom.focusNode || dom.anchorOffset !== dom.focusOffset) return false;
+      const at = view.posAtDOM(dom.anchorNode, dom.anchorOffset), pos = view.state.doc.resolve(at);
+      if (pos.parent.type.name !== "paragraph" || pos.parentOffset !== 0 || current.$from.start() !== pos.start() || current.from === at) return false;
+      const element2 = dom.anchorNode.nodeType === 3 ? dom.anchorNode.parentElement : dom.anchorNode;
+      const paragraph2 = element2.closest("p");
+      if (!paragraph2 || view.nodeDOM(pos.before()) !== paragraph2 || paragraph2.textContent !== pos.parent.textContent) return false;
+      next = TextSelection.create(view.state.doc, at);
+    } catch {
+      return false;
+    }
+    view.dispatch(view.state.tr.setSelection(next));
     return true;
   }
 
@@ -33048,6 +33124,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         enablePasteRules: false,
         extensions: [src_default.configure({ undoRedo: false, trailingNode: false }), gate],
         editorProps: { handleDOMEvents: {
+          keydown: (view, event) => {
+            syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
+            return false;
+          },
           mousedown: finishCompositionForPointer,
           paste: (view, event) => pastePlainText(view, event, {
             state: controller?.state(),

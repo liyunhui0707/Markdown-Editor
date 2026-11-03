@@ -147,3 +147,83 @@ test('soft paragraph V1: no new support for hard breaks, indents, markup or tran
     assert.equal(projectSource(source).spans.some(s => s.text.includes('one') && s.textOffset !== undefined), false, source);
   }
 });
+
+
+for (const nl of ['\n', '\r\n', '\r']) test(`multiline paste V1: atomic source splice and exact history (${JSON.stringify(nl)})`, () => {
+  const source = ['---', 'x: keep', '---', '', 'Before OLD after.', '', '```js', 'opaque()', '```'].join(nl);
+  const span = projectSource(source).spans.find(s => s.text === 'Before OLD after.');
+  const change = { from: span.from + 7, to: span.from + 10, insert: '第一😀\n\nSecond\n\n第三' };
+  const r = mapTextEdit(source, change);
+  assert.equal(r.ok, true); assert.equal(r.source, source.replace('OLD', change.insert.replaceAll('\n', nl)));
+  assert.equal(r.selection.from, change.from + change.insert.length);
+  assert.equal(r.paragraphSeparator, nl + nl);
+  const back = mapTextEdit(r.source, r.inverse, r.leaf, r.paragraphSeparator);
+  assert.equal(back.ok, true); assert.equal(back.source, source);
+  const redo = mapTextEdit(back.source, change, r.leaf, r.paragraphSeparator);
+  assert.equal(redo.source, r.source);
+  assert.equal(mapTextEdit(r.source, r.inverse).ok, false, 'cross-paragraph inverse is history-only');
+});
+test('multiline paste V1: empty slots preserve terminal newline and surrounding source', () => {
+  for (const source of ['', '\n', '\n\nTail.', 'Before.\r\n\r\n']) {
+    const slot = projectSource(source).spans.find(s => s.text === ''); assert.ok(slot);
+    const r = mapTextEdit(source, { from: slot.from, to: slot.to, insert: 'One\n\nTwo😀' });
+    assert.equal(r.ok, true, JSON.stringify(source));
+    assert.equal(mapTextEdit(r.source, r.inverse, r.leaf, r.paragraphSeparator).source, source);
+  }
+});
+test('multiline paste V1: forbidden structure, ambiguous whitespace and untrusted cross-block edits reject atomically', () => {
+  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```\ncode\n```']) {
+    const span = projectSource(source).spans[0];
+    assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
+  }
+  for (const insert of ['One\nTwo', 'One\n\n\nTwo', '\n\nOne', 'One\n\n', 'One\n\n# Heading', 'One\n\n- list', 'One\n\n<iframe>', 'One\n\n\ud800']) {
+    assert.equal(mapTextEdit('Normal.', { from: 2, to: 2, insert }).ok, false, JSON.stringify(insert));
+  }
+  const source = 'First.\n\nSecond.', spans = projectSource(source).spans;
+  assert.equal(mapTextEdit(source, { from: spans[0].from + 1, to: spans[1].from + 1, insert: 'One\n\nTwo' }).ok, false);
+});
+
+
+test('multiline paste V1: boundary matrix preserves bytes and UTF-16 with reversible range replacement', () => {
+  let accepted = 0;
+  for (const nl of ['\n', '\r\n', '\r']) for (const text of ['abcd', '中😀文', 'é text']) {
+    const source = ['# Keep', '', text, '', 'tail.'].join(nl), span = projectSource(source).spans.find(s => s.text === text);
+    for (let a = 0; a <= text.length; a++) for (let b = a; b <= text.length; b++) {
+      const change = { from: span.from + a, to: span.from + b, insert: '新😀\n\nnext' }, r = mapTextEdit(source, change);
+      if (!r.ok) continue;
+      accepted++;
+      assert.equal(r.source, source.slice(0, span.sourceFrom + a) + '新😀' + nl + nl + 'next' + source.slice(span.sourceFrom + b));
+      const undo = mapTextEdit(r.source, r.inverse, r.leaf, r.paragraphSeparator);
+      assert.equal(undo.ok, true); assert.equal(undo.source, source);
+      assert.equal(mapTextEdit(undo.source, change, r.leaf, r.paragraphSeparator).source, r.source);
+    }
+  }
+  assert.ok(accepted > 100);
+});
+
+
+for (const nl of ['\n', '\r\n']) test(`literal brackets: exact text editing and structural refusal (${JSON.stringify(nl)})`, () => {
+  const original = ['---', 'kind: synthetic', '---', '', 'First 中文😀.', 'second line.', '', '```md', '[opaque](target)', '```'].join(nl);
+  let current = original;
+  const changes = [];
+  for (const insert of ['[', ' ', ']']) {
+    const span = projectSource(current).spans.find(s => s.text.startsWith('First'));
+    assert.ok(span);
+    const at = span.to - 1; // Keep the soft line's final punctuation; trailing-space edits are a separate restriction.
+    const r = mapTextEdit(current, { from: at, to: at, insert });
+    assert.equal(r.ok, true, insert);
+    changes.push({ from: at, to: at + insert.length, insert: '', leaf: r.leaf });
+    current = r.source;
+  }
+  assert.equal(current, original.replace('First 中文😀.', 'First 中文😀[ ].'));
+  for (const { leaf, ...change } of changes.reverse()) current = mapTextEdit(current, change, leaf).source;
+  assert.equal(current, original);
+  for (const text of ['[ ]', '[label]', 'before ] after', '# [title]']) assert.ok(projectSource(text).spans.length, text);
+  for (const text of ['[label](https://example.invalid)', '[label]\n\n[label]: /target', '![x](file.png)', '- [ ] task']) {
+    assert.equal(projectSource(text).spans.length, 0, text);
+  }
+  assert.equal(mapTextEdit('[label]', { from: 8, to: 8, insert: '(target)' }).ok, false);
+  // A definition elsewhere must not silently turn text into a reference link.
+  const referenced = '[label\n\n[label]: /target';
+  assert.equal(mapTextEdit(referenced, { from: 7, to: 7, insert: ']' }).ok, false);
+});

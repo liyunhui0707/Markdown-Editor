@@ -32,14 +32,16 @@ export function projectSource(source) {
     let start = node.position.start.offset, end = node.position.end.offset;
     if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
     const raw = source.slice(start, end), parts = [];
+    // Literal brackets are safe only when remark keeps exact text leaves. Links,
+    // references and other structural changes still fail the projection check.
     let supported = ['paragraph', 'heading'].includes(node.type) && node.position.start.line === node.position.end.line
-      && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
+      && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\\`$|]/.test(raw);
     if (node.type === 'heading' && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
     // Plain soft-wrapped paragraphs share one PM text node. Source line breaks
     // render as spaces with NO editable span; each source line keeps its own range.
     const soft = node.type === 'paragraph' && node.position.start.line !== node.position.end.line
       && node.children?.length === 1 && node.children[0].type === 'text' && node.children[0].value === raw
-      && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\[\]\\`$|]/.test(raw);
+      && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
     if (soft) {
       let textOffset = 0;
       for (const match of raw.matchAll(/[^\r\n]+/g)) {
@@ -135,6 +137,46 @@ function paragraphEdit(source, projection, change, verify = true, paragraphSepar
     leaf: null, structural: true, inverse, paragraphSeparator, selection: { from: selection, to: selection } };
 }
 
+// Atomic plain paragraph paste. Only main-owned history may replace a range
+// across paragraphs; renderer edits must start and end inside one plain block.
+function paragraphPaste(source, projection, change, separator, verify = true) {
+  const { from, to, insert } = change, multiline = insert.includes('\n');
+  if (!multiline && separator === null) return null;
+  const parts = insert.split('\n\n');
+  if (parts.length > 32 || parts.some(p => !validText(p))
+      || (multiline && (parts.length < 2 || parts.some(p => !p.trim())))) return null;
+  const spans = projection.spans.filter(s => projection.doc.content[s.blockIndex].type === 'paragraph'
+    && s.textOffset === undefined && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
+  const left = spans.find(s => from >= s.from && from <= s.to), right = spans.find(s => to >= s.from && to <= s.to);
+  if (!left || !right || left.blockIndex > right.blockIndex
+      || (left !== right && separator === null) || (!multiline && left === right)
+      || splits(left.text, from - left.from) || splits(right.text, to - right.from)) return null;
+  const range = spans.filter(s => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
+  const delimiter = separator ?? (source.match(/\r\n|\n|\r/)?.[0] || '\n').repeat(2);
+  if (range.length !== right.blockIndex - left.blockIndex + 1
+      || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
+  const a = left.sourceFrom + from - left.from, b = right.sourceFrom + to - right.from;
+  const removed = source.slice(a, b), oldParts = range.map((s, i) => s.text.slice(i ? 0 : from - s.from, i === range.length - 1 ? to - s.from : undefined));
+  const inverseInsert = oldParts.join('\n\n');
+  if (removed.length > 4096 || inverseInsert.length > 4096) return unsafe();
+  const texts = [...parts]; texts[0] = left.text.slice(0, from - left.from) + texts[0];
+  texts[texts.length - 1] += right.text.slice(to - right.from);
+  const expected = structuredClone(projection.doc);
+  expected.content.splice(left.blockIndex, range.length, ...texts.map(text => ({ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] })));
+  const text = parts.join(delimiter), next = source.slice(0, a) + text + source.slice(b);
+  if (text.length > 4096 || next.length > 131072) return unsafe();
+  const nextProjection = projectSource(next);
+  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  const inverse = { from, to: from + insert.length, insert: inverseInsert };
+  if (verify) {
+    const back = paragraphPaste(next, nextProjection, inverse, delimiter, false);
+    if (!back?.ok || back.source !== source) return unsafe();
+  }
+  return { ok: true, source: next, change: { from: a, to: b, insert: text }, projection: nextProjection,
+    structural: true, leaf: null, inverse, paragraphSeparator: delimiter,
+    selection: { from: from + insert.length, to: from + insert.length } };
+}
+
 export function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
   if (!change || Object.getPrototypeOf(change) !== Object.prototype
       || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
@@ -151,6 +193,8 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if (leaf === null) {
     const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
     if (paragraph) return paragraph;
+    const paste = paragraphPaste(source, projection, change, paragraphSeparator);
+    if (paste) return paste;
     if (paragraphSeparator !== null) return unsafe();
   }
   if (!validText(insert)) return unsafe();

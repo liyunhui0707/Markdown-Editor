@@ -686,3 +686,200 @@ The combined user-visible feature is a candidate for an explicitly limited local
 WIP checkpoint, with a proposed **0.29.0 -> 0.30.0 minor** bump at commit time.
 This follow-up does not stage/commit, change the version, permit overwriting,
 clear coordination-required, or change any native IME / phase 1B-3 / SEC-01 gate.
+
+
+### Downloads directory metadata compatibility (2026-11-02, uncommitted 0.32.0)
+
+The user confirmed new-file save/reopen manually in an already-supported folder,
+but Downloads was refused. Read-only local metadata inspection identified the
+single macOS Everyone `deny delete` directory ACE plus `com.apple.macl`. The new
+**directory-only opt-in** accepts exactly this non-inheriting ACE (named Everyone
+or its fixed UUID), retaining the full ACE and hashed opaque MACL in the captured
+baseline. It does not infer permissions from MACL or modify system metadata.
+Unknown, inherited, additional or access-granting ACLs remain rejected. Created
+files, isolated Safe Create and the original replacement policy retain their
+strict metadata rules. Main now suggests Downloads only if existing directory
+checks succeed; selection is independently reauthorized before writer launch.
+
+The existing parent and cwd-anchored writer compare directory identity and this
+metadata at every existing checkpoint. O_EXCL/O_NOFOLLOW, target/file identity,
+exact bytes/SHA-256, file/directory sync and unknown-result handling are unchanged.
+Source session, dirty, revision and history remain unchanged by creation; earlier
+confirmed receipts survive later failure. Original-file overwrite and default
+`coordination-required` remain blocked. No new save service, IPC, writer protocol,
+permission repair, arbitrary/nested directory access or system configuration.
+
+Evidence in `/private/tmp/markdown-downloads-x3zcwv4a/`: metadata RED exposed the
+blanket ACL refusal; GREEN 17 metadata tests plus existing hardening/Safe Create/
+view cases (90 total) and seven targeted persistent-copy cases (97 distinct Node cases total).
+Native synthetic ACL creation/fresh-reader hash and ACL-change invalidation pass;
+MACL value-change detection first used controlled metadata replies, then native
+synthetic xattrs were exercised across the actual writer process, including
+before-task refusal and post-write unverified outcomes. Actual Downloads passed
+parent+child read-only authorization of its system MACL without creating files.
+Air received the exact 25-file current candidate (archive SHA-256
+`76beadde85120144b3e37f749a15b44498d87a8e0593c6da07dd194947ab282a`), independently
+reproduced the bundle, and passed one real Electron utility-writer lifecycle test
+with two clean exits, cancellation/no-overwrite, byte/hash re-open and unchanged
+Not saved/history. Dialog choices are stubbed; native Downloads selection and
+native Pinyin are not thereby accepted. Existing manual Chinese-input FAIL remains.
+
+Four successful Node Home fixtures and two Air Home fixtures were identity/hash
+verified and reclaimed by the existing helper, after removing only the exact
+synthetic ACE installed by their test. The expected ACL-mutation refusal kept its
+empty evidence directory and old/new mapping under a unique temporary evidence
+parent, outside Home. Failure paths do not run success cleanup. No archived or
+pre-existing Home directories were touched. Demo bundle matches an independent
+build; no version/dependency/Git changes. Same-user hostile races, metadata changes
+after final checks, OS MACL behavior across versions and power-loss durability are
+not eliminated. SEC-01 and formal phase-1B3 FAIL remain.
+
+
+One explicitly authorized Claude Code 2.1.312 Restricted + DeepSeek review completed
+normally (13 native turns, 27 observable model responses, no restart). Nine scoped
+source/test files (89,668 bytes) and 16,122 bytes of diff were read; observed tools
+were only Read/Glob/Grep, MCP empty, no Skill/subagent call. Snapshot remained
+unchanged. Application-level restrictions are not OS isolation. Runtime 307.977 s;
+client estimate US$1.58804, actual provider billing/HTTP count NOT VERIFIED. Reported
+usage: input 36,481, cached input 248,320, output 51,259; client model metadata listed
+32,000 max output tokens despite the 64,000 environment request, so no wire-level
+64,000 guarantee is claimed. No credential was read/displayed by Codex.
+
+Codex A checked the three reported P2 observations; no confirmed new P0/P1:
+
+- MACL end-to-end evidence was incomplete: accepted and strengthened with native
+  synthetic xattr positive/negative cases, a read-only two-process check of the
+  real Downloads system MACL, and the same Air case rerun on the stronger fixture.
+  Final 25-file snapshot archive SHA-256:
+  `48a5cccdfa4434017e197032c8a85fd6b89db7cd436f561c345883a871b30586`.
+  This follow-up changed tests only; no second Reviewer call. Two additional Air
+  exits were clean, the fixture was reclaimed, bundle remained reproducible.
+- Failed ACL fixtures remain: factually true, but intentional evidence retention
+  required by the user. The suggested unconditional permission cleanup is not
+  adopted: after an unknown result or replacement it could mutate the wrong path
+  or destroy the original ACL evidence. Only confirmed successful owned fixtures
+  remove their exact test ACE before the existing verified cleanup. Current tests
+  left no new Home fixture; ACL/MACL race evidence and an unverified synthetic file
+  are retained with path mappings in temporary evidence directories, not Home.
+- The new default-location probe is synchronous: confirmed bounded latency risk,
+  not an observed hang or authorization bypass. Retained as a small known limit;
+  no async writer/framework was added to optimize a dialog suggestion. Existing
+  probes have individual 2 s bounds; a sequence of slow probes can delay the UI.
+
+The final native-xattr test uses generated opaque bytes, not a simulated claim to
+understand TCC grants. Actual native Save Dialog/Downloads write remains user QA;
+OS changes or extra metadata may still refuse safely. This is limited development
+validation, not release approval or native IME acceptance.
+
+
+### Native Save Dialog new-file attributes follow-up (2026-11-02, uncommitted)
+
+User QA exposed a further **FAIL in save confirmation**, despite a file appearing
+in Downloads: `unsupported-xattrs / created-unverified`, followed by the correct
+`unresolved-copy-state` lock. A read-only metadata-only inspection of that exact
+file found `com.apple.macl`, `com.apple.lastuseddate#PS`, and provenance; no content
+was read or modified. The earlier directory-only implementation and synthetic
+native-dialog stub did not exercise these attributes on the new file itself.
+This is a confirmed compatibility/coverage defect. File existence is not complete
+save confirmation, and the old attempt is not retroactively marked successful.
+
+Minimal fix: only the persistent O_EXCL-created regular-file verification opts
+into the two observed opaque native attributes, in addition to provenance. File
+ACLs, flags and other attributes remain refused; directory, isolated-create and
+existing replacement policies retain their distinct rules. Metadata is sorted
+and fingerprinted, held stable across the writer's byte/identity and sync checks,
+and passed as an internal hash proof to the parent. The parent checks that proof
+before and after its own byte/hash reread, then strips it before returning the
+public receipt. Missing proof, changed/removed attributes or unknown attributes
+cannot produce confirmed success. No Service/IPC/preload/controller/history or
+renderer change, no acceptSaved, no override of unknown-state blocking, and no
+coordination-required or overwrite change.
+
+RED: a targeted new-file metadata test reproduces unsupported-xattrs. GREEN:
+**101 targeted Node tests** (75 policy/hardening/Safe Create, 10 persistent-copy,
+16 receipt/view) and **one Air Electron case** pass. Native filesystem attributes
+are set on only newly created synthetic files by trusted test wrappers. Cases
+cover stable attributes, MACL/last-used changes, removal, unknown attribute,
+missing proof, no-overwrite, current-writing preservation, sticky unresolved
+state, fresh-process reopen and byte/SHA-256 identity. Air uses the actual main,
+IPC, Electron utility writer and File Store, with a test-only writer wrapper
+installing generated xattrs immediately after exclusive open. This is controlled
+native-metadata reproduction, not actual Save Dialog automation or native IME QA.
+Two app exits were clean; exact 25-file snapshot archive SHA-256:
+`964146b960c2eb16c0e56dfddc8876731f188516951bb1e131ae987e2c8d6af6`.
+Bundle is unchanged and independently reproducible. Evidence:
+`/private/tmp/markdown-created-metadata-qktrdopq/`.
+
+The actual user-created file passes the new metadata-only check. Its content,
+whole-operation durability and old in-memory revision were not reconciled;
+current window and file were not touched. The user should preserve the old text
+and file; a fresh updated app/session and a different filename are needed for a
+new attempt. No automatic retry or unlocking was added. Five native mutation /
+missing-proof results remain intact with path mappings under unique temporary
+evidence directories; successful owned Home fixtures were reclaimed, and no old
+Home/archived fixtures were touched. Prior DeepSeek findings apply to the earlier
+candidate only; this follow-up received Codex A self-review, no additional model
+call. Version stays 0.32.0, no Git commit. Native IME NOT VERIFIED, prior manual
+Chinese FAIL, SEC-01, formal phase-1B3 FAIL and release limits remain.
+
+
+### Downloads first-inspection timing correction (2026-11-03, uncommitted)
+
+User retries still reported `created-file-changed / created-unverified` for new
+Downloads files. A dedicated synthetic native Save Dialog run, with the user
+clicking Save, reproduced the exact error. Byte hashes matched; dev/ino, size,
+mtime, mode and ownership stayed fixed. During the first native metadata probe,
+ctime advanced and the resulting metadata included MACL/provenance; the final
+stat comparison then threw `Created file changed during verification`. The trace
+establishes the failing field and interval, not which OS process mutated it.
+Earlier Home-folder success did not cover this behavior. User files were inspected
+for metadata only, never read for content, overwritten or reclassified as saved.
+
+The minimal correction performs one initial native metadata capture immediately
+after the exclusive new-file write, before the first strict stat/byte verification
+baseline. That capture is retained as the attribute fingerprint. All subsequent
+ctime, inode/path, size, mode, ownership, link count, exact bytes, SHA-256,
+attribute and file/directory-sync checks remain. No tolerance window, timer,
+write retry, existing-file reconciliation or state-machine change was introduced.
+Unknown attributes still refuse. Later ctime-only, mode, byte and MACL mutations
+fail closed; the Service keeps memory/history and blocks repeat creation after
+an unresolved result. Existing save()/coordination-required and directory policy
+are unchanged. This small addition stays in the existing File Store (~316 lines)
+to keep the verification ordering visible; no new save abstraction is warranted.
+
+Evidence: the targeted timing regression is RED before the correction, GREEN
+after it. 13 persistent-copy tests plus 91 Safe Create/hardening/metadata/receipt
+tests PASS. One existing Pro Electron case PASS with two clean process exits,
+keyboard brackets/Undo/Redo, cancellation, no-overwrite, sticky confirmed receipt,
+Not saved and cross-process read-only reopen. Its attribute injection now occurs
+at the first metadata probe (the old after-open injection missed the defect).
+That automated case still stubs native dialogs and does not claim native IME QA.
+
+A separately authorized post-fix native Downloads dialog run returned
+`created-confirmed` for revision 58, 59 bytes. Source, disk and fresh-process
+Document Service read SHA-256 all match:
+`d9317c670a9aa59fe47094e1e37a6ea1c0611ffc82add95a037428f0f89a9851`.
+The trace again shows initial ctime advancing, then remaining stable through
+strict verification and fsync. The user operated the native Save button; all
+subsequent inspection was automated. Not saved remained true. The successful
+synthetic file was moved intact to temporary evidence with an identity/hash and
+restore mapping; the earlier failed diagnostic remains in Downloads. Neither
+user documents nor the prior unresolved sessions were changed.
+
+Evidence roots: `/private/tmp/markdown-downloads-timing-tli_xr5c/` (native RED,
+regressions) and `/private/tmp/markdown-downloads-confirm-cvgp_jt3/` (native GREEN,
+fresh read, screenshot and restore mapping). This is limited development evidence,
+not a complete release, all-folder or native IME acceptance. No external Reviewer,
+version change or commit; the previous independent review does not cover this
+follow-up. Original-file overwrite, SEC-01, formal phase FAIL, prior Chinese-input
+manual FAIL and native IME NOT VERIFIED remain.
+
+
+2026-11-03 user manual confirmation: after the correction the user reports all
+manual tests passed. Supplied screenshots show successful Downloads new-file
+receipts (Untitled3.md / Untitled4.md, revision 3), continued editing correctly
+marked as not exported, and Not saved retained. Literal ASCII bracket input was
+also manually confirmed. This closes the reported Downloads confirmation and
+literal-bracket QA failures within this scope; it does not retroactively confirm
+old unresolved receipts/files or establish overwrite, all-folder, native IME or
+release acceptance. No additional GUI/model call or Git commit was performed.

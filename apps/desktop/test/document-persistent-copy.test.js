@@ -4,7 +4,7 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { EventEmitter } = require('node:events');
-const { captureCopyDestination } = require('../lib/document-save-policy');
+const { captureCopyDestination, inspectMacMetadata, suggestCopyPath } = require('../lib/document-save-policy');
 const { createCopyProcess } = require('../lib/document-copy-process');
 const { createDocumentService } = require('../lib/document-service');
 const { createDocumentSessions } = require('../lib/document-session-ipc');
@@ -28,10 +28,25 @@ function nodeFork(hooks = {}) {
     // Test-only Node transport. Production uses Electron utilityProcess exclusively.
     const child = spawn(process.execPath, ['-e', `
       const fs=require('node:fs');let target;
-      const open=fs.openSync;fs.openSync=function(p,f,...args){const fd=open.call(fs,p,f,...args);if(f&fs.constants.O_CREAT)target=fd;return fd};
+      const open=fs.openSync;fs.openSync=function(p,f,...args){const fd=open.call(fs,p,f,...args);if(f&fs.constants.O_CREAT){target=fd;
+        ${hooks.nativeFileMetadata ? `for(const [name,value] of [['com.apple.macl','01020304'],['com.apple.lastuseddate#PS','01000000000000000000000000000000']]){const r=require('node:child_process').spawnSync('/usr/bin/xattr',['-wx',name,value,p]);if(r.status!==0)throw Error('synthetic xattr setup failed');}` : ''}
+      }return fd};
+      ${hooks.firstMetadata ? `
+      const cp=require('node:child_process'),nativeSpawn=cp.spawnSync;let probes=0;
+      cp.spawnSync=function(exe,args,opts){
+        if(target && exe==='/bin/ls' && args[0]==='-lde' && args[1]===require('node:path').join(process.cwd(),'copy.md')){
+          ++probes;
+          if(probes===1){const r=nativeSpawn('/usr/bin/xattr',['-wx','com.apple.macl','01020304',args[1]]);if(r.status!==0)throw Error('synthetic xattr setup failed');}
+          if(probes===2 && ${JSON.stringify(hooks.afterBaseline)}==='attribute')nativeSpawn('/usr/bin/xattr',['-wx','com.apple.macl','01020305',args[1]]);
+          if(probes===2 && ${JSON.stringify(hooks.afterBaseline)}==='content')fs.writeSync(target,Buffer.from('X'),0,1,0);
+          if(probes===2 && ${JSON.stringify(hooks.afterBaseline)}==='ctime')fs.fchmodSync(target,0o600);
+          if(probes===2 && ${JSON.stringify(hooks.afterBaseline)}==='mode')fs.fchmodSync(target,0o640);
+        }
+        return nativeSpawn(exe,args,opts);
+      };` : ''}
       ${hooks.fault === 'partial' ? `const write=fs.writeSync;let calls=0;fs.writeSync=function(fd,b,o,l,p){if(fd===target){if(calls++)throw Object.assign(Error(),{code:'EIO'});return write(fd,b,o,Math.min(l,3),p)}return write(fd,b,o,l,p)};` : ''}
       ${hooks.fault === 'sync' ? `const sync=fs.fsyncSync;fs.fsyncSync=function(fd){if(fs.fstatSync(fd).isDirectory())throw Object.assign(Error(),{code:'EIO'});return sync(fd)};` : ''}
-      process.parentPort={on:(n,f)=>process.on(n,data=>f({data})),postMessage:m=>{${hooks.fault === 'missing' ? 'process.exit(0)' : hooks.fault === 'hang' ? 'void m' : 'process.send(m)'}}};
+      process.parentPort={on:(n,f)=>process.on(n,data=>f({data})),postMessage:m=>{${hooks.omitMetadataProof ? 'delete m.result.fileMetadataSha256;' : ''}${hooks.fault === 'missing' ? 'process.exit(0)' : hooks.fault === 'hang' ? 'void m' : 'process.send(m)'}}};
       require(${JSON.stringify(entry)});
     `], { ...options, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
     child.postMessage = data => {
@@ -252,4 +267,152 @@ test('save as new: unsupported locations and unsafe names fail before creation',
   fs.chmodSync(d.dir, 0o500);
   assert.throws(() => captureCopyDestination(d.filePath), { code: 'unsupported-copy-directory' });
   assert.equal(fs.readFileSync(d.sentinel, 'utf8'), 'UNTOUCHED');
+});
+
+
+test('Downloads-style directory ACL supports exclusive child creation and fresh-process read without changing permissions', async () => {
+  const d = destination({ cleanup: true });
+  const acl = 'group:everyone deny delete';
+  const set = spawnSync('/bin/chmod', ['+a', acl, d.dir], { encoding: 'utf8' });
+  assert.equal(set.status, 0, 'synthetic directory ACL setup');
+  assert.equal(spawnSync('/usr/bin/xattr', ['-wx', 'com.apple.macl', '01020304', d.dir]).status, 0);
+  const before = inspectMacMetadata(d.dir, { newFileDirectory: true });
+  assert.notEqual(before.acl, false);
+  assert.equal(before.xattrs['com.apple.macl'], hash(Buffer.from('01020304', 'hex')));
+  assert.equal(suggestCopyPath(d.dir), path.join(d.dir, 'Untitled.md'));
+  const processCopy = createCopyProcess({ fork: nodeFork() });
+  const f = fixture(processCopy.create), original = f.document.bytesForSave();
+  const revision = f.document.revision, dirty = f.document.dirty;
+  const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  assert.equal(r.state, 'created-confirmed', JSON.stringify(r));
+  d.owned.recordFile('copy.md', original);
+  assert.deepEqual(inspectMacMetadata(d.dir, { newFileDirectory: true }), before);
+  assert.equal(inspectMacMetadata(d.filePath).acl, false); // Directory ACE must not inherit.
+  assert.equal(f.document.revision, revision); assert.equal(f.document.dirty, dirty);
+  assert.deepEqual(f.document.bytesForSave(), original);
+  assert.equal(f.service.save(f.document).code, 'coordination-required');
+  const read = spawnSync(process.execPath, ['-e', `const s=require(${JSON.stringify(require.resolve('../lib/document-file-store'))}).createDocumentFileStore().read(${JSON.stringify(d.filePath)});console.log(s.sha256)`], { encoding: 'utf8', timeout: 5000 });
+  assert.equal(read.status, 0); assert.equal(read.stdout.trim(), r.sha256); assert.equal(r.sha256, hash(original));
+  const again = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  assert.equal(again.code, 'target-exists'); assert.deepEqual(fs.readFileSync(d.filePath), original);
+  // Revert only the exact synthetic ACE installed above, after all test writers exit.
+  assert.equal(spawnSync('/bin/chmod', ['-a', acl, d.dir]).status, 0);
+  reclaim(d.owned);
+});
+
+test('directory ACL change invalidates captured authorization before creation', () => {
+  const d = destination(); // Retained race evidence, never successful-fixture cleanup.
+  const acl = 'group:everyone deny delete';
+  assert.equal(spawnSync('/bin/chmod', ['+a', acl, d.dir]).status, 0);
+  const target = captureCopyDestination(d.filePath);
+  try {
+    assert.equal(spawnSync('/bin/chmod', ['-a', acl, d.dir]).status, 0);
+    assert.throws(() => target.verify(), { code: 'copy-directory-changed' });
+    assert.deepEqual(fs.readdirSync(d.dir), []);
+  } finally { target.close(); }
+  // Move verified empty, inactive race evidence out of Home; preserve directory,
+  // never delete it. The private evidence parent is unique and on the same device.
+  const evidence = fs.mkdtempSync(path.join(os.tmpdir(), 'document-acl-evidence-'));
+  assert.equal(fs.statSync(evidence).dev, fs.statSync(d.dir).dev);
+  const to = path.join(evidence, path.basename(d.dir)); fs.renameSync(d.dir, to);
+  fs.writeFileSync(path.join(evidence, 'mapping.json'), JSON.stringify({ from: d.dir, to, reason: 'expected ACL mutation refusal; empty target; retained evidence' }), { flag: 'wx', mode: 0o600 });
+  console.log('directory-metadata-evidence:' + evidence);
+});
+
+
+for (const phase of ['beforeTask', 'beforeAck']) test('native directory MACL change ' + phase + ' never produces confirmed success', async () => {
+  const d = destination(), original = fs.lstatSync(d.dir);
+  const macl = hex => assert.equal(spawnSync('/usr/bin/xattr', ['-wx', 'com.apple.macl', hex, d.dir]).status, 0);
+  macl('01020304');
+  const processCopy = createCopyProcess({ fork: nodeFork({ [phase]: () => macl('01020305') }) });
+  const r = await processCopy.create({ filePath: d.filePath, bytes: Buffer.from(text), revision: 1, isAuthorized: () => true });
+  assert.equal(r.ok, false);
+  assert.equal(r.state, phase === 'beforeTask' ? 'not-created' : 'created-unverified');
+  if (phase === 'beforeTask') assert.deepEqual(fs.readdirSync(d.dir), []);
+  else assert.equal(fs.readFileSync(d.filePath, 'utf8'), text);
+  // Preserve changed metadata and any unverified file, after the child exited.
+  const now = fs.lstatSync(d.dir); assert.equal(now.ino, original.ino); assert.equal(now.dev, original.dev);
+  const evidence = fs.mkdtempSync(path.join(os.tmpdir(), 'document-macl-evidence-'));
+  assert.equal(fs.statSync(evidence).dev, original.dev);
+  const to = path.join(evidence, path.basename(d.dir)); fs.renameSync(d.dir, to);
+  assert.equal(fs.lstatSync(to).ino, original.ino);
+  fs.writeFileSync(path.join(evidence, 'mapping.json'), JSON.stringify({ from: d.dir, to, result: r, phase, reason: 'native MACL mutation; retain all evidence without cleanup or retry' }), { flag: 'wx', mode: 0o600 });
+  console.log('directory-metadata-evidence:' + evidence);
+});
+
+
+test('persistent new file with native Save Dialog metadata is confirmed without altering memory or original', async () => {
+  const d = destination({ cleanup: true }), f = fixture(createCopyProcess({ fork: nodeFork({ nativeFileMetadata: true }) }).create);
+  const before = { text: f.document.text, revision: f.document.revision, dirty: f.document.dirty };
+  const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.state, 'created-confirmed');
+  assert.equal(r.fileMetadataSha256, undefined); // Internal proof never becomes renderer authority.
+  assert.deepEqual({ text: f.document.text, revision: f.document.revision, dirty: f.document.dirty }, before);
+  assert.equal(fs.readFileSync(f.seed).length, 0);
+  assert.equal(f.service.save(f.document).code, 'coordination-required');
+  const metadata = inspectMacMetadata(d.filePath, { newlyCreatedFile: true });
+  assert.ok(metadata.xattrs['com.apple.macl']); assert.ok(metadata.xattrs['com.apple.lastuseddate#PS']);
+  assert.throws(() => inspectMacMetadata(d.filePath), { code: 'unsupported-xattrs' });
+  d.owned.recordFile('copy.md', f.document.bytesForSave());
+  const read = spawnSync(process.execPath, ['-e', `const s=require(${JSON.stringify(require.resolve('../lib/document-file-store'))}).createDocumentFileStore().read(${JSON.stringify(d.filePath)});console.log(s.sha256)`], { encoding: 'utf8', timeout: 5000 });
+  assert.equal(read.status, 0); assert.equal(read.stdout.trim(), r.sha256);
+  assert.equal((await f.service.createPersistentCopy(f.document, f.request(d.filePath))).code, 'target-exists');
+  reclaim(d.owned);
+});
+
+for (const kind of ['macl-change', 'lastused-change', 'remove', 'unknown', 'missing-proof']) test('native created-file metadata ' + kind + ' is not falsely confirmed', async () => {
+  const d = destination(), original = fs.lstatSync(d.dir);
+  const hooks = { nativeFileMetadata: true, omitMetadataProof: kind === 'missing-proof', beforeAck() {
+    if (kind === 'missing-proof') return;
+    const args = kind === 'remove' ? ['-d', 'com.apple.macl', d.filePath]
+      : ['-wx', kind === 'macl-change' ? 'com.apple.macl' : kind === 'lastused-change' ? 'com.apple.lastuseddate#PS' : 'com.example.unknown', '01020305', d.filePath];
+    assert.equal(spawnSync('/usr/bin/xattr', args).status, 0);
+  } };
+  const f = fixture(createCopyProcess({ fork: nodeFork(hooks) }).create), before = f.document.text;
+  const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  assert.equal(r.ok, false); assert.equal(r.state, 'created-unverified'); assert.equal(r.code, 'copy-post-verification-failed');
+  assert.equal(f.document.text, before); assert.equal(fs.readFileSync(d.filePath, 'utf8'), text);
+  assert.equal((await f.service.createPersistentCopy(f.document, f.request(path.join(d.dir, 'retry.md')))).code, 'unresolved-copy-state');
+  assert.deepEqual(fs.readdirSync(d.dir), ['copy.md']);
+  // Child exited; retain the complete unverified file, metadata and old/new path mapping.
+  assert.equal(fs.lstatSync(d.dir).ino, original.ino);
+  const evidence = fs.mkdtempSync(path.join(os.tmpdir(), 'document-file-metadata-evidence-'));
+  assert.equal(fs.statSync(evidence).dev, original.dev);
+  const to = path.join(evidence, path.basename(d.dir)); fs.renameSync(d.dir, to);
+  assert.equal(fs.lstatSync(to).ino, original.ino);
+  fs.writeFileSync(path.join(evidence, 'mapping.json'), JSON.stringify({ from: d.dir, to, result: r, kind }), { flag: 'wx', mode: 0o600 });
+  console.log('created-metadata-evidence:' + evidence);
+});
+
+
+for (const mutation of [null, 'attribute', 'content', 'ctime', 'mode']) test('first native metadata inspection: ' + (mutation || 'initial MACL') + ' retains strict confirmation', async () => {
+  const d = destination({ cleanup: true }), original = fs.lstatSync(d.dir);
+  const f = fixture(createCopyProcess({ fork: nodeFork({ firstMetadata: true, afterBaseline: mutation }) }).create);
+  const before = { text: f.document.text, revision: f.document.revision, dirty: f.document.dirty };
+  const r = await f.service.createPersistentCopy(f.document, f.request(d.filePath));
+  try {
+    assert.deepEqual({ text: f.document.text, revision: f.document.revision, dirty: f.document.dirty }, before);
+    if (!mutation) {
+      assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.state, 'created-confirmed');
+      assert.equal(hash(fs.readFileSync(d.filePath)), r.sha256);
+      const fresh = spawnSync(process.execPath, ['-e', `const s=require(${JSON.stringify(require.resolve('../lib/document-file-store'))}).createDocumentFileStore().read(${JSON.stringify(d.filePath)});console.log(s.sha256)`], { encoding: 'utf8', timeout: 5000 });
+      assert.equal(fresh.status, 0); assert.equal(fresh.stdout.trim(), r.sha256);
+      d.owned.recordFile('copy.md', f.document.bytesForSave()); reclaim(d.owned);
+    } else {
+      assert.equal(r.ok, false); assert.equal(r.state, 'created-unverified');
+      assert.equal((await f.service.createPersistentCopy(f.document, f.request(path.join(d.dir, 'retry.md')))).code, 'unresolved-copy-state');
+      assert.deepEqual(fs.readdirSync(d.dir), ['copy.md']);
+    }
+  } finally {
+    // Failed/new mutation evidence remains intact; never leave random Home entries.
+    if (fs.existsSync(d.dir)) {
+      assert.equal(fs.lstatSync(d.dir).ino, original.ino);
+      const evidence = fs.mkdtempSync(path.join(os.tmpdir(), 'document-first-metadata-evidence-'));
+      assert.equal(fs.statSync(evidence).dev, original.dev);
+      const to = path.join(evidence, path.basename(d.dir)); fs.renameSync(d.dir, to);
+      assert.equal(fs.lstatSync(to).ino, original.ino);
+      fs.writeFileSync(path.join(evidence, 'mapping.json'), JSON.stringify({ from: d.dir, to, mutation, result: r }), { flag: 'wx', mode: 0o600 });
+      console.log('first-metadata-evidence:' + evidence);
+    }
+  }
 });

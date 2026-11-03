@@ -64,11 +64,17 @@ entry continues to use the existing Vault UI.
 Click **New temporary document**, or open a file and choose **Edit a copy**, to
 write in an independent in-memory session. The original file stays read-only.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
-source-line boundaries and unsupported structures remain protected. Single-line
-plain-text paste is accepted within one supported text range (up to 4096 UTF-16
-units). Clipboard HTML is ignored; HTML-only, multiline, file and unsafe-range
-paste is refused as a whole. The native Edit menu includes Paste for system
-dialogs as well.
+source-line boundaries and unsupported structures remain protected. Literal `[`
+and `]` can be typed when they remain ordinary text; edits that create links or
+reference syntax are still refused. Plain-text
+paste accepts a single line in one supported text range, or up to 32 nonempty
+paragraphs within one plain top-level paragraph (including an empty input slot).
+A clipboard newline or one blank separator becomes a paragraph boundary, using
+the document's existing newline style. One paste is one Undo/Redo item. The 4096
+UTF-16 limit applies before and after conversion; clipboard HTML is ignored.
+Leading/trailing blank lines, consecutive empty paragraphs, cross-block selections,
+multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
+are refused as a whole. The native Edit menu includes Paste for system dialogs.
 
 To enable the existing restricted **Save as new file…** flow, use:
 
@@ -78,8 +84,16 @@ mise exec -- node tools/run-document-copy-demo.cjs --persistent
 
 Choose an existing ordinary local APFS folder directly under your home folder,
 owned by you and not writable by others. Home itself, Desktop, Documents,
-Library, hidden and known sync folders are unsupported; extra ACLs can also
-exclude Downloads and other folders. The app does not change folder permissions.
+Library, hidden and known sync folders are unsupported. Downloads is supported
+when it passes these checks: its non-inheriting everyone deny-delete protection
+and opaque `com.apple.macl` directory metadata are accepted and fingerprinted;
+other ACLs/xattrs remain refused. The dialog suggests Downloads only after checks
+pass, then revalidates the selected destination before creation. The app does not
+change folder permissions. Nested folders are not yet supported. Native MACL and last-used
+attributes on newly created files are retained and checked across writer/main
+verification. The first native metadata probe precedes the strict stat/byte
+baseline so initial macOS metadata setup is not mistaken for a later change;
+unknown metadata or changes after that baseline still prevent a success receipt.
 Only new files are created; existing targets are never overwritten. The UI
 separates the last confirmed file's path/revision/hash from later failures and
 reports uncertain outcomes without claiming that no file exists.

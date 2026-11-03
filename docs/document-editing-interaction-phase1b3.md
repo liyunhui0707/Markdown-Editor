@@ -1314,3 +1314,134 @@ project version fields change, with dependencies and scripts unchanged. This is
 a restricted local WIP, not merge/release approval. All memory-only draft,
 multiline-paste, original-file overwrite, destination, native IME, SEC-01 and
 phase 1B-3 formal FAIL limitations above remain at this checkpoint.
+
+## Multiline plain paste V1 (2026-11-02, uncommitted)
+
+Follows the approved sequence after local checkpoint
+`e8e80a0e3585ecd2984c3733f79455c0654c132b` (0.32.0). This candidate adds
+ordinary paragraph paste, not original-file overwrite or another editor model.
+
+Clipboard LF/CRLF/CR single newlines or one blank separator become ordinary
+paragraph boundaries. The incoming text alone is converted; the existing source
+is not serialized or normalized. At most 32 nonempty paragraphs / 4096 UTF-16
+units before and after conversion, inside one plain top-level source-line
+paragraph or supported empty slot. Leading/trailing blank lines, consecutive
+independent empty paragraphs, formatted/soft-wrapped targets, unsafe syntax and
+cross-block selections are refused in full. No HTML clipboard parsing.
+
+A single PM Slice/ReplaceStep goes through the existing controller, source-range
+projection, IPC revision/hash checks and history. Source-map reuses trusted
+`paragraphSeparator` and inverse metadata for one exact reversible splice; only
+main-owned history can cross the generated paragraphs. No new IPC fields or
+parallel history. Composition, stale/unknown operations and readonly restrictions
+remain; failed acknowledgements retain the complete local recovery text.
+
+Evidence (synthetic data only):
+- RED: nine new targeted tests, seven FAIL before implementation.
+- GREEN: **158/158 Node PASS**, source-map/controller/session IPC/readonly-open/
+  copy-view. Includes LF/CRLF/CR, BOM/frontmatter/opaque syntax, no final newline,
+  UTF-16 boundary matrix, empty input slot, atomic refusal, one-item Undo/Redo,
+  Enter/join, session isolation, stale revision and lost acknowledgement.
+- **Two targeted Air Electron cases PASS** on Node 24.20.0, Electron 43.4.1 and
+  Playwright 1.63.0: existing single-line paste lifecycle plus new multiline
+  lifecycle. The new case verifies caret, atomic undo/redo, Enter/Backspace,
+  readonly original/copy switching, source byte preservation, new-file SHA-256,
+  cancellation, later edits leaving the file unchanged and fresh-process reopen.
+  Four successful app processes exited 0 without watchdog/fault/remaining PID.
+  Both successful Home fixtures were reclaimed after verified file hashes and
+  exits; later test revisions defer fixture creation until the save step.
+- Failures remain in evidence: one Air build setup error invoked native esbuild
+  through Node (no app); corrected to its existing JS API. Initial new GUI case
+  failed at Backspace and its unsaved quit dialog masked the error (watchdog
+  exit); test now has the same explicit synthetic discard stub as the prior
+  case. Two diagnostic runs reproduced the refusal; another diagnostic failed
+  due to an incorrect introspection property (test only). Four failed pre-save
+  Home fixtures remain retained, not claimed successful or deleted.
+- Actual captured boundary: after Meta+Left the DOM caret was 0 in `Next.` while
+  PM still held the paragraph-end position. Immediate Backspace produced a
+  broad DOM transaction including CRLF opaque text normalization, which the
+  existing gate correctly rejected. No text/revision changed. The final test
+  waits for PM's actual caret and history acknowledgement, without fixed sleeps,
+  increased timeouts, retries, changed expectations or guard relaxation. This
+  proves the settled-caret path; rapid-key handling is a remaining limitation,
+  not a claimed product fix or proof that all native interactions are correct.
+- Controlled ClipboardEvent/DataTransfer and stubbed native dialogs in real
+  Electron are not native clipboard/Pinyin QA. User manual acceptance of this
+  new multiline behavior is pending. Historical native-IME FAIL/NOT VERIFIED
+  and phase 1B-3 formal FAIL remain.
+- Existing esbuild generated bundle equals independent rebuild locally and on
+  Air. Local Node/code and Air 24-file snapshot fingerprints match; final test
+  revision is recorded separately from the original archive.
+
+Evidence: `/private/tmp/markdown-multiline-paste-rowg1vkr/` (Node `node-final.log`,
+Air `electron.log`, `electron-v5.log`, `electron-v6.log`, `candidate-v6.json`,
+`result-v6.json`, screenshot under `air-artifacts/`). Remote isolated run:
+`/private/tmp/markdown-multiline-paste.UYC5T4/`. Failed retained Home fixtures on
+Air: `Writing-synthetic-E2E-MeuMWR`, `Writing-synthetic-E2E-bnfNfI`,
+`Writing-synthetic-E2E-O5ltLY`, `Writing-synthetic-E2E-f74kMR`; no cleanup is
+claimed for them. No user files or existing preview were read/closed by the tests.
+
+Local diff self-review found no new confirmed P0/P1. This is not an independent
+second-model review. File Store, Service, IPC, main/preload, save policy,
+Persistent Copy, dependencies and version are unchanged. Not saved, memory-only
+recovery, APFS/destination restrictions, exclusive creation, coordination-required,
+SEC-01, no original-file overwrite and all release gates remain. No new commit,
+push, full suite, ASAR matrix or native IME acceptance is claimed.
+
+### User save/reopen QA and native-caret Backspace follow-up (2026-11-02)
+
+The user reports **Save as new file -> reopen PASS** and supplied a confirmed
+revision-8 receipt plus a separate `unsupported-acl` / `not-created` refusal.
+This is user manual evidence for new-file persistence/reopen; no byte/hash test
+or native IME acceptance is inferred from the screenshots. Other directories
+remain unsupported according to the existing ACL/home-child/APFS policy. The app
+does not change permissions. The prior success is not a promise of arbitrary
+Save As or original-file overwrite.
+
+The next bounded stability fix addresses the rapid Meta+Left -> Backspace
+refusal above. A 26-line native-selection helper uses public PM `posAtDOM`,
+`nodeDOM` and `TextSelection` APIs before the existing Backspace keymap. It only
+reconciles a collapsed browser caret at the start of the SAME paragraph, when
+the paragraph DOM text matches PM and source equals the confirmed snapshot.
+It changes selection, never text/history/revision. The ordinary PM command,
+controller/source-map and main IPC then accept or reject the edit as before.
+Readonly, invalid lifecycle, pending/history/unknown, composition, other blocks,
+changed DOM text, noncollapsed selection and modified delete shortcuts are not
+reconciled. No timeout, forced composition completion, editor upgrade or safety
+gate relaxation. Renderer wiring is five lines (367 total); existing controller
+tests 742 and shared E2E 1301 lines reuse their fixtures instead of splitting
+unrelated code or introducing infrastructure.
+
+Validation:
+- New Node contract RED: 1 failed / 2 guard tests passed before helper logic.
+  Final **161/161 targeted Node PASS** across the same five relevant files.
+- Actual Air Electron RED used the previous runtime with the new deterministic
+  same-turn DOM-caret/keydown regression: DOM offset 0 vs PM offset 5; join
+  refused, source unchanged. App exited normally, no Home fixture created.
+- Actual Air GREEN: **2/2 selected cases PASS** (existing Enter/empty-composition/
+  middle split/Backspace/history plus multiline save/reopen). The same forced
+  gap passes, followed by real Electron Meta+Right/Meta+Left/Backspace without a
+  selection wait, exact Undo/Redo and caret checks. New-file bytes/hash, BOM/CRLF,
+  untouched blocks/original, readonly isolation, cancellation and later edits
+  remaining unexported all pass. Three processes exited code 0, no watchdog,
+  fault, signal or remaining process. The one successful Home fixture was
+  verified/reclaimed; the four previous failed empty fixtures were untouched.
+- A test-selection regular expression initially matched zero tests; corrected
+  before GUI launch. No product assertion or timeout was weakened.
+- Local and Air independent bundle builds match. Air used the exact updated
+  25-file snapshot with fingerprints. No native OS Pinyin or native clipboard
+  claim; native file dialogs were stubbed for automation. The user's save/reopen
+  PASS remains a separate source of evidence.
+
+Evidence: `/private/tmp/markdown-caret-r9qbytkl/` (`red.log`, `node.log`,
+`electron-caret-red.log`, `electron-caret-green.log`,
+`candidate-caret-green.json`, `result-caret-green.json`, `air-artifacts/`).
+The observed same-paragraph settled-content timing failure is fixed in this
+bounded path; other selection/composition scenarios are not newly certified.
+No new confirmed P0/P1 in local self-review; no second-model review performed.
+
+Version remains 0.32.0, with the multiline candidate and this follow-up still
+uncommitted. Original-file readonly, coordination-required, supported-save
+directory limits, Not saved / memory-only drafts, SEC-01, historical native IME
+FAIL/NOT VERIFIED and phase 1B-3 formal FAIL remain. No Git checkpoint, release
+or wider save authorization is implied by this development/testing result.

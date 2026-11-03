@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { syncNativeBackspaceSelection } from '../lib/document-native-selection.mjs';
 import { pastePlainText } from '../lib/document-plain-paste.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -588,7 +589,7 @@ test('plain paste: empty paragraph and bold leaf preserve projection, selection 
 test('plain paste: multiline, control, oversized, unsafe syntax and source crossing are atomic refusals', async () => {
   const h = harness('First line\r\nsecond line\r\n\r\nTail.');
   h.select(h.span('First line').from + 2); const before = h.controller.state(), selection = h.state().selection.toJSON();
-  for (const value of ['a\nb', 'a\r\nb', 'a\rb', 'a\tb', 'a\u0000b', 'a\u2028b', 'a'.repeat(4097), '[x](https://example.invalid)', '<script>x</script>', '\ud800']) {
+  for (const value of ['a\n\n\nb', '\na', 'a\n', 'a\tb', 'a\u0000b', 'a\u2028b', 'a'.repeat(4097), '[x](https://example.invalid)', '<script>x</script>', '\ud800']) {
     assert.equal(paste(h, value).messages.length, 1);
     assert.equal(h.document.text, before.source); assert.equal(h.document.revision, before.confirmed.revision);
     assert.deepEqual(h.state().selection.toJSON(), selection);
@@ -621,4 +622,139 @@ test('plain paste: empty or unreadable clipboard never erases selected text', ()
     assert.equal(paste(h, 'NO', { data }).messages.length, 1);
   }
   assert.equal(h.document.text, before); assert.equal(h.requests.length, 0);
+});
+
+
+test('multiline paste V1: plain clipboard lines become paragraphs in one IPC and Undo/Redo item', async () => {
+  const h = harness('\ufeff---\r\nx: keep\r\n---\r\n\r\nBefore OLD after.\r\n\r\nTail.'), before = h.document.text;
+  const at = h.span('Before OLD after.').from + 7; h.select(at, at + 3);
+  const result = paste(h, '第一😀\r\n\r\nSecond\n第三'); await h.controller.idle();
+  assert.deepEqual(result.messages, []); assert.deepEqual(result.formats, ['text/plain']);
+  const expected = before.replace('OLD', '第一😀\r\n\r\nSecond\r\n\r\n第三');
+  assert.equal(h.document.text, expected); assert.equal(h.requests.filter(r => r.operation === 'edit').length, 1);
+  assert.equal(h.state().selection.from, at + '第一😀\n\nSecond\n\n第三'.length);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, before);
+  assert.equal(h.document.revision, 2); assert.equal(await h.controller.history('redo'), true);
+  assert.equal(h.document.text, expected); assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+test('multiline paste V1: empty document, later typing, paragraph joining and history stay coherent', async () => {
+  const h = harness(''), other = harness('Other.'); h.select(1);
+  assert.deepEqual(paste(h, 'One\nTwo😀').messages, []); await h.controller.idle();
+  const beforeJoin = h.document.text; assert.equal(beforeJoin, 'One\n\nTwo😀');
+  h.select(h.span('Two😀').from); let accepted;
+  joinBackward(h.state(), tr => { accepted = h.controller.prepare(tr); if (accepted) h.apply(tr); });
+  await h.controller.idle(); assert.equal(accepted, true); assert.equal(h.document.text, 'OneTwo😀');
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, beforeJoin);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, '');
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, beforeJoin);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, 'OneTwo😀');
+  h.select(h.span('OneTwo😀').to); assert.equal(h.edit(h.state().selection.from, h.state().selection.to, '!'), true);
+  await h.controller.idle(); assert.equal(h.document.text, 'OneTwo😀!'); assert.equal(other.document.text, 'Other.');
+});
+test('multiline paste V1: stale revision and lost response retain complete recovery text', async () => {
+  for (const failure of ['stale', 'lost']) {
+    const h = harness('Original.'); h.select(2);
+    if (failure === 'stale') h.document.edit({ from: 0, to: 0, insert: 'External ', expectedRevision: 0 });
+    else h.dropReplyAfterCommit = true;
+    paste(h, '一\n二😀'); await h.controller.idle();
+    const state = h.controller.state(); assert.equal(state.recoveryRecords.length, 1);
+    assert.equal(state.recoveryRecords[0].source, 'O一\n\n二😀riginal.');
+    assert.equal(state.source, h.document.text); assert.deepEqual(fs.readFileSync(h.file), h.disk);
+    assert.equal(state.recoveryRecords[0].mainMatchesDraft, failure === 'lost');
+  }
+});
+test('multiline paste V1: ambiguous lines, unsafe syntax and busy composition never partially apply', async () => {
+  const h = harness('Before.'), before = h.document.text; h.select(2, 4);
+  for (const text of ['a\n\n\nb', '\na', 'a\n', 'a\n \nb', 'a\n# Heading', 'a\n- list', 'a\n<script>', 'a\n\ud800', Array(34).fill('a').join('\n')]) {
+    assert.equal(paste(h, text).messages.length, 1, JSON.stringify(text));
+    assert.equal(h.document.text, before); assert.equal(h.requests.length, 0);
+  }
+  h.controller.beginComposition(); assert.equal(paste(h, 'a\nb').messages.length, 1);
+  assert.equal(h.controller.state().composing, true); h.controller.endComposition();
+  assert.equal(h.document.text, before);
+  assert.equal(paste(h, 'a\nb', { state: { ...h.controller.state(), locked: true } }).messages.length, 1);
+});
+
+
+test('multiline paste V1: renderer cannot supply trusted cross-paragraph history metadata', async () => {
+  const h = harness('First.'); h.select(2); paste(h, 'One\nTwo'); await h.controller.idle();
+  const before = h.request('snapshot').snapshot, spans = projectSource(before.source).spans;
+  const change = { from: spans[0].from + 1, to: spans[1].from + 3, insert: '' };
+  for (const extra of [{}, { paragraphSeparator: '\n\n' }, { leaf: null }]) {
+    const result = h.request('edit', { expectedRevision: before.revision, ...change, ...extra });
+    assert.equal(result.ok, false); assert.deepEqual(h.request('snapshot').snapshot, before);
+  }
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, 'First.');
+});
+
+// Simulate the observed browser-caret/PM-selection acknowledgement gap, while
+// retaining real PM documents, transactions, source mapping and main history.
+function nativeCaret(h, text) {
+  const span = h.span(text); h.select(span.to);
+  const paragraph = { textContent: text }, node = { nodeType: 3, parentElement: { closest: () => paragraph } };
+  const selection = { rangeCount: 1, isCollapsed: true, anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 0 };
+  const view = { get state() { return h.state(); }, editable: true, composing: false, hasFocus: () => true,
+    dom: { contains: n => n === node, ownerDocument: { getSelection: () => selection } },
+    posAtDOM: (_node, offset) => span.from + offset, nodeDOM: () => paragraph, dispatch: tr => h.apply(tr) };
+  return { view, selection, paragraph, node };
+}
+test('native caret: Backspace observes acknowledged browser paragraph start before joining', async () => {
+  const h = harness('---\r\nx: keep\r\n---\r\n\r\nFirst.\r\n\r\nSecond.\r\n\r\n```js\r\nkeep()\r\n```');
+  const original = h.document.text, c = nativeCaret(h, 'Second.'), revision = h.document.revision;
+  assert.equal(syncNativeBackspaceSelection(c.view, { key: 'Backspace' }, { state: h.controller.state() }), true);
+  assert.equal(h.state().selection.from, h.span('Second.').from);
+  assert.equal(h.document.text, original); assert.equal(h.document.revision, revision); assert.equal(h.requests.length, 0);
+  let accepted; joinBackward(h.state(), tr => { accepted = h.controller.prepare(tr); if (accepted) h.apply(tr); });
+  await h.controller.idle(); assert.equal(accepted, true);
+  assert.equal(h.document.text, original.replace('First.\r\n\r\nSecond.', 'First.Second.'));
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, original);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text.includes('First.Second.'), true);
+  assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+test('native caret: composition, pending, readonly and lifecycle guards leave selection untouched', () => {
+  const h = harness('First.\n\nSecond.'), c = nativeCaret(h, 'Second.'), original = h.state().selection.toJSON();
+  const state = h.controller.state();
+  for (const options of [{ blocked: true, state }, { state: { ...state, composing: true } },
+    { state: { ...state, compositionInvalid: true } }, { state: { ...state, pending: 1 } },
+    { state: { ...state, locked: true } }, { state: { ...state, historyPending: true } },
+    { state: { ...state, source: 'unconfirmed' } }, { state: { ...state, confirmed: { ...state.confirmed, readOnly: true } } }]) {
+    assert.equal(syncNativeBackspaceSelection(c.view, { key: 'Backspace' }, options), false);
+    assert.deepEqual(h.state().selection.toJSON(), original);
+  }
+  for (const event of [{ key: 'Enter' }, { key: 'Backspace', isComposing: true }, { key: 'Backspace', keyCode: 229 },
+    { key: 'Backspace', metaKey: true }, { key: 'Backspace', altKey: true }, { key: 'Backspace', ctrlKey: true }]) {
+    assert.equal(syncNativeBackspaceSelection(c.view, event, { state }), false);
+  }
+  c.view.composing = true; assert.equal(syncNativeBackspaceSelection(c.view, { key: 'Backspace' }, { state }), false);
+  assert.equal(h.requests.length, 0);
+});
+test('native caret: outside, noncollapsed, changed DOM and unrelated block cannot redirect an edit', () => {
+  const h = harness('First.\n\nSecond.'), state = h.controller.state();
+  for (const alter of [c => { c.selection.anchorNode = {}; }, c => { c.selection.isCollapsed = false; },
+    c => { c.selection.anchorOffset = 2; c.selection.focusOffset = 2; }, c => { c.paragraph.textContent = 'unconfirmed preedit'; },
+    c => { c.view.hasFocus = () => false; }, c => { c.view.editable = false; },
+    c => { c.view.posAtDOM = () => h.span('First.').from; }, c => { c.view.nodeDOM = () => ({}); }]) {
+    const c = nativeCaret(h, 'Second.'); alter(c); const before = h.state().selection.toJSON();
+    assert.equal(syncNativeBackspaceSelection(c.view, { key: 'Backspace' }, { state }), false);
+    assert.deepEqual(h.state().selection.toJSON(), before);
+  }
+  assert.equal(h.requests.length, 0);
+});
+
+
+test('literal brackets: PM input and IPC history remain editable without changing original bytes', async () => {
+  const h = harness('\ufeffFirst 中文😀.\r\n\r\nSecond.');
+  const original = h.document.text;
+  for (const insert of ['[', ' ', ']']) {
+    const at = h.span(h.state().doc.firstChild.textContent).to;
+    assert.equal(h.edit(at, at, insert), true, insert); await h.controller.idle();
+  }
+  const expected = original.replace('First 中文😀.', 'First 中文😀.[ ]');
+  assert.equal(h.document.text, expected);
+  const second = h.span('Second.'); assert.equal(h.edit(second.to, second.to, ' next'), true); await h.controller.idle();
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, expected);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, expected.replace('[ ]', '[ '));
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, expected);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, expected + ' next');
+  assert.deepEqual(fs.readFileSync(h.file), h.disk);
 });

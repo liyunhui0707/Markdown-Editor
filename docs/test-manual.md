@@ -1578,7 +1578,7 @@ Pinyin sequence needs separately recorded evidence; the previous manual FAIL
 is not cleared by this feature. Do not use important personal documents for QA.
 
 
-### Plain paste and clear new-file feedback V1 — native checks still pending
+### Plain paste and clear new-file feedback V1 — 0.32.0 checkpoint checks (historical)
 
 Use synthetic text in a new preview instance. Preserve unsaved text in any older
 window before closing it; an existing window does not hot-load the new bundle.
@@ -1610,3 +1610,129 @@ Chinese-input manual FAIL/NOT VERIFIED and all existing release gates remain.
 2026-11-02 user feedback: paste testing passed. This is manual QA evidence for
 the reported paste experience; no additional native-dialog steps or IME coverage
 are inferred. Local WIP 0.32.0 retains the automated and remaining limits above.
+
+### Multiline plain paste V1 — current candidate
+
+Use synthetic text in a fresh document preview, with any previous unsaved window
+preserved. Paste `第一段中文😀`, a newline, and `Second paragraph.` into one plain
+paragraph or an empty temporary document. They should become two paragraphs;
+one Cmd+Z removes the whole paste and Cmd+Shift+Z restores it. Enter/Backspace
+continue to operate on the ordinary paragraph boundaries. A blank separator
+between nonempty lines also creates one paragraph boundary, not a persistent
+empty paragraph. Up to 32 paragraphs and 4096 UTF-16 units, including conversion.
+
+Leading/trailing blank lines, more than one blank separator, unsafe Markdown
+syntax, formatted/soft-wrapped targets and cross-block selections are refused
+without partial insertion. Switch original -> copy; use Save as new file in an
+already-supported folder and reopen in a fresh process. Original bytes must stay
+unchanged, BOM/CRLF and untouched syntax must survive, the copy must retain
+Not saved/history, and later edits must not change the exported file.
+
+Automated: 158 Node tests PASS and two targeted Air Electron cases PASS (the
+existing single-line case plus the new multiline lifecycle case), four clean
+process exits. Paste events and native file-dialog choices are controlled, not
+OS-clipboard or native IME acceptance. The fast Meta+Left -> Backspace sequence
+can precede PM's selection acknowledgement; the test now waits for the actual
+PM caret before Backspace. The earlier unsafe-range refusal did not lose text,
+but that rapid-key boundary is not claimed resolved. Native Pinyin remains
+NOT VERIFIED and the historical user Chinese-input FAIL remains open.
+
+2026-11-02 follow-up: user reports **new-file save and reopen PASS**. A separate
+ACL-directory refusal is expected under current policy; screenshot receipts do
+not prove every directory or native IME support.
+
+The earlier rapid line-start Backspace refusal now has a narrow fix: synchronize
+a confirmed collapsed browser caret within the same ordinary paragraph before
+the existing Backspace command. 161 Node and two Air Electron cases pass,
+including the deterministic stale-PM-selection regression, actual keyboard
+Meta+Right -> Meta+Left -> Backspace without a selection wait, Undo/Redo, exact
+new-file reopen and unchanged original. Three successful processes exit cleanly.
+Native Pinyin remains NOT VERIFIED; no new manual keyboard PASS is claimed.
+For optional next experience, move to the start of the second plain paragraph
+and press Backspace, then undo. Do not modify permissions to bypass ACL refusal.
+
+
+### Downloads new-file compatibility (2026-11-02, uncommitted 0.32.0)
+
+The earlier blanket Downloads ACL refusal is narrowed, without changing the
+folder's permissions. Supported: an existing, owned, non-synced, local APFS folder
+directly under Home with no group/other write bits; at most one non-inheriting
+Everyone deny-delete ACE and a fingerprinted opaque `com.apple.macl` attribute
+(in addition to provenance). Other ACLs/xattrs/flags remain rejected. Desktop,
+Documents, Library, hidden, known sync and nested folders remain unsupported.
+
+Automated evidence: 97 distinct targeted Node tests and one Air Electron E2E PASS
+(the same case rerun once after strengthening its native MACL fixture). The real
+utility writer created in a fresh synthetic folder carrying the default ACL and a generated native MACL xattr; both
+Electron processes exited normally, fresh-process read-only reopen matched bytes
+and SHA-256, cancel/same-name refusal retained writing, subsequent edits left the
+copy unchanged, and Not saved/history persisted. Test-native dialog selection
+was stubbed. The local Downloads directory passed a read-only authorization and
+metadata check; no user file was read or created there. This is not a new manual
+native Save Dialog or native IME PASS. Prior Chinese-input manual FAIL remains.
+
+For the next brief user experience: restart the updated development entry,
+create/edit a disposable copy, choose Save as new file, select Downloads and a
+unique filename, then reopen it. If an extra ACL or a changed MACL still causes
+refusal, retain the writing and report the error; do not change directory
+permissions to bypass it. Never overwrite an existing document.
+
+Independent DeepSeek review completed with no confirmed new P0/P1. Codex A
+verified its MACL coverage gap and added the native checks above. Failure-evidence
+retention and bounded synchronous default-location probe latency remain explicit
+limits; no further review, commit or release is implied.
+
+
+2026-11-02 native Downloads follow-up: user saw a new file but the app reported
+`unsupported-xattrs / created-unverified` and then blocked another attempt. This
+is **not a save-confirmation PASS**. The file had native MACL and last-used-date
+attributes that the directory-only change had not covered. The new persistent
+file path now fingerprints these attributes in the writer and rechecks them in
+the parent. 101 focused Node / one Air Electron case PASS with generated native
+attributes on the new file, fresh-process reopen and unchanged writing/history.
+Dialog choice remains stubbed. The actual reported file passes metadata-only
+inspection; its content and old revision were not reconciled.
+
+Keep the current writing and reported file; do not retry over that name or force
+unlock. After preserving the writing, use an updated fresh development session
+and a unique filename in Downloads; expect a confirmed path/revision/hash, then
+reopen read-only. The old unresolved session is intentionally not repaired by
+this patch. Native Downloads manual success still requires that fresh run;
+original-file overwrite and native IME restrictions remain unchanged.
+
+
+2026-11-03 follow-up supersedes the earlier request to retry without timing evidence:
+
+- Half-width `[`, `]`, `[ ]` are editable as literal text, including Undo/Redo;
+  links/reference links/task syntax and unsupported blocks remain protected.
+  83 editing/source-map tests and the existing Pro keyboard E2E passed. This does
+  not verify system Chinese IME or remove the prior Chinese-input manual FAIL.
+- A user-assisted native Save Dialog run into Downloads reproduced the exact
+  `created-file-changed` failure. The content/hash and identity stayed unchanged;
+  ctime changed during initial native metadata inspection. The first capture now
+  occurs before the strict baseline. Later changes still refuse.
+- After the fix, another explicitly authorized native Downloads run (user Save
+  click, automated receipts/hash checks) confirmed revision 58 and the same hash
+  after process exit and fresh Service read. One automated Electron case also
+  verified read-only reopening in a second Electron process. These are distinct
+  pieces of evidence, not a claim that all steps were human-operated.
+- The successful synthetic Downloads file was moved recoverably into
+  `/private/tmp/markdown-downloads-confirm-cvgp_jt3/confirmed-file/`; its
+  `restore-mapping.json` records the original path. The failed synthetic run is
+  retained at `/Users/liyunhui/Downloads/markdown-diagnostic-0f27515695e3.md`.
+  Existing Untitled/Untitled1/Untitled2 user files and current windows were untouched.
+- Already running apps still use their loaded code. Preserve current unsaved text
+  before restarting; an old unresolved receipt is never converted to success by
+  this patch. No existing-file overwrite, automatic retry or recovery unlock.
+  Release, SEC-01 and formal phase-1B3 gates remain unchanged.
+
+
+2026-11-03 user manual confirmation: the user reports “人工测试都通过了”.
+Screenshots show confirmed new Downloads receipts for Untitled3.md and Untitled4.md
+(revision 3), literal half-width brackets entered alongside full-width brackets,
+and the later-edit notice “后续修改尚未导出” while the editing session remains
+Not saved. Record these two fixes and receipt semantics as **limited manual QA
+PASS**, distinct from the automated checks above. These screenshots do not add
+an independent disk-hash check or a full native Chinese composition test. No user
+file was inspected or changed to record this result. Historical native IME,
+original-file overwrite and release limitations are unchanged.

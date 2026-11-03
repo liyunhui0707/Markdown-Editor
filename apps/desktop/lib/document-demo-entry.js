@@ -6,6 +6,7 @@ import { projectSource } from './document-source-map.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
+import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
@@ -190,6 +191,10 @@ function install(snapshot) {
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
       extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
       editorProps: { handleDOMEvents: {
+        keydown: (view, event) => {
+          syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
+          return false; // Existing Tiptap Backspace command and source gate perform the edit.
+        },
         mousedown: finishCompositionForPointer,
         paste: (view, event) => pastePlainText(view, event, { state: controller?.state(),
           blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus }),
