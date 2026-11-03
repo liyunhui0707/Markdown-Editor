@@ -27,8 +27,19 @@ app.whenReady().then(async () => {
   const writer = persistentCopies ? require('./document-copy-process').createCopyProcess({ fork: utilityProcess.fork.bind(utilityProcess) }) : null;
   if (writer) app.on('before-quit', () => writer.cancelAll());
   const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd(), ...(writer ? { persistentWriter: writer.create } : {}) } : {}); // Never unsafeExperimentalRoot.
+  let draftStore = null, draftError = null;
+  if (readOnlyWindow && !process.argv.includes('--document-no-drafts')) {
+    try {
+      const override = process.argv.find(a => a.startsWith('--document-drafts-test-root='))?.split('=').slice(1).join('=');
+      const parent = fs.realpathSync(app.getPath('appData'));
+      const draftRoot = override || path.join(parent, 'Markdown Vault Document Drafts');
+      if (override && (app.isPackaged || !path.isAbsolute(override)
+          || !fs.realpathSync(path.dirname(override)).startsWith(fs.realpathSync(os.tmpdir()) + path.sep))) throw Error('Invalid draft test root');
+      draftStore = require('./document-draft-store').createDraftStore(draftRoot);
+    } catch { draftError = 'draft-directory-unavailable'; }
+  }
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
+  const manager = createDocumentSessions({ service, draftStore, allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: 'Save as a new Markdown file?',
         detail: '请选择主文件夹直属的普通本地文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md，已有文件绝不覆盖。当前编辑副本仍为 Not saved，后续修改不会自动更新新文件。',
         buttons: ['Cancel', 'Choose local folder…'], defaultId: 0, cancelId: 0, noLink: true });
@@ -67,10 +78,11 @@ app.whenReady().then(async () => {
     { label: 'Edit', submenu: [{ role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
   ]));
   win.on('close', event => {
+    manager.flushDrafts();
     // Keep the warning even after session revocation: renderer-only drafts may exist.
     if (temporaryCreated && dialog.showMessageBoxSync(win, { type: 'warning',
       message: 'Close without saving temporary documents?',
-      detail: testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. New files explicitly created with Save as new file remain at their last verified location; later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
+      detail: draftStore ? '仅最近已确认并成功备份的正文可在下次启动时恢复。尚未备份、未提交的输入法文字及输入恢复记录仍可能丢失。草稿备份不等于已保存 Markdown；新文件也不会自动更新。取消可返回检查备份状态。' : testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. New files explicitly created with Save as new file remain at their last verified location; later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
       buttons: ['Cancel', 'Close without saving'], defaultId: 0, cancelId: 0, noLink: true }) !== 1) event.preventDefault();
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -84,6 +96,6 @@ app.whenReady().then(async () => {
     if (!opened.ok) throw Error('Synthetic fixture refused');
     manager.provision(win, opened.document, name);
   }
-  win.webContents.send('document-demo:ready', { readOnlyWindow });
+  win.webContents.send('document-demo:ready', { readOnlyWindow, draftsEnabled: !!draftStore, draftError });
 }).catch(() => { console.error('Synthetic document demo startup failed'); app.exit(1); });
 app.on('window-all-closed', () => app.quit());

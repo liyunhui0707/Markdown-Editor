@@ -14,7 +14,7 @@ function owned(pid) {
   }
   return [...ids];
 }
-async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false, createdMetadataTarget = null) {
+async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false, createdMetadataTarget = null, draftOptions = {}) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
@@ -61,7 +61,7 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
       require(${JSON.stringify(path.join(desktop, 'main.js'))});`, { flag: 'wx', mode: 0o600 });
   }
   const app = await electron.launch({ executablePath: process.env.E2E_ELECTRON_EXECUTABLE,
-    args: readOnly ? [documentEntry, '--document-readonly', ...(testCopy ? [persistentCopy ? '--document-persistent-copy' : '--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
+    args: readOnly ? [documentEntry, '--document-readonly', draftOptions.root ? '--document-drafts-test-root=' + draftOptions.root : '--document-no-drafts', ...(testCopy ? [persistentCopy ? '--document-persistent-copy' : '--document-test-copy'] : [])] : [entry], cwd: copyRoot || desktop, env, chromiumSandbox: true });
   const child = app.process(), closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
   let group, ids = [child.pid], stderr = '', functional = false, watchdog = false, timer, identity;
   child.stderr.on('data', b => { stderr = (stderr + b.toString()).slice(-32768); });
@@ -76,8 +76,10 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     });
     const root = path.dirname(identity.profile); expect(path.basename(root)).toMatch(/^document-demo-/);
     const bytes = readOnly ? [] : await Promise.all(['a.md', 'b.md'].map(f => fs.readFile(path.join(root, f))));
-    const page = await app.firstWindow(); await page.bringToFront();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
+    if (draftOptions.root) await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; });
+    const page = await app.firstWindow();
+    if (draftOptions.root) await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].hide());
+    else { await page.bringToFront(); await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus()); }
     if (readOnly) await expect(page.locator('#open-file')).toBeEnabled();
     else {
       await page.getByRole('button', { name: 'Connect synthetic documents' }).click();
@@ -94,19 +96,23 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     const { projectSource } = await import(pathToFileURL(path.join(desktop, 'lib/document-source-map.mjs')).href);
     await body({ app, page, sessions, snapshot, select, settled, projectSource, root, copyRoot });
     for (const [i, f] of (readOnly ? [] : ['a.md', 'b.md']).entries()) expect((await fs.readFile(path.join(root, f))).equals(bytes[i])).toBe(true);
-    const finalSessions = (await page.evaluate(() => window.documentDemo.list())).sessions;
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.emit('did-start-loading'));
-    for (const s of finalSessions) expect((await snapshot(s.sessionId)).ok).toBe(false);
-    if (await page.locator('#editor .tiptap').count()) {
-      await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
-      expect(JSON.parse(await page.locator('#status').textContent()).locked).toBe(true);
-    } else await expect(page.locator('#connect')).toBeDisabled(); // Reload has no new main grant.
+    if (!draftOptions.directExit) {
+      const finalSessions = (await page.evaluate(() => window.documentDemo.list())).sessions;
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.emit('did-start-loading'));
+      for (const s of finalSessions) expect((await snapshot(s.sessionId)).ok).toBe(false);
+      if (await page.locator('#editor .tiptap').count()) {
+        await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+        expect(JSON.parse(await page.locator('#status').textContent()).locked).toBe(true);
+      } else await expect(page.locator('#connect')).toBeDisabled(); // Reload has no new main grant.
+    }
     functional = true;
   } finally {
     if (group === child.pid) ids = [...new Set([...ids, ...owned(child.pid)])];
     timer = setTimeout(() => { watchdog = true; if (group === child.pid && !gone(-group)) process.kill(-group, 'SIGKILL'); else if (!gone(child.pid)) child.kill('SIGKILL'); }, 45000);
     try {
-      await app.close(); const result = await closed, deadline = Date.now() + 3000;
+      if (draftOptions.directExit) await app.evaluate(({ app }) => { setImmediate(() => app.exit(0)); });
+      else await app.close();
+      const result = await closed, deadline = Date.now() + 3000;
       while (Date.now() < deadline && (!ids.every(gone) || (group && !gone(-group)))) await new Promise(r => setTimeout(r, 30));
       const remaining = !ids.every(gone) || !!(group && !gone(-group));
       const fault = /p1:(?:uncaught|error-dialog)|Object has been destroyed|Uncaught Exception/.test(stderr);
@@ -1338,4 +1344,109 @@ test('multiline paste V1 writes paragraphs atomically and reopens a faithful new
   }, info, null, true);
   const cleanup = fixture.cleanup({ passed: true, quiescent: true }); expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
   console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
+});
+
+test('local drafts V1 restores two confirmed documents after direct process exit and exports a fresh file', async ({}, info) => {
+  const os = require('node:os'), hash = b => require('node:crypto').createHash('sha256').update(b).digest('hex');
+  const area = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'document-drafts-e2e-'))), draftRoot = path.join(area, 'drafts');
+  const originalPath = path.join(area, 'original.md'), raw = '\ufeffFirst 中文😀\r\n\r\nSecond.\r\n\r\n```js\r\nopaque();\r\n```\r\n';
+  await fs.writeFile(originalPath, raw, { flag: 'wx', mode: 0o600 });
+  let expected, originalSession, saved, exported, target, ownedFixture;
+  const secondText = 'Independent second draft 中文😀';
+  await usingDemo(async ({ app, page, snapshot, select, settled }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, originalPath);
+    await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('original.md');
+    originalSession = await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    const id = await page.locator('#documents').inputValue();
+    await select('#editor p:first-of-type', 'First 中文😀'.length); await page.keyboard.insertText(' accepted 编辑'); await settled();
+    expected = (await snapshot(id)).snapshot;
+    await expect(page.locator('#draft-backup-status')).toContainText(`本地草稿已备份（修订 ${expected.revision}）`);
+    expect(expected.source).toBe(raw.slice(1).replace('First 中文😀', 'First 中文😀 accepted 编辑'));
+    for (const op of ['edit', 'save']) expect((await page.evaluate(({ op, id }) => window.documentDemo[op]({ sessionId: id, expectedRevision: 0 }), { op, id: originalSession })).code).toBe('read-only-document');
+    await page.locator('#new-temporary').click(); await page.locator('#editor p').click(); await page.keyboard.insertText(secondText); await settled();
+    await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份');
+    expect((await page.evaluate(() => window.documentDemo.listDrafts())).drafts.length).toBe(2);
+    expect((await snapshot(id)).snapshot.source).toBe(expected.source);
+    expect(hash(await fs.readFile(originalPath))).toBe(hash(raw));
+    await page.screenshot({ path: info.outputPath('drafts-before-direct-exit.png') });
+  }, info, null, true, false, false, null, { root: draftRoot, directExit: true });
+  // Only after the first process has exited: a new independent Electron instance.
+  await usingDemo(async ({ app, page, snapshot, select, settled }) => {
+    await page.locator('#draft-recovery-panel > summary').click();
+    await expect(page.locator('#draft-recovery-list > p')).toHaveCount(2);
+    const firstRow = page.locator('#draft-recovery-list > p').filter({ hasText: 'original.md' });
+    await firstRow.getByRole('button', { name: '恢复副本' }).click();
+    await expect(page.locator('#document-name')).toContainText('恢复：');
+    const firstId = await page.locator('#documents').inputValue(), recovered = (await snapshot(firstId)).snapshot;
+    expect(recovered.source).toBe(expected.source); expect(recovered.bom).toBe(true); expect(recovered.revision).toBe(0);
+    expect(recovered.canUndo).toBe(false); expect(recovered.canRedo).toBe(false); expect(recovered.temporary).toBe(true);
+    expect(firstId).not.toBe(originalSession); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份（修订 0）');
+    await page.locator('#draft-recovery-list > p').filter({ hasText: 'Temporary' }).getByRole('button', { name: '恢复副本' }).click();
+    const secondId = await page.locator('#documents').inputValue(); expect((await snapshot(secondId)).snapshot.source).toBe(secondText);
+    await page.locator('#documents').selectOption(firstId); await select('#editor p:first-of-type', 0);
+    await page.keyboard.insertText('CONTINUED '); await settled();
+    const continued = (await snapshot(firstId)).snapshot.source;
+    expect(continued).toBe('CONTINUED ' + expected.source); expect((await snapshot(firstId)).snapshot.canUndo).toBe(true);
+    await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(firstId)).snapshot.source).toBe(expected.source);
+    await page.keyboard.press('Meta+Shift+z'); await settled(); expect((await snapshot(firstId)).snapshot.source).toBe(continued);
+    ownedFixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(ownedFixture.dir, 'recovered-new.md');
+    console.log('draft-export-fixture:' + ownedFixture.dir);
+    await app.evaluate(({ dialog }, filePath) => {
+      dialog.showMessageBox = async () => ({ response: 1 }); dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+    }, target);
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#test-copy-operation')).toContainText('本次已创建新文件');
+    saved = (await snapshot(firstId)).snapshot.copyState; exported = await fs.readFile(target);
+    expect(exported.equals(Buffer.from('\ufeff' + continued))).toBe(true); expect(hash(exported)).toBe(saved.sha256);
+    ownedFixture.recordFile('recovered-new.md', exported);
+    // Continue at the caret returned by Redo/export; do not race a synthetic DOM selectionchange.
+    await page.keyboard.insertText('LATER '); await settled();
+    expect((await snapshot(firstId)).snapshot.source).toBe('CONTINUED LATER ' + expected.source);
+    await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份');
+    await expect(page.locator('#test-copy-summary')).toContainText('后续修改尚未导出');
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect((await fs.readFile(target)).equals(exported)).toBe(true); expect(hash(await fs.readFile(originalPath))).toBe(hash(raw));
+    await page.screenshot({ path: info.outputPath('draft-restored-and-exported.png') });
+  }, info, null, true, true, true, null, { root: draftRoot });
+  await usingDemo(async ({ app, page, snapshot }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('recovered-new.md');
+    const reopened = (await snapshot(await page.locator('#documents').inputValue())).snapshot;
+    expect(reopened.readOnly).toBe(true); expect(reopened.source).toBe(exported.toString().slice(1)); expect(reopened.bom).toBe(true);
+    expect(hash(await fs.readFile(target))).toBe(saved.sha256); expect(hash(await fs.readFile(originalPath))).toBe(hash(raw));
+    const integrity = info.outputPath('drafts-integrity.json');
+    await fs.writeFile(integrity, JSON.stringify({ originalSha256: hash(raw), originalUnchanged: true, exportedSha256: saved.sha256, exportedBytes: exported.length, draftRoot, nativeIme: 'NOT VERIFIED', dialog: 'stubbed selection', hiddenWindow: true }, null, 2), { flag: 'wx', mode: 0o600 });
+    await info.attach('drafts-integrity', { path: integrity, contentType: 'application/json' });
+  }, info, null, true, false, false, null, { root: draftRoot });
+  const cleanup = ownedFixture.cleanup({ passed: true, quiescent: true });
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup)); expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+});
+
+test('local drafts V1 shows corrupted-newest fallback and honest backup failure without losing editing', async ({}, info) => {
+  const os = require('node:os'), { createDraftStore } = require('../lib/document-draft-store');
+  const area = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'document-drafts-errors-e2e-'))), draftRoot = path.join(area, 'drafts');
+  const store = createDraftStore(draftRoot), id = store.newId();
+  expect(store.save({ id, label: 'Corrupt synthetic', revision: 9, bytes: Buffer.from('Recover this confirmed content.') }).ok).toBe(true);
+  const partial = path.join(draftRoot, id + '.2.json'); await fs.writeFile(partial, '{partial', { flag: 'wx', mode: 0o600 });
+  await usingDemo(async ({ page, snapshot, select, settled }) => {
+    await page.locator('#draft-recovery-panel > summary').click();
+    await expect(page.locator('#draft-recovery-list')).toContainText('较新记录损坏');
+    await page.getByRole('button', { name: '恢复副本', exact: true }).click();
+    await expect(page.locator('#viewer-status')).toContainText('已恢复较早的可验证草稿');
+    const restoredId = await page.locator('#documents').inputValue();
+    expect((await snapshot(restoredId)).snapshot.source).toBe('Recover this confirmed content.');
+    await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份（修订 0）');
+    // Change only this test-owned directory; app must not ignore its protection failure.
+    await fs.chmod(draftRoot, 0o750);
+    await select('#editor p', 0); await page.keyboard.type('KEEP '); await settled();
+    await expect(page.locator('#draft-backup-status')).toContainText('草稿备份未确认');
+    await expect(page.locator('#draft-backup-status')).toContainText('最后已备份修订 0');
+    expect((await snapshot(restoredId)).snapshot.source).toBe('KEEP Recover this confirmed content.');
+    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect(await fs.readFile(partial, 'utf8')).toBe('{partial');
+    await page.screenshot({ path: info.outputPath('draft-backup-failure-retains-content.png') });
+  }, info, null, true, false, false, null, { root: draftRoot });
 });

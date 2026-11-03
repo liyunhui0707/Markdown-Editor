@@ -1,5 +1,49 @@
 # Stage History
 
+## 0.34.0 local WIP checkpoint — Local Draft Recovery V1 (2026-11-03)
+
+Main-confirmed temporary/edit-copy content now receives a bounded local recovery
+snapshot. On restart, “恢复本地草稿 / 恢复副本” creates an independent temporary
+session with exact Markdown bytes, fresh revision/history and no overwrite
+permission. Backup status is separate from Markdown export receipts; Not saved
+and later-edit semantics remain unchanged. This local WIP checkpoint contains the
+16 scoped feature/documentation files plus the two project version files. The
+minor bump changes only the three project version fields; dependencies and
+configuration remain unchanged. This is not complete acceptance or release approval.
+
+**138 focused Node PASS; 2 scoped Pro Electron cases PASS.** The final strengthened
+restart/edit/export/reopen case has three clean Electron exits; the separate
+corrupt-generation/permission-failure case has one. These use hidden synthetic
+windows, controlled input and stubbed dialog selection, not native IME/manual QA.
+Initial harness failures (close confirmation, an unset synthetic target and DOM
+selection timing) and a foreground input interference run are retained, not
+counted as passes. Final successful Home export fixtures were verified and
+reclaimed; the two earlier retained fixtures were moved intact into temporary
+run evidence with a restore mapping. No historical fixtures were touched.
+
+The user supplied screenshots and reported “应该是可以了”: **limited manual
+backup/list/restore PASS**, with Not saved retained. This does not establish full
+process exit, byte/hash equality, post-restore export/reopen or native IME acceptance.
+Runtime/test/bundle fingerprints match the successful automated evidence; this
+closeout reuses that evidence and adds no product code or unrelated test matrix.
+Codex local self-review found no unresolved new P0/P1 in this scope; it is not an
+independent second-model review. No push, merge, tag or release is included.
+
+Private app-data storage retains up to 32 drafts, normally two verified generations
+per draft; partial/unverifiable records remain. Capacity stops backups explicitly.
+V1 does not persist renderer-only recovery text, IME preedit or Undo history;
+a sudden exit can lose the latest unbacked edits. No draft dismissal UI, encryption,
+installer acceptance, hostile same-user race guarantee or power-loss guarantee.
+Original overwrite remains prohibited; coordination-required, SEC-01, formal
+phase-1B3 FAIL and native Chinese IME NOT VERIFIED/prior manual FAIL remain.
+
+New modules are 122/37/55 lines (store/scheduling/view). The existing renderer
+entry remains 370 lines; IPC 248, focused tests 179 and 499. The existing Electron
+regression file is about 1450 lines: retain its established lifecycle/owned-fixture
+helper for these two cases rather than introduce a parallel test harness. No
+Document Model, Source Map, Service, File Store or Persistent Copy policy changes.
+Details and evidence: [local draft scope](document-editing-interaction-phase1b3.md#local-draft-recovery-v1-2026-11-03-uncommitted).
+
 ## 0.33.0 local WIP checkpoint (2026-11-03)
 
 This checkpoint consolidates the 22 reviewed candidate paths below with the two

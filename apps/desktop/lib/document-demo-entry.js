@@ -6,12 +6,14 @@ import { projectSource } from './document-source-map.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
+import { createDraftView } from './document-draft-view.mjs';
 import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
+const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 function persistentCopyNote(receipt) {
   if (receipt?.ok === true && receipt.state === 'created-confirmed' && receipt.created === true
       && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
@@ -111,10 +113,10 @@ function render(s) {
     byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
     byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
     byId('document-name').textContent = current.label; byId('document-full-name').textContent = current.label;
-    byId('document-location').textContent = temporary ? 'In this window only — no saved file' : current.location;
+    byId('document-location').textContent = temporary ? 'Independent writing — no linked saved file' : current.location;
     byId('document-info').querySelector('summary').title = current.label;
     byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
-    byId('readonly-badge').title = temporary ? 'Temporary writing is memory only.' : 'Original file is read-only. Edit a copy to work in a separate unsaved document.';
+    byId('readonly-badge').title = temporary ? 'Not saved to a Markdown file. Check the separate local draft backup status.' : 'Original file is read-only. Edit a copy to work in a separate unsaved document.';
     byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
@@ -124,7 +126,7 @@ function render(s) {
     else if (s.code === 'memory-edited') viewerStatus('Changes are in this unsaved copy. Existing files have not been modified.');
   }
   byId('composition-status').hidden = !s.composing;
-  testCopyView.render(s); renderCompositionCopies(s); show();
+  draftView.render(s); testCopyView.render(s); renderCompositionCopies(s); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -285,7 +287,7 @@ function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openDocument(temporary = false, editingCopy = false) {
+async function openDocument(temporary = false, editingCopy = false, draftId = null) {
   const state = controller?.state();
   if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
   const original = state?.confirmed;
@@ -297,10 +299,10 @@ async function openDocument(temporary = false, editingCopy = false) {
   viewerStatus(editingCopy ? 'Creating independent editable copy…' : temporary ? 'Creating temporary document…' : 'Opening…');
   let candidate = null;
   try {
-    const r = await (editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+    const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
     if (!r.ok) {
-      const messages = { 'open-cancelled': 'Open cancelled.', 'file-unavailable': 'The selected file no longer exists.',
+      const messages = { 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': 'Open cancelled.', 'file-unavailable': 'The selected file no longer exists.',
         'read-failed': 'The selected file cannot be read.', 'unsupported-encoding': 'Only UTF-8 Markdown is supported.',
         'unsupported-size': 'The selected file exceeds the preview size limit.', 'parse-failed': 'This content exceeds the supported preview limits.',
         'unsupported-path': 'Choose one supported .md file.', 'unsupported-file': 'Choose a regular file, not a link.',
@@ -332,7 +334,7 @@ async function openDocument(temporary = false, editingCopy = false) {
       }
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
-    viewerStatus(editingCopy ? 'Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported.' : temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
+    viewerStatus(draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。Undo 历史从此处重新开始；当前仍为 Not saved。' : '已恢复本地草稿为独立副本。Undo 历史从此处重新开始；当前仍为 Not saved。') : editingCopy ? 'Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported.' : temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
   } catch {
     if (candidate && selected !== candidate.sessionId) {
       try { await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision }); } catch { /* main revokes on window close */ }
@@ -357,6 +359,7 @@ window.addEventListener('keydown', event => {
 });
 api.onReady(data => {
   readOnlyWindow = data?.readOnlyWindow === true;
+  if (readOnlyWindow) draftView.configure(data);
   if (readOnlyWindow) {
     document.body.dataset.documentViewer = 'true'; document.body.dataset.documentState = 'empty';
     byId('document-header').hidden = false; byId('empty-state').hidden = false; byId('empty-open').disabled = false;

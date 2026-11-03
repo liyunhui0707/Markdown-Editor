@@ -1736,3 +1736,37 @@ PASS**, distinct from the automated checks above. These screenshots do not add
 an independent disk-hash check or a full native Chinese composition test. No user
 file was inspected or changed to record this result. Historical native IME,
 original-file overwrite and release limitations are unchanged.
+
+
+## Local Draft Recovery V1 — optional user experience check (2026-11-03)
+
+Automated evidence: 138 focused Node PASS and two Pro Electron cases PASS. These
+use synthetic files, controlled input and stubbed dialog selection. Native macOS
+Chinese IME remains **NOT VERIFIED**; prior manual Chinese-input FAIL is not
+lifted. Limited user backup/restore confirmation is recorded below.
+
+1. Launch the restricted document entry (or persistent-copy launcher). Create a
+   temporary document, type two short ordinary paragraphs and wait for “本地草稿
+   已备份（修订 …）”. The separate badge must remain **Not saved**.
+2. Close the app, accepting the existing close warning, then start it again.
+   Expand “恢复本地草稿” and select “恢复副本”. Confirm the text is present; the
+   restored session is independent and its Undo history starts here.
+3. Continue editing and use **Save as new file…** in a supported location. The
+   file receipt and draft backup status are separate. Further edits must not
+   change the exported file or any original; reopen the export read-only.
+
+Do not induce real disk/permission failures or delete draft records manually for
+this experience check. Those cases use isolated automated fixtures. Uncommitted
+IME text, renderer recovery copies and previous Undo history are not recoverable
+in V1; a still-pending backup is not a guarantee. At 32 draft IDs new backups are
+refused without deleting older records. This slice has no draft-deletion UI.
+
+
+2026-11-03 limited user experience confirmation: the user supplied three screenshots
+and reported “应该是可以了”. They show a confirmed draft backup at revision 4,
+one recoverable draft, and a restored independent session with the edited
+synthetic paragraphs visible, a fresh revision 0 and Not saved retained. Record
+this as **limited manual backup/list/restore PASS**, not full feature acceptance.
+The screenshots alone do not establish full process exit, byte/hash equality,
+post-restore export/reopen or native IME behavior; the separate automated evidence
+continues to cover its stated scope. No user draft files were read for this note.

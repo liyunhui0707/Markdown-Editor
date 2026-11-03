@@ -1445,3 +1445,111 @@ uncommitted. Original-file readonly, coordination-required, supported-save
 directory limits, Not saved / memory-only drafts, SEC-01, historical native IME
 FAIL/NOT VERIFIED and phase 1B-3 formal FAIL remain. No Git checkpoint, release
 or wider save authorization is implied by this development/testing result.
+
+
+## Local Draft Recovery V1 (2026-11-03, uncommitted)
+
+Product scope: a temporary document or independently editable copy automatically
+backs up **main-confirmed** Markdown. The document window exposes a separate
+backup revision/status and “恢复本地草稿” list. Restoring verifies the record and
+opens a new temporary session; it does not revive old session IDs, Undo/Redo,
+copy receipts, permission grants or original-file save authority. Existing
+Document Model/Service/source projection and new-file export are reused unchanged.
+
+Storage is app-private plaintext under the platform app-data directory:
+`~/Library/Application Support/Markdown Vault Document Drafts/` on this Mac.
+The root is canonical, owned and mode 0700; records are exclusive/no-follow 0600
+JSON envelopes containing exact UTF-8 bytes and SHA-256. Main batches changes
+over 800 ms and flushes on close/revocation. Each successful receipt requires
+identity/content/readback verification and file/directory fsync. Deterministic
+immutable generation names and previous-generation fingerprints reject competing
+or stale writers. Only verified obsolete snapshots are retired; newest two
+verified generations normally remain. Partial/unverifiable entries are retained;
+uncertain/conflicting operations stop automatic writes for that live draft.
+
+This is **application-owned recovery storage**, not a new arbitrary-path save
+permission. Renderer requests supply a draft ID only, never Markdown or a path.
+Existing sender/window/main-frame checks apply. Preload refuses restoration while
+composition/IPC is pending or an IPC outcome is unknown, validates temporary
+identity and suppresses receipts for revoked sessions. Active drafts cannot be
+restored twice in the same manager. Older corrupt-head recovery is explicit and
+forks a new backup lineage, preserving the damaged evidence. An unreadable draft
+or unavailable root does not replace the current document. Backup failure does
+not fail an accepted in-memory edit or clear dirty/history/export receipts.
+
+Limits: at most 32 draft IDs / 128 retained records; each bounded record is at most
+768 KiB and content follows the document limits. No automatic expiration, user
+removal UI or dismissal on export in V1. Capacity failure is visible and existing
+records remain. Recovery restores content, not unfinished renderer input, IME
+preedit, input-recovery records or old Undo history. The last unbacked portion can
+be lost on sudden exit. Fsync is not proof against power failure; private-directory
+checks do not promise protection from hostile same-user races or account access.
+The snapshots are not encrypted or synced. Packaging and long-document performance
+have not been accepted in this slice.
+
+Validation (2026-11-03):
+
+- **138 Node PASS**, 0 failed/skipped: `document-drafts.test.js`,
+  `document-session-ipc.test.js`, `document-open-readonly.test.js`,
+  `document-edit-controller.test.mjs`. Covers a fresh Node process, BOM/CRLF and
+  Unicode bytes, multiple drafts, retention/capacity, symlinks/directory replacement,
+  corruption, partial/sync/permission failures, stale writers, accepted revisions,
+  close flush, restore identity/history, readonly authority, forged IPC and stale
+  backup receipts. Main Model/Service remain the source of truth.
+- **2 Pro Electron cases PASS**, using the existing isolated runtime and private
+  temporary draft roots. Timer-confirmed drafts survive direct `app.exit(0)` with
+  no close/revoke flush, restore in a fresh process, accept real subsequent edits
+  with Undo/Redo, export via the existing utility writer and reopen read-only in
+  a third process. Original bytes/hash remain exact; BOM/CRLF/opaque blocks remain;
+  later editing leaves the export unchanged and Not saved. A second case shows
+  explicit older-generation recovery plus backup permission failure with retained
+  text/last-confirmed revision. Four clean final process exits. Inputs/dialogs are
+  automated/stubbed, windows hidden: **not native IME or user manual acceptance**.
+- Bundle independently rebuilt to temporary output and byte-compared successfully;
+  Git whitespace check passes. Codex local diff self-review found no unresolved
+  new P0/P1 in this scope; no external Reviewer was called. It is not independent
+  second-model or release approval.
+
+Evidence: `/private/tmp/markdown-drafts-v1-work/`: `node-final.log`,
+`electron-verified.log` (strengthened three-process case), `electron-4.log`
+(failure-state case), `electron-results-verified/` and `electron-results-4/`
+(screenshots/integrity). Earlier failing runs remain. The first two harness issues
+were close-dialog teardown and an unset fixture destination; a later foreground
+run received extra input. A strengthened assertion exposed the test's synthetic
+DOM-selection timing, resolved by continuing at the export-returned caret. These
+are not counted as successful native interaction acceptance. The final existing
+fixture helper reclaimed verified successful Home outputs; failed-run objects
+were moved intact into `retained-home-fixtures/` with `fixture-restore-map.json`.
+No old Home evidence, archived worktree, user file or actual draft library changed.
+
+Version remains 0.33.0; no staging/commit. Original-file overwrite, generic save(),
+coordination-required, unsupported/sync-directory exclusions, SEC-01, formal
+phase-1B3 FAIL, native IME NOT VERIFIED and earlier Chinese manual FAIL remain.
+
+
+2026-11-03 user follow-up: “应该是可以了”, with screenshots of revision-4 backup,
+a one-item recovery list and restored edited content in a new revision-0 session.
+**Limited manual backup/list/restore PASS**; Not saved remains visible. Revision
+0 is the restored session's new baseline, not loss of the prior revision-4 body.
+This is user experience evidence, not an automated hash check or proof of full
+process exit. Post-restore export/reopen, native IME and wider release acceptance
+are not added by these screenshots. No source/test/version change or Git commit.
+
+
+### 0.34.0 local WIP checkpoint (2026-11-03)
+
+This closeout supersedes the dated candidate version/staging notes above only.
+The checkpoint includes the 16 verified feature/documentation paths and two
+project version files, with the three project version fields changed from 0.33.0
+to 0.34.0. No dependency, configuration, runtime or test content changes accompany
+the closeout. Runtime/test/bundle fingerprints match the successful evidence;
+reuse 138 focused Node PASS and the two scoped Pro Electron cases PASS. Limited
+user backup/list/restore PASS remains separate from automated evidence.
+
+This is a local WIP checkpoint, not complete acceptance or release approval.
+No unresolved new P0/P1 was found in Codex local self-review; no independent
+second-model review is claimed. Original overwrite and generic save() remain
+blocked, coordination-required stays effective, and the draft recovery, native
+IME, earlier manual FAIL, SEC-01, formal phase-1B3 FAIL, installer, hostile
+same-user concurrency and power-loss limits above remain. No push, merge, tag
+or release is part of this checkpoint.

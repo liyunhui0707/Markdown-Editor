@@ -115,6 +115,10 @@ body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
 #test-copy-operation:not(:empty),#test-copy-summary:not(:empty){margin:12px 0;padding:10px 12px;border-radius:6px;background:#f0f4f7;color:#263746}
 #test-copy-operation[data-tone="error"]:not(:empty){background:#fff2e9;color:#803b12;border-left:3px solid #c3662d}
 #test-copy-operation[data-tone="success"]:not(:empty){background:#edf6ee;color:#275232}
+#draft-backup-status,#draft-recovery-panel{display:block;max-width:780px;margin:12px auto;padding:8px 22px;font-size:13px;line-height:1.6;color:#56616c;overflow-wrap:anywhere}
+#draft-backup-status[hidden],#draft-recovery-panel[hidden]{display:none}
+#draft-backup-status[data-tone="error"]{color:#803b12;background:#fff2e9}
+#draft-recovery-panel summary{cursor:pointer}#draft-recovery-panel button{font:inherit}
 </style></head>
 <body>
 <header id="document-header" hidden>
@@ -133,6 +137,10 @@ body[data-document-viewer] .tiptap p:only-child:empty{min-height:1.85em}
 </header>
 <div id="writing-actions" hidden><button id="new-temporary" disabled>New temporary document</button><button id="edit-copy" hidden>编辑副本 · Edit a copy</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；多段请粘贴到一个普通段落内。连续空段落及复杂格式暂不支持。</p>
+<output id="draft-backup-status" role="status" hidden></output>
+<details id="draft-recovery-panel" hidden><summary>恢复本地草稿</summary>
+<p id="draft-recovery-status" role="status"></p><button id="refresh-drafts">刷新草稿列表</button><div id="draft-recovery-list"></div>
+<p>草稿只保存在本机应用私有目录，不会改写原文件。每份保留最近两次完整快照；损坏或未知记录保留。最多 32 份草稿，达到容量时停止新增备份并提示。</p></details>
 <section id="test-copy-panel" hidden aria-label="Create a new Markdown copy">
 <details id="test-copy-location-help"><summary>保存位置与限制</summary><p id="test-copy-description">Development only — copies are created in a private, isolated temporary directory. They may be cleaned up. Do not use them for important or long-term documents. No ordinary Save As or overwrite is enabled.</p></details>
 <output id="test-copy-reason" role="status"></output>

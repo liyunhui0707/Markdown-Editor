@@ -32856,6 +32856,75 @@ SHA-256: ${last.sha256}` : "";
     return true;
   }
 
+  // lib/document-draft-view.mjs
+  function createDraftView({ api: api2, byId: byId2, context, restore }) {
+    const receipts = /* @__PURE__ */ new Map();
+    let enabled = false;
+    function remember(sessionId, backup) {
+      if (!backup || !Number.isSafeInteger(backup.sequence)) return;
+      const old = receipts.get(sessionId);
+      if (!old || backup.sequence >= old.sequence) receipts.set(sessionId, backup);
+    }
+    function render3(s) {
+      const node2 = byId2("draft-backup-status");
+      node2.hidden = !enabled || !s?.confirmed.temporary;
+      if (node2.hidden) return;
+      remember(s.confirmed.sessionId, s.confirmed.draftBackup);
+      const r = receipts.get(s.confirmed.sessionId), last = r?.revision == null ? "\u5C1A\u65E0\u5DF2\u786E\u8BA4\u5907\u4EFD" : `\u6700\u540E\u5DF2\u5907\u4EFD\u4FEE\u8BA2 ${r.revision}`;
+      const unsettled = s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords?.length || s.locked || s.source !== s.confirmed.source || context().invalid;
+      node2.textContent = r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u8FD9\u4E0D\u662F Markdown \u6587\u4EF6\u4FDD\u5B58\uFF0C\u5F53\u524D\u4ECD\u4E3A Not saved\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
+      if (unsettled) node2.textContent += " \u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u5305\u542B\u5728\u5907\u4EFD\u4FDD\u8BC1\u4E2D\u3002";
+      node2.dataset.tone = ["backup-failed", "draft-unverified"].includes(r?.state) ? "error" : "";
+    }
+    async function refresh() {
+      if (!enabled) return;
+      const panel = byId2("draft-recovery-list"), status = byId2("draft-recovery-status");
+      try {
+        const result = await api2.listDrafts();
+        if (!result.ok) {
+          status.textContent = `\u65E0\u6CD5\u8BFB\u53D6\u672C\u5730\u8349\u7A3F\uFF1A${result.code}\u3002\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\u3002`;
+          return;
+        }
+        panel.replaceChildren();
+        status.textContent = result.drafts.length ? `\u53D1\u73B0 ${result.drafts.length} \u4EFD\u8349\u7A3F\u3002\u4EC5\u6062\u590D\u6700\u8FD1\u53EF\u9A8C\u8BC1\u7684\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002` : "\u6CA1\u6709\u53EF\u6062\u590D\u7684\u672C\u5730\u8349\u7A3F\u3002";
+        for (const d of result.drafts) {
+          const row = document.createElement("p"), button = document.createElement("button"), label = document.createElement("span");
+          label.textContent = `${d.label}${d.recoverable ? " \xB7 \u4FEE\u8BA2 " + d.revision : ""}${d.warning ? " \xB7 \u8F83\u65B0\u8BB0\u5F55\u635F\u574F\u6216\u672A\u786E\u8BA4\uFF0C\u53EF\u80FD\u53EA\u80FD\u6062\u590D\u8F83\u65E9\u5185\u5BB9" : ""} `;
+          button.textContent = d.active ? "\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00" : "\u6062\u590D\u526F\u672C";
+          button.disabled = d.active || !d.recoverable;
+          button.onclick = async () => {
+            const c = context(), s = c.state;
+            if (c.loading || s?.pending || s?.historyPending || s?.composing) {
+              status.textContent = "\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\uFF0C\u518D\u6062\u590D\u8349\u7A3F\u3002";
+              return;
+            }
+            button.disabled = true;
+            await restore(d.id);
+            await refresh();
+          };
+          row.append(label, button);
+          panel.append(row);
+        }
+      } catch {
+        status.textContent = "\u8349\u7A3F\u8BFB\u53D6\u901A\u4FE1\u5931\u8D25\uFF0C\u5F53\u524D\u5185\u5BB9\u4E0E\u78C1\u76D8\u8BB0\u5F55\u4FDD\u7559\u3002";
+      }
+    }
+    api2.onDraftStatus(({ sessionId, backup }) => {
+      remember(sessionId, backup);
+      render3(context().state);
+    });
+    byId2("refresh-drafts").onclick = refresh;
+    return { render: render3, configure(data) {
+      enabled = data.draftsEnabled === true;
+      byId2("draft-recovery-panel").hidden = !(enabled || data.draftError);
+      if (data.draftError) byId2("draft-recovery-status").textContent = "\u672C\u5730\u8349\u7A3F\u4E0D\u53EF\u7528\uFF0C\u5F53\u524D\u5199\u4F5C\u4ECD\u4EC5\u5728\u5185\u5B58\u4E2D\u3002\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
+      if (enabled) {
+        byId2("temporary-notice").textContent = "Not saved \u2014 \u5DF2\u786E\u8BA4\u6B63\u6587\u4F1A\u5907\u4EFD\u5230\u672C\u673A\u5E94\u7528\u79C1\u6709\u76EE\u5F55\u3002\u8BF7\u67E5\u770B\u4E0B\u65B9\u5907\u4EFD\u72B6\u6001\uFF1B\u5C1A\u672A\u786E\u8BA4\u7684\u8F93\u5165\u3001Undo \u5386\u53F2\u4E0E\u8F93\u5165\u6062\u590D\u8BB0\u5F55\u4E0D\u4FDD\u8BC1\u8DE8\u9000\u51FA\u4FDD\u7559\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u624D\u4F1A\u751F\u6210 Markdown \u6587\u4EF6\uFF0C\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u66F4\u65B0\u5B83\u3002\u652F\u6301\u6700\u591A 32 \u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\u3002";
+        void refresh();
+      }
+    } };
+  }
+
   // lib/document-native-selection.mjs
   function syncNativeBackspaceSelection(view, event, { state, blocked = false }) {
     if (event.key !== "Backspace" || event.defaultPrevented || event.metaKey || event.altKey || event.ctrlKey || event.isComposing || event.keyCode === 229 || view.composing || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly || state.locked || state.pending || state.historyPending || state.composing || state.compositionInvalid || state.source !== state.confirmed.source) return false;
@@ -32891,6 +32960,7 @@ SHA-256: ${last.sha256}` : "";
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id) => openDocument(true, false, id) });
   function persistentCopyNote(receipt) {
     if (receipt?.ok === true && receipt.state === "created-confirmed" && receipt.created === true && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
       return `Confirmed copy: revision ${receipt.revision}. Later edits are not included; this temporary document remains Not saved.`;
@@ -33022,10 +33092,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("edit-copy").disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
       byId("document-name").textContent = current.label;
       byId("document-full-name").textContent = current.label;
-      byId("document-location").textContent = temporary ? "In this window only \u2014 no saved file" : current.location;
+      byId("document-location").textContent = temporary ? "Independent writing \u2014 no linked saved file" : current.location;
       byId("document-info").querySelector("summary").title = current.label;
       byId("readonly-badge").textContent = temporary ? "Not saved" : "Read-only";
-      byId("readonly-badge").title = temporary ? "Temporary writing is memory only." : "Original file is read-only. Edit a copy to work in a separate unsaved document.";
+      byId("readonly-badge").title = temporary ? "Not saved to a Markdown file. Check the separate local draft backup status." : "Original file is read-only. Edit a copy to work in a separate unsaved document.";
       byId("document-info-note").textContent = temporary ? current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
@@ -33035,6 +33105,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       else if (s.code === "memory-edited") viewerStatus("Changes are in this unsaved copy. Existing files have not been modified.");
     }
     byId("composition-status").hidden = !s.composing;
+    draftView.render(s);
     testCopyView.render(s);
     renderCompositionCopies(s);
     show();
@@ -33279,7 +33350,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("viewer-status").textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
-  async function openDocument(temporary = false, editingCopy = false) {
+  async function openDocument(temporary = false, editingCopy = false, draftId = null) {
     const state = controller?.state();
     if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
     const original = state?.confirmed;
@@ -33291,10 +33362,14 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     viewerStatus(editingCopy ? "Creating independent editable copy\u2026" : temporary ? "Creating temporary document\u2026" : "Opening\u2026");
     let candidate = null;
     try {
-      const r = await (editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+      const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
       if (epoch !== switchEpoch) return;
       if (!r.ok) {
         const messages = {
+          "draft-already-open": "\u8BE5\u8349\u7A3F\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00\u3002",
+          "draft-unreadable": "\u8349\u7A3F\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",
+          "draft-read-failed": "\u8349\u7A3F\u8BFB\u53D6\u5931\u8D25\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",
+          "draft-unavailable": "\u8349\u7A3F\u5DF2\u4E0D\u53EF\u7528\u3002",
           "open-cancelled": "Open cancelled.",
           "file-unavailable": "The selected file no longer exists.",
           "read-failed": "The selected file cannot be read.",
@@ -33339,7 +33414,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } catch {
         }
       }
-      viewerStatus(editingCopy ? "Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported." : temporary ? "Temporary document ready. Writing is not saved." : "Read-only preview. The original file has not been modified.");
+      viewerStatus(draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002Undo \u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4ECD\u4E3A Not saved\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002Undo \u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4ECD\u4E3A Not saved\u3002" : editingCopy ? "Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported." : temporary ? "Temporary document ready. Writing is not saved." : "Read-only preview. The original file has not been modified.");
     } catch {
       if (candidate && selected !== candidate.sessionId) {
         try {
@@ -33369,6 +33444,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   });
   api.onReady((data) => {
     readOnlyWindow = data?.readOnlyWindow === true;
+    if (readOnlyWindow) draftView.configure(data);
     if (readOnlyWindow) {
       document.body.dataset.documentViewer = "true";
       document.body.dataset.documentState = "empty";

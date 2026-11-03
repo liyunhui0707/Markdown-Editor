@@ -17,9 +17,10 @@ ipcRenderer.on('document-demo:invalidated', (_event, data) => lifecycle(data?.se
 const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
-  const forking = operation === 'edit-copy';
+  const forking = operation === 'edit-copy' || operation === 'restore-draft';
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
   if (creating || forking) {
+    if (operation === 'restore-draft' && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
     if (pending) return { ok: false, code: 'document-busy' };
@@ -61,6 +62,11 @@ const request = async (operation, data = {}) => {
 contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
+  listDrafts: () => request('list-drafts'),
+  restoreDraft: draftId => request('restore-draft', { draftId }),
+  onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
+    if (typeof data?.sessionId === 'string' && !states.has(data.sessionId)) handler(data);
+  }),
   editCopy: data => request('edit-copy', data),
   createTestCopy: data => request('create-test-copy', data),
   createPersistentCopy: data => request('create-persistent-copy', data),

@@ -469,3 +469,31 @@ test('opaque projection blocks are browser-readonly without changing original PM
   }
   assert.deepEqual(state.doc.toJSON(), before);
 });
+
+
+test('preload draft restoration fences composition, pending and unknown IPC without losing active writing', async () => {
+  const f = preloadFixture();
+  f.dom.emit('compositionstart'); assert.equal((await f.api.restoreDraft('draft')).code, 'composition-active');
+  assert.equal(f.pending.length, 0); f.dom.emit('compositionend');
+  const edit = f.api.edit({ sessionId: 'active', expectedRevision: 0 });
+  assert.equal((await f.api.restoreDraft('draft')).code, 'document-busy');
+  f.pending[0].reject(Error('synthetic edit response loss')); await assert.rejects(edit);
+  assert.equal((await f.api.restoreDraft('draft')).code, 'ipc-outcome-unknown'); assert.equal(f.pending.length, 1);
+});
+test('preload draft restoration validates temporary identity and rejects late revoked snapshots', async () => {
+  for (const kind of ['valid', 'readonly', 'malformed', 'invalidated']) {
+    const f = preloadFixture(), call = f.api.restoreDraft('draft');
+    assert.equal(f.pending[0].payload.operation, 'restore-draft');
+    if (kind === 'invalidated') f.events.emit('document-demo:invalidated', {}, { sessionId: 'fresh' });
+    f.pending[0].resolve(kind === 'malformed' ? null : { ok: true, snapshot: { sessionId: 'fresh', temporary: true, readOnly: kind === 'readonly' } });
+    const result = await call; assert.equal(result.ok, kind === 'valid');
+    if (kind !== 'valid') assert.equal(result.snapshot, undefined);
+  }
+});
+test('preload backup receipts for revoked sessions never reach the renderer', () => {
+  const f = preloadFixture(), seen = []; f.api.onDraftStatus(r => seen.push(r));
+  f.events.emit('document-demo:draft-status', {}, { sessionId: 'live', backup: { revision: 1 } });
+  f.events.emit('document-demo:invalidated', {}, { sessionId: 'live' });
+  f.events.emit('document-demo:draft-status', {}, { sessionId: 'live', backup: { revision: 2 } });
+  assert.equal(seen.length, 1); assert.equal(seen[0].backup.revision, 1);
+});

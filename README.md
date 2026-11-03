@@ -62,7 +62,8 @@ Cancel or an open error keeps the current document. The ordinary `npm run dev`
 entry continues to use the existing Vault UI.
 
 Click **New temporary document**, or open a file and choose **Edit a copy**, to
-write in an independent in-memory session. The original file stays read-only.
+write in an independent session. Confirmed writing receives a separate local draft
+backup; the original file stays read-only.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
 source-line boundaries and unsupported structures remain protected. Literal `[`
 and `]` can be typed when they remain ordinary text; edits that create links or
@@ -99,10 +100,25 @@ separates the last confirmed file's path/revision/hash from later failures and
 reports uncertain outcomes without claiming that no file exists.
 
 **Not saved** still describes the editing session: later edits do not update a
-previously created file. Close/Quit asks before discarding; refresh/crash recovery
-is unavailable. The document selector retains temporary sessions while viewing
-real files. The eight-session limit is a development constraint. Native macOS IME
-remains unaccepted; this is not daily-writing or release sign-off.
+previously created file. **恢复本地草稿** lists local recovery snapshots after a
+restart. **恢复副本** opens an independent temporary session with the confirmed
+Markdown bytes (including BOM/newlines), a fresh revision and empty Undo history.
+The separate backup indicator names its last confirmed revision; it never means
+that a Markdown file has been saved or an older export updated.
+
+Drafts are stored locally, unencrypted, under
+`~/Library/Application Support/Markdown Vault Document Drafts/` with private
+permissions. Main-confirmed edits are coalesced over an 800 ms window; close also
+attempts a flush. Sudden exit can lose the newest unbacked edits. Uncommitted IME
+text, renderer recovery copies and prior Undo history are not persisted. A failed
+or uncertain backup preserves memory and earlier records and reports the failure.
+At most 32 drafts are supported, normally retaining two verified generations per
+draft. Damaged/uncertain records are retained; capacity exhaustion refuses further
+backups. V1 has no automatic draft dismissal after export or user deletion UI.
+Close/Quit still asks before discarding. The document selector retains temporary
+sessions while viewing real files. The eight-session limit is a development
+constraint. Native macOS IME remains unaccepted; this is not daily-writing or
+release sign-off.
 
 This restricted preview formats headings, paragraphs and bold. Other syntax,
 including HTML, images, links and tables, is displayed as literal text; it does
