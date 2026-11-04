@@ -2,41 +2,36 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-10-23) — READ FIRST
+## Current architecture (fact-checked 2026-11-04) — READ FIRST
 
-**Active direction: ProseMirror/Tiptap WYSIWYG.** The desktop editor's WYSIWYG
-work has pivoted to a ProseMirror/Tiptap surface (vmark-style). Raw Markdown is
-still the source of truth, but the WYSIWYG editor serializes back to Markdown via
-a `remark`/`unified` bridge; CodeMirror 6 is kept as a separate **Source mode**.
-Use the branch explicitly approved for the current task; do not assume the old
-`wysiwyg-prosemirror` branch is the development target. The current recovery
-checkpoint branch is `recovery/independent-editor-baseline-20261023`.
+**Active product: a document-first macOS ProseMirror/Tiptap editor.** The trusted
+`apps/desktop/document-app-main.js` entry starts the shared Document lifecycle in
+`lib/document-window-main.js`. Both `npm run dev` and the local `Markdown.app`
+use it. `main.js` / `npm run dev:legacy` retain the old Vault application solely
+for historical development; the dedicated document package excludes that runtime.
+Use the explicitly approved branch; current development is
+`feat/document-editing-interaction-phase1b3`, not the recovery baseline branch.
 
-The existing app remains **Vault-based**, with Write, Preview and Source views;
-`tiptap` is opt-in and `hybrid-cm6` remains the default. A file-first macOS
-document editor with one continuous WYSIWYG surface is the proposed future
-direction, not an implemented architecture. Read the dated
-[recovery audit](docs/audits/2026-10-22-project-recovery-audit.md) before product work.
+Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
+Supported edits patch verified source-map ranges and reparse; **do not serialize
+or normalize the whole file**. Originals stay read-only; independently authorized
+copies support paragraphs, headings, bold and simple flat lists. Other structures
+remain protected. Local draft recovery, document find, exclusive new-file export
+and verified export shortcuts are implemented with a limited destination policy.
+Existing-file overwrite remains blocked by `coordination-required`.
 
-The current Tiptap/ProseMirror surface uses this project's `remark`/`unified`
-bridge, not the official `@tiptap/markdown` extension. It covers paragraphs,
-headings, emphasis, links, lists/tasks, blockquotes, fenced code and aligned GFM
-tables; custom nodes handle KaTeX math, Mermaid, safe images and limited raw
-passthrough. General YAML editing and lossless handling of all syntax are not
-guaranteed by these capabilities.
+Version **0.37.0 is a local WIP**, not public-release acceptance. Native IME and
+historical formal/manual failures are not globally cleared by controlled E2E.
+Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
+is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).
+The [October recovery audit](docs/audits/2026-10-22-project-recovery-audit.md)
+remains historical evidence of the old Vault pipeline's defects, not a description
+of the current default application.
 
-**Relaxed invariant:** Markdown round-trip is now **remark-normalized, not
-byte/character-identical**. This deliberately supersedes the older
-"character-identical round-trip" guarantee stated for `hybrid-cm6-lp` below.
-
-These are editor-adapter guarantees, not full-file preservation guarantees.
-The current main-process title/body/frontmatter load/save chain has reproduced
-content-loss and external-write conflict risks; unsupported frontmatter is
-refused rather than universally supported. Version **0.18.0 is an unreleased
-development checkpoint**, with failing dependency-audit gates and incomplete
-native acceptance. Dated test passes are not current release sign-off. This
-guide does not authorize product changes, GitHub publication, merges or tags;
-those require separate user approval.
+The legacy Tiptap adapter uses the `remark`/`unified` bridge, not
+`@tiptap/markdown`; its edited round-trip is remark-normalized. That adapter-level
+property does not describe the Document source-map pipeline above. CodeMirror and
+legacy renderers remain in source history; do not resume their WYSIWYG work.
 
 **SUPERSEDED — `hybrid-cm6-lp` (CM6-decoration live preview, Stages A–G.13).**
 Merged to `main` via PR #133 (`bd1aa33`) and retained only as a base / future
@@ -59,7 +54,8 @@ own bundled runtime. Review command side effects first; see
 ```bash
 cd apps/desktop
 npm ci                           # fresh checkout only; replaces node_modules
-npm run dev                      # launch Electron in development
+npm run dev                      # current Document app
+npm run dev:legacy               # historical Vault runtime only
 npm test                         # full Node built-in test runner suite
 npm run test:ci                  # full suite with baseline-count gate
 npm run check:tiptap-readiness   # corpus tests + readiness gate (limited scope)
@@ -96,10 +92,10 @@ reproducibility: compare rebuilt outputs against the actual commit tree in an
 isolated copy. Rebuild vendor assets with `build:katex`, `build:hljs` and
 `build:mermaid` when their approved inputs change.
 
-Packaging (macOS, unsigned):
+Packaging (macOS, unsigned local WIP; explicit `electron-builder.document.cjs`):
 
 ```bash
-npm run pack             # dir build to apps/desktop/dist/
+npm run pack             # current Markdown.app to apps/desktop/dist/
 npm run dist:mac         # zip build
 ```
 
@@ -193,3 +189,10 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
 - Codex may implement.
 - Codex should audit important diffs.
 - Human makes final decisions.
+
+## Local development artifacts
+
+- Keep private archives, rollback copies and verification output in ignored `.local/`; explicitly exclude them from packaging and recursive backup collection.
+- Do not create workspace-root `Archives` or `Backups` without task authorization. Preserve recovery material: `.local/` is not disposable cache.
+- Do not run `git clean -x` or `git clean -X` over recovery material. Project-local copies do not protect against project deletion or disk failure.
+- Keep historical scripts/manifests unchanged. Consult the original checkout's `.local/RELOCATION.md` before following restore instructions with old absolute paths.

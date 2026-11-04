@@ -1,13 +1,28 @@
 # Project Roadmap — Markdown Vault App
 
-## Latest assessment — project recovery audit (2026-10-22)
+## Current direction (2026-11-04)
+
+The Document writing workspace is now the default and available as a local
+`Markdown.app`. Preserve the accepted visual baseline and existing file-safety
+boundaries. The short closeout packages current work, corrects stale entry/docs,
+and retires obsolete build artifacts recoverably; it is not a feature expansion
+or release. Next product slice: explicit close of an individual open document,
+with current-draft/export status and cancellation, preserving other sessions and
+recoverable backups. Do not implement it as part of packaging.
+
+Subsequent work should improve continuous writing and supported Markdown ranges
+in small slices. General overwrite remains blocked until its coordination
+requirements can actually be met. Native IME acceptance, SEC-01 and release gates
+remain separate from packaging/controlled-test passes.
+
+## Historical assessment — project recovery audit (2026-10-22)
 
 The user has clarified a file-first macOS document editor with one continuous
 WYSIWYG surface. The [recovery audit](audits/2026-10-22-project-recovery-audit.md)
 records verified implementation gaps, reproduced storage defects, current failing
 security audits, and a proposed phased direction. Saving that report does not
-approve implementation or close acceptance gates. The application remains
-Vault-based and Tiptap remains opt-in; no architecture migration has occurred.
+approve implementation or close acceptance gates. At that date the application remained
+Vault-based and Tiptap was opt-in; the current direction above supersedes this status.
 
 ## Historical milestone — independent editor pilot baseline (scope frozen 2026-09-09)
 

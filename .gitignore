@@ -47,3 +47,9 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+
+# Installed document app artwork; other build output remains ignored.
+!apps/desktop/build/document.icns
+
+# Private recovery material is not disposable build cache.
+/.local/

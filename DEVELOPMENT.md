@@ -3,9 +3,9 @@
 ## Project recovery audit
 
 Read the [2026-10-22 recovery audit](docs/audits/2026-10-22-project-recovery-audit.md)
-before resuming product work. It records the current Vault-based implementation,
-confirmed file-safety issues, verification evidence, and a proposed document-first
-direction. Technical implementation remains subject to approval; September pilot
+for the historical Vault baseline. It records that implementation,
+confirmed file-safety issues, verification evidence, and the reason for the subsequent document-first
+direction. The current default is the Document app; see README and AGENTS.md. Technical implementation remains subject to approval; September pilot
 acceptance records are historical evidence, not current release sign-off.
 
 ## Node and verification
@@ -64,3 +64,45 @@ mise exec -- node --test test/home-fixture-cleanup.test.js
 Use a private `TMPDIR` and output directory when running focused tests. Negative
 Home-fixture tests still require deliberate evidence retention; a passing suite
 is not permission to delete their output or historical evidence.
+
+## Local Document application
+
+`npm run dev` starts `document-app-main.js`; `npm run dev:legacy` explicitly starts
+the historical Vault app. `npm run pack` / `pack:document` use the dedicated
+`electron-builder.document.cjs` config, never the legacy package build manifest.
+The artifact is an unsigned, unnotarized local WIP named `Markdown.app`.
+Production dependencies are still shared with historical source; pruning them is
+separate work. The Vault/CM6/spike runtime and private/test/tool trees are excluded.
+
+For an offline build using the already installed Electron, from `apps/desktop`:
+
+```sh
+mise exec -- node node_modules/electron-builder/out/cli/cli.js \
+  --config electron-builder.document.cjs --mac dir --arm64 \
+  --config.electronDist="$PWD/node_modules/electron/dist" \
+  --config.directories.output=/private/tmp/markdown-document-build-UNIQUE
+```
+
+Choose a fresh output path. Validate ASAR membership and source hashes before
+installing to `~/Applications/Markdown.app`; never overwrite an unknown app.
+Normal launch uses a stable `Markdown Vault Document` profile and single-instance
+lock. Existing backups remain at `Markdown Vault Document Drafts`. At startup,
+main creates a private temporary safe-create directory and establishes cwd once,
+before Service/window/IPC creation, preserving the existing cwd-bound grant.
+No renderer target paths or packaged test overrides are accepted. Per-run scratch
+and failed evidence remain in OS temporary storage; there is no Home-wide cleanup.
+
+The packaged regression requires an explicit built executable:
+
+```sh
+DOCUMENT_APP_EXECUTABLE=/absolute/path/Markdown.app/Contents/MacOS/Markdown \
+  mise exec -- node node_modules/@playwright/test/cli.js test \
+  --config=e2e/playwright.config.cjs document-app.spec.cjs
+```
+
+It uses only a synthetic original/export/draft; native dialog choices are stubbed.
+It archives only its new synthetic draft via the app, then reclaims its verified
+successful Home fixture. It does not prove native IME or native Finder UI behavior.
+The icon is reproducible from `tools/build-document-icon.swift` (AppKit), resized
+to macOS iconset sizes with `sips`, then assembled with `iconutil`; `build/document.icns`
+is tracked. No signing credentials or system security changes are required.

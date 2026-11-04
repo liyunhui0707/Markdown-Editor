@@ -1,6 +1,21 @@
 # Stage History
 
-## Confirmed export shortcuts V1 — uncommitted (2026-11-04)
+## 0.37.0 — local double-clickable Document app (2026-11-04)
+
+Default dev/build use the trusted Document entry and shared existing lifecycle.
+Installed `~/Applications/Markdown.app` runs independently of source paths. Fixed
+private profile, single-instance activation and original draft location; no save
+policy expansion or overwrite. Old Vault/CM6/spike runtime excluded from package,
+old 0.18.0 dist recoverably archived with hashes/path mapping. Historical source,
+branches and backups retained. README/AGENTS/roadmap now distinguish current and
+historical behavior. 82 focused Node cases and five final affected Electron cases
+PASS; ordinary installed startup observed. Initial direct-demo entry regression
+fixed and retained in evidence. Native IME/formal FAIL/SEC-01/release limits remain.
+New modules below 300 lines; the existing E2E harness is 2071 lines with only the
+fixture entry adapted. Full evidence and limitations are in the phase record.
+
+
+## 0.36.0 — confirmed export shortcuts V1 (2026-11-04)
 
 After the approved 0.35.0 checkpoint `ddc3fab`, add readonly reopening and Finder
 location from the last main-confirmed export. Service retains receipt authority;
@@ -15,7 +30,7 @@ buttons in screenshot review; fixed the shell mount and added viewport assertion
 Final light/dark/390px captures inspected, original/export hashes unchanged,
 process exit clean. Finder system call is stubbed and its path checked; native
 Finder UI and IME are NOT VERIFIED. Earlier manual/formal FAIL, SEC-01 and release
-restrictions remain. No new commit/version bump beyond the prior 0.35.0 checkpoint.
+restrictions remain. Preserved in local WIP commit `3839f96` (0.36.0); not release approval.
 New view/test are 37/42 lines; existing entry/E2E are 392/2070 lines. Retain their
 current lifecycle harness; no broad split/refactor in this bounded feature.
 Exact evidence and test-artifact retention are in the phase document.

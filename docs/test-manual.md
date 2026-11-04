@@ -2,6 +2,23 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Current Document application — 0.37.0 local WIP (2026-11-04)
+
+- **Observed by Codex:** ordinary macOS launch of `~/Applications/Markdown.app`
+  displays the current Document welcome/workspace without a terminal launcher.
+- **Controlled packaged E2E PASS:** open synthetic original read-only, edit copy,
+  export exact new bytes, reject duplicate target, reopen read-only, restart and
+  recover confirmed draft with empty old Undo/authority. Original hash unchanged.
+- **NOT VERIFIED here:** native Chinese IME, native save-dialog interaction and
+  native Finder display. Scripted choices/calls do not substitute for these.
+- Preserve earlier manual/formal failures and public-release gates. No new request
+  for the user to repeat unrelated QA; current scope is installation/entry closeout.
+- Installation does not enable overwrite or arbitrary destinations. Backups remain
+  in `Markdown Vault Document Drafts`; use the app's archive/restore actions.
+
+The dated lists below concern older milestones. Their “current” wording is
+historical and is not acceptance of this installed Document build.
+
 Current milestone status lives in the
 [frozen acceptance record](roadmap.md#finite-acceptance-record). On 2026-09-09
 the user reported the requested physical Undo/Redo and Chinese IME checks as

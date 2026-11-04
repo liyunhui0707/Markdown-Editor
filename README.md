@@ -1,57 +1,35 @@
-# Markdown Vault App
+# Markdown
 
-A local-first desktop Markdown editor for macOS, built with Electron. Notes are stored as plain `.md` files on disk in a folder you choose — no cloud, no accounts, no hosted backend.
+A local macOS Markdown editor with a document-first writing workspace, built with
+Electron and Tiptap. Open an original read-only, edit an independent copy, keep
+local draft backups, and explicitly export a new `.md` file. Existing files are
+never overwritten. No account or hosted backend is required.
 
-Aimed at developers and tech-savvy note-takers who want their notes as plain `.md` files on disk, edited under their full control.
+**0.37.0 local WIP:** the installed app is not a signed/notarized release or a
+promise of unrestricted Markdown editing/saving. Current limits are below.
 
-The setup also integrates with the `mcp-note-ingest` MCP server (installed as a Claude Code plugin from the `workflow-and-MCP-and-plugins` marketplace) that lets AI tools write chat notes directly into the same vault.
+## Open the application
 
-> Status: usable for local development and early feedback. Not production-distributed. Inspired by simplified local-first Markdown editor workflows; not an Obsidian replacement.
+On this development Mac, double-click `~/Applications/Markdown.app` in Finder.
+It may be kept in the Dock. The installed bundle includes its runtime and does
+not need Terminal, mise, a Worktree path or an external Electron installation.
+It uses the current writing workspace, not the historical Vault interface.
+Source edits do not update the installed app until it is rebuilt and reinstalled.
 
-> Recovery audit (2026-10-22): isolated tests/builds pass, but file-preservation
-> defects and failing dependency audits remain. Use synthetic or backed-up files.
-> See the [audit and proposed document-first direction](docs/audits/2026-10-22-project-recovery-audit.md);
-> the default app remains Vault-based. A limited read-only independent-file entry
-> is available below; the proposed writable document architecture is not complete.
+With existing development dependencies, start the same UI from source:
 
-## Headline guarantees
-
-- **Raw Markdown is the source of truth.** Notes remain plain `.md` files. The CodeMirror engines preserve source text at the LF/character level; the opt-in Tiptap WYSIWYG engine serializes through `remark` and therefore produces stable, remark-normalized Markdown rather than byte-identical output.
-- **Local-first.** Notes live in a folder you choose. No cloud, no accounts, no hosted backend.
-
-## Screenshots
-
-Screenshots will be captured before any wider public release and committed under `docs/assets/screenshots/`. No placeholder image binaries are checked in.
-
-Planned shots:
-
-```
-docs/assets/screenshots/main-editor-write.png       — main window with sidebar and a note open in Write mode under the default hybrid-cm6 engine; engine label "CM6 Hybrid" visible
-docs/assets/screenshots/main-editor-preview.png     — same note switched to Preview mode (Toast UI rendering)
-docs/assets/screenshots/hybrid-cm6-live-styling.png — close-up of the editor pane showing several styled constructs (Setext heading, strikethrough, task list, link, horizontal rule)
-docs/assets/screenshots/frontmatter-plain.png       — note that begins with YAML frontmatter showing the leading "---" rendered plain (Stage 14.9 contract)
-docs/assets/screenshots/vault-picker.png            — empty-state / vault picker screen
-docs/assets/screenshots/save-all-quit.png           — close-guard dialog (Cancel / Discard & Quit / Save All & Quit)
-```
-
-## Quick start
-
-```bash
+```sh
 cd apps/desktop
-npm install
-npm run dev
+mise exec -- npm run dev
 ```
 
-See [Getting Started](#getting-started) below for build, test, and engine-selection details.
+Build the current unsigned app with `mise exec -- npm run pack`.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for isolated packaging verification.
+`npm run dev:legacy` explicitly starts the historical Vault runtime. The older
+`tools/run-document-copy-demo.cjs --persistent` launcher remains a QA tool and is
+no longer required for ordinary app use.
 
-### Independent Markdown window (restricted development entry)
-
-With the existing dependencies installed, run:
-
-```bash
-cd apps/desktop
-mise exec -- npm run dev -- --document-readonly
-```
+## Current document workflow
 
 Use **打开…** or **Cmd+O** to select one `.md` file from any directory,
 then open a different file in the same window. No Vault is required. The approved
@@ -92,8 +70,7 @@ details and limits are expandable. Save confirmation offers **返回编辑** or
 **选择位置…**; Escape cancels through the existing handler. Draft-management
 confirmation cannot be closed while its request is pending. These panels support
 the same light/dark appearance and narrow-window layout as the editor.
-Cancel or an open error keeps the current document. The ordinary `npm run dev`
-entry continues to use the existing Vault UI.
+Cancel or an open error keeps the current document.
 
 Click **新建**, or open a file and choose **编辑副本**, to
 write in an independent session. Confirmed writing receives a separate local draft
@@ -126,11 +103,7 @@ Formatting, switching and export stay disabled until input is confirmed. Invalid
 input, backup failure and uncertain file creation still show actionable warnings;
 no composition state is cleared by a timer or by hiding its status.
 
-To enable the existing restricted **另存新文件…** flow, use:
-
-```bash
-mise exec -- node tools/run-document-copy-demo.cjs --persistent
-```
+The installed app and `npm run dev` include the restricted **另存新文件…** flow.
 
 Choose an existing ordinary local APFS folder directly under your home folder,
 owned by you and not writable by others. Home itself, Desktop, Documents,
@@ -200,7 +173,16 @@ not load external resources. Only UTF-8 regular, non-linked `.md` files up to
 not Finder integration or release acceptance. See the
 [scope and verification](docs/document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
 
-## Features
+## Historical Vault reference
+
+Everything below documents the old `main.js` / `dev:legacy` application and its
+experiments. It is retained for historical development, is excluded from the
+current document app, and does not promise these features in `Markdown.app`.
+The [October recovery audit](docs/audits/2026-10-22-project-recovery-audit.md)
+records the old pipeline's safety problems. Do not use its Save All / overwrite
+path as a substitute for current Document save protection.
+
+### Legacy features
 
 - Choose any local folder as a Markdown vault.
 - Load `.md` files recursively from the selected vault.
@@ -690,3 +672,7 @@ See `CLAUDE.md` for the project rules followed when collaborating with AI coding
 ## License
 
 This repository is licensed under the MIT License. See the `LICENSE` file at the repository root.
+
+Local recovery archives live under the original checkout's ignored `.local/`.
+They are not disposable build cache; consult `.local/RELOCATION.md` and the
+archive manifests before restoring old paths. Do not use `git clean -x/-X`.

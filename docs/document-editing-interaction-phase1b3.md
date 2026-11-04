@@ -2069,3 +2069,52 @@ All 20 candidate file fingerprints matched the final candidate manifest. Reused
 174 distinct passing Node cases and the final Air Electron case above; no unrelated
 test rerun. Bounded Codex self-review found no new blocking issue. Native Finder
 and IME acceptance remain unverified; this is not release approval.
+
+## 0.37.0 local Document app closeout (2026-11-04)
+
+The trusted `document-app-main.js` starts the existing Document lifecycle via
+`document-window-main.js`; the explicit synthetic entry remains a tiny wrapper.
+Default dev and dedicated packaging now use the current Document UI. Main creates
+a private cwd-bound temporary grant once before any Service/window/IPC, retaining
+all existing save destination, identity, composition and no-overwrite protections.
+Product test flags/MAS/non-mac modes are refused. Stable profile and single-instance
+activation are separate from the existing, unchanged draft-backup location.
+No File Store, Document Service, save policy or renderer edit logic changed here.
+
+A local unsigned arm64 `Markdown.app` was installed at `~/Applications/Markdown.app`.
+ASAR membership excludes the Vault/CM6/spike runtime and private/test/tool trees;
+35 app files match the candidate. Shared production dependencies are still bundled.
+All 528 installed entries match the build. ASAR SHA-256:
+`7115e17cee6244971b0b53f2d8e201b5866f90e3831e63408f5bc65011eb10cd`.
+Ordinary LaunchServices startup and the actual installed welcome window were
+observed; no Terminal, Worktree-relative entry or external Electron is needed.
+Source changes require a new build/install. No file-association registration,
+signing, notarization, automatic updates or wider distribution is claimed.
+
+Verification: 82 distinct focused Node cases PASS, with the 9 affected
+entry/packaging cases rechecked after final config edits. Final Electron checks:
+packaged exclusive export → readonly reopen → exit/recover plus single-instance
+PASS; old demo stale-IPC and document export-shortcut cases 2/2 PASS; source-fixture
+CRLF/LF entry cases 2/2 PASS. Original bytes/hash and verified export remain intact.
+Native dialog choices/Finder invocation are controlled; these are not native IME
+acceptance. An initial legacy test failed because the extracted lifecycle was not
+invoked by the old direct entry. Explicit shared-module/entry separation fixed it;
+the failure log is retained. A sandboxed diagnostic process could not launch and
+was not counted as a product test. Historical manual/formal FAIL, SEC-01, native
+IME NOT VERIFIED and release restrictions remain; no independent Reviewer ran.
+
+Successful Home fixtures were identity-verified and reclaimed by the existing
+helper. The two packaged runs' synthetic drafts were archived through the app,
+not erased; original draft records were not changed. OS-temp evidence/scratch
+remains. Durable small evidence:
+original checkout `.local/verification/app-closeout-20261104/manifest.json`.
+The unused original checkout `apps/desktop/dist` (0.18.0, 452,421,836 bytes) was
+moved on the same filesystem into `.local/archives/retired-builds/20261104/dist`;
+587 identities, permissions, symlink texts and file hashes match. Its sibling
+`manifest.json` records the exact reverse mapping. No permanent deletion, branch
+removal, worktree move, push, merge or tag. Earlier recovery archives remain intact.
+
+Self-review is Codex local review, not an independent second-model review. New
+runtime/build/test files are below 300 lines. The existing shared E2E file remains
+2071 lines: only its fixture entry adapter changed, avoiding a broader test split.
+This is a local WIP checkpoint, not full product or public-release acceptance.

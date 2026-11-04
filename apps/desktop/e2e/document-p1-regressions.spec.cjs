@@ -38,6 +38,7 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
   let entry = process.env.DOCUMENT_DEMO_ENTRY || path.join(desktop, 'lib/document-demo-main.js');
   if (secondSource !== null) {
     // Same actual main lifecycle/IPC; substitute only one synthetic fixture before launch.
+    entry = path.join(path.dirname(entry), 'document-window-main.js');
     const source = await fs.readFile(entry, 'utf8');
     const needle = "  ['b.md', '# Second synthetic document\\n\\nOriginal second body.\\n'],";
     if (source.split(needle).length !== 2) throw Error('Unknown synthetic fixture definition');
@@ -47,7 +48,7 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     const wrapper = path.join(root, 'main.cjs');
     await fs.writeFile(wrapper, `const {Module}=require('node:module');const file=${JSON.stringify(entry)};
       const m=new Module(file);m.filename=file;m.paths=Module._nodeModulePaths(require('node:path').dirname(file));
-      m._compile(${JSON.stringify(fixtureSource)},file);`, { mode: 0o600, flag: 'wx' });
+      m._compile(${JSON.stringify(fixtureSource)},file);m.exports.startDocumentWindow();`, { mode: 0o600, flag: 'wx' });
     entry = wrapper;
   }
   let copyRoot = null;

@@ -1,8 +1,8 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Desktop shell for the Markdown Vault App",
-  "main": "main.js",
+  "main": "document-app-main.js",
   "scripts": {
     "dev": "electron .",
     "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js",
@@ -27,22 +27,26 @@
     "audit:full": "npm audit --audit-level=high",
     "spike:cm6": "electron spike/codemirror6/spike-main.js",
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
-    "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
-    "dist": "electron-builder -m zip",
-    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir zip"
+    "pack": "npm run pack:document",
+    "dist": "npm run dist:mac",
+    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir zip",
+    "dev:document": "electron document-app-main.js",
+    "pack:document": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
+    "dev:legacy": "electron main.js"
   },
   "author": "",
   "license": "MIT",
   "build": {
     "appId": "com.markdownvault.desktop",
     "files": [
+      "document-app-main.js",
       "main.js",
       "preload.js",
       "index.html",
       "package.json",
       "lib/**/*",
       "!**/.env{,.*}",
-      "!**/{secrets,Inbox,.codex,.claude,.workflow,e2e,test-results}{,/**/*}",
+      "!**/{secrets,Inbox,.local,.codex,.claude,.workflow,e2e,test-results}{,/**/*}",
       "!lib/session-viewer{,/**/*}",
       "!lib/session-import-ipc.js",
       "!lib/session-title.js"
