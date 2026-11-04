@@ -2161,3 +2161,11 @@ kept reproducible. The first three Electron attempts did not start because
 the new Electron npm package requires explicit binary installation; these are
 NOT RUN product checks, not product failures. Full CI and final Electron
 results remain pending at this candidate commit.
+
+CI run 41849088233 at cc581a5 passed every existing step: 2,823 Node tests,
+2,821 pass / 2 existing skips / zero failures, both audits, generated assets and
+unsigned 0.37.1 packaging with Electron 43.8.7. The local official binary download
+failed and its alternate release download stalled. With explicit user approval,
+the existing CI adds only three affected Electron checks (dependency rendering,
+read-only open, confirmed export shortcuts) using the locked runtime; no
+thresholds are relaxed. Results are pending in this follow-up commit.
