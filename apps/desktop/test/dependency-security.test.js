@@ -27,7 +27,7 @@ function atLeast(actual, minimum) {
 
 test('renderer dependency policy keeps Mermaid and DOMPurify on patched releases', () => {
   assert.equal(packageJson.dependencies.mermaid, '^11.17.0');
-  assert.equal(packageJson.overrides.dompurify, '3.4.14');
+  assert.equal(packageJson.overrides.dompurify, '3.4.17');
 
   const rootLock = packageLock.packages[''];
   assert.equal(rootLock.version, packageJson.version, 'lockfile app version follows package.json');
@@ -41,9 +41,43 @@ test('renderer dependency policy keeps Mermaid and DOMPurify on patched releases
     .map(([, metadata]) => metadata.version);
   assert.ok(dompurifyCopies.length > 0, 'DOMPurify is present in the lockfile');
   assert.ok(
-    dompurifyCopies.every((version) => atLeast(version, '3.4.14')),
+    dompurifyCopies.every((version) => atLeast(version, '3.4.17')),
     `all DOMPurify copies are patched: ${dompurifyCopies.join(', ')}`,
   );
+});
+
+test('math, Electron and build dependency locks meet the November security floor', () => {
+  const floors = { katex: '0.18.2', electron: '43.8.1', undici: '6.29.1' };
+  for (const [name, minimum] of Object.entries(floors)) {
+    const copies = Object.entries(packageLock.packages)
+      .filter(([key]) => key.endsWith(`node_modules/${name}`));
+    assert.ok(copies.length > 0, name);
+    for (const [key, metadata] of copies) {
+      const floor = name === 'undici' && metadata.version.startsWith('7.') ? '7.30.1' : minimum;
+      assert.ok(atLeast(metadata.version, floor), `${key}: ${metadata.version} < ${floor}`);
+    }
+  }
+  const braces = Object.entries(packageLock.packages)
+    .filter(([key]) => key.endsWith('node_modules/brace-expansion'));
+  assert.ok(braces.length > 0);
+  for (const [key, metadata] of braces) {
+    const floor = { 1: '1.1.21', 2: '2.1.7', 5: '5.0.12' }[metadata.version.split('.')[0]];
+    assert.ok(floor && atLeast(metadata.version, floor), `${key}: reviewed patched series`);
+  }
+});
+
+test('KaTeX ignores inherited trust while preserving ordinary formula rendering', () => {
+  const katex = require('katex');
+  const options = Object.assign(Object.create({ trust: true }), { strict: 'ignore' });
+  const denied = katex.renderToString(String.raw`\href{https://example.invalid/synthetic}{x}`, options);
+  assert.doesNotMatch(denied, /href=/, 'inherited trust must not enable links');
+  for (const displayMode of [false, true]) {
+    const rendered = katex.renderToString(String.raw`\frac{1}{2} + x^2`, { displayMode, trust: false });
+    assert.match(rendered, /class="katex/);
+    assert.match(rendered, /<mfrac>/);
+    assert.match(rendered, /<msup>/);
+    assert.doesNotMatch(rendered, /katex-error/);
+  }
 });
 
 test('locked Tiptap and packaging URI dependencies exclude known vulnerable releases', () => {

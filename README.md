@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.37.0 local WIP:** the installed app is not a signed/notarized release or a
+**0.37.1 development WIP:** the installed app is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,6 +15,7 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
+The installed 0.37.0 bundle has not yet received the 0.37.1 dependency updates.
 
 With existing development dependencies, start the same UI from source:
 

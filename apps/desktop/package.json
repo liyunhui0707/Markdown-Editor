@@ -1,6 +1,6 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.37.0",
+  "version": "0.37.1",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "document-app-main.js",
   "scripts": {
@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "electron": "^43.4.1",
+    "electron": "^43.8.1",
     "electron-builder": "^26.15.7",
     "esbuild": "^0.25.12"
   },
@@ -83,7 +83,7 @@
     "@tiptap/starter-kit": "^3.30.5",
     "@toast-ui/editor": "^3.2.2",
     "highlight.js": "^11.11.1",
-    "katex": "^0.16.47",
+    "katex": "0.19.1",
     "marked": "^17.0.5",
     "mermaid": "^11.17.0",
     "remark-gfm": "^4.0.1",
@@ -93,6 +93,7 @@
     "unified": "^11.0.5"
   },
   "overrides": {
-    "dompurify": "3.4.14"
+    "dompurify": "3.4.17",
+    "katex": "$katex"
   }
 }

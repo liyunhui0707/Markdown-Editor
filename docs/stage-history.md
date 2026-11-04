@@ -1,5 +1,16 @@
 # Stage History
 
+## 0.37.1 — bounded dependency gate repair (2026-11-04)
+
+Update DOMPurify to 3.4.17, KaTeX to 0.19.1 (including Mermaid/remark-math
+consumers), Electron within the existing 43.x series to 43.8.7, and patched
+brace-expansion/undici resolutions. No editor/save-policy change. Keep original
+audit thresholds; production audit passes with zero findings, full audit has
+16 moderate build-tool findings and no high/critical findings. The version floor
+and inherited-trust regression fail on the previous dependencies. Rebuild vendor
+assets from the lockfile; preserve all historical acceptance limits and SEC-01.
+See the dated phase record for final verification and integration evidence.
+
 ## 0.37.0 — local double-clickable Document app (2026-11-04)
 
 Default dev/build use the trusted Document entry and shared existing lifecycle.

@@ -22,7 +22,7 @@ remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.37.0 is a local WIP**, not public-release acceptance. Native IME and
+Version **0.37.1 is a development WIP**, not public-release acceptance. Native IME and
 historical formal/manual failures are not globally cleared by controlled E2E.
 Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
 is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).
@@ -62,7 +62,7 @@ npm test                         # full Node built-in test runner suite
 npm run test:ci                  # full suite with baseline-count gate
 npm run check:tiptap-readiness   # corpus tests + readiness gate (limited scope)
 npm run test:e2e                 # existing isolated synthetic Electron smoke
-npm run audit:prod              # security gate; current checkpoint fails
+npm run audit:prod              # require zero production dependency findings
 npm run audit:full              # includes Electron runtime advisories
 npm run test:write-engine        # focused: Write engine resolver
 npm run test:cm6-write-view      # focused: CM6 write adapters + hybrid-cm6 decorations
