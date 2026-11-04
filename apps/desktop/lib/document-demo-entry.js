@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
+import { createCopyActionsView } from './document-copy-actions-view.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
@@ -79,6 +80,11 @@ async function copyComposition(kind) {
   renderCompositionCopies(controller.state());
 }
 const activeInvalid = () => lifecycles.has(selected);
+const copyActionsView = createCopyActionsView({ api, byId,
+  context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+  open: request => openDocument(false, false, null, request),
+  busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
+});
 const testCopyView = createTestCopyView({ api, byId,
   context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
   busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
@@ -134,7 +140,7 @@ function render(s) {
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  draftView.render(s); testCopyView.render(s); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); show();
+  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -298,10 +304,13 @@ function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openDocument(temporary = false, editingCopy = false, draftId = null) {
+async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null) {
   const state = controller?.state();
   if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
   const original = state?.confirmed;
+  if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length
+      || state.source !== original.source || confirmedCopy.sessionId !== selected
+      || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
   if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked
       || state.recoveryRecords.length || state.source !== original.source)) return;
   loading = true; const epoch = ++switchEpoch;
@@ -310,10 +319,11 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
   viewerStatus(editingCopy ? '正在创建独立编辑副本…' : temporary ? '正在新建草稿…' : '正在打开…');
   let candidate = null;
   try {
-    const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+    const r = await (confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
+    if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) throw Error('Source session invalidated');
     if (!r.ok) {
-      const messages = { 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': '已取消打开。', 'file-unavailable': '所选文件已不存在。',
+      const messages = { 'confirmed-copy-unavailable': '文件已移动、被修改或无法验证，请通过「打开…」重新选择检查。', 'copy-action-unknown': '打开结果尚未确认，请勿重复操作；当前草稿与文件回执仍保留。', 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': '已取消打开。', 'file-unavailable': '所选文件已不存在。',
         'read-failed': '无法读取所选文件。', 'unsupported-encoding': '目前仅支持 UTF-8 Markdown。',
         'unsupported-size': '文件超过当前大小限制。', 'parse-failed': '内容超过当前预览限制。',
         'unsupported-path': '请选择一个受支持的 .md 文件。', 'unsupported-file': '请选择普通文件，符号链接暂不支持。',

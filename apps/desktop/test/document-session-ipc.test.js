@@ -540,3 +540,33 @@ test('format preload refuses live composition, concurrent request and invalidate
   f.events.emit('document-demo:invalidated',{}, {sessionId:'a'});f.pending[0].resolve({ok:true});
   assert.equal((await request).code,'unknown-session');assert.equal((await f.api.format(q)).code,'unknown-session');
 });
+
+
+test('confirmed-copy preload refuses composition, pending work, malformed authority and late invalidation', async () => {
+  for (const name of ['openConfirmedCopy', 'revealConfirmedCopy']) {
+    const f = preloadFixture(), q = { sessionId: 'source', expectedRevision: 2, copyId: 'receipt' };
+    f.dom.emit('compositionstart'); assert.equal((await f.api[name](q)).code, 'composition-active');
+    f.dom.emit('compositionend'); const pending = f.api[name](q);
+    assert.equal((await f.api[name](q)).code, 'document-busy');
+    assert.equal((await f.api.edit({ sessionId: 'source' })).code, 'copy-in-progress');
+    f.pending[0].resolve({ ok: true, copyId: 'wrong' }); assert.equal((await pending).code, 'copy-action-unknown');
+    assert.equal((await f.api[name](q)).code, 'copy-action-unknown');
+    const g = preloadFixture(), late = g.api[name](q);
+    g.events.emit('document-demo:invalidated', {}, { sessionId: 'source' });
+    g.pending[0].resolve({ ok: true, copyId: 'receipt', snapshot: { sessionId: 'new', readOnly: true } });
+    assert.equal((await late).ok, false);
+  }
+});
+test('confirmed-copy preload accepts only new readonly snapshots and retains an IPC failure fence', async () => {
+  const q = { sessionId: 'source', expectedRevision: 2, copyId: 'receipt' };
+  for (const snapshot of [{ sessionId: 'source', readOnly: true }, { sessionId: 'new', readOnly: false }, { sessionId: 'new', readOnly: true, temporary: true }]) {
+    const f = preloadFixture(), pending = f.api.openConfirmedCopy(q);
+    f.pending[0].resolve({ ok: true, copyId: 'receipt', snapshot }); assert.equal((await pending).ok, false);
+  }
+  const f = preloadFixture(), pending = f.api.openConfirmedCopy(q);
+  f.pending[0].resolve({ ok: true, copyId: 'receipt', snapshot: { sessionId: 'new', readOnly: true } });
+  assert.equal((await pending).ok, true);
+  const next = f.api.openConfirmedCopy(q); f.pending[1].reject(Error('synthetic disconnect'));
+  assert.equal((await next).code, 'copy-action-unknown');
+  assert.equal((await f.api.createPersistentCopy(q)).code, 'copy-action-unknown');
+});

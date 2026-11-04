@@ -83,6 +83,11 @@ for (const source of [text, '\ufeff---\r\na: synthetic\r\n---\r\n\r\n第一段�
     assert.equal(read.status, 0, read.stderr); assert.equal(read.signal, null); assert.equal(read.stdout.trim(), r.sha256);
     f.document.edit({ from: f.document.text.length, to: f.document.text.length, insert: '\n\nTHIRD' });
     assert.equal(hash(fs.readFileSync(dest.filePath)), r.sha256);
+    assert.match(r.copyId, /^[a-f0-9-]{36}$/);
+    const reopened = f.service.openConfirmedCopy(f.document, r.copyId);
+    assert.equal(reopened.ok, true); assert.deepEqual(reopened.document.bytesForSave(), fs.readFileSync(dest.filePath));
+    assert.equal(f.service.locateConfirmedCopy(f.document, r.copyId).filePath, dest.filePath);
+    assert.equal(f.document.dirty, before.dirty); f.service.close(reopened.document);
     reclaim(dest.owned);
   });
 }

@@ -1998,3 +1998,74 @@ changed during closeout. This protects the accepted visual baseline and current
 features; it is not a release or unrestricted daily-use approval. Native IME,
 historical manual/formal FAIL, SEC-01 and all save/overwrite restrictions above
 remain. No push, merge, tag or release.
+
+
+## Confirmed export shortcuts V1 (2026-11-04, uncommitted)
+
+Baseline: 0.35.0 local WIP `ddc3fab29a292641a39a53b22e7aa404eb7bf512`.
+The user approved protecting that baseline and continuing with one-click reopen /
+Finder location. New changes are not staged or committed; no version bump yet.
+
+Service retains an opaque receipt ID for the latest positively confirmed export,
+independently of subsequent failures. Main binds actions to the owning sender,
+window, session and current draft revision; renderer supplies no target path.
+Both actions re-read a bounded regular file and verify canonical path, dev/inode,
+byte length and SHA-256. Readonly reopening uses the checked bytes directly,
+without a second open/read race. A changed/unavailable file is refused; the draft,
+Undo/Redo and previous success/failure receipts remain. The Finder operation only
+requests display of the verified path; external changes after that read remain
+possible, and Finder does not acknowledge visual success. No new write authority.
+Composition, pending edits, recovery records and unknown IPC outcomes keep their
+existing conservative fences. Receipt authority is not persisted in draft backups.
+Repeated opens still count toward the existing eight-session bound.
+
+Validation (174 distinct Node tests; repeat execution not counted twice):
+- 161 service/IPC/preload/copy-view/open/integrity tests PASS:
+  `/private/tmp/markdown-copy-actions-node-final.log`.
+- 2 actual persistent-writer LF and BOM/CRLF cases PASS, now also validating
+  follow-up read/identity and unchanged dirty state:
+  `/private/tmp/markdown-copy-actions-persistent.log`.
+- 21 layout/action-view cases PASS (10 already counted above):
+  `/private/tmp/markdown-copy-actions-layout-node.log`.
+- One final Air Electron case PASS (2.0s), 39 source hashes/dependency lock
+  verified, Node 24.20.0 / Electron 43.4.1 / Playwright 1.63.0. It verifies actual
+  exclusive creation, later editing, readonly reopen, draft/history retention,
+  no overwrite after target-exists, buttons in viewport, light/dark/390px layout
+  and clean process exit. Native dialogs and Finder are stubbed; no native IME claim.
+- Initial automation failed because a redundant title click reopened its menu.
+  Corrected to Escape; that functional pass's screenshots exposed a real new UI
+  mount omission: buttons were outside the scrollable workspace. Fixed one shell
+  mount entry, added viewport assertions and reverified. Earlier results remain
+  evidence, not final UI acceptance.
+- Original SHA-256: `1ad8947622bff7cda5bfb64ec4ea013b5b29f6b177703bf2890be8718e909503`.
+  Export SHA-256: `15f0f6fa5638ec2bf7be60ec666d740386f2339617c7e6c66b6efa379fbfd502`.
+  Both byte sequences remained unchanged through the workflow.
+- Air: `/private/tmp/markdown-copy-shortcuts-v1-jhse7_gw/` (`final/` is current).
+  Local logs, manifests and returned screenshots:
+  `/private/tmp/markdown-copy-shortcuts-transfer-jhse7_gw/`.
+  Final source archive SHA-256:
+  `e9b82f801ebbd2d8b40f762be2c5f5a03bb9922068318fc71d35a08c2aed2f08`.
+  Final evidence archive SHA-256:
+  `72a0c9f9637dbf9bfb9cf93cad8cebe50062f9ee51b2cc661d448ed46f4af9de`.
+
+Two local successful Home fixtures and two successful Air Home fixtures were
+verified and reclaimed by the existing helper. The initial failed Air case's
+synthetic fixture remains; negative/race Node artifacts and all diagnostic logs
+stay in temporary evidence locations. No user documents or historical fixtures
+were touched. No new cleanup framework or dependency installation.
+
+Bounded Codex self-review found no unresolved P0/P1; it is not independent model
+review. New view is 37 lines; Service/IPC are 256/298 lines. Existing entry and
+shared E2E exceed the guideline but retain their lifecycle harness rather than
+expanding into a refactor. Native IME NOT VERIFIED, historical manual/formal 1B-3
+FAIL, SEC-01, supported-directory restrictions, `coordination-required` and
+overwrite prohibition remain. No Reviewer call, push, merge, tag or release.
+
+
+## 0.36.0 local WIP checkpoint (2026-11-04)
+
+The approved short closeout preserves the confirmed-export actions before packaging.
+All 20 candidate file fingerprints matched the final candidate manifest. Reused
+174 distinct passing Node cases and the final Air Electron case above; no unrelated
+test rerun. Bounded Codex self-review found no new blocking issue. Native Finder
+and IME acceptance remain unverified; this is not release approval.

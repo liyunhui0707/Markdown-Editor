@@ -1,5 +1,5 @@
 'use strict';
-const { createHash } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { createDocumentModel } = require('./document-model');
 const { createDocumentFileStore } = require('./document-file-store');
 const { record, failure, revisionError } = require('./document-contract');
@@ -25,23 +25,26 @@ function createDocumentService(options = {}) {
   function open(filePath, options = {}) {
     if (!record(options, ['parse', 'maxBytes', 'syntheticTemporary'])
         || (options.syntheticTemporary !== undefined && typeof options.syntheticTemporary !== 'boolean')) return failure('invalid-options');
-    const { parse } = options;
     try {
       if (options.syntheticTemporary) store.authorizeSynthetic(filePath);
       const snapshot = store.read(filePath, options.maxBytes);
       if (options.syntheticTemporary) store.authorizeSynthetic(filePath);
-      const { document, acceptSaved } = createDocumentModel({ filePath, bytes: snapshot.bytes, identity: snapshot.identity });
-      sessions.set(document, { snapshot, acceptSaved, saving: false, state: 'not-submitted', committed: false,
-        pending: false, unverified: false, lastCode: null, syntheticTemporary: options.syntheticTemporary === true, copy: null });
-      if (!document.encoding) return { ok: false, status: 'blocked', code: 'unsupported-encoding', document };
-      if (parse !== undefined) {
-        const parsed = document.parse(parse);
-        if (!parsed.ok) return { ...parsed, document };
-      }
-      return { ok: true, document };
+      return openSnapshot(snapshot, options);
     } catch (cause) {
       return { ok: false, status: 'error', code: cause.code || 'open-failed', error: cause.message };
     }
+  }
+
+  function openSnapshot(snapshot, options = {}) {
+    const { document, acceptSaved } = createDocumentModel({ filePath: snapshot.requestedPath, bytes: snapshot.bytes, identity: snapshot.identity });
+    sessions.set(document, { snapshot, acceptSaved, saving: false, state: 'not-submitted', committed: false,
+      pending: false, unverified: false, lastCode: null, syntheticTemporary: options.syntheticTemporary === true, copy: null });
+    if (!document.encoding) return { ok: false, status: 'blocked', code: 'unsupported-encoding', document };
+    if (options.parse !== undefined) {
+      const parsed = document.parse(options.parse);
+      if (!parsed.ok) return { ...parsed, document };
+    }
+    return { ok: true, document };
   }
 
   function checkExternal(document) {
@@ -105,6 +108,38 @@ function createDocumentService(options = {}) {
     const s = sessions.get(document);
     return s ? Object.freeze({ ...(s.copy || { ok: true, state: 'not-created', created: false }) }) : unknown();
   }
+
+  // Receipt authority is retained only in this main-owned service session. It
+  // survives later failures, but never reconciles or upgrades an uncertain copy.
+  function rememberCopy(s, result) {
+    if (result.ok === true && result.state === 'created-confirmed' && result.created === true
+        && typeof result.fileIdentity === 'string' && result.sha256 === result.expectedSha256) {
+      s.confirmedCopy = Object.freeze({ ...result, copyId: randomUUID() });
+      return s.confirmedCopy;
+    }
+    return Object.freeze(result);
+  }
+  function getConfirmedCopy(document) { return sessions.get(document)?.confirmedCopy || null; }
+  function confirmedSnapshot(document, copyId) {
+    const expected = getConfirmedCopy(document);
+    if (!expected || typeof copyId !== 'string' || expected.copyId !== copyId) throw Error('No confirmed copy authority');
+    const current = store.read(expected.filePath, 524288);
+    if (current.filePath !== expected.filePath || current.sha256 !== expected.sha256
+        || current.bytes.length !== expected.byteLength
+        || `${current.identity.dev}:${current.identity.ino}` !== expected.fileIdentity) throw Error('Confirmed copy changed');
+    return current;
+  }
+  function openConfirmedCopy(document, copyId, parse) {
+    try {
+      // Build the model from these verified bytes, never reopen after the check.
+      return openSnapshot(confirmedSnapshot(document, copyId), { parse });
+    } catch { return failure('confirmed-copy-unavailable'); }
+  }
+  function locateConfirmedCopy(document, copyId) {
+    try { return { ok: true, filePath: confirmedSnapshot(document, copyId).filePath }; }
+    catch { return failure('confirmed-copy-unavailable'); }
+  }
+
   const unresolvedCopy = s => s.copy && !s.copy.ok && s.copy.created !== false;
   async function createPersistentCopy(document, options = {}) {
     if (!record(options, ['filePath', 'expectedRevision', 'expectedSha256', 'isAuthorized'])) return failure('invalid-options');
@@ -137,7 +172,7 @@ function createDocumentService(options = {}) {
         result.ok = false; result.code = 'copy-source-changed';
         if (result.created !== false) result.state = 'created-unverified';
       }
-      s.copy = Object.freeze({ ...result, revision: options.expectedRevision, expectedSha256: sha256 });
+      s.copy = rememberCopy(s, { ...result, revision: options.expectedRevision, expectedSha256: sha256 });
       return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
     } catch (cause) {
       s.copy = Object.freeze({ ok: false, state: started ? 'create-outcome-unknown' : 'not-created',
@@ -177,7 +212,7 @@ function createDocumentService(options = {}) {
         result.ok = false; result.code = 'copy-source-changed';
         if (result.created !== false) result.state = 'created-unverified';
       }
-      s.copy = Object.freeze({ ...result, revision: options.expectedRevision, expectedSha256: sha256 });
+      s.copy = rememberCopy(s, { ...result, revision: options.expectedRevision, expectedSha256: sha256 });
       return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
     } catch (cause) {
       s.copy = Object.freeze({ ok: false, state: creationStarted ? 'create-outcome-unknown' : 'not-created',
@@ -215,7 +250,7 @@ function createDocumentService(options = {}) {
     return { ok: true };
   }
 
-  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState };
+  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
 }
 
 module.exports = { createDocumentService };

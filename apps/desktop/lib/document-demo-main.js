@@ -1,6 +1,6 @@
 'use strict';
 // Shared restricted entry: synthetic editing QA or explicit document-first read-only mode.
-const { app, BrowserWindow, ipcMain, session, dialog, Menu, utilityProcess } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, Menu, utilityProcess, shell } = require('electron');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createDocumentService } = require('./document-service');
@@ -40,7 +40,7 @@ app.whenReady().then(async () => {
     } catch { draftError = 'draft-directory-unavailable'; }
   }
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, draftStore, allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
+  const manager = createDocumentSessions({ service, draftStore, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: '另存为新的 Markdown 文件？',
         detail: '请选择主文件夹直属的普通本地文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md，已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
         buttons: ['取消', '选择本地文件夹…'], defaultId: 0, cancelId: 0, noLink: true });

@@ -32872,6 +32872,49 @@ ${prefix}
     };
   }
 
+  // lib/document-copy-actions-view.mjs
+  function createCopyActionsView({ api: api2, byId: byId2, context, open, busy, rerender }) {
+    const messages = /* @__PURE__ */ new Map();
+    function current() {
+      const c = context(), s = c.controller?.state(), receipt = s?.confirmed.confirmedCopy;
+      const available = s?.confirmed.temporary && receipt?.ok === true && receipt.state === "created-confirmed" && typeof receipt.copyId === "string";
+      const blocked = !available || c.loading || c.invalid || s.locked || s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source;
+      return { c, s, receipt, available, blocked };
+    }
+    function render3() {
+      const { available, blocked, receipt } = current();
+      byId2("confirmed-copy-actions").hidden = !available;
+      for (const id of ["open-confirmed-copy", "reveal-confirmed-copy"]) byId2(id).disabled = !!blocked;
+      byId2("copy-action-status").textContent = available ? messages.get(receipt.copyId) || "" : "";
+    }
+    for (const id of ["open-confirmed-copy", "reveal-confirmed-copy"]) {
+      byId2(id).onpointerdown = (event) => {
+        if (current().blocked) event.preventDefault();
+      };
+      byId2(id).onclick = async () => {
+        const { c, s, receipt, blocked } = current();
+        if (blocked) return;
+        const request = { sessionId: c.selected, expectedRevision: s.confirmed.revision, copyId: receipt.copyId };
+        if (id === "open-confirmed-copy") {
+          await open(request);
+          return;
+        }
+        busy(true);
+        rerender();
+        try {
+          const result = await api2.revealConfirmedCopy(request);
+          messages.set(receipt.copyId, result?.ok === true && result.copyId === receipt.copyId ? "\u5DF2\u8BF7\u6C42\u5728 Finder \u4E2D\u663E\u793A\u8BE5\u6587\u4EF6\u3002" : result?.code === "confirmed-copy-unavailable" ? "\u6587\u4EF6\u5DF2\u79FB\u52A8\u3001\u88AB\u4FEE\u6539\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u672A\u5728 Finder \u4E2D\u663E\u793A\uFF1B\u5F53\u524D\u8349\u7A3F\u4ECD\u4FDD\u7559\u3002" : "\u672A\u80FD\u786E\u8BA4 Finder \u5B9A\u4F4D\u7ED3\u679C\uFF0C\u5F53\u524D\u8349\u7A3F\u4E0E\u6587\u4EF6\u56DE\u6267\u4ECD\u4FDD\u7559\u3002");
+        } catch {
+          messages.set(receipt.copyId, "\u672A\u80FD\u786E\u8BA4 Finder \u5B9A\u4F4D\u7ED3\u679C\uFF0C\u5F53\u524D\u8349\u7A3F\u4E0E\u6587\u4EF6\u56DE\u6267\u4ECD\u4FDD\u7559\u3002");
+        } finally {
+          busy(false);
+          rerender();
+        }
+      };
+    }
+    return { render: render3 };
+  }
+
   // lib/document-test-copy-view.mjs
   function copyRefusal(s, { loading: loading2 = false, invalid = false } = {}) {
     if (!s || !s.confirmed.temporary || s.confirmed.readOnly || !s.confirmed.copyEnabled) return "test-copy-unavailable";
@@ -33767,7 +33810,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       byId2("header-end").prepend(byId2("writing-actions"));
       byId2("writing-workspace").prepend(byId2("document-header"));
       byId2("writing-toolbar").prepend(byId2("format-toolbar"));
-      byId2("document-scroll").append(byId2("copy-summary-compact"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
+      byId2("document-scroll").append(byId2("copy-summary-compact"), byId2("confirmed-copy-actions"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
       byId2("writing-footer").prepend(byId2("writing-status"));
       byId2("document-switcher").append(byId2("documents"));
       byId2("draft-dialog-content").append(byId2("draft-recovery-panel"));
@@ -34059,6 +34102,18 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     renderCompositionCopies(controller.state());
   }
   var activeInvalid = () => lifecycles.has(selected);
+  var copyActionsView = createCopyActionsView({
+    api,
+    byId,
+    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    open: (request) => openDocument(false, false, null, request),
+    busy: (value) => {
+      loading = value;
+    },
+    rerender: () => {
+      if (controller) render2(controller.state());
+    }
+  });
   var testCopyView = createTestCopyView({
     api,
     byId,
@@ -34145,6 +34200,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("composition-status").hidden = !s.composing || readOnlyWindow;
     draftView.render(s);
     testCopyView.render(s);
+    copyActionsView.render();
     renderCompositionCopies(s);
     writingShell.sync();
     formatView.sync();
@@ -34404,10 +34460,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("viewer-status").textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
-  async function openDocument(temporary = false, editingCopy = false, draftId = null) {
+  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null) {
     const state = controller?.state();
     if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
     const original = state?.confirmed;
+    if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length || state.source !== original.source || confirmedCopy.sessionId !== selected || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
     if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source)) return;
     loading = true;
     const epoch = ++switchEpoch;
@@ -34417,10 +34474,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     viewerStatus(editingCopy ? "\u6B63\u5728\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u2026" : temporary ? "\u6B63\u5728\u65B0\u5EFA\u8349\u7A3F\u2026" : "\u6B63\u5728\u6253\u5F00\u2026");
     let candidate = null;
     try {
-      const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+      const r = await (confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
       if (epoch !== switchEpoch) return;
+      if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) throw Error("Source session invalidated");
       if (!r.ok) {
         const messages = {
+          "confirmed-copy-unavailable": "\u6587\u4EF6\u5DF2\u79FB\u52A8\u3001\u88AB\u4FEE\u6539\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u68C0\u67E5\u3002",
+          "copy-action-unknown": "\u6253\u5F00\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u8BF7\u52FF\u91CD\u590D\u64CD\u4F5C\uFF1B\u5F53\u524D\u8349\u7A3F\u4E0E\u6587\u4EF6\u56DE\u6267\u4ECD\u4FDD\u7559\u3002",
           "draft-already-open": "\u8BE5\u8349\u7A3F\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00\u3002",
           "draft-unreadable": "\u8349\u7A3F\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",
           "draft-read-failed": "\u8349\u7A3F\u8BFB\u53D6\u5931\u8D25\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",

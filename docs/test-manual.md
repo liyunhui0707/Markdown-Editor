@@ -30,6 +30,20 @@ as math; prices and invalid boundary forms remain literal. Repeat with `$5$`
 (numeric math), display math, code and an escaped currency dollar (`\$5`).
 Scripted equivalents pass; record physical-input acceptance separately.
   
+## Confirmed export shortcuts — optional native spot check (2026-11-04)
+
+Automated Air coverage verifies export/reopen, later edits/history, repeated
+target refusal, original bytes and responsive buttons. Native Finder UI has not
+been accepted; this optional check is **not recorded as performed or PASS**:
+
+1. Export a disposable draft to a supported local folder with a new filename.
+   Choose **打开已导出文件**: it opens read-only. Return to the draft through the
+   sidebar; subsequent edits and Undo/Redo remain there.
+2. Choose **在 Finder 中显示**: expect Finder to select the exported file. This
+   requests display only, without clearing the draft or writing the file.
+
+These checks do not clear native Chinese IME or older acceptance limitations.
+
 ## Integrated appearance — optional final visual check (2026-11-04)
 
 Use the Document-First candidate, not the standalone design demo or legacy Vault

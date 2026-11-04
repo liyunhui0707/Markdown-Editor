@@ -1999,3 +1999,72 @@ test('find V1 pauses for editor composition and respects search input compositio
     expect(await fs.readFile(file, 'utf8')).toBe('Alpha 中文\n');
   }, info, null, true, false, false, null, { root: path.join(area, 'drafts') });
 });
+
+
+test('confirmed export shortcuts reopen readonly, retain later edits and request Finder without changing the original', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'copy-shortcuts-')));
+  const fixture = createHomeFixture('Writing-synthetic-'), target = path.join(fixture.dir, 'confirmed.md');
+  const hash = bytes => require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+  console.log('copy-shortcuts-fixture:' + JSON.stringify({ directory: fixture.dir, target }));
+  let created;
+  await usingDemo(async ({ app, page, root, snapshot, select, settled }) => {
+    const original = path.join(root, 'original.md'), raw = '\ufeffFirst synthetic paragraph.\r\n\r\nSecond paragraph.\r\n';
+    await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog, shell }, paths) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [paths.original] });
+      dialog.showMessageBox = async () => ({ response: 1 });
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: paths.target });
+      globalThis.copyShown = []; shell.showItemInFolder = file => globalThis.copyShown.push(file);
+    }, { original, target });
+    await page.locator('#empty-open').click();
+    const originalId = await page.locator('#documents').inputValue();
+    await page.locator('#edit-copy').click(); const draftId = await page.locator('#documents').inputValue();
+    await select('#editor p:first-child', 0); await page.keyboard.insertText('Exported '); await settled();
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
+    await expect(page.locator('#document-scroll #open-confirmed-copy')).toBeInViewport();
+    await expect(page.locator('#reveal-confirmed-copy')).toBeInViewport();
+    const exported = (await snapshot(draftId)).snapshot;
+    expect(exported.confirmedCopy.state).toBe('created-confirmed'); expect(exported.dirty).toBe(true);
+    created = await fs.readFile(target); expect(hash(created)).toBe(exported.confirmedCopy.sha256);
+    fixture.recordFile('confirmed.md', created);
+    await select('#editor p:first-child', 0); await page.keyboard.insertText('Later '); await settled();
+    const later = (await snapshot(draftId)).snapshot;
+    await page.locator('#reveal-confirmed-copy').click();
+    await expect(page.locator('#copy-action-status')).toContainText('已请求');
+    expect(await app.evaluate(() => globalThis.copyShown)).toEqual([target]);
+    await captureTestWindow(app, info.outputPath('copy-shortcuts-light.png'));
+    await page.locator('#open-confirmed-copy').click();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    const openedId = await page.locator('#documents').inputValue(); expect(openedId).not.toBe(draftId);
+    expect((await snapshot(openedId)).snapshot.source).toBe(exported.source);
+    await selectDocument(page, draftId); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
+    const returned = (await snapshot(draftId)).snapshot;
+    for (const key of ['source', 'revision', 'dirty', 'canUndo', 'canRedo']) expect(returned[key]).toEqual(later[key]);
+    await page.keyboard.press('Escape');
+    await page.locator('#format-undo').click(); await settled(); expect((await snapshot(draftId)).snapshot.source).toBe(exported.source);
+    await page.locator('#format-redo').click(); await settled(); expect((await snapshot(draftId)).snapshot.source).toBe(later.source);
+    // A rejected subsequent export must not disable the prior successful receipt.
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#copy-operation-alert')).toContainText('同名目标已存在');
+    expect((await snapshot(draftId)).snapshot.confirmedCopy.copyId).toBe(exported.confirmedCopy.copyId);
+    await page.locator('#open-confirmed-copy').click();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    expect((await snapshot(await page.locator('#documents').inputValue())).snapshot.source).toBe(exported.source);
+    await selectDocument(page, draftId); await page.keyboard.press('Escape');
+    await page.locator('#show-reading-settings').click(); await page.locator('#reading-theme-dark').click(); await page.keyboard.press('Escape');
+    await captureTestWindow(app, info.outputPath('copy-shortcuts-dark.png'));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(390, 800));
+    await expect(page.locator('#document-scroll #open-confirmed-copy')).toBeInViewport();
+    await expect(page.locator('#reveal-confirmed-copy')).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureTestWindow(app, info.outputPath('copy-shortcuts-narrow.png'));
+    expect((await snapshot(originalId)).snapshot.readOnly).toBe(true);
+    expect(await fs.readFile(original, 'utf8')).toBe(raw); expect(await fs.readFile(target)).toEqual(created);
+    console.log('copy-shortcuts-evidence:' + JSON.stringify({ originalSha256: hash(Buffer.from(raw)), exportedSha256: hash(created),
+      originalUnchanged: true, exportUnchanged: true, draftAndHistoryRetained: true, finder: 'verified main invocation; UI stubbed', nativeIme: 'NOT VERIFIED' }));
+  }, info, null, true, true, true, null, { root: path.join(area, 'drafts') });
+  expect(await fs.readFile(target)).toEqual(created);
+  const cleanup = fixture.cleanup({ passed: true, quiescent: true }); expect(cleanup.state).toBe('removed');
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup));
+});

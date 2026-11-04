@@ -59,6 +59,7 @@
 <span class="format-divider"></span><button id="format-undo" aria-label="撤销" title="撤销（⌘Z）">↶</button><button id="format-redo" aria-label="重做" title="重做（⌘⇧Z）">↷</button>
 </div>
 <output id="copy-summary-compact" role="status" hidden></output><output id="copy-operation-alert" role="status" hidden></output>
+<div id="confirmed-copy-actions" hidden><div class="copy-action-buttons"><button id="open-confirmed-copy" title="只读打开最近确认的新文件，保留当前草稿">打开已导出文件</button><button id="reveal-confirmed-copy">在 Finder 中显示</button></div><output id="copy-action-status" role="status"></output></div>
 <p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；多段请粘贴到一个普通段落内。连续空段落及复杂格式暂不支持。</p>
 <output id="draft-backup-status" role="status" hidden></output>
 <details id="draft-recovery-panel" hidden><summary>本地草稿：恢复与管理</summary>
@@ -77,7 +78,7 @@
 <section id="confirmed-copy-card" class="detail-card" hidden><h3>最近确认的新文件</h3><output id="test-copy-summary" role="status" aria-label="Confirmed file summary"></output>
 <details id="test-copy-receipt" hidden><summary>修订与 SHA-256</summary><output id="test-copy-result" aria-label="Last confirmed copy"></output></details></section>
 <section id="latest-copy-card" class="detail-card" hidden><h3>本次操作</h3><output id="test-copy-operation" role="status" aria-label="Latest copy operation"></output></section>
-<details><summary>如何重新打开已创建文件</summary><p>使用「打开…」（⌘O），在原生对话框按 ⌘⇧G 粘贴回执路径。新文件以只读方式打开；继续编辑请创建独立副本。之后的修改不会自动写回任何文件。</p></details>
+<details><summary>如何重新打开已创建文件</summary><p>点击正文上方的「打开已导出文件」即可只读打开最近确认的新文件，或使用「在 Finder 中显示」定位。文件身份或内容无法核对时不会自动打开，可用「打开…」（⌘O）手动检查。新文件以只读方式打开；继续编辑请创建独立副本。之后的修改不会自动写回任何文件。</p></details>
 </section>
 <div id="input-alerts"></div>
 <output id="viewer-status" role="status" aria-live="polite">打开 Markdown 或新建草稿开始。</output>

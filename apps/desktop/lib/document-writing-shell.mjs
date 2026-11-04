@@ -143,7 +143,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('header-end').prepend(byId('writing-actions'));
     byId('writing-workspace').prepend(byId('document-header'));
     byId('writing-toolbar').prepend(byId('format-toolbar'));
-    byId('document-scroll').append(byId('copy-summary-compact'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
+    byId('document-scroll').append(byId('copy-summary-compact'), byId('confirmed-copy-actions'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
     byId('writing-footer').prepend(byId('writing-status'));
     byId('document-switcher').append(byId('documents'));
     byId('draft-dialog-content').append(byId('draft-recovery-panel'));

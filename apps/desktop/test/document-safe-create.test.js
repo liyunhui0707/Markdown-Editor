@@ -354,13 +354,13 @@ test('same-byte rewrite after fsync cannot reuse the earlier synchronization evi
 });
 
 
-async function copyIpc({ enabled = true, readOnly = false } = {}) {
+async function copyIpc({ enabled = true, readOnly = false, revealFile = null } = {}) {
   const f = fixture(Buffer.from('first\r\n\r\n第二段😀'));
   const { projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs');
   const wc = new EventEmitter(), win = new EventEmitter(), frame = { url: 'file:///synthetic/copy.html' };
   Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url, send: () => {} });
   Object.assign(win, { webContents: wc, isDestroyed: () => false });
-  const manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => win, allowTestCopies: enabled });
+  const manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => win, allowTestCopies: enabled, revealFile });
   manager.grant(win, frame.url);
   const id = manager.provision(win, f.document, 'Synthetic', readOnly ? { readOnly: true } : { temporary: true });
   const event = { sender: wc, senderFrame: frame };
@@ -419,4 +419,69 @@ test('test copy IPC serializes reentrant edits and refuses a revoked response', 
   g.io.fsyncSync = fd => { if (!revoked) { revoked = true; g.manager.revoke(g.win); } fs.fsyncSync(fd); };
   const result = g.copy(); assert.equal(result.ok, false); assert.equal(result.code, 'copy-session-invalidated');
   assert.equal(result.snapshot, undefined); assert.equal(g.manager.retainedCount(), 1);
+});
+
+
+test('confirmed file actions use the saved revision, preserve edits/history and never grant write access', async () => {
+  const shown = [], f = await copyIpc({ revealFile: file => shown.push(file) });
+  const original = fs.readFileSync(f.seed), receipt = f.copy().copy;
+  assert.match(receipt.copyId, /^[a-f0-9-]{36}$/);
+  assert.equal(f.call('edit', { expectedRevision: 0, from: 1, to: 1, insert: 'later ' }).ok, true);
+  const before = f.call('snapshot').snapshot, q = { expectedRevision: 1, copyId: receipt.copyId };
+  assert.equal(before.confirmedCopy.copyId, receipt.copyId);
+  assert.equal(f.call('reveal-confirmed-copy', q).ok, true); assert.deepEqual(shown, [receipt.filePath]);
+  const opened = f.call('open-confirmed-copy', q);
+  assert.equal(opened.ok, true); assert.equal(opened.snapshot.readOnly, true);
+  assert.notEqual(opened.snapshot.sessionId, f.id); assert.equal(opened.snapshot.source, original.toString());
+  for (const operation of ['edit', 'save']) assert.equal(f.call(operation, { sessionId: opened.snapshot.sessionId, expectedRevision: 0, ...(operation === 'edit' ? { from: 1, to: 1, insert: 'BAD' } : {}) }).code, 'read-only-document');
+  assert.deepEqual(f.call('snapshot').snapshot, before);
+  assert.equal(f.call('undo', { expectedRevision: 1 }).snapshot.source, original.toString());
+  assert.equal(f.call('redo', { expectedRevision: 2 }).snapshot.source, before.source);
+  assert.deepEqual(fs.readFileSync(f.seed), original); assert.deepEqual(fs.readFileSync(receipt.filePath), original);
+});
+for (const kind of ['changed', 'replaced', 'symlink', 'moved', 'denied', 'parent-link']) test('confirmed file actions refuse ' + kind, async () => {
+  const shown = [], f = await copyIpc({ revealFile: file => shown.push(file) }), receipt = f.copy().copy;
+  const before = f.call('snapshot').snapshot, file = receipt.filePath;
+  if (kind === 'changed') fs.writeFileSync(file, 'changed synthetic');
+  if (['replaced', 'symlink', 'moved'].includes(kind)) fs.renameSync(file, file + '.retained');
+  if (kind === 'replaced') fs.writeFileSync(file, f.document.bytesForSave(), { flag: 'wx' });
+  if (kind === 'symlink') fs.symlinkSync(file + '.retained', file);
+  if (kind === 'denied') f.io.openSync = () => { throw fault('EACCES'); };
+  if (kind === 'parent-link') { fs.renameSync(f.root, f.root + '-retained'); fs.symlinkSync(f.root + '-retained', f.root); }
+  for (const operation of ['open-confirmed-copy', 'reveal-confirmed-copy']) {
+    const r = f.call(operation, { expectedRevision: 0, copyId: receipt.copyId });
+    assert.equal(r.ok, false); assert.match(r.code, /^confirmed-copy-/);
+  }
+  assert.deepEqual(shown, []); assert.deepEqual(f.call('snapshot').snapshot, before);
+});
+test('only the owning live session and exact current revision may follow its latest confirmed receipt', async () => {
+  const f = await copyIpc({ revealFile() {} }), receipt = f.copy().copy;
+  const q = { expectedRevision: 0, copyId: receipt.copyId };
+  for (const extra of [{ filePath: receipt.filePath }, { copyId: 'forged' }, { expectedRevision: 99 }, { expectedRevision: undefined }])
+    assert.equal(f.call('open-confirmed-copy', { ...q, ...extra }).ok, false);
+  const other = f.manager.provision(f.win, f.service.open(f.seed, { syntheticTemporary: true }).document, 'Other', { temporary: true });
+  assert.equal(f.call('open-confirmed-copy', { ...q, sessionId: other }).ok, false);
+  assert.equal(f.manager.request({ sender: f.wc, senderFrame: {} }, { operation: 'open-confirmed-copy', sessionId: f.id, ...q }).code, 'unauthorized-sender');
+  const next = f.copy().copy; assert.notEqual(next.copyId, receipt.copyId);
+  assert.equal(f.call('open-confirmed-copy', q).ok, false);
+  f.manager.revoke(f.win); assert.equal(f.call('open-confirmed-copy', { ...q, copyId: next.copyId }).code, 'unauthorized-sender');
+});
+test('later uncertain creation does not erase the last confirmed file or grant actions to the uncertain file', async () => {
+  const f = await copyIpc(), receipt = f.copy().copy;
+  f.io.writeSync = () => { throw fault('ENOSPC'); };
+  const failed = f.copy(); assert.equal(failed.copy.state, 'created-partial');
+  assert.equal(failed.snapshot.confirmedCopy.copyId, receipt.copyId);
+  assert.equal(failed.copy.copyId, undefined);
+  const result = f.call('open-confirmed-copy', { expectedRevision: 0, copyId: receipt.copyId });
+  assert.equal(result.ok, true);
+  assert.equal(f.call('snapshot').snapshot.copyState.state, 'created-partial');
+  assert.equal(f.copy().code, 'unresolved-copy-state');
+});
+test('revalidation cannot create a session after its source authority is revoked; Finder errors stay separate', async () => {
+  const f = await copyIpc({ revealFile() { throw fault(); } }), receipt = f.copy().copy;
+  const q = { expectedRevision: 0, copyId: receipt.copyId }, before = f.call('snapshot').snapshot;
+  assert.equal(f.call('reveal-confirmed-copy', q).code, 'copy-reveal-failed');
+  assert.deepEqual(f.call('snapshot').snapshot, before);
+  f.io.readSync = (...args) => { const count = fs.readSync(...args); f.manager.revoke(f.win); return count; };
+  assert.equal(f.call('open-confirmed-copy', q).ok, false);
 });

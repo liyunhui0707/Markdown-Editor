@@ -1,5 +1,25 @@
 # Stage History
 
+## Confirmed export shortcuts V1 — uncommitted (2026-11-04)
+
+After the approved 0.35.0 checkpoint `ddc3fab`, add readonly reopening and Finder
+location from the last main-confirmed export. Service retains receipt authority;
+IPC checks owner/session/revision without renderer target paths. Revalidate file
+identity and exact content; construct the opened model from those verified bytes.
+Existing source, drafts/history, failed-operation state and overwrite protection
+are unchanged. Receipt authority is session-local, not restored from backups.
+
+174 distinct focused Node tests PASS; one final Air Electron workflow PASS.
+Initial test menu-toggle error retained. A functional pass then exposed offscreen
+buttons in screenshot review; fixed the shell mount and added viewport assertions.
+Final light/dark/390px captures inspected, original/export hashes unchanged,
+process exit clean. Finder system call is stubbed and its path checked; native
+Finder UI and IME are NOT VERIFIED. Earlier manual/formal FAIL, SEC-01 and release
+restrictions remain. No new commit/version bump beyond the prior 0.35.0 checkpoint.
+New view/test are 37/42 lines; existing entry/E2E are 392/2070 lines. Retain their
+current lifecycle harness; no broad split/refactor in this bounded feature.
+Exact evidence and test-artifact retention are in the phase document.
+
 ## 0.35.0 local WIP checkpoint (2026-11-04)
 
 User-approved checkpoint of the accepted writing workspace, draft management,

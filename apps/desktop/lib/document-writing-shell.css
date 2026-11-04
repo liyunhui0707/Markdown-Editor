@@ -177,3 +177,9 @@ body[data-document-viewer] :is(.input-protection,#composition-status) {max-width
   .side-panel {width:calc(100vw - 24px)}
   #copy-summary-compact {font-size:11px}
 }
+
+/* Confirmed export shortcuts stay secondary to writing and remain session-local. */
+#confirmed-copy-actions {max-width:var(--reading-width);width:calc(100% - 2 * var(--gutter));margin:20px auto 0;font-size:12px;line-height:1.8}
+.copy-action-buttons {display:flex;gap:8px;flex-wrap:wrap}
+.copy-action-buttons button {font-size:12px;padding:5px 10px}
+#copy-action-status:not(:empty) {display:block;margin-top:8px;color:var(--muted);overflow-wrap:anywhere}

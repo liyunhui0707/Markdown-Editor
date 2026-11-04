@@ -148,6 +148,16 @@ Only new files are created; existing targets are never overwritten. The UI
 separates the last confirmed file's path/revision/hash from later failures and
 reports uncertain outcomes without claiming that no file exists.
 
+After a confirmed export, **打开已导出文件** opens that file read-only and
+**在 Finder 中显示** requests its location. These shortcuts use the main-owned
+last successful receipt, rechecking canonical path, file identity, byte length
+and SHA-256. A moved, replaced, modified or unreadable file is refused; use the
+ordinary Open dialog to inspect it manually. Later edits and Undo/Redo stay in the
+independent draft, and a subsequent failed export does not erase the successful
+receipt. Unconfirmed input pauses both actions. Shortcuts are session-local and
+are not restored as file authority from a draft backup; the existing eight-session
+limit still applies. Finder receives a display request, not a write permission.
+
 **本地草稿** describes the independent editing session, not a saved Markdown file.
 **已备份** confirms its local backup; **当前内容已导出** confirms the exported
 revision only. Later edits show **后续修改尚未导出** and do not update the file. Open **草稿** at the bottom of the sidebar to list local recovery
