@@ -1,0 +1,117 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+// Sandboxed isolated preload: no generic invoke, paths, fs or policy options.
+const states = new Map(), listeners = new Set(), lifecycleListeners = new Set();
+let pending = 0, composing = false, draftManagementUnknown = false;
+const copies = new Set(), unknown = new Map();
+document.addEventListener('compositionstart', () => { composing = true; }, true);
+document.addEventListener('compositionend', () => { composing = false; }, true);
+function lifecycle(sessionId, state) {
+  if (typeof sessionId !== 'string' || states.get(sessionId) === 'invalidated' || states.get(sessionId) === state) return;
+  states.set(sessionId, state);
+  for (const listener of lifecycleListeners) listener({ sessionId, state });
+  if (state === 'invalidated') for (const listener of listeners) listener({ sessionId });
+}
+const blocked = sessionId => ({ ok: false, code: states.get(sessionId) === 'invalidated' ? 'unknown-session' : states.get(sessionId) });
+ipcRenderer.on('document-demo:invalidated', (_event, data) => lifecycle(data?.sessionId, 'invalidated'));
+const request = async (operation, data = {}) => {
+  const sessionId = data?.sessionId;
+  if (states.has(sessionId)) return blocked(sessionId);
+  const forking = operation === 'edit-copy' || operation === 'restore-draft';
+  const following = operation === 'open-confirmed-copy' || operation === 'reveal-confirmed-copy';
+  const managing = operation === 'manage-draft';
+  if (operation === 'format' && composing) return { ok: false, code: 'composition-active' };
+  if (operation === 'format' && pending) return { ok: false, code: 'document-busy' };
+  if (managing && draftManagementUnknown) return { ok: false, code: 'draft-operation-unknown' };
+  const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
+  if (creating || forking || managing || following) {
+    if ((operation === 'restore-draft' || managing) && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
+    if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
+    if (composing) return { ok: false, code: 'composition-active' };
+    if (pending) return { ok: false, code: 'document-busy' };
+    copies.add(sessionId);
+  } else if (copies.has(sessionId)) return { ok: false, code: 'copy-in-progress' };
+  const closing = operation === 'close' && typeof sessionId === 'string';
+  // Establish the fence synchronously, before IPC can close main's session.
+  if (closing) lifecycle(sessionId, 'close-pending');
+  let result;
+  ++pending;
+  try { result = await ipcRenderer.invoke('document-demo:request', { ...data, operation }); }
+  catch (error) {
+    if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
+    if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
+    unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
+    if (creating || forking || managing || following) return { ok: false, code: unknown.get(sessionId) };
+    if (!closing) throw error;
+    lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
+  } finally { --pending; if (creating || forking || managing || following) copies.delete(sessionId); }
+  if (managing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      result.state !== (data.action === 'archive' ? 'archived' : 'available')))) {
+    draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' };
+  }
+  if (forking && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (typeof result.snapshot?.sessionId !== 'string' || result.snapshot.sessionId === sessionId
+       || result.snapshot.temporary !== true || result.snapshot.readOnly !== false)))) {
+    unknown.set(sessionId, 'edit-copy-outcome-unknown'); return { ok: false, code: 'edit-copy-outcome-unknown' };
+  }
+  if (forking && result.ok && states.has(result.snapshot.sessionId)) return blocked(result.snapshot.sessionId);
+  if (creating && (!result || typeof result.ok !== 'boolean' || (result.ok && result.copy?.state !== 'created-confirmed'))) {
+    unknown.set(sessionId, 'copy-outcome-unknown'); return { ok: false, code: 'copy-outcome-unknown' };
+  }
+  if (following && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (result.copyId !== data.copyId || (operation === 'open-confirmed-copy' &&
+        (typeof result.snapshot?.sessionId !== 'string' || result.snapshot.sessionId === sessionId
+         || result.snapshot.readOnly !== true || result.snapshot.temporary === true)))))) {
+    unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' };
+  }
+  if (following && result.ok && states.has(result.snapshot?.sessionId)) return blocked(result.snapshot.sessionId);
+  if (!result || typeof result.ok !== 'boolean') unknown.set(sessionId, 'ipc-outcome-unknown');
+  if (closing) {
+    if (result?.ok === true) lifecycle(sessionId, 'invalidated');
+    else {
+      // Even a legitimate refusal snapshot is not a lease against a subsequent
+      // close. This restricted demo never reopens the same ID automatically.
+      lifecycle(sessionId, 'close-outcome-unknown');
+      return { ok: false, code: typeof result?.code === 'string' ? result.code : 'close-outcome-unknown' };
+    }
+  } else if (states.has(sessionId)) return blocked(sessionId);
+  return result;
+};
+contextBridge.exposeInMainWorld('documentDemo', {
+  openFile: () => request('open-file'),
+  newTemporary: () => request('new-temporary'),
+  listDrafts: () => request('list-drafts'),
+  manageDraft: data => request('manage-draft', data),
+  restoreDraft: draftId => request('restore-draft', { draftId }),
+  onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
+    if (typeof data?.sessionId === 'string' && !states.has(data.sessionId)) handler(data);
+  }),
+  openConfirmedCopy: data => request('open-confirmed-copy', data),
+  revealConfirmedCopy: data => request('reveal-confirmed-copy', data),
+  editCopy: data => request('edit-copy', data),
+  createTestCopy: data => request('create-test-copy', data),
+  createPersistentCopy: data => request('create-persistent-copy', data),
+  onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),
+  list: () => request('list'),
+  snapshot: data => request('snapshot', data),
+  edit: data => request('edit', data),
+  format: data => request('format', data),
+  undo: data => request('undo', data),
+  redo: data => request('redo', data),
+  check: data => request('check', data),
+  save: data => request('save', data),
+  close: data => request('close', data),
+  onInvalidated: handler => {
+    if (typeof handler !== 'function') throw TypeError('Invalid lifecycle listener');
+    listeners.add(handler);
+    for (const [sessionId, state] of states) if (state === 'invalidated') handler({ sessionId });
+    return () => listeners.delete(handler);
+  },
+  onLifecycle: handler => {
+    if (typeof handler !== 'function') throw TypeError('Invalid lifecycle listener');
+    lifecycleListeners.add(handler);
+    for (const [sessionId, state] of states) handler({ sessionId, state });
+    return () => lifecycleListeners.delete(handler);
+  },
+  onReady: handler => ipcRenderer.once('document-demo:ready', (_event, data) => handler(data)),
+});

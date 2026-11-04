@@ -1,7 +1,88 @@
 # Manual Test Checklist  
   
 Use this checklist before sharing the app with another person.  
+
+## Current Document application — 0.37.0 local WIP (2026-11-04)
+
+- **Observed by Codex:** ordinary macOS launch of `~/Applications/Markdown.app`
+  displays the current Document welcome/workspace without a terminal launcher.
+- **Controlled packaged E2E PASS:** open synthetic original read-only, edit copy,
+  export exact new bytes, reject duplicate target, reopen read-only, restart and
+  recover confirmed draft with empty old Undo/authority. Original hash unchanged.
+- **NOT VERIFIED here:** native Chinese IME, native save-dialog interaction and
+  native Finder display. Scripted choices/calls do not substitute for these.
+- Preserve earlier manual/formal failures and public-release gates. No new request
+  for the user to repeat unrelated QA; current scope is installation/entry closeout.
+- Installation does not enable overwrite or arbitrary destinations. Backups remain
+  in `Markdown Vault Document Drafts`; use the app's archive/restore actions.
+
+The dated lists below concern older milestones. Their “current” wording is
+historical and is not acceptance of this installed Document build.
+
+Current milestone status lives in the
+[frozen acceptance record](roadmap.md#finite-acceptance-record). On 2026-09-09
+the user reported the requested physical Undo/Redo and Chinese IME checks as
+passing. This does not mark the other native checks below complete; older
+unchecked lists remain historical until their results are explicitly recorded.
+
+**A6 candidate, 2026-09-09:** [Fix and evidence](a6-dirty-state-investigation.md)
+now preserve unchanged Tiptap text and block unsafe metadata saves. Scripted
+checks pass; physical Undo/Redo/IME, navigation and native Save All & Quit need
+confirmation on this build. Use disposable notes, including a custom-YAML note:
+after editing it, Save All & Quit must report an error, keep the app open and
+retain the edit and original file. [Security remediation](dependency-security-sep9.md)
+now passes both audits and packaged synthetic checks; review/native acceptance
+still block shipping.
+
+The 2026-09-08 Tiptap load-history fix has a focused
+[native acceptance checklist and scripted QA results](tiptap-load-undo-fix.md#manual-qa-checklist).
+Scripted undo/save/switch checks pass. Beyond the two user-reported passes,
+note isolation, mode/save/reopen, long-document/image input and native
+close/Save All still require acceptance testing.
+
+Currency/math follow-up: [rules and packaged QA evidence](tiptap-math-delimiter-fix.md).
+In a synthetic note, enter `Price $5; formula $x$. Literal $ x $ and $x$2.`
+in Source, switch to Rich, save, switch notes and reopen. Only `$x$` should render
+as math; prices and invalid boundary forms remain literal. Repeat with `$5$`
+(numeric math), display math, code and an escaped currency dollar (`\$5`).
+Scripted equivalents pass; record physical-input acceptance separately.
   
+## Confirmed export shortcuts — optional native spot check (2026-11-04)
+
+Automated Air coverage verifies export/reopen, later edits/history, repeated
+target refusal, original bytes and responsive buttons. Native Finder UI has not
+been accepted; this optional check is **not recorded as performed or PASS**:
+
+1. Export a disposable draft to a supported local folder with a new filename.
+   Choose **打开已导出文件**: it opens read-only. Return to the draft through the
+   sidebar; subsequent edits and Undo/Redo remain there.
+2. Choose **在 Finder 中显示**: expect Finder to select the exported file. This
+   requests display only, without clearing the draft or writing the file.
+
+These checks do not clear native Chinese IME or older acceptance limitations.
+
+## Integrated appearance — optional final visual check (2026-11-04)
+
+Use the Document-First candidate, not the standalone design demo or legacy Vault
+window. Automation has already checked the combined workflow; the items below
+are a short user preference check, **not recorded as performed or PASS**.
+
+1. Start a disposable new draft and type two paragraphs. Compare light/dark using
+   **Aa**. Expect comfortable contrast, readable type and a clear writing area;
+   record any preferred font size/spacing rather than repeating filesystem tests.
+2. Open a synthetic Markdown file, create its editing copy, then open the title,
+   drafts and details panels. Escape should return from the panel; the title menu
+   also closes on outside click. Expect clear original/draft labels, no lost text
+   and no clipped controls after narrowing the window.
+3. In the draft, open **另存新文件…**, inspect the confirmation, then **返回编辑**.
+   Expect clear separation between local backup and file export, and unchanged
+   writing on cancellation. Actual export/reopen already has bounded automated
+   evidence; this optional appearance check need not create another file.
+
+Visual acceptance is pending until the user reports it. Native Chinese IME is a
+separate functional acceptance gap; controlled events and these screenshots do not
+clear historical failures or certify a release.
+
 ## App startup  
   
 - [ ] App starts from development mode  
@@ -84,7 +165,7 @@ Tester: liyunhui  Date: 2026-05-14  OS: macOS
 - [ ] AI Imports filter works  
 - [ ] Drafts filter works  
 - [ ] Vault Files filter works  
-- [ ] Rename a Codex thread, refresh/re-import AI Sessions, and confirm its exact Thread name appears; an unrenamed session shows `source_session_id`, not the rollout filename
+- [ ] AI Sessions navigation/refresh/search are absent; use the independent AI Session Manager for transcripts. Follow the [Phase 2 split checklist](editor-session-split.md#manual-qa-checklist).
   
 ## Metadata  
   
@@ -1307,3 +1388,591 @@ with left, center, right, and unaligned columns.
 - [ ] Install guide is understandable  
 - [ ] MCP setup guide is understandable  
 - [ ] Demo script is usable
+
+
+## Basic writing V1 — synthetic Document demo only (0.21.0, 2026-10-26)
+
+Use only main-owned developer fixtures, not a real document or Vault. The
+following human checks are pending; automated Electron keyboard coverage is
+recorded in the [phase contract](document-editing-interaction-phase1b3.md).
+
+- [ ] Connect synthetic documents, select b.md, put the caret at the plain paragraph end and press Enter. A new empty input paragraph accepts English, Chinese and emoji without moving the caret elsewhere.
+- [ ] Split a plain paragraph in the middle (including a word boundary), then Backspace at the new paragraph start; text and spaces restore correctly. Cmd+Z / Cmd+Shift+Z restore both states.
+- [ ] Enter in the new empty paragraph again is refused; no additional semantic empty paragraph or hidden placeholder is claimed. Backspace can remove the supported empty boundary.
+- [ ] With actual macOS Simplified Pinyin, confirm a candidate using Enter; it must not create an unintended paragraph or lose the composition. Record the exact build/input method/sequence. CDP tests are not this manual acceptance.
+- [ ] Switch A/B/A: source/history remain session-scoped. Heading, marked paragraph, list, quote and code structure edits remain refused. Request save stays denied.
+
+Multiple blank-only files, consecutive independent empty paragraphs, complex
+structure and real-file writes remain outside this developer feature. Phase
+1B-3 formal acceptance remains FAIL; do not use these steps as release sign-off.
+
+
+## Document-First Open V1 — native read-only check (2026-10-26)
+
+Use only synthetic `.md` fixtures in two temporary directories. From
+`apps/desktop`, run `mise exec -- npm run dev -- --document-readonly`.
+
+- [x] Through the actual macOS dialog, open ProjectA/x.md. Observe file name,
+  directory, read-only badge and formatted heading/bold in one surface, without
+  choosing a Vault. Native UI check performed by the development agent.
+- [x] Cmd+O: open Notes/Y.md from another directory. Identity and Unicode body
+  update together. Open Markdown… then Cancel retains Y.md and shows cancellation.
+- [x] Close the window. Both synthetic original files' SHA-256 values remain
+  identical; the source viewer process exits 0.
+- [x] Automated real Electron IPC/view test additionally verifies keyboard and
+  direct IPC edit/save/history refusal, missing/invalid-encoding retention,
+  separate session IDs and inert HTML/image text. Its chooser return is
+  controlled, so it is separate evidence from the native UI check above.
+- [ ] Future independent human QA of this exact candidate/build, including
+  native dialog focus and selecting/copying text in the read-only surface.
+
+Limits: unsupported syntax is literal text, no images/resources load, only
+bounded UTF-8 regular single-link files are accepted. No Finder, installed ASAR,
+editing/save or release acceptance is claimed. Existing Phase 1B-3 FAIL remains.
+
+
+## Document UI/UX V1 — visual experience (2026-10-28)
+
+Launch the target worktree with `mise exec -- npm run dev -- --document-readonly`
+from apps/desktop. Keep this distinct from the default Vault application.
+
+- [x] Current-candidate Air Electron: empty welcome/primary open action, Chinese
+  and English rendered documents, compact name/read-only toolbar, long-name
+  ellipsis and full name/path disclosure. Actual content screenshots retained.
+- [x] Current-candidate Air Electron: 1050px normal, 640/390px narrow and 1440px
+  wide content sizes. Centering accounts for actual scrollbar space; no
+  horizontal overflow or toolbar overlap; opaque syntax remains literal text.
+- [x] Actual IPC/view regression: Open/Cmd+O, A/B/A, cancel and read-only refusal;
+  normal process exit and unchanged synthetic originals after close.
+- [ ] User visual check on Mac: font size, Chinese/English line/paragraph spacing,
+  preferred reading width and welcome-window balance feel comfortable.
+- [ ] User native chrome check: red/yellow/green controls, dragging and resizing
+  feel normal. Native window code is unchanged; renderer screenshots do not
+  independently prove physical system-button interaction.
+
+The Pro headless probes are layout evidence only. Existing write/IME/SEC-01 and
+Phase 1B-3 limitations remain; this checklist is not release approval.
+
+
+## Document Writing Entry V1 — same window, temporary memory only (0.24.0)
+
+Run `mise exec -- npm run dev -- --document-readonly` from `apps/desktop`.
+Use synthetic material only; this checklist is not a native IME pass.
+
+- Click **New temporary document**. The same centered editor focuses an empty
+  paragraph; the header says **Not saved**, with a visible memory-only notice.
+- Type a first paragraph, Enter, and a second paragraph with English, Chinese
+  and emoji. Check cursor position. At paragraph two's start, Backspace joins;
+  Cmd+Z restores the split and Cmd+Shift+Z rejoins.
+- Create another temporary document; use the selector to return. Content and
+  history belong to their own sessions. Existing recovery records stay scoped
+  to their document and remain accessible when switching back.
+- Open a synthetic `.md` with Cmd+O. It must show **Read-only** and reject typing,
+  Enter and Undo. Switch back to the temporary document and continue writing.
+  Canceling the picker must preserve the active document and its text.
+- Close or Quit after creating a temporary document: the default is **Cancel**.
+  Cancel keeps the window/content. **Close without saving** deliberately loses
+  all temporary writing and recovery records. Verify original fixture hashes.
+- Real macOS Simplified Pinyin, native preedit completeness and IME recovery
+  still require separate acceptance. Do not refresh to recover an input lock.
+
+
+## Persistent Copy V1 — native save sheet user QA (limited PASS)
+
+Use only synthetic text and a newly prepared empty `~/Markdown-Persistent-Test-Manual`
+folder (owned by you, no group/other write permission, local APFS, no synchronization).
+From `apps/desktop`, run `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. New temporary document; type two paragraphs containing English, Chinese and emoji.
+2. Create persistent test copy; confirm the limited scope; cancel the native sheet.
+   Confirm no file exists and all text/revision/history remain unchanged.
+3. Repeat and select `copy.md` inside the dedicated folder. Confirm the receipt's
+   revision, actual path and SHA-256; the temporary document must still say Not saved.
+4. Add a third paragraph. Confirm the earlier file still contains only the copied
+   revision. Choose the same target again: reject without changing its bytes.
+5. Quit using the unsaved warning, restart, Open Markdown… and select the copy.
+   Verify the exact two paragraphs and read-only state. No edit/overwrite capability.
+6. Verify a symlink target, nonempty folder and ordinary cloud paths outside the
+   dedicated home-folder scope are refused. A custom sync agent watching an otherwise
+   allowed folder cannot be automatically detected; never select such a folder. Never use real notes or change file permissions to force acceptance.
+
+User-reported result on MacBook Pro, reviewed 0.27.0 candidate: **PASS** for
+native directory/name selection, cancel without creation or lost text, new-file
+creation without abnormal precreation/overwrite, matching receipt/path/revision/
+SHA-256, unchanged earlier copy after later edits, read-only reopening after a
+full quit, and the temporary document's persistent Not saved label.
+
+This is user manual QA, separate from Air automation's stubbed dialog selections.
+Do not infer new manual symlink, unsupported-directory, full IME or installed-app
+coverage beyond the seven observations explicitly reported. The 0.28.0 checkpoint
+adds the small receipt-dependent information-note correction with directed tests;
+that wording change is not itself covered by the earlier human QA. Existing
+release and file-safety limitations remain; no general Save As or overwrite.
+
+
+## Existing Document Editing V1 — pending user manual QA
+
+Use only synthetic files. From `apps/desktop`, run:
+`mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. Cmd+O opens a synthetic `.md`. Confirm **Read-only**. Click **编辑副本 · Edit a copy**;
+   confirm the new `Copy N of …` document and **Not saved** badge.
+2. Edit a supported ordinary paragraph; Enter splits/creates a paragraph,
+   Backspace at its start rejoins, Cmd+Z and Cmd+Shift+Z undo/redo. Unsupported
+   structure/paste is still refused. This is not full native IME acceptance.
+3. Switch between the original and copy: the original stays read-only; only the
+   copy has independent writing/history. Open/cancel another file without losing
+   the copy. Do not interpret Not saved as proof that a persistent receipt failed.
+4. Prepare an empty dedicated `~/Markdown-Persistent-Test-<name>` local APFS
+   directory with no important files, not synchronized or writable by others.
+   Choose **Create persistent test copy…**, cancel first, then choose a new safe
+   filename. Check the receipt path, revision and SHA-256. Existing targets must
+   be rejected; never change permissions to force acceptance.
+5. Continue typing. The exported file must remain at its copied revision; the
+   temporary copy must remain **Not saved**. Compare original file bytes/hash
+   with the initial fixture: unchanged.
+6. Cancel the unsaved-close warning once and verify content is retained. Then quit,
+   restart and Cmd+O the exported file. It must reopen read-only with the exact
+   copied contents. Unexported later edits/recovery records do not survive exit.
+
+No new user manual PASS is recorded yet. Automated dialog stubs do not replace
+this human check. Keep all prior file-writing, release and phase 1B-3 limitations.
+
+Existing Document Editing V1 retest after composition blocker repair:
+
+- Previous user QA is **FAIL**, not superseded by automated results. On a synthetic
+  document, replace Chinese in one ordinary paragraph, finish the candidate,
+  then click another paragraph and continue Chinese/English input. Also click
+  another paragraph while preedit is active; verify the confirmed text survives.
+- Exercise Enter, Backspace, undo/redo, original → copy → original switching, then
+  persistent-copy cancel/create/quit/reopen using the same restricted test folder.
+  Confirm original bytes/hash unchanged and temporary copy still Not saved.
+- Code/opaque blocks now show a read-only tooltip and cannot receive input. Return
+  to a supported paragraph and verify continued editing. Cross-format/unsupported
+  edits remain refused, not silently normalized.
+- If input still remains composed, observe the visible status. Finish/cancel using
+  the IME or click an editable paragraph to request browser completion. If no end
+  arrives, the app deliberately stays blocked; do not refresh or quit expecting
+  memory drafts to be persisted. Report whether a candidate is still visible and
+  whether the warning remains, without sending private text. This residual case
+  is not declared fixed by synthetic tests.
+
+Awaiting new native macOS Pinyin/manual outcome; no PASS recorded yet.
+
+
+0.29.0 WIP closeout: the above native-IME retest remains NOT VERIFIED; the user's
+prior Chinese-input FAIL is retained. Pro system keyboard input produced ASCII
+under the selected WeType source with zero composition events, so its successful
+ordinary typing, undo/redo and original/copy switching do not count as Chinese IME
+acceptance. Original synthetic bytes/hash were unchanged. The completed test
+instance exited normally; an interrupted setup was separately preserved. Controlled
+Air E2E remains automation evidence only. No additional user device work is required
+for this WIP checkpoint; native IME remains a future acceptance gate. Original-file
+overwrite is still prohibited; only approved persistent test-copy creation exists.
+
+
+### Save As New File V1 — limited manual acceptance pending
+
+Use only synthetic notes and a disposable ordinary folder directly under home,
+for example `~/Writing-synthetic-QA`. It must be local APFS, owned/writable by you,
+not writable by others, not synced and not a symlink. Existing unrelated synthetic
+sentinels are allowed; do not change permissions to force an unsupported folder.
+
+1. Launch from `apps/desktop` with
+   `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+2. Cmd+O a synthetic Markdown file, choose **Edit a copy**, edit ordinary text,
+   Enter/Backspace and undo/redo. Original remains read-only and byte-identical.
+3. Choose **Save as new file…**. The panel proposes only `Untitled.md` and explains
+   that home itself is unsupported: explicitly select the supported folder. Cancel;
+   writing is unchanged and no selected target is created. Repeat with a name such as
+   `编辑后的副本 😀.md` in the supported folder.
+4. Check **Last confirmed copy** revision/path/hash. Retry the same name: it must
+   be refused even if macOS offered Replace. The earlier receipt stays visible and
+   **Latest operation** independently shows the refusal. Cancel another attempt and
+   switch original -> copy: the last successful receipt must remain per session.
+   Existing sentinels and original stay unchanged.
+5. Continue typing: the receipt describes only the earlier revision, the new file
+   does not update, and the editing session still says **Not saved**.
+6. Quit, reopen the created file using Cmd+O and compare bytes/hash. It is readonly.
+
+No new manual/native-dialog PASS is claimed by automated selection stubs. Native
+Chinese IME remains NOT VERIFIED; prior Chinese-input QA FAIL and phase 1B-3
+formal FAIL remain. Overwrite and coordination-required are not relaxed.
+
+
+### Ordinary Paragraph Compatibility V1 — synthetic soft-wrapped paragraph
+
+Pending user manual acceptance; the automated Pro Electron pass is separate.
+Launch the existing document demo with `--persistent` and use only synthetic
+files plus a supported local test destination. Prepare a file with this source:
+
+```markdown
+First 中文😀
+second line.
+
+Last.
+```
+
+1. Cmd+O opens the original readonly. The first two source lines display as one
+   paragraph. Choose **Edit a copy**; it is a different session marked Not saved.
+2. Replace characters within either source line, move the caret and continue
+   typing. Undo/Redo should restore the exact source edits. Repeat with CRLF/BOM.
+3. Try deleting the space representing the source newline, selecting across it,
+   or Enter within this paragraph: expect **Edit not applied**, unchanged text,
+   and continued editing within a supported source line. Visual screen wrapping
+   alone is not this boundary. Single-line `Last.` retains prior Enter behavior.
+4. Switch original -> copy: source identity/history remain separate. Save as a
+   new file in an already-supported folder, then quit and reopen it. Compare
+   bytes/hash: the new file has the edits and original line endings; the original
+   is unchanged. The temporary copy remains Not saved, with no overwrite ability.
+
+Chinese text insertion by automation is not native IME verification. A real
+Pinyin sequence needs separately recorded evidence; the previous manual FAIL
+is not cleared by this feature. Do not use important personal documents for QA.
+
+
+### Plain paste and clear new-file feedback V1 — 0.32.0 checkpoint checks (historical)
+
+Use synthetic text in a new preview instance. Preserve unsaved text in any older
+window before closing it; an existing window does not hot-load the new bundle.
+Launch with `mise exec -- node tools/run-document-copy-demo.cjs --persistent`.
+
+1. Copy a synthetic file path, open Cmd+O -> Cmd+Shift+G, and press Cmd+V.
+   It should paste through the native Edit menu. This native-dialog interaction
+   has not yet been manually verified; menu-role inspection alone is not a PASS.
+2. In a temporary document or Edit a copy, paste one line such as `中文 English 😀`
+   into a supported text span, then Undo/Redo. Try two lines: the entire paste
+   must be refused without truncation or deleting the selection. Readonly files,
+   active composition and protected source ranges must not become editable.
+3. Save as a new file in a supported home-child folder. Check the visible confirmed
+   path/revision and expandable SHA-256. Continue editing, then choose the same
+   filename: the earlier success remains, a separate refusal appears, and Not
+   saved plus the unexported-later-edits warning remain accurate. Original and
+   already-created files must not change.
+4. A refused ACL directory must say no file was created, keep writing and explain
+   how to choose another location. Do not alter folder permissions to bypass the
+   policy. Unknown/partial outcomes must never be described as no file; these
+   are covered with controlled tests, not induced on personal files.
+
+Automated evidence: 147 Node and 3 real Pro Electron cases PASS with five clean
+app exits; clipboard events and native dialog selections were controlled. This
+is not actual system clipboard/Go To Folder or native Pinyin acceptance. Historical
+Chinese-input manual FAIL/NOT VERIFIED and all existing release gates remain.
+
+
+2026-11-02 user feedback: paste testing passed. This is manual QA evidence for
+the reported paste experience; no additional native-dialog steps or IME coverage
+are inferred. Local WIP 0.32.0 retains the automated and remaining limits above.
+
+### Multiline plain paste V1 — current candidate
+
+Use synthetic text in a fresh document preview, with any previous unsaved window
+preserved. Paste `第一段中文😀`, a newline, and `Second paragraph.` into one plain
+paragraph or an empty temporary document. They should become two paragraphs;
+one Cmd+Z removes the whole paste and Cmd+Shift+Z restores it. Enter/Backspace
+continue to operate on the ordinary paragraph boundaries. A blank separator
+between nonempty lines also creates one paragraph boundary, not a persistent
+empty paragraph. Up to 32 paragraphs and 4096 UTF-16 units, including conversion.
+
+Leading/trailing blank lines, more than one blank separator, unsafe Markdown
+syntax, formatted/soft-wrapped targets and cross-block selections are refused
+without partial insertion. Switch original -> copy; use Save as new file in an
+already-supported folder and reopen in a fresh process. Original bytes must stay
+unchanged, BOM/CRLF and untouched syntax must survive, the copy must retain
+Not saved/history, and later edits must not change the exported file.
+
+Automated: 158 Node tests PASS and two targeted Air Electron cases PASS (the
+existing single-line case plus the new multiline lifecycle case), four clean
+process exits. Paste events and native file-dialog choices are controlled, not
+OS-clipboard or native IME acceptance. The fast Meta+Left -> Backspace sequence
+can precede PM's selection acknowledgement; the test now waits for the actual
+PM caret before Backspace. The earlier unsafe-range refusal did not lose text,
+but that rapid-key boundary is not claimed resolved. Native Pinyin remains
+NOT VERIFIED and the historical user Chinese-input FAIL remains open.
+
+2026-11-02 follow-up: user reports **new-file save and reopen PASS**. A separate
+ACL-directory refusal is expected under current policy; screenshot receipts do
+not prove every directory or native IME support.
+
+The earlier rapid line-start Backspace refusal now has a narrow fix: synchronize
+a confirmed collapsed browser caret within the same ordinary paragraph before
+the existing Backspace command. 161 Node and two Air Electron cases pass,
+including the deterministic stale-PM-selection regression, actual keyboard
+Meta+Right -> Meta+Left -> Backspace without a selection wait, Undo/Redo, exact
+new-file reopen and unchanged original. Three successful processes exit cleanly.
+Native Pinyin remains NOT VERIFIED; no new manual keyboard PASS is claimed.
+For optional next experience, move to the start of the second plain paragraph
+and press Backspace, then undo. Do not modify permissions to bypass ACL refusal.
+
+
+### Downloads new-file compatibility (2026-11-02, uncommitted 0.32.0)
+
+The earlier blanket Downloads ACL refusal is narrowed, without changing the
+folder's permissions. Supported: an existing, owned, non-synced, local APFS folder
+directly under Home with no group/other write bits; at most one non-inheriting
+Everyone deny-delete ACE and a fingerprinted opaque `com.apple.macl` attribute
+(in addition to provenance). Other ACLs/xattrs/flags remain rejected. Desktop,
+Documents, Library, hidden, known sync and nested folders remain unsupported.
+
+Automated evidence: 97 distinct targeted Node tests and one Air Electron E2E PASS
+(the same case rerun once after strengthening its native MACL fixture). The real
+utility writer created in a fresh synthetic folder carrying the default ACL and a generated native MACL xattr; both
+Electron processes exited normally, fresh-process read-only reopen matched bytes
+and SHA-256, cancel/same-name refusal retained writing, subsequent edits left the
+copy unchanged, and Not saved/history persisted. Test-native dialog selection
+was stubbed. The local Downloads directory passed a read-only authorization and
+metadata check; no user file was read or created there. This is not a new manual
+native Save Dialog or native IME PASS. Prior Chinese-input manual FAIL remains.
+
+For the next brief user experience: restart the updated development entry,
+create/edit a disposable copy, choose Save as new file, select Downloads and a
+unique filename, then reopen it. If an extra ACL or a changed MACL still causes
+refusal, retain the writing and report the error; do not change directory
+permissions to bypass it. Never overwrite an existing document.
+
+Independent DeepSeek review completed with no confirmed new P0/P1. Codex A
+verified its MACL coverage gap and added the native checks above. Failure-evidence
+retention and bounded synchronous default-location probe latency remain explicit
+limits; no further review, commit or release is implied.
+
+
+2026-11-02 native Downloads follow-up: user saw a new file but the app reported
+`unsupported-xattrs / created-unverified` and then blocked another attempt. This
+is **not a save-confirmation PASS**. The file had native MACL and last-used-date
+attributes that the directory-only change had not covered. The new persistent
+file path now fingerprints these attributes in the writer and rechecks them in
+the parent. 101 focused Node / one Air Electron case PASS with generated native
+attributes on the new file, fresh-process reopen and unchanged writing/history.
+Dialog choice remains stubbed. The actual reported file passes metadata-only
+inspection; its content and old revision were not reconciled.
+
+Keep the current writing and reported file; do not retry over that name or force
+unlock. After preserving the writing, use an updated fresh development session
+and a unique filename in Downloads; expect a confirmed path/revision/hash, then
+reopen read-only. The old unresolved session is intentionally not repaired by
+this patch. Native Downloads manual success still requires that fresh run;
+original-file overwrite and native IME restrictions remain unchanged.
+
+
+2026-11-03 follow-up supersedes the earlier request to retry without timing evidence:
+
+- Half-width `[`, `]`, `[ ]` are editable as literal text, including Undo/Redo;
+  links/reference links/task syntax and unsupported blocks remain protected.
+  83 editing/source-map tests and the existing Pro keyboard E2E passed. This does
+  not verify system Chinese IME or remove the prior Chinese-input manual FAIL.
+- A user-assisted native Save Dialog run into Downloads reproduced the exact
+  `created-file-changed` failure. The content/hash and identity stayed unchanged;
+  ctime changed during initial native metadata inspection. The first capture now
+  occurs before the strict baseline. Later changes still refuse.
+- After the fix, another explicitly authorized native Downloads run (user Save
+  click, automated receipts/hash checks) confirmed revision 58 and the same hash
+  after process exit and fresh Service read. One automated Electron case also
+  verified read-only reopening in a second Electron process. These are distinct
+  pieces of evidence, not a claim that all steps were human-operated.
+- The successful synthetic Downloads file was moved recoverably into
+  `/private/tmp/markdown-downloads-confirm-cvgp_jt3/confirmed-file/`; its
+  `restore-mapping.json` records the original path. The failed synthetic run is
+  retained at `/Users/liyunhui/Downloads/markdown-diagnostic-0f27515695e3.md`.
+  Existing Untitled/Untitled1/Untitled2 user files and current windows were untouched.
+- Already running apps still use their loaded code. Preserve current unsaved text
+  before restarting; an old unresolved receipt is never converted to success by
+  this patch. No existing-file overwrite, automatic retry or recovery unlock.
+  Release, SEC-01 and formal phase-1B3 gates remain unchanged.
+
+
+2026-11-03 user manual confirmation: the user reports “人工测试都通过了”.
+Screenshots show confirmed new Downloads receipts for Untitled3.md and Untitled4.md
+(revision 3), literal half-width brackets entered alongside full-width brackets,
+and the later-edit notice “后续修改尚未导出” while the editing session remains
+Not saved. Record these two fixes and receipt semantics as **limited manual QA
+PASS**, distinct from the automated checks above. These screenshots do not add
+an independent disk-hash check or a full native Chinese composition test. No user
+file was inspected or changed to record this result. Historical native IME,
+original-file overwrite and release limitations are unchanged.
+
+
+## Local Draft Recovery V1 — optional user experience check (2026-11-03)
+
+Automated evidence: 138 focused Node PASS and two Pro Electron cases PASS. These
+use synthetic files, controlled input and stubbed dialog selection. Native macOS
+Chinese IME remains **NOT VERIFIED**; prior manual Chinese-input FAIL is not
+lifted. Limited user backup/restore confirmation is recorded below.
+
+1. Launch the restricted document entry (or persistent-copy launcher). Create a
+   temporary document, type two short ordinary paragraphs and wait for “本地草稿
+   已备份（修订 …）”. The separate badge must remain **Not saved**.
+2. Close the app, accepting the existing close warning, then start it again.
+   Expand “恢复本地草稿” and select “恢复副本”. Confirm the text is present; the
+   restored session is independent and its Undo history starts here.
+3. Continue editing and use **Save as new file…** in a supported location. The
+   file receipt and draft backup status are separate. Further edits must not
+   change the exported file or any original; reopen the export read-only.
+
+Do not induce real disk/permission failures or delete draft records manually for
+this experience check. Those cases use isolated automated fixtures. Uncommitted
+IME text, renderer recovery copies and previous Undo history are not recoverable
+in V1; a still-pending backup is not a guarantee. At 32 draft IDs new backups are
+refused without deleting older records. This slice has no draft-deletion UI.
+
+
+2026-11-03 limited user experience confirmation: the user supplied three screenshots
+and reported “应该是可以了”. They show a confirmed draft backup at revision 4,
+one recoverable draft, and a restored independent session with the edited
+synthetic paragraphs visible, a fresh revision 0 and Not saved retained. Record
+this as **limited manual backup/list/restore PASS**, not full feature acceptance.
+The screenshots alone do not establish full process exit, byte/hash equality,
+post-restore export/reopen or native IME behavior; the separate automated evidence
+continues to cover its stated scope. No user draft files were read for this note.
+
+
+### Draft Management V1 — manual acceptance pending (2026-11-03)
+
+Use disposable synthetic drafts with the current candidate. Existing user draft
+content must not be removed as part of automated testing.
+
+1. After backing up two drafts and reopening the app, click **草稿** in the header.
+   Verify time, revision and short ID distinguish same-name items.
+2. Choose **归档** on an inactive draft, then **取消**: it remains in the list.
+   Repeat and confirm: it appears under **已归档（可放回）**.
+3. Restart, choose **放回待恢复列表**, confirm, then **恢复副本**. Confirm the expected
+   body is present, Not saved remains, and old Undo history has not been restored.
+4. A draft in use has disabled archive controls. Error/partial groups must remain
+   visible and cannot be organized. Archive is reversible and does not erase a
+   Markdown file or release disk-record capacity.
+
+The two-process automated GUI case covers cancel/archive/return/restore, original
+bytes/hash, corrupt/active blocking and permission-failure retention using hidden
+synthetic windows. It is not user manual acceptance or native IME evidence. Prior
+manual backup/list/restore PASS remains limited to the earlier recovery feature;
+this new management interaction has not yet received user manual acceptance.
+
+
+### Writing UI V2 — short experience check, not yet performed by user (2026-11-03)
+
+1. Open a disposable Markdown document. The body should appear below one compact
+   toolbar/status line. Choose **编辑副本**, type in a supported paragraph and
+   use Undo/Redo. Click the title to switch original/copy: original remains readonly.
+2. Open **草稿**. The list refreshes; recovery/archive/return remains available.
+   Close with **关闭** or Escape. **详情** contains backup/export evidence and limits.
+   Neither panel should occupy the normal writing page when closed.
+3. Choose **另存新文件…**. Cancel the confirmation with Escape and continue typing;
+   then create a new file in a supported directory and reopen it. The editing copy
+   still says **未存为文件**; later edits show **后续修改尚未导出**. A failed later
+   attempt must stay visible alongside the earlier confirmed export.
+
+Automated evidence: 100 Node and 3 Pro Electron cases PASS. UI widths include
+390/640/1050/1440 CSS px. Windows are hidden except brief inactive screenshot
+capture; controlled input and stubbed native selection are not native IME/Save
+Dialog manual acceptance. Air NOT RUN (current connection entry unavailable).
+Prior manual successes and historical native IME NOT VERIFIED/FAIL remain scoped
+as previously recorded. This presentation change does not permit original-file
+overwrite, arbitrary destinations, or recovery of old Undo/native preedit.
+
+
+### Writing V3 — bounded experience check, user acceptance pending (2026-11-04)
+
+1. In a synthetic editing copy, use macOS Chinese Pinyin to type, choose/cancel a
+   candidate, and continue in another paragraph. Normal preedit should show only
+   `输入中…` without pushing the body down; completion re-enables controls. A
+   persistent disabled state or lost text is a failure, not cleared by these tests.
+2. On nonempty single-line text choose 标题 2; Enter into a paragraph. Select text,
+   click B / Cmd+B, select the whole bold text to remove it, and Undo/Redo. Convert
+   a plain paragraph to a list; Enter, type a second item, Enter twice to exit.
+   Nested/task/complex blocks should remain protected without losing other edits.
+3. Switch original/copy, export to a fresh filename in a supported destination and
+   reopen. `本地草稿` / `已备份` / `当前内容已导出` describe different states; later
+   edits must show `后续修改尚未导出` and leave the file unchanged.
+
+210 Node / four distinct Pro Electron cases PASS are controlled evidence only.
+CDP browser composition and stubbed native selection do not establish actual
+system Pinyin or native save-dialog acceptance. Prior native IME NOT VERIFIED and
+historical manual FAIL remain. Use synthetic content; do not replace original files.
+
+
+### Approved prototype integration — batch 1 (2026-11-04)
+
+Automated PASS: 83 targeted Node, four distinct Pro Electron cases and two Air
+Electron cases. Real Electron rendering at 390/640/1050/1440px, sidebar filtering,
+original/copy navigation, Undo/Redo, controlled composition gates and failed IPC
+retaining the confirmed document are covered. Original bytes/hash remain exact.
+Pro additionally covers the unchanged new-file export/reopen and receipt flow.
+Air uses a verified current snapshot and existing runtime, not the old source copy.
+Synthetic browser input and stubbed file selection do not establish native Pinyin
+or native save-dialog acceptance. Historical IME NOT VERIFIED/FAIL remains scoped.
+
+Optional visual experience check, not yet performed by the user:
+
+1. Open a disposable Markdown file, create an editing copy, then switch between
+   the two real rows in the sidebar. Text/history should remain and original is readonly.
+2. Filter by an open document's name, clear the filter and collapse/reopen the
+   sidebar. Resize the window: narrow mode uses an overlay without horizontal overflow.
+3. Open 草稿 at the sidebar bottom and 详情 in the header. Close the panels and
+   continue writing. Backup/export status stays in its distinct place; normal
+   composition shows 输入中… without shifting the body.
+
+This batch connects the main layout and document list only. Outline, theme and
+settings screens remain standalone prototype work; no file-tree or full-text
+search is implied by the sidebar. Existing save destinations/overwrite guards remain.
+
+
+### Approved prototype integration — batch 2 (2026-11-04)
+
+Automated evidence: 11 focused Node and three Air Electron cases PASS. Covers real
+heading navigation (including duplicate titles), heading edits/Undo/Redo, stale
+session rows, blocked composition/pending input, theme/reading options, identical
+editor instance and unchanged source/revision on display changes. Original file
+bytes/hash remain exact. Air screenshots cover dark desktop and 390px settings/
+outline; existing responsive/sidebar/IPC-failure cases also pass. Follow-system
+uses emulated media; native Pinyin remains NOT VERIFIED and historical FAIL remains.
+
+Optional short experience check; not yet performed by the user:
+
+1. Open a synthetic document with headings. Show the right outline and click its
+   titles; create a copy, edit a heading and Undo/Redo. The outline should follow.
+2. Click **Aa** or Cmd+,; try dark/system theme, font, size, width and line spacing.
+   Close the dialog and continue writing. Switching documents keeps these display
+   choices; restarting resets them. Exported Markdown should not gain display styles.
+3. Narrow the window and open/close the outline and settings. Confirm the reading
+   comfort and contrast. Automated layout checks do not replace this preference check.
+
+Only supported rendered headings appear. No original-file overwrite or destination
+policy expansion is included. No real system appearance setting was changed by tests.
+
+
+### Approved prototype integration — batch 3 (2026-11-04)
+
+55 focused Node and two distinct Air Electron scenarios PASS. Covers empty/error
+draft states, active/uncertain cards, archive/return/restart/restore, protected partial
+records, retained content on failure, export/reopen and original bytes/hash. Save
+success remains distinct from later failure. Light/dark and 390px panel screenshots
+were checked. One test-only screenshot callback correction preceded the final
+archive-case PASS. Native selection is stubbed and composition controlled; native
+macOS IME NOT VERIFIED and historical manual FAIL are not cleared.
+
+Optional visual acceptance, not yet performed by the user: open **草稿**, inspect
+cards and **已归档**, then close without changing records. Open **详情** on an
+original and an editing copy; identity, backup and file export must read as distinct
+states. Open **另存新文件…**, use **返回编辑** or Escape, and continue writing.
+Check comfort/contrast in both themes. No extra manual file creation is required
+to review this visual batch; automated export still uses exclusive new-file creation.
+
+
+### Document find V1 — optional short experience check (2026-11-04)
+
+The user accepted the prior visual baseline. Air automated find coverage passed;
+the following new human check has **not** been claimed as performed:
+
+1. Open a synthetic document and press Cmd+F. Search Chinese/English text, use
+   Enter/Shift+Enter, toggle Aa for case sensitivity, then Escape back to the text.
+2. In an edit copy, leave find open, edit a matching paragraph and Undo/Redo.
+   The count updates. Switch original/copy; matches belong to the displayed text.
+3. Optional: try the same bar in dark mode and a narrow window. It should not
+   obscure the current document or produce horizontal page overflow.
+
+Find is literal, current-document only; no replacement. It covers displayed
+protected blocks, not hidden source syntax; matches do not cross block boundaries.
+Queries are limited to 256 UTF-16 units; at most the first 1,000 matches are
+highlighted/navigable with an explicit limit notice and an accurate total.
+Normal composition pauses navigation. Air composition checks used controlled
+events, **not native macOS IME**. Native IME remains NOT VERIFIED and earlier
+manual/formal FAIL is not cleared. File save/overwrite policies are unchanged.

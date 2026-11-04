@@ -1,51 +1,196 @@
-# Markdown Vault App
+# Markdown
 
-A local-first desktop Markdown editor for macOS, built with Electron. Notes are stored as plain `.md` files on disk in a folder you choose — no cloud, no accounts, no hosted backend.
+A local macOS Markdown editor with a document-first writing workspace, built with
+Electron and Tiptap. Open an original read-only, edit an independent copy, keep
+local draft backups, and explicitly export a new `.md` file. Existing files are
+never overwritten. No account or hosted backend is required.
 
-Aimed at developers and tech-savvy note-takers who want their notes as plain `.md` files on disk, edited under their full control.
+**0.37.1 development WIP:** the installed app is not a signed/notarized release or a
+promise of unrestricted Markdown editing/saving. Current limits are below.
 
-The setup also integrates with the `mcp-note-ingest` MCP server (installed as a Claude Code plugin from the `workflow-and-MCP-and-plugins` marketplace) that lets AI tools write chat notes directly into the same vault.
+## Open the application
 
-> Status: usable for local development and early feedback. Not production-distributed. Inspired by simplified local-first Markdown editor workflows; not an Obsidian replacement.
+On this development Mac, double-click `~/Applications/Markdown.app` in Finder.
+It may be kept in the Dock. The installed bundle includes its runtime and does
+not need Terminal, mise, a Worktree path or an external Electron installation.
+It uses the current writing workspace, not the historical Vault interface.
+Source edits do not update the installed app until it is rebuilt and reinstalled.
+The installed 0.37.0 bundle has not yet received the 0.37.1 dependency updates.
 
-## Headline guarantees
+With existing development dependencies, start the same UI from source:
 
-- **Raw Markdown is the source of truth.** Notes remain plain `.md` files. The CodeMirror engines preserve source text at the LF/character level; the opt-in Tiptap WYSIWYG engine serializes through `remark` and therefore produces stable, remark-normalized Markdown rather than byte-identical output.
-- **Local-first.** Notes live in a folder you choose. No cloud, no accounts, no hosted backend.
-
-## Screenshots
-
-Screenshots will be captured before any wider public release and committed under `docs/assets/screenshots/`. No placeholder image binaries are checked in.
-
-Planned shots:
-
-```
-docs/assets/screenshots/main-editor-write.png       — main window with sidebar and a note open in Write mode under the default hybrid-cm6 engine; engine label "CM6 Hybrid" visible
-docs/assets/screenshots/main-editor-preview.png     — same note switched to Preview mode (Toast UI rendering)
-docs/assets/screenshots/hybrid-cm6-live-styling.png — close-up of the editor pane showing several styled constructs (Setext heading, strikethrough, task list, link, horizontal rule)
-docs/assets/screenshots/frontmatter-plain.png       — note that begins with YAML frontmatter showing the leading "---" rendered plain (Stage 14.9 contract)
-docs/assets/screenshots/vault-picker.png            — empty-state / vault picker screen
-docs/assets/screenshots/save-all-quit.png           — close-guard dialog (Cancel / Discard & Quit / Save All & Quit)
-```
-
-## Quick start
-
-```bash
+```sh
 cd apps/desktop
-npm install
-npm run dev
+mise exec -- npm run dev
 ```
 
-See [Getting Started](#getting-started) below for build, test, and engine-selection details.
+Build the current unsigned app with `mise exec -- npm run pack`.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for isolated packaging verification.
+`npm run dev:legacy` explicitly starts the historical Vault runtime. The older
+`tools/run-document-copy-demo.cjs --persistent` launcher remains a QA tool and is
+no longer required for ordinary app use.
 
-## Features
+## Current document workflow
+
+Use **打开…** or **Cmd+O** to select one `.md` file from any directory,
+then open a different file in the same window. No Vault is required. The approved
+prototype's first integration batch provides a collapsible sidebar of real open
+sessions, a compact document/format toolbar, a centered writing surface and a
+bottom status bar. The sidebar filters open document names only; it does not scan
+folders or search document content. Click a row to switch original/copy, or click
+the document title to see its full name and directory. Press Escape or click outside to dismiss the title menu;
+Escape returns focus to the title when focus was inside the menu. On narrow windows the
+sidebar becomes an overlay. The welcome page offers New and Open. Opened original
+files cannot be edited or saved.
+
+The second integration batch adds a real **文档大纲** on the right: click a heading
+to scroll to it without changing the caret or document. It lists supported headings
+rendered by the editor, excluding code and protected/opaque structures, and follows
+confirmed heading edits and Undo/Redo. Narrow windows use a closable overlay.
+Choose **Aa** (or **Cmd+,**) for light/dark/follow-system appearance, body font,
+size, width and line spacing. These display choices keep the existing editor and
+Markdown unchanged, remain across document switches in this window, and reset on
+restart. They do not change exported Markdown formatting. Navigation/settings
+pause while input or an edit is unconfirmed.
+
+**Cmd/Ctrl+F** or the search icon opens document find: literal text highlights,
+current/total count, optional case sensitivity, Enter/Shift+Enter navigation and
+Escape to return to the editor. It searches displayed text (including protected
+blocks), crosses inline marks but not block boundaries, and does not change the
+document, revision or history. Queries allow 256 UTF-16 units; for more than 1,000
+matches the total remains exact but only the first 1,000 are highlighted/navigable.
+Edits and session switches refresh matches; unsettled input pauses navigation.
+Find does not replace text or search folders. The user has accepted the current
+visual layout as the baseline for subsequent functional work.
+
+**草稿** shows recovery cards, active/uncertain labels and reversible archive
+actions. Empty results are distinguished from list errors. **详情** separates
+current-document identity, local backup, the last confirmed new file and the latest
+operation; later failure never replaces an earlier success receipt. Technical
+details and limits are expandable. Save confirmation offers **返回编辑** or
+**选择位置…**; Escape cancels through the existing handler. Draft-management
+confirmation cannot be closed while its request is pending. These panels support
+the same light/dark appearance and narrow-window layout as the editor.
+Cancel or an open error keeps the current document.
+
+Click **新建**, or open a file and choose **编辑副本**, to
+write in an independent session. Confirmed writing receives a separate local draft
+backup; the original file stays read-only.
+Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
+source-line boundaries and unsupported structures remain protected. Literal `[`
+and `]` can be typed when they remain ordinary text; edits that create links or
+reference syntax are still refused. Plain-text
+paste accepts a single line in one supported text range, or up to 32 nonempty
+paragraphs within one plain top-level paragraph (including an empty input slot).
+A clipboard newline or one blank separator becomes a paragraph boundary, using
+the document's existing newline style. One paste is one Undo/Redo item. The 4096
+UTF-16 limit applies before and after conversion; clipboard HTML is ignored.
+Leading/trailing blank lines, consecutive empty paragraphs, cross-block selections,
+multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
+are refused as a whole. The native Edit menu includes Paste for system dialogs.
+
+The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列表**, selection
+**加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
+reparse it; they do not normalize the whole file. Headings require a nonempty
+single source line. Bold applies within one text leaf; removing it requires the
+whole bold leaf. Lists support up to 32 flat, tight, one-line items: Enter splits
+a plain item, Enter on the last empty item exits, and Backspace at a nonfirst plain
+item's start joins it to the previous plain item. Converting a list applies to the
+whole current list. Nested/task/loose lists and complex structures remain protected.
+Typing Markdown markers is not a general formatting shortcut in this preview.
+
+Normal IME composition shows only **输入中…**, without moving the writing area.
+Formatting, switching and export stay disabled until input is confirmed. Invalid
+input, backup failure and uncertain file creation still show actionable warnings;
+no composition state is cleared by a timer or by hiding its status.
+
+The installed app and `npm run dev` include the restricted **另存新文件…** flow.
+
+Choose an existing ordinary local APFS folder directly under your home folder,
+owned by you and not writable by others. Home itself, Desktop, Documents,
+Library, hidden and known sync folders are unsupported. Downloads is supported
+when it passes these checks: its non-inheriting everyone deny-delete protection
+and opaque `com.apple.macl` directory metadata are accepted and fingerprinted;
+other ACLs/xattrs remain refused. The dialog suggests Downloads only after checks
+pass, then revalidates the selected destination before creation. The app does not
+change folder permissions. Nested folders are not yet supported. Native MACL and last-used
+attributes on newly created files are retained and checked across writer/main
+verification. The first native metadata probe precedes the strict stat/byte
+baseline so initial macOS metadata setup is not mistaken for a later change;
+unknown metadata or changes after that baseline still prevent a success receipt.
+Only new files are created; existing targets are never overwritten. The UI
+separates the last confirmed file's path/revision/hash from later failures and
+reports uncertain outcomes without claiming that no file exists.
+
+After a confirmed export, **打开已导出文件** opens that file read-only and
+**在 Finder 中显示** requests its location. These shortcuts use the main-owned
+last successful receipt, rechecking canonical path, file identity, byte length
+and SHA-256. A moved, replaced, modified or unreadable file is refused; use the
+ordinary Open dialog to inspect it manually. Later edits and Undo/Redo stay in the
+independent draft, and a subsequent failed export does not erase the successful
+receipt. Unconfirmed input pauses both actions. Shortcuts are session-local and
+are not restored as file authority from a draft backup; the existing eight-session
+limit still applies. Finder receives a display request, not a write permission.
+
+**本地草稿** describes the independent editing session, not a saved Markdown file.
+**已备份** confirms its local backup; **当前内容已导出** confirms the exported
+revision only. Later edits show **后续修改尚未导出** and do not update the file. Open **草稿** at the bottom of the sidebar to list local recovery
+snapshots after a restart. **恢复副本** opens an independent temporary session with the confirmed
+Markdown bytes (including BOM/newlines), a fresh revision and empty Undo history.
+The compact backup indicator is separate from file export; it never means that a
+Markdown file has been saved or an older export updated. **详情** contains the
+backup revision, export path/hash and destination limits. Normal writing keeps
+these explanations out of the document; backup/input/export failures remain visible.
+Switch open sessions using the sidebar or document-title menu. Drafts and details open in side
+panels; Escape closes them. The existing export confirmation remains cancellable
+before IPC, and cannot be dismissed while a create response is pending.
+
+Drafts are stored locally, unencrypted, under
+`~/Library/Application Support/Markdown Vault Document Drafts/` with private
+permissions. Main-confirmed edits are coalesced over an 800 ms window; close also
+attempts a flush. Sudden exit can lose the newest unbacked edits. Uncommitted IME
+text, renderer recovery copies and prior Undo history are not persisted. A failed
+or uncertain backup preserves memory and earlier records and reports the failure.
+The list shows backup time, revision and a short ID to distinguish same-name drafts.
+**归档** requires confirmation, moves an inactive verified draft out of the recovery
+list and retains its content locally; **已归档 → 放回待恢复列表** reverses it.
+Active drafts and groups with unreadable records cannot be organized. Cancel does
+not change records. An uncertain result is shown separately and never auto-retried.
+
+At most 32 non-archived drafts and 128 total snapshot records are supported,
+normally retaining two verified generations per draft. Archiving frees a recovery
+slot, not disk records. Archived, damaged and partial records still count toward
+the record ceiling; reaching it stops writes and asks users to export new Markdown
+files. There is no permanent-delete UI or automatic dismissal after export.
+Close/Quit still asks before discarding. The document selector retains temporary
+sessions while viewing real files. The eight-session limit is a development
+constraint. Native macOS IME remains unaccepted; this is not daily-writing or
+release sign-off.
+
+This restricted preview formats headings, paragraphs, bold and simple flat lists. Other syntax,
+including HTML, images, links and tables, is displayed as literal text; it does
+not load external resources. Only UTF-8 regular, non-linked `.md` files up to
+512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,
+not Finder integration or release acceptance. See the
+[scope and verification](docs/document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
+
+## Historical Vault reference
+
+Everything below documents the old `main.js` / `dev:legacy` application and its
+experiments. It is retained for historical development, is excluded from the
+current document app, and does not promise these features in `Markdown.app`.
+The [October recovery audit](docs/audits/2026-10-22-project-recovery-audit.md)
+records the old pipeline's safety problems. Do not use its Save All / overwrite
+path as a substitute for current Document save protection.
+
+### Legacy features
 
 - Choose any local folder as a Markdown vault.
 - Load `.md` files recursively from the selected vault.
 - Create, edit, save, and delete notes.
 - Notes are kept as normal Markdown files on disk — no proprietary format.
 - Focused editor workspace with a collapsible sidebar (open by default).
-- Filter notes by Drafts, My Notes, AI Imports, and AI Sessions — four disjoint rows in the sidebar (every note belongs to exactly one).
+- Filter notes by Drafts, My Notes, and AI Imports. Codex/Claude session browsing and refresh belong to the independent AI Session Manager.
 - Search by title, body, tags, source, file name, and relative path.
 - Lightweight frontmatter parsing for `tags` and `source`.
 - Seed a demo vault for local testing and demos.
@@ -53,10 +198,15 @@ See [Getting Started](#getting-started) below for build, test, and engine-select
 - Detect MCP-ingested notes by frontmatter `source` (claude/codex/chatgpt/gemini/ai). Older notes under `Inbox/AI Chats/YYYY/MM/` are still recognized by path for backward compatibility.
 - Package a local macOS Electron build for testing.
 - Adjustable editor text size with `Cmd/Ctrl + =`, `Cmd/Ctrl + -`, `Cmd/Ctrl + 0` (persists across launches).
-- **AI Sessions search (Stage S4)** — when an AI Sessions note is open in Read mode, a sticky toolbar above the transcript provides in-transcript substring search with match counter and prev/next cycling. When the AI Sessions filter is active in the sidebar, the existing search input ALSO runs cross-session content search across every imported session's body; results render below the note list with match-count badges sorted by match count. The cross-session index builds lazily on the first query (with a small "Indexing sessions…" progress banner), is reused for subsequent queries, and is invalidated automatically on vault reload.
-- **AI Sessions are read-only (Stage S6)** — opening any session in the AI Sessions filter now renders the transcript directly (no Write / Preview / Read tabs). The tab bar above the editor is hidden for sessions; the right panel shows the rendered transcript only. Non-session notes (Drafts / Vault / AI Imports) keep their existing Write + Preview tabs. Rationale: AI Sessions are immutable transcripts of past conversations — the editing surfaces (CM6 / Toast UI) consume substantial memory on multi-MB transcripts (OOM risk) and were rarely the right tool for log content. If you want to annotate a session, create a separate companion note.
 - **Local AI: Summarize & Rewrite** — one-click **Summarize** the active note and one-click **Rewrite** a selection (or whole note) via a configurable local OpenAI-compatible endpoint (LM Studio, Ollama, `llama-server`). Results **stream into a side panel** below the editor token-by-token, stored **per note**: switching away does not lose them, and the × button both dismisses the panel and aborts the in-flight request. The original note body, dirty state, and on-disk file are never modified by either verb. See [Local AI: Summarize & Rewrite](#local-ai-summarize--rewrite) below.
-- **AI Sessions favorites + grouped view (Stage S5)** — the AI Sessions filter now renders sessions as a grouped tree: **Favorites** (when any; rendered flat) → **Codex** → **Claude** → **Other**. The three agent groups are bucketed by the session's last-activity time (read from the importer's `source_mtime` frontmatter, falling back to file mtime): Today / Within 3 Days / Older Than 3 Days. Empty buckets are skipped. Click the ☆ on any session row to favorite it (★); favorites persist to `localStorage` and appear in a collapsible Favorites section at the top. Both group headers AND bucket headers collapse/expand on click; their state persists. For Codex, the importer reads explicit renames from `~/.codex/session_index.jsonl` and stores them as `source_custom_title`; sessions without a rename display `source_session_id`. Existing Claude custom/AI titles retain their current precedence, and the on-disk filename is used only when session metadata is unavailable. Cross-session search results (Stage S4) show the ★ indicator for favorited sessions. Other filters (All / Drafts / Vault / AI Imports) keep their flat list — only AI Sessions gets the grouped view. AI Imports and AI Sessions are disjoint: imported sessions appear only under AI Sessions, not under AI Imports.
+
+### Session data after the split
+
+Use the standalone **AI Session Manager** for Codex/Claude transcripts, grouping, favorites, transcript search, and refresh. Select your existing `Inbox/AI Chats` library there; no transcript move, rewrite, or deletion is needed.
+
+The editor skips `Inbox/AI Chats/codex/` and `Inbox/AI Chats/claude-code/` before reading Markdown bodies, including when an agent directory or its descendant is selected as the vault. Save, rename, delete, demo seeding, and image-write entry points reject these reserved locations. Matching is case-insensitive and checks symlink aliases. Session-file watcher events do not navigate the editor.
+
+**AI Imports remain editable:** MCP-created notes, legacy `Inbox/AI Chats/YYYY/MM/` notes, and ordinary notes tagged with an AI `source` are retained. Local AI Summarize/Rewrite are unchanged. Existing local preferences and transcript files are not migrated or erased. This boundary identifies the reserved directory layout, not arbitrary transcripts copied or renamed elsewhere.
 
 ### Data-safety guarantees
 
@@ -84,13 +234,39 @@ Five Write engines exist in the codebase. The engine is resolved on load by `app
 |---|---|---|
 | `tiptap` | **Active WYSIWYG direction; opt-in** | ProseMirror/Tiptap rich editing backed by a `remark`/`unified` Markdown bridge. Supports headings, marks, lists and task lists, tables, fenced code, KaTeX math, Mermaid, safe images, preserved frontmatter/raw HTML/references/footnotes, a Source/Rich toggle, and vault-backed image paste/drop. Opt in with `localStorage.setItem('markdownVault.writeEngine', 'tiptap')`. |
 | `hybrid-cm6` | **Default** | CodeMirror 6 with an additional live-Markdown decoration layer that styles common syntax in place (see list below). Promoted from experimental to default in Stage 17. Uses `Decoration.mark` only — no widgets, no `Decoration.replace`. |
-| `hybrid-cm6-lp` | Experimental (Stages A + B + C + D + E + F + G.1 + G.2, opt-in) | Live-preview variant of `hybrid-cm6`. Reuses the hybrid walker via its public export PLUS adds inline-marker and block-marker plugins. **Stage A covered emphasis** (`*`, `_`, `**`, `__`); **Stage B added inline-code backticks, strikethrough `~~`, inline-link brackets/parens/URL/title, and inline-image markup**. **Stage C is the first stage where lp visibly diverges from `hybrid-cm6`**: inline images (`![alt](url)`) render as actual `<img>` elements inline (off-active-line) via `WidgetType` widgets. URL allowlist (`https:`, `data:image/*`, vault-relative paths) gates what renders; vault-relative paths resolve via a new IPC route (`window.vaultApi.resolveImagePath`) with symlink-safe filesystem reads mirroring the session importer. Disallowed URLs (`http:`, `javascript:`, etc.) show a styled-alt placeholder. **Stage D extends the Decoration.replace + atomic-range pattern from inline markers to three block-level marker categories**: ATX heading prefix (`#` … `######`), list bullets (`-`, `*`, `+`, `1.`, `1)`), and blockquote `>`. Setext underlines + HorizontalRule + TaskMarker + fenced-code fences are explicitly preserved unchanged. The Stage D user-visible payoff is thin (cursor atomicity + DOM-level absence of block markers); the architectural payoff is that subsequent widget stages (E, F, G) can rely on block-marker scope decisions being settled. **Stage E renders GFM tables as actual HTML `<table>` grids off-active** via a new multi-line block `TableWidget`: walks the Lezer Table node, parses GFM alignment from the delimiter row (`:---`/`:---:`/`---:`), builds `<table>/<thead>/<tbody>` via `document.createElement` + `textContent` (XSS-safe; HTML special chars in cells render as escaped text). Cell text rendered as plain text (inline markdown inside cells NOT rendered — deferred). Table-level active resolution: caret on ANY line of the table → widget disappears, walker source returns. **Stage F renders LaTeX math via KaTeX**: inline `$x$` and display `$$x$$` off-active render as real TeX. Detection is regex-based with a Pandoc-style whitespace rule + `\$` escape handling; caller-side Lezer-aware filtering skips matches inside InlineCode / FencedCode / frontmatter. KaTeX vendored to `lib/vendor/katex/`; called with `throwOnError: false` + `trust: false`; invalid TeX produces a styled error placeholder. Stage F is the FIRST lp stage to add a new npm dependency (`katex@^0.16`). **Stage G.1 adds fenced-code syntax highlighting via highlight.js** — a `CodeBlockWidget` walks the Lezer `FencedCode` node, reads the language info, and calls `hljs.highlight` for known languages; unknown / missing-language code blocks fall back to plain text. highlight.js vendored to `lib/vendor/highlight/` (~157 KB minified + atom-one-light theme). **Stage G.2 adds Mermaid diagram rendering** for ` ```mermaid ` fenced blocks — first lp stage with async-render widget. The widget returns a sync placeholder; `mermaid.render()` (Promise) patches in the SVG on resolve. Async safety via a `destroyed` flag (mirrors Stage C's image-widget IPC pattern). Mermaid vendored to `lib/vendor/mermaid/` (~3 MB; `securityLevel: 'strict'`). Lang dispatch in `cm6-lp-block.js`'s FencedCode branch: `mermaid` → MermaidWidget; everything else → Stage G.1 CodeBlockWidget. On-active-line behavior matches `hybrid-cm6` exactly for ALL Stages A–G.2. Opt in via `?writeEngine=hybrid-cm6-lp` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp')`. Stage H (promote lp to default) remains upcoming. |
+| `hybrid-cm6-lp` | Experimental (Stages A + B + C + D + E + F + G.1 + G.2, opt-in) | Live-preview variant of `hybrid-cm6`. Reuses the hybrid walker via its public export PLUS adds inline-marker and block-marker plugins. **Stage A covered emphasis** (`*`, `_`, `**`, `__`); **Stage B added inline-code backticks, strikethrough `~~`, inline-link brackets/parens/URL/title, and inline-image markup**. **Stage C is the first stage where lp visibly diverges from `hybrid-cm6`**: inline images (`![alt](url)`) render as actual `<img>` elements inline (off-active-line) via `WidgetType` widgets. URL allowlist (`https:`, `data:image/*`, vault-relative paths) gates what renders; vault-relative paths resolve via a new IPC route (`window.vaultApi.resolveImagePath`) with symlink-safe filesystem reads using no-follow reads and realpath containment. Disallowed URLs (`http:`, `javascript:`, etc.) show a styled-alt placeholder. **Stage D extends the Decoration.replace + atomic-range pattern from inline markers to three block-level marker categories**: ATX heading prefix (`#` … `######`), list bullets (`-`, `*`, `+`, `1.`, `1)`), and blockquote `>`. Setext underlines + HorizontalRule + TaskMarker + fenced-code fences are explicitly preserved unchanged. The Stage D user-visible payoff is thin (cursor atomicity + DOM-level absence of block markers); the architectural payoff is that subsequent widget stages (E, F, G) can rely on block-marker scope decisions being settled. **Stage E renders GFM tables as actual HTML `<table>` grids off-active** via a new multi-line block `TableWidget`: walks the Lezer Table node, parses GFM alignment from the delimiter row (`:---`/`:---:`/`---:`), builds `<table>/<thead>/<tbody>` via `document.createElement` + `textContent` (XSS-safe; HTML special chars in cells render as escaped text). Cell text rendered as plain text (inline markdown inside cells NOT rendered — deferred). Table-level active resolution: caret on ANY line of the table → widget disappears, walker source returns. **Stage F renders LaTeX math via KaTeX**: inline `$x$` and display `$$x$$` off-active render as real TeX. Detection is regex-based with a Pandoc-style whitespace rule + `\$` escape handling; caller-side Lezer-aware filtering skips matches inside InlineCode / FencedCode / frontmatter. KaTeX vendored to `lib/vendor/katex/`; called with `throwOnError: false` + `trust: false`; invalid TeX produces a styled error placeholder. Stage F is the FIRST lp stage to add a new npm dependency (`katex@^0.16`). **Stage G.1 adds fenced-code syntax highlighting via highlight.js** — a `CodeBlockWidget` walks the Lezer `FencedCode` node, reads the language info, and calls `hljs.highlight` for known languages; unknown / missing-language code blocks fall back to plain text. highlight.js vendored to `lib/vendor/highlight/` (~157 KB minified + atom-one-light theme). **Stage G.2 adds Mermaid diagram rendering** for ` ```mermaid ` fenced blocks — first lp stage with async-render widget. The widget returns a sync placeholder; `mermaid.render()` (Promise) patches in the SVG on resolve. Async safety via a `destroyed` flag (mirrors Stage C's image-widget IPC pattern). Mermaid vendored to `lib/vendor/mermaid/` (~3 MB; `securityLevel: 'strict'`). Lang dispatch in `cm6-lp-block.js`'s FencedCode branch: `mermaid` → MermaidWidget; everything else → Stage G.1 CodeBlockWidget. On-active-line behavior matches `hybrid-cm6` exactly for ALL Stages A–G.2. Opt in via `?writeEngine=hybrid-cm6-lp` or `localStorage.setItem('markdownVault.writeEngine', 'hybrid-cm6-lp')`. Stage H (promote lp to default) remains upcoming. |
 | `cm6` | Fallback | CodeMirror 6 single-document adapter — Markdown editing with syntax highlighting, real undo/redo, real selection, Chinese IME support. Reachable via `?writeEngine=cm6` or by setting the `markdownVault.writeEngine` localStorage key to `cm6`. |
 | `hybrid` | Legacy fallback | Stage 2 HybridWriteView (per-block textarea swap) plus Toast UI Preview. Retained as a fallback; removal is deferred. |
 
 The long `hybrid-cm6-lp` description above is retained as stage history. That
 engine's planned Stage H promotion was abandoned; ProseMirror/Tiptap is the
 current WYSIWYG direction.
+
+In Tiptap, loading or switching notes starts fresh undo/redo history; undo cannot
+restore a previous note or reverse the incoming load. Same-note rich edits and
+Source/Rich body edits remain undoable. Undo history is not restored on revisit.
+
+Untouched Tiptap documents retain their loaded Markdown spelling, including
+after rich edit/undo; merely switching notes or invoking Save All does not
+normalize an unchanged table. Deliberate Source spelling is retained until a
+rich edit changes the document. Rich edits still serialize through `remark`.
+Source-only formatting changes are not represented in rich undo history.
+
+**Metadata save safety:** saves/renames are blocked for existing notes with
+custom or complex YAML frontmatter that the app cannot safely retain. Simple
+single-line `source` and bracket-list `tags` string values remain supported;
+comments, nested/multiline fields, duplicate keys, quoted values with boundary
+whitespace and BOM/CRLF headers are among the refused forms. The file and unsaved
+edits remain intact; Save All reports failure and does not complete quitting.
+Keep blocked edits and use a YAML-capable editor to preserve that metadata. See [A6 details and current QA
+status](docs/a6-dirty-state-investigation.md).
+
+Tiptap uses Pandoc-style single-dollar math boundaries: no whitespace just inside
+the delimiters, and no digit (`0–9`) immediately after the closing dollar. `$x$`
+and `$5$` are formulas; `$ x $` and `$x$2` are literal text. Write `\$` for an
+explicit literal dollar. Rich-edit serialization normalizes literal dollars to
+`\$`; display math and existing multi-dollar inline math remain supported. This is a Tiptap rule,
+not a change to the fallback engines or a claim of full Pandoc compatibility.
 
 ### Live styling in `hybrid-cm6` (default) and `hybrid-cm6-lp` (Stages A + B + C + D + E + F + G.1 + G.2 opt-in)
 
@@ -187,18 +363,24 @@ If you change a bundle entry or its dependency and skip the rebuild, the running
 
 ## Testing
 
-The project uses the Node.js built-in test runner.
+The main suite uses the Node.js built-in test runner. A separate, opt-in Playwright
+Electron smoke test checks Tiptap save/reopen persistence.
 
 ```bash
 cd apps/desktop
-npm test                       # full suite (test/, test/spike-cm6/, test/cm6-write-view/, test/session-import/)
+npm test                       # full suite (test/, test/spike-cm6/, test/cm6-write-view/)
 npm run test:ci                # full suite plus the CI baseline/count guard
+npm run test:e2e               # separate Electron save/reopen smoke test (requires GUI)
 npm run test:write-engine      # focused: Write engine resolver
 npm run test:cm6-write-view    # focused: CM6 write adapters, hybrid-cm6 decorations, and bundle-entry source contracts
 npm run audit:prod             # require zero production dependency vulnerabilities
 npm run audit:full             # reject high/critical findings in the complete dependency tree
-node --test test/session-import/*.test.mjs   # focused: ported Local-Web-Server importers (Stage S1a)
+node --test test/editor-session-boundary.test.js  # editor/session data boundary
 ```
+
+See [Electron E2E testing](docs/electron-e2e.md) for runtime setup, isolation,
+diagnostic artifacts, and coverage limits. This smoke test does not replace real
+Chinese IME acceptance testing.
 
 MCP smoke test (from the standalone plugin repository):
 
@@ -227,10 +409,6 @@ npm run smoke
 | `Cmd + Shift + O` | Open the external link at the caret (macOS, hybrid-cm6 Write mode; CodeMirror binding `Mod-Shift-o`) |
 | `Cmd/Ctrl + Shift + D` | Translate the selected word in context via the local Dictionary macOS app (see [Dictionary lookup](#dictionary-lookup)) |
 | `Arrow Up` / `Arrow Down` | Navigate note list (when focus is outside text inputs) |
-| `Enter` | (Stage S4) In the in-transcript search input — jump to next match |
-| `Shift + Enter` | (Stage S4) In the in-transcript search input — jump to previous match |
-| `Escape` | (Stage S4) In the in-transcript search input — clear the query and remove highlights |
-| `Enter` / `Space` | (Stage S5) On a focused AI Sessions star button — toggle favorite; on a focused group header — collapse / expand the group |
 
 The Write/Preview toggle is mouse-only — there is currently no global keyboard shortcut for it.
 
@@ -369,34 +547,7 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 ## Developer notes
 
 - **CM6 spike artifacts** — `apps/desktop/spike/` and `apps/desktop/lib/spike-cm6-*` remain in the tree for spike reproducibility (`npm run spike:cm6`, `npm run test:spike-cm6`). They are not consumed by the production app at runtime. Cleanup is deferred.
-- **Session import (developer preview, Stage S1a)** — two CLI scripts under `apps/desktop/tools/session-import/` import Claude Code (`~/.claude/projects/<project>/<uuid>.jsonl`) and Codex CLI (`~/.codex/sessions/YYYY/MM/DD/rollout-…<uuid>.jsonl`) session transcripts into markdown files under `~/agent-sessions/<agent>/`. Run from `apps/desktop/`:
-
-  ```bash
-  npm run session-import:claude   # imports ~/.claude/projects/**/*.jsonl
-  npm run session-import:codex    # imports ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
-  SESSION_ROOT=/some/other/dir npm run session-import:claude   # override output root
-  SESSION_IMPORT_MAX_BYTES=1048576 npm run session-import:claude   # override 50 MB cap
-  ```
-
-  The output is a faithful port of `Local-Web-Server/tools/import-{claude,codex}.js` — byte-for-byte parity with upstream output except for a single inserted `source: claude` / `source: codex` line added immediately after `agent:` (so the existing AI Imports filter recognizes the imported notes). Security guarantees mirror upstream verbatim: `O_NOFOLLOW` open, post-open dev/ino TOCTOU check, ancestor-symlink rejection on the output chain, `0o600` files / `0o700` directories, atomic tmp+rename with 5× `EEXIST` retry. No UI integration at this stage; the right-side AI Imports panel is deferred to Stage S2.
-
-- **AI Sessions search (Stage S4)** — port of `Local-Web-Server/public/search-utils.js` into the desktop renderer. Split into three IIFE-wrapped modules under `apps/desktop/lib/session-viewer/` to stay under the project's 300-LOC cap:
-  - `search-dom.js` — pure DOM walk that wraps matches in `<mark>` via `createElement` + `createTextNode` (never `innerHTML`); clears highlights by coalescing sibling text nodes; flips an `mark--active` class to mark the currently-focused result.
-  - `search-index.js` — lazy in-memory index over imported session bodies. `buildGlobalIndex` runs with bounded concurrency; `searchIndex` returns `{id, title, mtime, matchCount}` rows sorted by match count then mtime; `MIN_GLOBAL_QUERY_LEN = 2`.
-  - `in-file-search-toolbar.js` — headless controller for the Read-mode toolbar. Input → walk + counter; prev/next → cycle + scroll-into-view; Enter / Shift+Enter mirror the buttons; Escape clears.
-
-  Index lifecycle (in `apps/desktop/index.html`) holds two invariants:
-  - Single-flight: a `pendingCrossSessionIndexBuild` promise is reused across rapid keystrokes so two input events never kick two builds.
-  - Generation-stamped: `currentNotesGeneration` bumps on every successful `loadVaultNotes`; the index records its build-time generation in its `.then()`, and a post-await guard forces a rebuild on any mismatch so a mid-build vault refresh can't yield stale results. The index is also reset on `stopWatchingVault`.
-
-  Outgoing edits are preserved across cross-session result clicks via a shared `selectNote(noteId)` helper that runs `liveEditorInstance.exitWriteMode()` + `bodyForRead(outgoingNote)` BEFORE reassigning `selectedNoteId` — the same flush path the note-list row click uses, so the cross-session jump is data-safe.
-
-- **AI Sessions favorites + grouping (Stage S5)** — port of `Local-Web-Server/public/grouping.js` (verbatim) + the favorites helpers from `view-state.js` lines 76–124. Three IIFE-wrapped modules under `apps/desktop/lib/session-viewer/`:
-  - `favorites.js` — `createFavoritesController({ storage, key })` returning `{ isFavorite, toggle, getAll, clear, size }`. Pure helpers (`loadFavoritesFromStorage`, `saveFavoritesToStorage`, `toggleFavorite`) remain on the api for direct testing. localStorage key is namespaced as `markdownVault.aiSessions.favorites`.
-  - `grouping.js` — `groupAndSort(items, { sort, today, isFavorite })` returning `{ favorite?, codex, claude, other, counts }`. `LAYER_ORDER` is `today / w3 / older` (3-layer scheme — simplified from upstream's 5-layer based on round-2 user feedback). `localEpochDay` is timezone-aware. The editor's port bucketizes **all** agent groups including `other` (uniform tree shape; intentional divergence from upstream which leaves `other` flat). The Favorites overlay is rendered flat (not bucketed) so starred sessions are reachable in one glance.
-  - `grouped-list-renderer.js` — headless renderer. Builds collapsible group + bucket + row DOM via `createElement` + `createTextNode` (no `innerHTML`). Star-click handlers call `stopPropagation` so toggling a row's star doesn't also fire the row's selection click. Group-header collapse state is stored in a renderer-injected `isCollapsed` callback so the caller owns persistence.
-
-  The grouped tree replaces the flat AI Sessions list only when `currentFilter === 'sessions'`; all other filters keep the existing flat-list code path unchanged. Notes are adapted into the grouping item shape via an in-renderer `notesToSessionItems(notes)` + `relPathToAgent(relativePath)` pair (the agent prefix rules mirror `sessions-filter.js`).
+- **Product boundary (v0.18.0)** — session-viewer modules, session refresh IPC, importer CLIs, and their session-only tests are no longer part of this editor. The shared frontmatter scalar decoder remains under `lib/frontmatter-scalar.js`. See [editor split QA and handoff](docs/editor-session-split.md).
 
 ## Project status & maturity
 
@@ -422,7 +573,6 @@ The target can be overridden at server-launch time via the `MCP_INGEST_TARGET_DI
 **What's not supported**
 
 - Tiptap is not yet the default and has not completed release-level manual QA for IME, long documents, navigation, and every Markdown edge case.
-- Tiptap promotion still has one known round-trip blocker: currency text adjacent to inline-math delimiters can be parsed ambiguously.
 - Tiptap's Source view is a plain textarea without syntax highlighting or cursor/scroll restoration across the Source/Rich toggle.
 - Some preserved Markdown constructs, including raw HTML, reference definitions, and footnotes, are passthrough content rather than fully rich-editable nodes.
 - No cross-platform packaging.
@@ -489,8 +639,8 @@ The `hybrid-cm6` walker is intentionally limited to `Decoration.mark` over the e
 ```text
 apps/desktop/             Electron desktop app
 apps/desktop/lib/         Editor, vault, and renderer helper modules
-apps/desktop/test/        Desktop app tests (incl. test/session-import/ for the Stage S1a importer port)
-apps/desktop/tools/       Developer CLI tools (currently: session-import/ — Local-Web-Server importer port)
+apps/desktop/test/        Desktop app tests (including editor/session boundary coverage)
+apps/desktop/tools/       Developer checks (test baseline, generated assets, Tiptap readiness)
 apps/desktop/spike/       CM6 spike artifacts (deferred cleanup)
 docs/                     Install, MCP, demo, roadmap, and test-manual docs
 ```
@@ -500,6 +650,7 @@ repository and are not part of this app tree.
 
 ## Documentation
 
+- [2026-10-22 recovery audit](docs/audits/2026-10-22-project-recovery-audit.md) — verified findings, preserved evidence, and proposed product/technical direction
 - `docs/install.md` — install and run guide
 - `docs/mcp-ingest-setup.md` — MCP setup guide
 - `docs/demo-script.md` — demo walkthrough
@@ -522,3 +673,7 @@ See `CLAUDE.md` for the project rules followed when collaborating with AI coding
 ## License
 
 This repository is licensed under the MIT License. See the `LICENSE` file at the repository root.
+
+Local recovery archives live under the original checkout's ignored `.local/`.
+They are not disposable build cache; consult `.local/RELOCATION.md` and the
+archive manifests before restoring old paths. Do not use `git clean -x/-X`.

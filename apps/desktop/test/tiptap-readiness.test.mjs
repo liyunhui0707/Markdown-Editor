@@ -69,12 +69,10 @@ test('readiness exits 1 and prints stable blocker ids and reasons', () => {
   assert.match(result.stdout, /^BLOCKER table-align: Alignment is lost\.$/m);
 });
 
-test('committed readiness keeps only the independent math/currency blocker', () => {
+test('committed corpus readiness has no remaining known blockers', () => {
   const result = runChecker();
-  assert.equal(result.status, 1, result.stderr);
-  assert.match(result.stdout, /^BLOCKER math-currency-delimiter:/m);
-  assert.doesNotMatch(result.stdout, /^BLOCKER table-column-alignment:/m);
-  assert.equal(result.stdout.trim().split('\n').length, 1, 'exactly one promotion blocker remains');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'READY: 0 blockers');
 });
 
 test('readiness fails closed for malformed, missing, and escaping fixtures', () => {

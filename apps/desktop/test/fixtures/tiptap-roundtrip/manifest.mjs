@@ -51,12 +51,10 @@ export default [
     requiredFragments: ['title: Corpus Note', 'aliases:\n  - 测试', 'enabled: true'],
   },
   {
-    id: 'math-currency-delimiter', category: 'math', contract: 'blocker',
+    id: 'math-currency-delimiter', category: 'math', contract: 'normalized',
     inputPath: '13-math-currency.input.md',
-    currentLossyPath: '13-math-currency.current-lossy.md',
-    desiredPath: '13-math-currency.desired.md',
-    reason: 'A currency dollar before inline math is parsed as a math opener and corrupts the intended inline expression.',
-    requiredFragments: ['The price is', 'inline math is', '\\sum_{i=1}^{n} i'],
+    expectedPath: '13-math-currency.expected.md',
+    requiredFragments: ['The price is \\$5', '$a_b + c^2$', '\\sum_{i=1}^{n} i'],
   },
   {
     id: 'mermaid-source', category: 'mermaid', contract: 'normalized',

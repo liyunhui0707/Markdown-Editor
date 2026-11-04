@@ -1,0 +1,242 @@
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import { projectSimpleList } from './document-list-source.mjs';
+
+export const spanBlock = (projection, span) => span.itemIndex === undefined ? projection.doc.content[span.blockIndex]
+  : projection.doc.content[span.blockIndex].content[span.itemIndex].content[0];
+
+// Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
+const parser = unified().use(remarkParse).use(remarkGfm);
+const unsafe = () => ({ ok: false, code: 'unsafe-source-range' });
+const validText = s => typeof s === 'string' && !/[\0\r\n]/.test(s)
+  && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
+const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+
+export function projectSource(source) {
+  if (typeof source !== 'string' || source.length > 131072) throw Error('Unsupported source');
+  const tree = parser.parse(source), content = [], spans = [], blocks = [];
+  const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
+  const fm = /^---(?:\r\n|\n|\r)/.test(source)
+    ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
+  let position = 0, previousEnd = fm;
+  // One cursor slot over existing whitespace, not a CommonMark empty-paragraph node.
+  function emptyParagraph(at) {
+    spans.push({ text: '', sourceFrom: at, sourceTo: at, bold: false,
+      from: position + 1, to: position + 1, blockIndex: content.length, childIndex: 0 });
+    blocks.push({from:position,to:position+2,sourceFrom:at,sourceTo:at});
+    content.push({ type: 'paragraph', content: [] }); position += 2;
+  }
+  function opaque(text) {
+    if (!text) return;
+    blocks.push(null);
+    content.push({ type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text }] });
+    position += text.length + 2;
+  }
+  if (fm) opaque(source.slice(0, fm));
+  for (const node of tree.children) {
+    let start = node.position.start.offset, end = node.position.end.offset;
+    if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
+    const list = projectSimpleList(node, source, position, content.length);
+    if (list) {
+      const gap = lines(source.slice(previousEnd, start));
+      if ((!content.length && gap.length >= 2) || (content.length && gap.length >= 4)) {
+        emptyParagraph(!content.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+        // The empty cursor slot shifts all ProseMirror positions by two.
+        for (const span of list.spans) { span.from += 2; span.to += 2; span.blockIndex++; }
+        for (const item of list.items) { item.from += 2; item.to += 2; }
+      }
+      blocks.push({from:position,to:position+list.size,sourceFrom:start,sourceTo:end,items:list.items});
+      content.push(list.doc); spans.push(...list.spans); position += list.size; previousEnd=end; continue;
+    }
+    const raw = source.slice(start, end), parts = [];
+    // Literal brackets are safe only when remark keeps exact text leaves. Links,
+    // references and other structural changes still fail the projection check.
+    let supported = ['paragraph', 'heading'].includes(node.type) && node.position.start.line === node.position.end.line
+      && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\\`$|]/.test(raw);
+    if (node.type === 'heading' && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
+    // Plain soft-wrapped paragraphs share one PM text node. Source line breaks
+    // render as spaces with NO editable span; each source line keeps its own range.
+    const soft = node.type === 'paragraph' && node.position.start.line !== node.position.end.line
+      && node.children?.length === 1 && node.children[0].type === 'text' && node.children[0].value === raw
+      && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
+    if (soft) {
+      let textOffset = 0;
+      for (const match of raw.matchAll(/[^\r\n]+/g)) {
+        if (!validText(match[0])) break;
+        parts.push({ text: match[0], sourceFrom: start + match.index, sourceTo: start + match.index + match[0].length,
+          bold: false, textOffset });
+        textOffset += match[0].length + 1;
+      }
+      supported = parts.length >= 2 && parts.map(p => p.text).join(' ') === raw.replace(/\r\n|\n|\r/g, ' ');
+    } else for (const child of node.children || []) {
+      const bold = child.type === 'strong';
+      const leaf = bold && child.children?.length === 1 ? child.children[0] : child;
+      const a = leaf.position?.start.offset, b = leaf.position?.end.offset;
+      if (leaf.type !== 'text' || !leaf.value || !validText(leaf.value) || source.slice(a, b) !== leaf.value
+          || (bold && !['**', '__'].includes(source.slice(child.position.start.offset, a)))) { supported = false; break; }
+      parts.push({ text: leaf.value, sourceFrom: a, sourceTo: b, bold });
+    }
+    if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold) {
+      // Keep plain-line margin spaces: remark omits them, but a split must not.
+      const a = Math.max(source.lastIndexOf('\n', start - 1), source.lastIndexOf('\r', start - 1)) + 1;
+      const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
+      if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
+        start = a; end = b; parts[0] = { ...parts[0], sourceFrom: a, sourceTo: b, text: source.slice(a, b) };
+      }
+    }
+    const gap = lines(source.slice(previousEnd, start));
+    if ((!content.length && !fm && gap.length >= 2) || (content.length && gap.length >= 4)) {
+      emptyParagraph(!content.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+    }
+    previousEnd = end;
+    if (!supported || !parts.length) { opaque(raw); continue; }
+    const blockIndex = content.length;
+    const block = { type: node.type, ...(node.type === 'heading' ? { attrs: { level: node.depth } } : {}), content: [] };
+    let offset = 0;
+    if (soft) {
+      block.content.push({ type: 'text', text: parts.map(p => p.text).join(' ') });
+      for (const part of parts) spans.push({ ...part, from: position + 1 + part.textOffset,
+        to: position + 1 + part.textOffset + part.text.length, blockIndex, childIndex: 0 });
+      offset = block.content[0].text.length;
+    } else for (const [childIndex, part] of parts.entries()) {
+      spans.push({ ...part, from: position + 1 + offset, to: position + 1 + offset + part.text.length, blockIndex, childIndex });
+      block.content.push({ type: 'text', text: part.text, ...(part.bold ? { marks: [{ type: 'bold' }] } : {}) });
+      offset += part.text.length;
+    }
+    blocks.push({from:position,to:position+offset+2,sourceFrom:start,sourceTo:end});
+    content.push(block); position += offset + 2;
+  }
+  const tail = lines(source.slice(previousEnd));
+  if (content.length && tail.length >= 2) emptyParagraph(previousEnd + tail[0].length + tail[1].length);
+  if (!content.length) {
+    if (source === '' || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
+    else content.push({ type: 'paragraph', content: [] }); // Ambiguous blank-only input remains non-editable.
+  }
+  return { doc: { type: 'doc', content }, spans, blocks };
+}
+
+function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
+  const { from, to, insert } = change, plain = span => {
+    const block = projection.doc.content[span.blockIndex];
+    return block.type === 'paragraph' && span.textOffset === undefined && !span.bold && (block.content || []).length <= 1;
+  };
+  const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
+  // A trusted history separator survives even when a join removes every newline.
+  const delimiter = paragraphSeparator ?? (source.match(/\r\n|\n|\r/)?.[0] || '\n').repeat(2);
+  let a, b, text, inverse, selection;
+  if (insert === '\n\n' && from === to) {
+    const span = spans.find(s => from >= s.from && from <= s.to);
+    if (!span || !span.text || splits(span.text, from - span.from)) return null;
+    const offset = from - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
+    const paragraph = value => ({ type: 'paragraph', content: value ? [{ type: 'text', text: value }] : [] });
+    expected.content.splice(span.blockIndex, 1, paragraph(left), paragraph(right));
+    a = b = span.sourceFrom + offset; text = delimiter;
+    inverse = { from, to: from + 2, insert: '' }; selection = from + 2;
+  } else if (insert === '' && to === from + 2) {
+    const left = spans.find(s => s.to === from), right = spans.find(s => s.from === to);
+    if (!left || !right || right.blockIndex !== left.blockIndex + 1 || (!left.text && !right.text)
+        || source.slice(left.sourceTo, right.sourceFrom) !== delimiter) return null;
+    const merged = left.text + right.text;
+    expected.content.splice(left.blockIndex, 2, { type: 'paragraph', content: merged ? [{ type: 'text', text: merged }] : [] });
+    a = left.sourceTo; b = right.sourceFrom; text = '';
+    paragraphSeparator = source.slice(a, b); // Capture the actual pre-operation bytes, never infer them from the joined result.
+    inverse = { from, to: from, insert: '\n\n' }; selection = from;
+  } else return null;
+  paragraphSeparator ??= text;
+  const next = source.slice(0, a) + text + source.slice(b);
+  if (next.length > 131072) return unsafe();
+  const nextProjection = projectSource(next);
+  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  if (verify) {
+    const back = paragraphEdit(next, nextProjection, inverse, false, paragraphSeparator);
+    if (!back?.ok || back.source !== source) return unsafe();
+  }
+  return { ok: true, source: next, change: { from: a, to: b, insert: text }, projection: nextProjection,
+    leaf: null, structural: true, inverse, paragraphSeparator, selection: { from: selection, to: selection } };
+}
+
+// Atomic plain paragraph paste. Only main-owned history may replace a range
+// across paragraphs; renderer edits must start and end inside one plain block.
+function paragraphPaste(source, projection, change, separator, verify = true) {
+  const { from, to, insert } = change, multiline = insert.includes('\n');
+  if (!multiline && separator === null) return null;
+  const parts = insert.split('\n\n');
+  if (parts.length > 32 || parts.some(p => !validText(p))
+      || (multiline && (parts.length < 2 || parts.some(p => !p.trim())))) return null;
+  const spans = projection.spans.filter(s => projection.doc.content[s.blockIndex].type === 'paragraph'
+    && s.textOffset === undefined && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
+  const left = spans.find(s => from >= s.from && from <= s.to), right = spans.find(s => to >= s.from && to <= s.to);
+  if (!left || !right || left.blockIndex > right.blockIndex
+      || (left !== right && separator === null) || (!multiline && left === right)
+      || splits(left.text, from - left.from) || splits(right.text, to - right.from)) return null;
+  const range = spans.filter(s => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
+  const delimiter = separator ?? (source.match(/\r\n|\n|\r/)?.[0] || '\n').repeat(2);
+  if (range.length !== right.blockIndex - left.blockIndex + 1
+      || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
+  const a = left.sourceFrom + from - left.from, b = right.sourceFrom + to - right.from;
+  const removed = source.slice(a, b), oldParts = range.map((s, i) => s.text.slice(i ? 0 : from - s.from, i === range.length - 1 ? to - s.from : undefined));
+  const inverseInsert = oldParts.join('\n\n');
+  if (removed.length > 4096 || inverseInsert.length > 4096) return unsafe();
+  const texts = [...parts]; texts[0] = left.text.slice(0, from - left.from) + texts[0];
+  texts[texts.length - 1] += right.text.slice(to - right.from);
+  const expected = structuredClone(projection.doc);
+  expected.content.splice(left.blockIndex, range.length, ...texts.map(text => ({ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] })));
+  const text = parts.join(delimiter), next = source.slice(0, a) + text + source.slice(b);
+  if (text.length > 4096 || next.length > 131072) return unsafe();
+  const nextProjection = projectSource(next);
+  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  const inverse = { from, to: from + insert.length, insert: inverseInsert };
+  if (verify) {
+    const back = paragraphPaste(next, nextProjection, inverse, delimiter, false);
+    if (!back?.ok || back.source !== source) return unsafe();
+  }
+  return { ok: true, source: next, change: { from: a, to: b, insert: text }, projection: nextProjection,
+    structural: true, leaf: null, inverse, paragraphSeparator: delimiter,
+    selection: { from: from + insert.length, to: from + insert.length } };
+}
+
+export function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
+  if (!change || Object.getPrototypeOf(change) !== Object.prototype
+      || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
+  const { from, to, insert } = change;
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
+  const projection = projectSource(source);
+  // Only trusted history supplies this identity. IPC edit payloads cannot.
+  if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype
+      || Object.keys(leaf).length !== 3 || Object.keys(leaf).some(k => !['blockIndex', 'childIndex', 'bold'].includes(k))
+      || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0
+      || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== 'boolean')) return unsafe();
+  // Internal history only; renderer payloads still allow no separator/leaf fields.
+  if (paragraphSeparator !== null && (leaf !== null || !['\n\n', '\r\n\r\n', '\r\r'].includes(paragraphSeparator))) return unsafe();
+  if (leaf === null) {
+    const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
+    if (paragraph) return paragraph;
+    const paste = paragraphPaste(source, projection, change, paragraphSeparator);
+    if (paste) return paste;
+    if (paragraphSeparator !== null) return unsafe();
+  }
+  if (!validText(insert)) return unsafe();
+  const matches = projection.spans.filter(s => from >= s.from && to <= s.to && (!leaf
+    || (s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold)));
+  if (matches.length !== 1) return unsafe(); // ambiguous insertion between marks
+  const span = matches[0], a = from - span.from, b = to - span.from;
+  if (splits(span.text, a) || splits(span.text, b)) return unsafe();
+  const text = span.text.slice(0, a) + insert + span.text.slice(b);
+  if (!text && (span.textOffset !== undefined || spanBlock(projection, span).type !== 'paragraph'
+      || span.bold || spanBlock(projection, span).content.length > 1)) return unsafe();
+  const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
+  const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
+  if (next.length > 131072) return unsafe();
+  const nextProjection = projectSource(next);
+  const expected = structuredClone(projection.doc);
+  if (span.textOffset !== undefined) {
+    const node = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
+    node.text = node.text.slice(0, at) + text + node.text.slice(at + span.text.length);
+  } else if (!span.text || !text) spanBlock({doc:expected}, span).content = text ? [{ type: 'text', text }] : [];
+  else spanBlock({doc:expected}, span).content[span.inlineIndex ?? span.childIndex].text = text;
+  if (!text && !nextProjection.spans.some(s => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
+  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,
+    leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };
+}

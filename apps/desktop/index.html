@@ -977,385 +977,6 @@
         display: block;
       }
 
-      /* Stage S3 — Read-mode mount. Visible only for AI Sessions notes
-         when the Read tab is active. Reads the editor zoom variable so
-         Cmd/Ctrl +/- scales the rendered transcript the same way Write
-         and Preview scale. */
-      .read-view-mount {
-        display: none;
-        flex: 1;
-        min-height: 0;
-        /* Stage 6.10.D: flex-shrink unlock so overflow: auto can
-           contain transcript width instead of being overridden by the
-           flex-item default min-width: auto. */
-        min-width: 0;
-        overflow: auto;
-        /* Vertical breathing + a small right inset so the vertical
-           scrollbar (overlay on macOS) does not visually clip the last
-           characters of long lines. Left stays 0 so horizontal side
-           margins still align with Write/Preview (governed by
-           .workspace-body) and the user-turn left accent stripe sits
-           flush with that gutter. scrollbar-gutter: stable both-edges
-           keeps the long-transcript vertical scrollbar from visually
-           shifting content. */
-        padding: 16px 24px 16px 0;
-        scrollbar-gutter: stable both-edges;
-        font-size: var(--editor-font-size, 18px);
-      }
-      .read-view-mount.is-visible {
-        display: block;
-      }
-
-      .read-view-mount .read-section.user-turn h2 {
-        color: var(--text, inherit);
-      }
-      .read-view-mount .read-section .user-typed {
-        font-weight: 500;
-      }
-
-      /* Stage S5 round-8 QA fix: user turns get a tinted background +
-         left accent stripe so they are visually distinct from
-         assistant turns. Stage 6.10.C: with .read-view-mount's
-         horizontal padding removed, the band sits flush inside the
-         content area (the -16px negative-margin trick is no longer
-         needed to break out of padding). */
-      .read-view-mount .read-section.user-turn {
-        background: var(--accent-bg, rgba(109, 74, 224, 0.08));
-        border-left: 3px solid var(--accent, #6d4ae0);
-        border-radius: 4px;
-        padding: 8px 12px;
-        margin: 8px 0 16px 0;
-      }
-      .read-view-mount .read-section.assistant-turn {
-        padding: 8px 0;
-      }
-
-      /* Stage S5 round-8 QA fix: GFM tables in the Read view get a
-         minimal but legible default — collapsed borders, padded cells,
-         tinted header, alternating body rows. Without these the
-         renderer's <table>/<thead>/<tbody> markup falls back to the
-         browser's borderless default and looks like run-on text. */
-      .read-view-mount table {
-        border-collapse: collapse;
-        /* Stage 6.11: table now lives inside .table-scroller which owns
-           the outer margin. Keeping border-collapse + font-size on the
-           table itself; the wrapper rule (below in the PR #120 block)
-           provides margin + max-width + overflow-x. */
-        font-size: 0.95em;
-      }
-      .read-view-mount th,
-      .read-view-mount td {
-        border: 1px solid var(--border, #e2dfd6);
-        padding: 4px 8px;
-        text-align: left;
-        vertical-align: top;
-      }
-      .read-view-mount thead th {
-        background: var(--surface-muted, #f0efe9);
-        font-weight: 600;
-      }
-      .read-view-mount tbody tr:nth-child(even) {
-        background: var(--surface-sidebar, #efede6);
-      }
-
-      /* Read view overflow containment. Without these rules, a transcript
-         with one long heredoc line, a long single-line JSON payload, a wide
-         GFM table, or a no-whitespace token (long URL, base64 blob) widens
-         .read-view-mount past the viewport and surfaces a horizontal
-         scrollbar on the WINDOW. Constrain each offending block to scroll /
-         wrap inside its own container instead:
-           - <pre> keeps white-space: pre so shell commands stay on one
-             logical line; overflow-x: auto puts the scrollbar on the code
-             block itself, matching GitHub / VS Code conventions.
-           - tables cap at the container width; cells wrap long tokens
-             instead of widening the table.
-           - prose containers (p / li / blockquote) break unbreakable tokens
-             so long URLs don't push the page wider than the viewport. */
-      .read-view-mount pre {
-        max-width: 100%;
-        overflow-x: auto;
-      }
-      /* Stage 6.11: tables now sit inside a .table-scroller wrapper so the
-         table can render at its natural max-content width without the
-         table-layout: auto algorithm squeezing single-word columns
-         (e.g. "Severity") below the word's width. The wrapper provides
-         the visual width containment and the per-table horizontal scroll
-         if a particular table is wider than the viewport. */
-      .read-view-mount .table-scroller {
-        max-width: 100%;
-        overflow-x: auto;
-        margin: 8px 0 16px 0;
-      }
-      .read-view-mount table {
-        /* Width is governed by the wrapper now; table goes to max-content
-           inside the wrapper, columns get their natural max-content widths,
-           no mid-word breaking. */
-        table-layout: auto;
-      }
-      .read-view-mount th,
-      .read-view-mount td {
-        /* Stage 6.11: was `overflow-wrap: anywhere` — too aggressive for
-           table cells. `anywhere` lets the browser break mid-word AND
-           collapses the cell's min-content size to a single character;
-           combined with `table-layout: auto`, that makes narrow cells
-           wrap as "Se / ver / ity". `break-word` keeps the cell's
-           min-content at the longest unbroken word and only breaks
-           inside a word when there's no whitespace alternative. PR
-           #121's `.workspace min-width: 0` already prevents the chain
-           from inflating, so the aggressive form is no longer needed
-           here for layout containment. */
-        overflow-wrap: break-word;
-      }
-      .read-view-mount p,
-      .read-view-mount li,
-      .read-view-mount blockquote {
-        /* Stage 6.11: same rationale as the cell rule above. */
-        overflow-wrap: break-word;
-        line-height: 1.7;
-      }
-      /* Stage 6.10.E: residual transcript elements PR #120 didn't cover.
-         Headings with long file paths, <section> wrappers with long
-         identifiers, inline <code> with long unbreakable tokens, and
-         anchors with long URLs all contributed the last ~13px of
-         viewport overflow that the flex-chain min-width: 0 fix
-         couldn't eliminate (measured in Phase A at 1484px). Apply
-         the same overflow-wrap: anywhere treatment so any long token
-         breaks at the character level instead of inflating the
-         element. headings and section also get word-break: break-word
-         as a belt-and-suspenders fallback for engines that interpret
-         overflow-wrap differently. */
-      .read-view-mount h1,
-      .read-view-mount h2,
-      .read-view-mount h3,
-      .read-view-mount h4,
-      .read-view-mount h5,
-      .read-view-mount h6,
-      .read-view-mount section,
-      .read-view-mount code,
-      .read-view-mount a {
-        /* Stage 6.11: softened from `anywhere` to `break-word` (see the
-           table-cell rule above for the full rationale). */
-        overflow-wrap: break-word;
-        word-break: break-word;
-      }
-      /* Inline-code styling for Read mode. Color-only distinction —
-         accent-colored monospace text, no chip (no background, border,
-         padding, or border-radius). Scoped to <code> whose parent is
-         NOT <pre> so fenced-code blocks keep their plain rendering. */
-      .read-view-mount :not(pre) > code {
-        color:         var(--accent);
-        font-family:   var(--font-mono);
-        font-size:     0.88em;
-      }
-
-      /* Stage S4 — in-file search toolbar. Sits between the editor
-         action bar and readViewMount; visible only in Read mode. */
-      .in-file-search-toolbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        background: var(--panel-bg, #fafafa);
-        border-bottom: 1px solid var(--border, #e0e0e0);
-        font-size: 12px;
-      }
-      .in-file-search-toolbar input {
-        flex: 1;
-        padding: 4px 8px;
-        font-size: 13px;
-        border: 1px solid var(--border, #ccc);
-        border-radius: 3px;
-      }
-      .in-file-search-toolbar button {
-        padding: 2px 8px;
-        font-size: 14px;
-        background: transparent;
-        border: 1px solid var(--border, #ccc);
-        border-radius: 3px;
-        cursor: pointer;
-      }
-      .in-file-search-toolbar button:hover {
-        background: var(--hover-bg, #eee);
-      }
-      .in-file-search-counter {
-        min-width: 40px;
-        text-align: right;
-        color: var(--text-muted, #666);
-        font-variant-numeric: tabular-nums;
-      }
-      .read-view-mount mark {
-        background: var(--mark-bg, #fff2a8);
-        color: inherit;
-        padding: 0;
-      }
-      .read-view-mount mark.mark--active {
-        background: var(--mark-active-bg, #ffba2e);
-        outline: 1px solid var(--mark-active-outline, #c98a00);
-      }
-
-      /* Stage S4 — cross-session content-search results. Rendered
-         below the note list when AI Sessions filter is active and the
-         sidebar search input has 2+ chars. */
-      .cross-session-results {
-        border-top: 1px solid var(--border, #e0e0e0);
-        max-height: 35vh;
-        overflow: auto;
-      }
-      .cross-session-results-header {
-        padding: 6px 12px;
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        color: var(--text-muted, #666);
-        background: var(--panel-bg, #fafafa);
-        letter-spacing: 0.5px;
-      }
-      .cross-session-results-list .sidebar-search-result-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid var(--border-light, #f0f0f0);
-      }
-      .cross-session-results-list .sidebar-search-result-row:hover {
-        background: var(--hover-bg, #eef);
-      }
-      .cross-session-results-list .sidebar-search-result-title {
-        flex: 1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-size: 13px;
-      }
-      .cross-session-results-list .sidebar-search-result-badge {
-        font-size: 11px;
-        padding: 1px 6px;
-        border-radius: 8px;
-        background: var(--accent-bg, #e7e7ff);
-        color: var(--accent-fg, #333);
-        font-variant-numeric: tabular-nums;
-      }
-      .cross-session-index-banner {
-        padding: 6px 12px;
-        font-size: 12px;
-        color: var(--text-muted, #666);
-        background: var(--panel-bg, #fafafa);
-        border-top: 1px solid var(--border, #e0e0e0);
-      }
-
-      /* Stage S5 — AI Sessions grouped tree. Mounts inside the
-         existing #noteList container when currentFilter === 'sessions'. */
-      .session-group {
-        margin-bottom: 4px;
-      }
-      .session-group-header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px;
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--text-muted, #6c6a5f);
-        cursor: pointer;
-        user-select: none;
-      }
-      .session-group-header:hover {
-        background: var(--border-subtle, #e9e6dd);
-      }
-      .session-group-chevron {
-        width: 12px;
-        font-size: 10px;
-        color: var(--text-muted, #8a8678);
-      }
-      .session-group-title {
-        flex: 1 1 auto;
-      }
-      .session-group-count {
-        font-size: 10px;
-        color: var(--text-faint, #b3ad9d);
-        font-weight: 500;
-      }
-      .session-group-body {
-        padding: 0;
-      }
-      .session-bucket {
-        margin-bottom: 4px;
-      }
-      .session-bucket-header {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px 4px 18px;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-faint, #b3ad9d);
-        cursor: pointer;
-        user-select: none;
-      }
-      .session-bucket-header:hover {
-        color: var(--text-muted, #8a8678);
-      }
-      .session-bucket-chevron {
-        width: 10px;
-        font-size: 9px;
-      }
-      .session-bucket-label {
-        flex: 1 1 auto;
-      }
-      .session-bucket-count {
-        font-variant-numeric: tabular-nums;
-        font-weight: 500;
-      }
-      .session-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px 6px 22px;
-        margin-bottom: 2px;
-        border-radius: 4px;
-        cursor: pointer;
-        border-left: 2px solid transparent;
-      }
-      .session-row:hover {
-        background: var(--border-subtle, #e9e6dd);
-      }
-      .session-row--active {
-        background: var(--accent-bg, rgba(109, 74, 224, 0.08));
-        border-left-color: var(--accent, #6d4ae0);
-      }
-      .session-row-title {
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: 13px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .session-row--active .session-row-title {
-        color: var(--accent, #6d4ae0);
-        font-weight: 600;
-      }
-      .session-star {
-        flex: 0 0 auto;
-        width: 16px;
-        font-size: 14px;
-        line-height: 1;
-        text-align: center;
-        color: var(--text-faint, #b3ad9d);
-        cursor: pointer;
-        border-radius: 3px;
-      }
-      .session-star:hover {
-        background: var(--surface-muted, #f0efe9);
-      }
-      .session-star--on {
-        color: var(--warning, #d4a017);
-      }
-
       /* Hide only inert Toast UI controls. Do NOT hide
          .toastui-editor-md-tab-style — that wrapper contains the preview
          pane itself; hiding it would make Preview unreachable. */
@@ -2059,10 +1680,6 @@
               <div class="nav-label">AI Imports</div>
               <div class="nav-meta" id="filterAiMeta">0 notes</div>
             </div>
-            <div class="nav-item" data-filter="sessions" id="filterSessions">
-              <div class="nav-label">AI Sessions</div>
-              <div class="nav-meta" id="filterSessionsMeta">0 notes</div>
-            </div>
           </div>
           <div class="sidebar-divider"></div>
           <div class="panel-tools">
@@ -2075,13 +1692,7 @@
             <div id="searchMeta" class="search-meta">Search all visible notes.</div>
             <div id="ingestBanner" class="ingest-banner" style="display: none;"></div>
           </div>
-          <div id="sessionsRefreshMount" class="sessions-refresh-mount" style="display: none; padding: 8px;"></div>
           <div id="noteList" class="panel-body"></div>
-          <div id="crossSessionResults" class="cross-session-results" hidden>
-            <div class="cross-session-results-header">Matches in transcript</div>
-            <div id="crossSessionResultsList" class="cross-session-results-list"></div>
-          </div>
-          <div id="crossSessionIndexBanner" class="cross-session-index-banner" hidden></div>
         </aside>
 
         <!-- Single unified editor panel — no more split Editor / Preview -->
@@ -2133,14 +1744,6 @@
                     role="tab"
                     aria-selected="false"
                   >Preview</button>
-                  <button
-                    id="modeReadButton"
-                    class="mode-button"
-                    type="button"
-                    role="tab"
-                    aria-selected="false"
-                    hidden
-                  >Read</button>
                   <!-- Source <-> WYSIWYG toggle: shown only for the tiptap engine
                        in Write mode; swaps the Write pane to editable raw markdown. -->
                   <button
@@ -2158,13 +1761,6 @@
                 <div id="liveEditorContainer" class="live-editor-container">
                   <div id="hybridWritePane" class="hybrid-write-pane"></div>
                   <div id="toastPreviewMount" class="toast-preview-mount"></div>
-                  <div id="inFileSearchToolbar" class="in-file-search-toolbar" hidden>
-                    <input id="inFileSearchInput" type="text" placeholder="Search in transcript">
-                    <button id="inFileSearchPrev" type="button" aria-label="Previous match">‹</button>
-                    <button id="inFileSearchNext" type="button" aria-label="Next match">›</button>
-                    <span id="inFileSearchCounter" class="in-file-search-counter">0/0</span>
-                  </div>
-                  <div id="readViewMount" class="read-view-mount"></div>
                 </div>
                 <!-- Path D — AI Summarize result panel. Empty shell only:
                      children (.ai-summary-status + .ai-summary-body) are
@@ -2289,18 +1885,6 @@
     <script src="./lib/note-row.js"></script>
     <script src="./lib/dirty-state.js"></script>
     <script src="./lib/note-switch-restore.js"></script>
-    <script src="./lib/session-viewer/refresh-button.js"></script>
-    <script src="./lib/session-viewer/read-inline.js"></script>
-    <script src="./lib/session-viewer/read-user-preprocess.js"></script>
-    <script src="./lib/session-viewer/read-renderer.js"></script>
-    <script src="./lib/session-viewer/read-tab.js"></script>
-    <script src="./lib/session-viewer/large-session-guard.js"></script>
-    <script src="./lib/session-viewer/search-dom.js"></script>
-    <script src="./lib/session-viewer/search-index.js"></script>
-    <script src="./lib/session-viewer/in-file-search-toolbar.js"></script>
-    <script src="./lib/session-viewer/favorites.js"></script>
-    <script src="./lib/session-viewer/grouping.js"></script>
-    <script src="./lib/session-viewer/grouped-list-renderer.js"></script>
     <!-- Path D — AI Summarize. ai-result-panel exposes window.AiSummaryPanel;
          ai-boot registers a DOMContentLoaded handler that mounts the panel
          and wires the Summarize button. Loaded via <script src> so the
@@ -2523,7 +2107,7 @@
       const filterAi        = document.getElementById('filterAi');
       const filterDrafts    = document.getElementById('filterDrafts');
       const filterVault     = document.getElementById('filterVault');
-      const filterSessions  = document.getElementById('filterSessions');
+
       // Stage 6.4: filterAll is hidden from production UI but kept in
       // the DOM for test fixtures that need a "show every note" path.
       const filterAll       = document.getElementById('filterAll');
@@ -2531,66 +2115,6 @@
       const filterAiMeta    = document.getElementById('filterAiMeta');
       const filterDraftsMeta = document.getElementById('filterDraftsMeta');
       const filterVaultMeta = document.getElementById('filterVaultMeta');
-      const filterSessionsMeta = document.getElementById('filterSessionsMeta');
-      const sessionsRefreshMount = document.getElementById('sessionsRefreshMount');
-      const modeReadButton = document.getElementById('modeReadButton');
-      const readViewMount = document.getElementById('readViewMount');
-      // Stage S4 — in-file search toolbar elements (mounted above readViewMount).
-      const inFileSearchToolbar = document.getElementById('inFileSearchToolbar');
-      const inFileSearchInput   = document.getElementById('inFileSearchInput');
-      const inFileSearchPrev    = document.getElementById('inFileSearchPrev');
-      const inFileSearchNext    = document.getElementById('inFileSearchNext');
-      const inFileSearchCounter = document.getElementById('inFileSearchCounter');
-      // Stage S4 — cross-session search elements (rendered below noteList
-      // when AI Sessions filter is active).
-      const crossSessionResults     = document.getElementById('crossSessionResults');
-      const crossSessionResultsList = document.getElementById('crossSessionResultsList');
-      const crossSessionIndexBanner = document.getElementById('crossSessionIndexBanner');
-      // Stage S3 — Read tab controller. Declared as `let` here so a failed
-      // boot-time init never traps subsequent renderApp() calls in a
-      // temporal-dead-zone error; falls back to a null-guarded no-op if
-      // createReadTabController throws. The actual init runs near the
-      // bottom of the boot script (after all dependencies are in
-      // window.SessionViewer).
-      let readTabController = null;
-      // Stage S4 — in-file search toolbar controller; same null-guard pattern.
-      let inFileSearchToolbarController = null;
-      // Stage S5 — AI Sessions favorites + grouped tree.
-      let favoritesController = null;
-      let groupedListRenderer = null;
-      // groupKey -> true (collapsed). Persisted under
-      // `markdownVault.aiSessions.collapsed` as an array of keys.
-      const groupCollapsedState = new Map();
-      // Stage S5 round-3 QA fix (issue B): per-bucket collapse state.
-      // Keyed by `<groupKey>:<layerId>`. Persisted under
-      // `markdownVault.aiSessions.bucketCollapsed` as an array of keys.
-      const bucketCollapsedState = new Map();
-      // Stage S4 — cross-session content-search state.
-      //   - globalIndex / globalIndexStatus: managed by search-index.js
-      //   - notesGeneration: stamped on the index; compared against
-      //     currentNotesGeneration so we can invalidate when loadVaultNotes
-      //     replaces the notes set (round-1 plan-review M3 fix).
-      const crossSessionState = {
-        globalIndex: null,
-        globalIndexStatus: 'idle',
-        globalIndexProgress: { done: 0, total: 0 },
-        notesGeneration: 0,
-      };
-      let currentNotesGeneration = 0;
-      // Round-1 plan-review B1 fix: track in-flight index build so a
-      // second input event during the build awaits the SAME promise
-      // instead of issuing a duplicate build.
-      let pendingCrossSessionIndexBuild = null;
-      // Round-1 plan-review M2 fix: monotonic token for stale-result guard.
-      let crossSessionSearchToken = 0;
-      // Stage S3.5 — per-note hydration cache. Tracks whether the CM6
-      // surface (cm6) and Toast UI surface (toast) have been hydrated
-      // for each note. Used by the deferred-load path to skip eager
-      // setText/setMarkdown on multi-MB AI Sessions notes.
-      const hydrationCache =
-        (window.SessionViewer && window.SessionViewer.createHydrationCache)
-          ? window.SessionViewer.createHydrationCache()
-          : { isHydrated() { return false; }, markHydrated() {}, drop() {}, clear() {} };
 
       let stopVaultWatcher        = null;
       let currentVaultPath        = '';
@@ -2605,12 +2129,7 @@
       let isSidebarHidden         = false;  // open by default
       let liveEditorInstance      = null;
       let liveEditorLastNoteId    = ''; // tracks which note is loaded so we don't reset on every render
-      // Stage A diff loop 2: dedicated CM6-hydration tracker. Distinct from
-      // liveEditorLastNoteId (which is updated UNCONDITIONALLY on every
-      // note switch, including sessions where CM6 is NOT re-hydrated).
-      // cm6HydratedNoteId is set only when CM6 actually receives the new
-      // note's content; the AI bridge's getActiveSelection() uses it to
-      // detect stale CM6 selections after a switch to a read-only/session note.
+      // Tracks the note actually loaded in CM6; Local AI rejects stale selections.
       let cm6HydratedNoteId       = '';
       let hasLoadedVaultNotes     = false;
 
@@ -2780,17 +2299,7 @@
         // or null. Legacy hybrid engine doesn't expose .view → always null →
         // the Rewrite handler falls back to whole-note text.
         //
-        // [Codex diff S1 loop-2 fix] Stale-CM6 guard: CM6 is hydrated only
-        // when renderEditor takes the non-session branch (i.e., for vault /
-        // draft notes). Session and read-only notes leave CM6 hidden and
-        // its selection still belongs to the previous CM6-hydrated note.
-        // cm6HydratedNoteId tracks WHICH note CM6 is currently hydrated for
-        // (set ONLY after liveEditorInstance.setText/setState — never on
-        // the session branch). Compare it to the active note id; if they
-        // differ, the selection is stale and must NOT be returned.
-        // (liveEditorLastNoteId is the wrong tracker — it's updated for
-        // session notes too, before the session branch.)
-        //
+        // Reject stale selections after note changes until the editor is hydrated.
         // [Codex diff S2 loop-3 fix] Visible-mode guard: even when CM6 is
         // hydrated for the active note, the user can toggle to Preview/Read
         // mode, in which case CM6 stays mounted but HIDDEN. The selection
@@ -2860,9 +2369,6 @@
       function updateStatusReadouts(text) {
         const stats = window.DocStats;
         if (!stats) return;
-        // Stage S3.5: bodyForRead returns note.body for a deferred (CM6
-        // unhydrated) large session so the doc-stats counter reflects
-        // the on-disk content, not the empty CM6 buffer.
         const t = text != null
           ? text
           : bodyForRead(getSelectedNote());
@@ -2944,10 +2450,6 @@
           // very renderEditor call triggered by the note switch).
           if (liveEditorLastNoteId) {
             captureNoteViewState(liveEditorLastNoteId);
-            // Stage S3.5: drop the OUTGOING note's hydration state so a
-            // future return triggers the deferred lazy-load again (if
-            // applicable). Matches AC-S3.5-7.
-            hydrationCache.drop(liveEditorLastNoteId);
           }
 
           liveEditorLastNoteId = note.id;
@@ -2955,7 +2457,7 @@
           // Migration: if the body doesn't already start with inline metadata,
           // prepend it from frontmatter and store it back so future saves are canonical.
           //
-          // Stage 6.5 bug fix: skip this for AI Imports and AI Sessions —
+          // Skip this for AI Imports —
           // their canonical metadata lives in the YAML frontmatter the
           // importer wrote, not in inline `Source:` / tag lines in the
           // body. Without this guard the renderer prepends a synthetic
@@ -2967,7 +2469,7 @@
           const hasMeta = existingTags.length > 0
             || /^Source:/im.test((note.body || '').split('\n').slice(0, 3).join('\n'));
           let migrated = false;
-          if (!hasMeta && !note.aiImported && !note.sessionsImport) {
+          if (!hasMeta && !note.aiImported) {
             const prefix = serializeMetaPrefix(note.frontmatter);
             if (prefix) {
               note.body = prefix + '\n\n' + (note.body || '');
@@ -2975,58 +2477,36 @@
             }
           }
 
-          // Stage S6 — AI Sessions are read-only transcripts. ALL
-          // sessions (not just large ones) go through the deferred
-          // Read path: no CM6/Toast UI hydration, no banner, no
-          // mode toggle. The render-into-readViewMount call comes
-          // straight from note.body.
-          const isSession = note.sessionsImport === true;
-          if (isSession) {
-            forceReadModeWithBody(note);
-            // Sessions default to scroll-bottom on first open (so
-            // the latest content is visible). Honor any saved
-            // scroll position when the user has navigated within
-            // the session before.
-            const savedView = noteViewStates.get(note.id);
-            const ratio = savedView ? savedView.scrollRatio : 1;
-            scheduleApplyAfterLayout(function () {
-              if (_applyScrollRatio) _applyScrollRatio(readViewMount, ratio);
-            });
-          } else {
-            // EAGER PATH for non-session notes (existing behavior).
-            // Restore from cache when possible: same note id AND cached doc
-            // still matches the current body. If the body diverged (vault
-            // refresh, save round-trip, anything that rewrote it), drop
-            // the stale entry and fall back to the fresh-load path.
-            // Migration always forces a fresh load because we just rewrote
-            // note.body.
-            let restored = false;
-            if (!migrated) {
-              const hasSetState = typeof liveEditorInstance.setState === 'function';
-              const cached = noteEditorStates.get(note.id);
-              if (window.NoteSwitchRestore.shouldRestoreCachedState(hasSetState, cached, note.body)) {
-                liveEditorInstance.setState(cached.state);
-                restored = true;
-              } else if (hasSetState && cached) {
-                noteEditorStates.delete(note.id);
-              }
+          // Restore from cache when possible: same note id AND cached doc
+          // still matches the current body. If the body diverged (vault
+          // refresh, save round-trip, anything that rewrote it), drop
+          // the stale entry and fall back to the fresh-load path.
+          // Migration always forces a fresh load because we just rewrote
+          // note.body.
+          let restored = false;
+          if (!migrated) {
+            const hasSetState = typeof liveEditorInstance.setState === 'function';
+            const cached = noteEditorStates.get(note.id);
+            if (window.NoteSwitchRestore.shouldRestoreCachedState(hasSetState, cached, note.body)) {
+              liveEditorInstance.setState(cached.state);
+              restored = true;
+            } else if (hasSetState && cached) {
+              noteEditorStates.delete(note.id);
             }
-            if (!restored) {
-              liveEditorInstance.setText(note.body);
-            }
-            // Stage A diff loop 2: CM6 just received note.body (either via
-            // setState-from-cache or fresh setText). Update the dedicated
-            // CM6-hydration tracker so the AI bridge's getActiveSelection()
-            // knows the view is live for THIS note. The session branch above
-            // does NOT touch this tracker — CM6 stays whatever it was before
-            // the switch, and getActiveSelection() correctly returns null.
-            cm6HydratedNoteId = note.id;
-
-            // Restore the INCOMING note's saved mode + scroll ratio.
-            // Defaults to { mode: 'write', scrollRatio: 0 } for
-            // never-visited notes, matching the user's product rule.
-            restoreNoteViewState(note.id);
           }
+          if (!restored) {
+            liveEditorInstance.setText(note.body);
+          }
+          // Stage A diff loop 2: CM6 just received note.body (either via
+          // setState-from-cache or fresh setText). Update the dedicated
+          // CM6-hydration tracker so the AI bridge's getActiveSelection()
+          // knows the view is live for THIS note.
+          cm6HydratedNoteId = note.id;
+
+          // Restore the INCOMING note's saved mode + scroll ratio.
+          // Defaults to { mode: 'write', scrollRatio: 0 } for
+          // never-visited notes, matching the user's product rule.
+          restoreNoteViewState(note.id);
         }
       }
 
@@ -3037,13 +2517,8 @@
           return notes;
         }
         if (currentFilter === 'ai') {
-          // Stage S5: exclude session-imports from AI Imports so the
-          // two filters are disjoint. Sessions still match
-          // isAiImported (they have `source: claude/codex` in
-          // frontmatter), but the user wants AI Imports = MCP-ingested
-          // only; sessions live exclusively under AI Sessions.
           return notes.filter(
-            (note) => note.aiImported === true && note.sessionsImport !== true,
+            (note) => note.aiImported === true,
           );
         }
 
@@ -3058,20 +2533,15 @@
 
         if (currentFilter === 'vault') {
           // Stage 6.4 — "My Notes": vault-backed notes that aren't
-          // AI-imported and aren't session-imported. Disjoint from
-          // AI Imports + AI Sessions so every note belongs to
+          // AI-imported. Disjoint from AI Imports so every note belongs to
           // exactly one filter row.
           return notes.filter(
             (note) =>
               note.source === 'vault' &&
-              note.aiImported !== true &&
-              note.sessionsImport !== true,
+              note.aiImported !== true,
           );
         }
 
-        if (currentFilter === 'sessions') {
-          return notes.filter((note) => note.sessionsImport === true);
-        }
 
         // Defensive fallback if `currentFilter` is somehow not one of
         // the known values — e.g. a stale 'all' from before Stage 6.4.
@@ -3080,8 +2550,7 @@
         return notes.filter(
           (note) =>
             note.source === 'vault' &&
-            note.aiImported !== true &&
-            note.sessionsImport !== true,
+            note.aiImported !== true,
         );
       }
 
@@ -3113,18 +2582,10 @@
       }
 
       function scrollSelectedNoteIntoView() {
-        // Stage 6.6: handle both the flat note list (every row is a
-        // direct child of noteList with `.note-item active`) AND the
-        // AI Sessions grouped tree (the active row is `.session-row
-        // session-row--active` nested several levels deep). Prefer
-        // querySelector when available for the grouped case; fall
-        // back to the shallow loop for the test harness's lightweight
-        // DOM.
+        // Support the live DOM and the lightweight test DOM.
         let activeItem = null;
         if (typeof noteList.querySelector === 'function') {
-          activeItem =
-            noteList.querySelector('.note-item.active') ||
-            noteList.querySelector('.session-row--active');
+          activeItem = noteList.querySelector('.note-item.active');
         }
         if (!activeItem) {
           for (let i = 0; i < noteList.children.length; i++) {
@@ -3187,18 +2648,15 @@
         filterVaultMeta.textContent  = `${notes.filter((note) =>
           note.source === 'vault'
           && note.aiImported !== true
-          && note.sessionsImport !== true
+
         ).length} note(s)`;
         filterAiMeta.textContent     = `${notes.filter((note) =>
-          note.aiImported === true && note.sessionsImport !== true
+          note.aiImported === true
         ).length} note(s)`;
-        filterSessionsMeta.textContent = `${notes.filter((note) => note.sessionsImport === true).length} note(s)`;
       }
 
       function renderFilterNav() {
-        // Stage 6.4 — render order: Drafts → My Notes → AI Imports →
-        // AI Sessions. "All Notes" / "Vault Files" were removed; My
-        // Notes is the renamed-and-narrowed Vault filter.
+        // Sidebar order: Drafts → My Notes → AI Imports.
         const items = [
           // Stage 6.4: filterAll is hidden in CSS but still part of
           // the active-class rotation so tests that switch to 'all'
@@ -3207,9 +2665,7 @@
           [filterDrafts,   'drafts'],
           [filterVault,    'vault'],
           [filterAi,       'ai'],
-          [filterSessions, 'sessions'],
         ];
-        sessionsRefreshMount.style.display = currentFilter === 'sessions' ? '' : 'none';
 
         items.forEach(([element, filterKey]) => {
           element.className = filterKey === currentFilter ? 'nav-item active' : 'nav-item';
@@ -3266,70 +2722,11 @@
         searchMeta.textContent = `Found ${visibleResults.length} result(s) for "${query}" in the current filter.`;
       }
 
-      // Stage S5 — adapter: turn the editor's notes array (or visible
-      // search results) into the item shape that grouping.js expects.
-      // `agent` is derived from relativePath via the same prefix rules
-      // sessions-filter.js uses (Inbox/AI Chats/<codex|claude-code>/).
-      function relPathToAgent(relativePath) {
-        if (typeof relativePath !== 'string') return 'other';
-        if (relativePath.startsWith('Inbox/AI Chats/codex/')) return 'codex';
-        if (relativePath.startsWith('Inbox/AI Chats/claude-code/')) return 'claude';
-        return 'other';
-      }
-      function notesToSessionItems(notesList) {
-        const items = [];
-        for (const n of notesList || []) {
-          if (!n || n.sessionsImport !== true) continue;
-          const isDirty = window.DirtyState ? window.DirtyState.isNoteDirty(n) : false;
-          const badge = window.NoteRow ? window.NoteRow.computeNoteBadge(n, isDirty) : null;
-          // Stage S5 round-3 QA fix (issue D): bucket by the session's
-          // actual activity time (n.sourceMtime, from importer
-          // frontmatter), falling back to the file mtime when
-          // unavailable. Without this fix, every session imported in
-          // the same Refresh lands in the same bucket regardless of
-          // when the conversation actually happened.
-          const effectiveMtime = n.sourceMtime || n.mtime;
-          items.push({
-            id: n.id,
-            title: n.title || 'Untitled session',
-            relativePath: n.relativePath || '',
-            agent: relPathToAgent(n.relativePath),
-            mtime: effectiveMtime,
-            sourceMtime: effectiveMtime,
-            badge: badge,
-          });
-        }
-        return items;
-      }
-
       function renderNoteList() {
         noteList.innerHTML = '';
 
         const visibleResults = getVisibleResults();
         renderSearchMeta(visibleResults);
-
-        // Stage S5 — AI Sessions filter renders the grouped tree
-        // (Favorites → Codex → Claude → Other; each agent bucketed
-        // Today / Yesterday / Within 3 / Within 7 / Older). Other
-        // filters keep the existing flat-list code path below.
-        if (
-          currentFilter === 'sessions' &&
-          groupedListRenderer && favoritesController &&
-          window.SessionViewer && window.SessionViewer.groupAndSort
-        ) {
-          const items = notesToSessionItems(visibleResults.map((r) => r.note));
-          const tree = window.SessionViewer.groupAndSort(items, {
-            sort: 'newest',
-            today: new Date(),
-            isFavorite: (it) => favoritesController.isFavorite(it.relativePath),
-          });
-          groupedListRenderer.render(tree, selectedNoteId);
-          if (visibleResults.length === 0) {
-            noteList.innerHTML =
-              `<div class="note-meta">No search results in this filter.</div>`;
-          }
-          return;
-        }
 
         visibleResults.forEach((result) => {
           const note = result.note;
@@ -3391,9 +2788,7 @@
           `;
 
           item.addEventListener('click', () => {
-            // Stage S4 — route through selectNote so cross-session result
-            // clicks get the same exitWriteMode + bodyForRead capture as
-            // note-row clicks (round-1 plan-review B2 fix).
+            // Flush outgoing edits before selecting a different note.
             selectNote(note.id);
           });
 
@@ -3430,10 +2825,7 @@
           liveEditorContainer.classList.add('is-no-selection');
           // Stage 6.1: empty/no-selection state is never dirty.
           setStatusFromSelectedNote();
-          // Stage S3 — round-2 m2 fix: clear Read state in no-selection.
-          if (currentMode === 'read') setActiveMode('write');
-          // Stage S6: re-show Write/Preview tabs in no-selection state
-          // so they don't stay hidden from a previously-selected session.
+          if (currentMode !== 'write' && currentMode !== 'preview') setActiveMode('write');
           applyModeButtonsVisibility();
           return;
         }
@@ -3442,18 +2834,12 @@
         titleInput.disabled = false;
         liveEditorContainer.classList.remove('is-no-selection');
 
-        // Stage S6: hide Write/Preview/Read mode buttons appropriately
-        // BEFORE renderEditor. Runs before the editor body update so
-        // the tab bar matches the new note's surface set from frame 1.
         applyModeButtonsVisibility();
 
         renderEditor(selectedNote);
 
-        // Defensive fallback: if `restoreNoteViewState` somehow set mode
-        // to 'read' for a note that isn't a session, flip back to Write
-        // so a hidden Read tab isn't left active. This must stay AFTER
-        // renderEditor (round-2 M1 fix).
-        if (currentMode === 'read' && !selectedNote.sessionsImport) {
+        // Old saved Read mode must not leave an invisible surface active.
+        if (currentMode !== 'write' && currentMode !== 'preview') {
           setActiveMode('write');
         }
         // Pass the note body directly rather than reading via
@@ -3468,22 +2854,13 @@
         // loaded: N note(s)") still call setStatus *after* renderApp, and
         // those messages override this derivation as before.
         setStatusFromSelectedNote();
-        // Stage S6: tab-bar visibility runs at the tail as well so any
-        // late selection changes (e.g. cross-session click) settle the
-        // tab bar in sync with the just-rendered note. The pre-render
-        // call above prevents a one-frame flash; this trailing call
-        // covers the steady state.
-        applyModeButtonsVisibility();
+
       }
 
       function updateSelectedNoteFromInputs() {
         const selectedNote = getSelectedNote();
         if (!selectedNote) return;
 
-        // Stage S3.5: bodyForRead protects the note.body assignment
-        // below (line `selectedNote.body = fullText`) from clobbering
-        // on-disk content with an empty/stale CM6 buffer when the note
-        // is a deferred large session.
         const fullText = bodyForRead(selectedNote);
         const { tags, source } = stripMetaPrefix(fullText);
 
@@ -3598,64 +2975,14 @@
 
           const changedPath = String(payload?.fileName || '').replace(/\\/g, '/');
           const looksLikeAiImport = changedPath.toLowerCase().startsWith('inbox/ai chats/');
-          // Stage S5: a session import (Inbox/AI Chats/<codex|claude-code>/...)
-          // ALSO matches `inbox/ai chats/`. After Fix #2 sessions don't
-          // belong to AI Imports anymore, and the Refresh button in
-          // AI Sessions writes session files — auto-jumping to AI Imports
-          // would yank the user out of the filter they just used.
-          const looksLikeSessionsImport =
-            changedPath.startsWith('Inbox/AI Chats/codex/') ||
-            changedPath.startsWith('Inbox/AI Chats/claude-code/');
-
           const selectedNote = getSelectedNote();
-          // Stage S5 round-4 QA fix: for session imports, the user
-          // explicitly does NOT want Refresh to yank selection to the
-          // last-changed file. Stay on the currently-selected note
-          // (vault OR session). Only true AI-imports (MCP-ingested)
-          // still auto-jump to the changed path.
+          // Only genuine AI Imports auto-select the changed note; main filters session events.
           const preferredRelativePath =
-            (looksLikeAiImport && !looksLikeSessionsImport)
+            (looksLikeAiImport)
               ? changedPath
               : selectedNote && selectedNote.relativePath
               ? selectedNote.relativePath
               : '';
-
-          // Stage S5 round-4 QA fix: when the currently-viewed session's
-          // source file was just rewritten by Refresh, scroll its Read
-          // view to the bottom so the user sees the latest content.
-          // Persisted via noteViewStates BEFORE refreshVaultNotes runs
-          // so the post-refresh render picks it up automatically.
-          const selectedSessionGotRefreshed =
-            looksLikeSessionsImport &&
-            selectedNote &&
-            selectedNote.sessionsImport === true &&
-            selectedNote.relativePath === changedPath;
-          if (selectedSessionGotRefreshed) {
-            const saved = noteViewStates.get(selectedNote.id);
-            noteViewStates.set(selectedNote.id, {
-              mode: saved && saved.mode === 'preview' ? 'preview' : 'read',
-              scrollRatio: 1,
-            });
-            // Stage S5 round-9 QA fix: the prior fixes wrote
-            // scrollRatio=1 into noteViewStates, expecting the next
-            // renderEditor pass to apply it via restoreNoteViewState.
-            // But renderEditor's same-id guard (`note.id !==
-            // liveEditorLastNoteId`) skips the entire heavy path
-            // when the SAME note is still selected — including the
-            // setText / forceReadModeWithBody call that actually
-            // rewrites the visible DOM. Result: refresh updated the
-            // in-memory `notes` array but the Read view kept showing
-            // the pre-refresh content until the user switched notes
-            // and switched back.
-            //
-            // Reset the guard so the next renderEditor pass treats
-            // this as a fresh load. Also drop the hydration cache
-            // for this note so Write/Preview re-hydrate with the
-            // new body on demand.
-            liveEditorLastNoteId = '';
-            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
-            hydrationCache.drop(selectedNote.id);
-          }
 
           // The watcher only knows that one file changed on disk; every other
           // vault-backed note is unchanged on disk and must keep its in-memory
@@ -3676,7 +3003,7 @@
             return;
           }
 
-          if (looksLikeAiImport && !looksLikeSessionsImport) {
+          if (looksLikeAiImport) {
             const matchedNote = notes.find((note) => note.relativePath === changedPath);
 
             if (matchedNote) {
@@ -3706,15 +3033,6 @@
           stopVaultWatcher = null;
         }
 
-        // Stage S4 — reset cross-session index state so a new vault
-        // doesn't reuse the previous vault's content index.
-        crossSessionState.globalIndex = null;
-        crossSessionState.globalIndexStatus = 'idle';
-        crossSessionState.notesGeneration = 0;
-        currentNotesGeneration = 0;
-        if (crossSessionResults) crossSessionResults.hidden = true;
-        if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
-
         await window.vaultApi.unwatchVaultFolder();
       }
 
@@ -3723,7 +3041,6 @@
           vaultApi:            window.vaultApi,
           setCurrentVaultPath: (p) => {
             currentVaultPath = p;
-            if (sessionsRefreshController) sessionsRefreshController.setVaultPath(p || '');
           },
           stopWatching:        stopWatchingVault,
           startWatching:       startVaultWatcher,
@@ -3971,10 +3288,6 @@
           nextDraftId += 1;
         }
 
-        // Stage S4 — bump notes generation so any cached cross-session
-        // index is invalidated on the next query (round-1 plan-review M3 fix).
-        currentNotesGeneration += 1;
-
         renderApp();
 
         if (updateStatus) {
@@ -4096,9 +3409,6 @@
           // Flush any in-progress active-block edit so getText() returns the
           // committed source before we send it to disk.
           liveEditorInstance.exitWriteMode();
-          // Stage S3.5: bodyForRead is the data-loss guard for save.
-          // For a deferred large session (CM6 not hydrated), returns
-          // note.body unchanged; otherwise returns CM6's current text.
           const savedBody = bodyForRead(selectedNote);
           selectedNote.body = savedBody;
           const preservedDrafts = notes.filter((note) =>
@@ -4289,12 +3599,12 @@
       }
 
       function setFilter(filterKey) {
-        currentFilter = filterKey;
+        currentFilter = ['all', 'drafts', 'vault', 'ai'].includes(filterKey) ? filterKey : 'vault';
         renderApp();
         // Stage 6.1: a dirty selected note must keep showing Draft after
         // a filter change. setStatusFromSelectedNote routes through dirty
         // first; the contextual message only wins if the selection is clean.
-        setStatusFromSelectedNote(`Filter: ${filterKey}`);
+        setStatusFromSelectedNote(`Filter: ${currentFilter}`);
       }
 
       function handleSearchInput() {
@@ -4307,110 +3617,6 @@
           setStatusFromSelectedNote('Search cleared');
         }
 
-        // Stage S4 — cross-session content search. Only fires when the
-        // AI Sessions filter is active and the query is long enough.
-        // Otherwise hide the results container so a previous-filter
-        // query's results don't linger.
-        const minLen =
-          (window.SessionViewer && window.SessionViewer.MIN_GLOBAL_QUERY_LEN) || 2;
-        if (currentFilter === 'sessions' && currentSearchQuery.length >= minLen) {
-          runCrossSessionSearch(currentSearchQuery, ++crossSessionSearchToken);
-        } else {
-          if (crossSessionResults) crossSessionResults.hidden = true;
-          if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
-        }
-      }
-
-      // Stage S4 — cross-session content-search orchestration.
-      //   - Round-1 plan-review M3 fix: invalidate index when
-      //     notesGeneration moves (e.g., after loadVaultNotes refresh).
-      //   - Round-1 plan-review B1 fix: a second input event during a
-      //     pending build awaits the SAME in-flight promise.
-      //   - Round-1 plan-review M2 fix: stale-result guard via
-      //     monotonic searchToken + post-await guards.
-      async function runCrossSessionSearch(query, token) {
-        if (!window.SessionViewer || !window.SessionViewer.loadGlobalIndex) return;
-
-        // Stage S4 round-1 M3 fix: invalidate when the notes set has been
-        // replaced (e.g., after loadVaultNotes). `notesGeneration` is
-        // stamped on the state ONLY after a successful build completes
-        // (see the .then() below), so a mid-build vault refresh forces a
-        // rebuild rather than reusing a stale index labelled with the
-        // new generation.
-        if (crossSessionState.notesGeneration !== currentNotesGeneration) {
-          crossSessionState.globalIndex = null;
-          crossSessionState.globalIndexStatus = 'idle';
-          pendingCrossSessionIndexBuild = null;
-        }
-
-        if (crossSessionState.globalIndexStatus !== 'ready') {
-          if (!pendingCrossSessionIndexBuild) {
-            if (crossSessionIndexBanner) {
-              crossSessionIndexBanner.textContent = 'Indexing sessions…';
-              crossSessionIndexBanner.hidden = false;
-            }
-            const buildGen = currentNotesGeneration;
-            pendingCrossSessionIndexBuild = window.SessionViewer.loadGlobalIndex(
-              crossSessionState,
-              notes.filter((n) => n && n.sessionsImport === true),
-              async (it) => ({ content: typeof it.body === 'string' ? it.body : '' }),
-              (s) => s,
-              () => true,
-              (p) => {
-                if (crossSessionIndexBanner && p && p.total > 0) {
-                  crossSessionIndexBanner.textContent =
-                    `Indexing sessions… ${p.done}/${p.total}`;
-                }
-              },
-            ).then(() => {
-              // Stamp ONLY after a successful build; a build kicked off
-              // against an old notes set leaves notesGeneration at the
-              // OLD value, so a later guard catches the mismatch and
-              // forces a rebuild on the next query.
-              crossSessionState.notesGeneration = buildGen;
-            }).finally(() => {
-              pendingCrossSessionIndexBuild = null;
-              if (crossSessionIndexBanner) crossSessionIndexBanner.hidden = true;
-            });
-          }
-          try { await pendingCrossSessionIndexBuild; } catch (_e) { /* swallow */ }
-        }
-
-        // Round-1 plan-review M2 fix: stale-result guard.
-        if (
-          token !== crossSessionSearchToken ||
-          currentFilter !== 'sessions' ||
-          currentSearchQuery !== query ||
-          crossSessionState.notesGeneration !== currentNotesGeneration
-        ) {
-          return;
-        }
-
-        const results = window.SessionViewer.searchIndex(
-          crossSessionState.globalIndex,
-          query,
-        );
-        if (crossSessionResultsList) {
-          // Stage S5: pass `opts.isFavorite` so the existing
-          // renderGlobalResults adds the ★ indicator for favorited
-          // sessions in the cross-session result list. AC-S5-9.
-          window.SessionViewer.renderGlobalResults(
-            crossSessionResultsList,
-            results,
-            document,
-            (id) => selectNote(id),
-            {
-              isFavorite: (id) => {
-                if (!favoritesController) return false;
-                const note = notes.find((n) => n && n.id === id);
-                return note ? favoritesController.isFavorite(note.relativePath) : false;
-              },
-            },
-          );
-        }
-        if (crossSessionResults) {
-          crossSessionResults.hidden = results.length === 0;
-        }
       }
 
       window.addEventListener('beforeunload', () => {
@@ -4504,8 +3710,6 @@
             liveEditorInstance.exitWriteMode();
             const beforeFlush = getSelectedNote();
             if (beforeFlush) {
-              // Stage S3.5: bodyForRead protects save-all from
-              // clobbering deferred large session bodies.
               beforeFlush.body = bodyForRead(beforeFlush);
             }
           }
@@ -4717,8 +3921,7 @@
 
       // Source/Rich toggle is a tiptap-only Write submode. Show the button only in
       // Write; on any transition OUT of Write, commit + exit source so the hidden
-      // Write pane is never stranded in source. Called from BOTH setActiveMode and
-      // forceReadModeWithBody (AI Sessions bypass setActiveMode).
+      // Write pane is never stranded in source. Called from setActiveMode.
       function syncSourceToggleVisibility(mode) {
         if (!sourceToggleButton || selectedWriteEngine !== 'tiptap') return;
         if (mode === 'write') {
@@ -4990,31 +4193,12 @@
         return liveEditorInstance.getText();
       }
 
-      // Stage S3.5 / S6 — guarded read: AI Sessions never hydrate CM6
-      // anymore (S6 made them read-only), so reading from CM6 for any
-      // session returns empty/stale text. Fall back to note.body so
-      // save / save-all / outgoing-capture / title-edit paths don't
-      // corrupt the on-disk transcript content. For non-session notes
-      // that ARE still large but unhydrated (legacy/historical state),
-      // the same fallback applies.
+      // Shared read path used by save and note-switch capture.
       function bodyForRead(note) {
-        if (!note) return '';
-        const isSession = note.sessionsImport === true;
-        const isLarge =
-          window.SessionViewer && window.SessionViewer.isLargeSession
-            ? window.SessionViewer.isLargeSession(note)
-            : false;
-        if ((isSession || isLarge) && !hydrationCache.isHydrated(note.id, 'cm6')) {
-          return typeof note.body === 'string' ? note.body : '';
-        }
-        return getCurrentEditorText();
+        return note ? getCurrentEditorText() : '';
       }
 
-      // Stage S4 — shared note-selection transition (round-1 plan-review
-      // B2 fix). Both the note-row click handler AND the cross-session
-      // result click handler must route through this; otherwise a
-      // cross-session jump bypasses exitWriteMode + bodyForRead and can
-      // lose unsaved edits on the outgoing note.
+      // Flush the outgoing editor before changing selection to preserve unsaved edits.
       function selectNote(noteId) {
         const outgoingNote = getSelectedNote();
         if (liveEditorInstance && outgoingNote) {
@@ -5025,31 +4209,6 @@
         renderApp();
         setStatusFromSelectedNote();
         scrollSelectedNoteIntoView();
-      }
-
-      // Stage S3.5 — bypass setActiveMode('read') for the deferred
-      // path. setActiveMode's 'read' branch calls
-      // readTabController.renderInto(getCurrentEditorText()), which on
-      // a deferred note returns empty text. forceReadModeWithBody
-      // mutates the DOM directly AND calls renderInto(note.body) once.
-      // Round-2 plan-review M2 fix.
-      function forceReadModeWithBody(note) {
-        currentMode = 'read';
-        // AI Sessions bypass setActiveMode; still run the Source-toggle cleanup so
-        // the button isn't left visible on a read-only note and source isn't stranded.
-        syncSourceToggleVisibility('read');
-        hybridWritePane.classList.add('is-hidden');
-        toastPreviewMount.classList.remove('is-visible');
-        readViewMount.classList.add('is-visible');
-        writeModeButton.classList.remove('mode-button-active');
-        previewModeButton.classList.remove('mode-button-active');
-        modeReadButton.classList.add('mode-button-active');
-        writeModeButton.setAttribute('aria-selected', 'false');
-        previewModeButton.setAttribute('aria-selected', 'false');
-        modeReadButton.setAttribute('aria-selected', 'true');
-        if (readTabController) {
-          readTabController.renderInto(note.body);
-        }
       }
 
       // ── Write / Preview mode toggle ──────────────────────────────────────
@@ -5068,7 +4227,6 @@
 
       function activeScrollEl() {
         if (currentMode === 'preview') return previewScrollEl();
-        if (currentMode === 'read') return readViewMount;
         return hybridWritePane;
       }
 
@@ -5138,60 +4296,26 @@
       // on an actual mode change to avoid spamming Toast UI.
       function setActiveMode(mode) {
         const wasChange = currentMode !== mode;
-        const prevMode = currentMode;
         currentMode = mode;
-        // Source/Rich toggle visibility + leave-source cleanup (also reused by
-        // forceReadModeWithBody, which bypasses setActiveMode for AI Sessions).
+        // Source/Rich toggle visibility + leave-source cleanup.
         syncSourceToggleVisibility(mode);
-        // Stage S4 — show/hide the in-file search toolbar. The toolbar
-        // is bound to Read; hide it on transitions away from Read so a
-        // stale highlight doesn't leak into Write/Preview, and show it
-        // on transitions into Read so the user gets the search affordance.
-        if (inFileSearchToolbarController) {
-          if (mode === 'read' && prevMode !== 'read') {
-            inFileSearchToolbarController.onReadActivated();
-          } else if (mode !== 'read' && prevMode === 'read') {
-            inFileSearchToolbarController.onReadDeactivated();
-          }
-        }
         if (mode === 'preview') {
           hybridWritePane.classList.add('is-hidden');
           toastPreviewMount.classList.add('is-visible');
-          readViewMount.classList.remove('is-visible');
           writeModeButton.classList.remove('mode-button-active');
           previewModeButton.classList.add('mode-button-active');
-          modeReadButton.classList.remove('mode-button-active');
           writeModeButton.setAttribute('aria-selected', 'false');
           previewModeButton.setAttribute('aria-selected', 'true');
-          modeReadButton.setAttribute('aria-selected', 'false');
           if (wasChange && _toastuiInstance.eventEmitter && typeof _toastuiInstance.eventEmitter.emit === 'function') {
             _toastuiInstance.eventEmitter.emit('changePreviewTabPreview');
-          }
-        } else if (mode === 'read') {
-          // Stage S3 — Read mode hides both write + preview; the renderer
-          // paints into readViewMount via readTabController.renderInto.
-          hybridWritePane.classList.add('is-hidden');
-          toastPreviewMount.classList.remove('is-visible');
-          readViewMount.classList.add('is-visible');
-          writeModeButton.classList.remove('mode-button-active');
-          previewModeButton.classList.remove('mode-button-active');
-          modeReadButton.classList.add('mode-button-active');
-          writeModeButton.setAttribute('aria-selected', 'false');
-          previewModeButton.setAttribute('aria-selected', 'false');
-          modeReadButton.setAttribute('aria-selected', 'true');
-          if (readTabController) {
-            readTabController.renderInto(getCurrentEditorText());
           }
         } else {
           hybridWritePane.classList.remove('is-hidden');
           toastPreviewMount.classList.remove('is-visible');
-          readViewMount.classList.remove('is-visible');
           writeModeButton.classList.add('mode-button-active');
           previewModeButton.classList.remove('mode-button-active');
-          modeReadButton.classList.remove('mode-button-active');
           writeModeButton.setAttribute('aria-selected', 'true');
           previewModeButton.setAttribute('aria-selected', 'false');
-          modeReadButton.setAttribute('aria-selected', 'false');
         }
       }
 
@@ -5218,30 +4342,11 @@
       // restores keep the lighter scheduleApplyAfterLayout (no Toast UI
       // interference on that surface).
       function restoreNoteViewState(noteId) {
-        // Stage S5 round-4 QA fix: for AI Sessions notes that haven't
-        // been visited before, default to Read mode with scrollRatio=1
-        // (bottom — show the latest content). For non-session notes,
-        // keep the historical Write/0 default.
-        const incoming = notes.find((n) => n.id === noteId);
-        const isSession = !!(incoming && incoming.sessionsImport);
-        const defaultState = isSession
-          ? { mode: 'read', scrollRatio: 1 }
-          : { mode: 'write', scrollRatio: 0 };
-        const saved = noteViewStates.get(noteId) || defaultState;
-        // Stage S3 — defensive fallback: if a stored 'read' mode belongs to
-        // a note that is no longer a session (e.g. its frontmatter changed,
-        // or the path moved out of Inbox/AI Chats/), revert to 'write'.
-        let effectiveMode = saved.mode;
-        if (effectiveMode === 'read' && !isSession) {
-          effectiveMode = 'write';
-        }
+        const saved = noteViewStates.get(noteId) || { mode: 'write', scrollRatio: 0 };
+        const effectiveMode = saved.mode === 'preview' ? 'preview' : 'write';
         setActiveMode(effectiveMode);
         if (effectiveMode === 'preview') {
           applyPreviewScrollRatioWithRetries(saved.scrollRatio);
-        } else if (effectiveMode === 'read') {
-          scheduleApplyAfterLayout(function () {
-            if (_applyScrollRatio) _applyScrollRatio(readViewMount, saved.scrollRatio);
-          });
         } else {
           scheduleApplyAfterLayout(function () {
             if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, saved.scrollRatio);
@@ -5251,67 +4356,20 @@
 
       function showWriteMode() {
         if (currentMode === 'write') return;
-        // Stage S6: AI Sessions are read-only. Write is not a valid
-        // surface for them — the Write button is hidden in renderApp,
-        // but guard here too against keyboard / programmatic triggers.
-        const note = getSelectedNote();
-        if (note && note.sessionsImport === true) return;
-        _resumeWriteModeAfterHydration();
-      }
-
-      function _resumeWriteModeAfterHydration() {
-        // Capture from whichever surface is active before switching.
-        // Stage S3: Read also has a scroll position to carry over.
-        const sourceEl =
-          currentMode === 'read' ? readViewMount : previewScrollEl();
-        const ratio = _captureScrollRatio ? _captureScrollRatio(sourceEl) : 0;
+        const ratio = _captureScrollRatio ? _captureScrollRatio(previewScrollEl()) : 0;
         setActiveMode('write');
         scheduleApplyAfterLayout(function () {
           if (_applyScrollRatio) _applyScrollRatio(hybridWritePane, ratio);
         });
       }
 
-      function showReadMode() {
-        if (currentMode === 'read') return;
-        // Capture from the outgoing surface so a later return to Write or
-        // Preview can restore it.
-        const sourceEl =
-          currentMode === 'preview' ? previewScrollEl() : hybridWritePane;
-        const ratio = _captureScrollRatio ? _captureScrollRatio(sourceEl) : 0;
-        setActiveMode('read');
-        scheduleApplyAfterLayout(function () {
-          if (_applyScrollRatio) _applyScrollRatio(readViewMount, 0);
-        });
-        // Hold ratio for the eventual return to the outgoing mode via the
-        // noteViewStates path; the per-note state captures the active
-        // scroll element via activeScrollEl() (which now returns
-        // readViewMount during Read).
-        void ratio;
-      }
-
-      // Stage S6: AI Sessions are read-only transcripts. For
-      // sessionsImport notes, hide all three mode buttons (Write,
-      // Preview, Read) — the right panel just renders the Read view
-      // directly. For non-session notes, show Write + Preview and
-      // hide the Read tab (Read was always a sessions-only affordance).
       function applyModeButtonsVisibility() {
-        const note = getSelectedNote();
-        const isSession = !!(note && note.sessionsImport);
-        writeModeButton.hidden = isSession;
-        previewModeButton.hidden = isSession;
-        // The Read tab is no longer surfaced anywhere — sessions render
-        // Read directly, non-sessions never had Read. Always hidden.
-        modeReadButton.hidden = true;
+        writeModeButton.hidden = false;
+        previewModeButton.hidden = false;
       }
 
       function showPreviewMode() {
         if (currentMode === 'preview') return;
-        // Stage S6: AI Sessions are read-only. Preview is not a valid
-        // surface for them — the Preview button is hidden in renderApp,
-        // but guard here too against keyboard / programmatic triggers.
-        const note = getSelectedNote();
-        if (note && note.sessionsImport === true) return;
-
         // Normal path — existing logic unchanged.
         // Capture FIRST so the Write pane's measurements are still live —
         // before exitWriteMode swaps the active textarea or setMarkdown
@@ -5330,7 +4388,6 @@
 
       writeModeButton.addEventListener('click', showWriteMode);
       previewModeButton.addEventListener('click', showPreviewMode);
-      modeReadButton.addEventListener('click', showReadMode);
 
       titleInput.addEventListener('input', handleEdit);
       titleInput.addEventListener('keydown', (e) => {
@@ -5352,193 +4409,6 @@
       filterDrafts.addEventListener('click',   () => setFilter('drafts'));
       filterVault.addEventListener('click',    () => setFilter('vault'));
       filterAi.addEventListener('click',       () => setFilter('ai'));
-      filterSessions.addEventListener('click', () => setFilter('sessions'));
-
-      const sessionsRefreshController = window.SessionViewer.createRefreshController({
-        root: sessionsRefreshMount,
-        vaultApi: window.vaultApi,
-        document: document,
-        onComplete: () => {
-          if (!currentVaultPath) return;
-          // Stage S5 round-5 QA fix: the Refresh button's onComplete
-          // used to call loadVaultNotes() (no args) which falls
-          // through to `selectedNoteId = notes[0].id` when no
-          // preferredRelativePath is passed — wiping the user's
-          // selection at the end of every Refresh. The watcher
-          // events DURING the refresh DO preserve selection, but
-          // this final onComplete clobbered it. Pass the current
-          // selection through so the post-refresh notes array
-          // re-selects the same note.
-          const selectedNote = getSelectedNote();
-          const preferred = (selectedNote && selectedNote.relativePath) || '';
-          // Stage S5 round-9 QA fix: when the user clicks Refresh
-          // while viewing an AI Session, force a fresh render in
-          // case the file watcher debounced or missed events. The
-          // watcher path also resets these (for completeness when
-          // the watcher does fire), but doing it here guarantees
-          // the Refresh button itself always refreshes the visible
-          // surface.
-          if (selectedNote && selectedNote.sessionsImport === true) {
-            const saved = noteViewStates.get(selectedNote.id);
-            noteViewStates.set(selectedNote.id, {
-              mode: saved && saved.mode === 'preview' ? 'preview' : 'read',
-              scrollRatio: 1,
-            });
-            liveEditorLastNoteId = '';
-            cm6HydratedNoteId = '';   // Stage A / S3: reset alongside.
-            hydrationCache.drop(selectedNote.id);
-          }
-          // Mirror loadVaultNotes's status side-effect, then call
-          // refreshVaultNotes directly so we can pass `preferred`.
-          setStatus('saving', 'Loading vault...');
-          refreshVaultNotes(preferred);
-        },
-      });
-      // Seed the controller with whatever vault path is already present;
-      // currentVaultPath is mutated only via setCurrentVaultPath today, but
-      // seeding defends against future boot paths that populate it via
-      // localStorage / URL / IPC before the user clicks Choose Vault.
-      sessionsRefreshController.setVaultPath(currentVaultPath || '');
-
-      // Stage S3 — Read tab controller. Visible only for AI Sessions notes.
-      // The `let readTabController` was declared early; here we initialise it
-      // inside try/catch so a missing/failed read-renderer module surfaces
-      // the actual error to DevTools instead of poisoning every subsequent
-      // renderApp() call with a temporal-dead-zone ReferenceError.
-      try {
-        readTabController = window.SessionViewer.createReadTabController({
-          readButton: modeReadButton,
-          readMount: readViewMount,
-          document: document,
-          renderMarkdown: window.SessionViewer && window.SessionViewer.renderMarkdown,
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(
-          '[session-viewer] Read tab controller init failed; Read tab disabled.',
-          err,
-        );
-        readTabController = null;
-      }
-
-      // Stage S4 — in-file search toolbar controller. Same null-guard
-      // pattern as readTabController.
-      try {
-        if (window.SessionViewer && window.SessionViewer.createInFileSearchToolbar) {
-          inFileSearchToolbarController = window.SessionViewer.createInFileSearchToolbar({
-            toolbarRoot: inFileSearchToolbar,
-            searchInput: inFileSearchInput,
-            prevButton:  inFileSearchPrev,
-            nextButton:  inFileSearchNext,
-            counterEl:   inFileSearchCounter,
-            readMount:   readViewMount,
-            document:    document,
-            searchDom:   window.SessionViewer,
-          });
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(
-          '[session-viewer] In-file search toolbar init failed; toolbar disabled.',
-          err,
-        );
-        inFileSearchToolbarController = null;
-      }
-
-      // Stage S5 — AI Sessions favorites + grouped-list controller.
-      try {
-        if (window.SessionViewer && window.SessionViewer.createFavoritesController) {
-          favoritesController = window.SessionViewer.createFavoritesController({
-            storage: window.localStorage,
-          });
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[session-viewer] Favorites init failed; favorites disabled.', err);
-        favoritesController = null;
-      }
-
-      // Restore the group-collapse preferences from localStorage.
-      try {
-        const rawCollapsed = window.localStorage.getItem('markdownVault.aiSessions.collapsed');
-        if (rawCollapsed) {
-          const arr = JSON.parse(rawCollapsed);
-          if (Array.isArray(arr)) {
-            for (const k of arr) {
-              if (typeof k === 'string') groupCollapsedState.set(k, true);
-            }
-          }
-        }
-      } catch (_e) { /* garbage data — start with all groups expanded */ }
-
-      // Stage S5 round-3 QA fix (issue B): restore bucket-collapse preferences.
-      try {
-        const rawBucketCollapsed = window.localStorage.getItem(
-          'markdownVault.aiSessions.bucketCollapsed',
-        );
-        if (rawBucketCollapsed) {
-          const arr = JSON.parse(rawBucketCollapsed);
-          if (Array.isArray(arr)) {
-            for (const k of arr) {
-              if (typeof k === 'string') bucketCollapsedState.set(k, true);
-            }
-          }
-        }
-      } catch (_e) { /* garbage data — start with all buckets expanded */ }
-
-      try {
-        if (
-          favoritesController &&
-          window.SessionViewer && window.SessionViewer.createGroupedListRenderer
-        ) {
-          groupedListRenderer = window.SessionViewer.createGroupedListRenderer({
-            container: noteList,
-            document: document,
-            favoritesController: favoritesController,
-            onRowClick: (noteId) => selectNote(noteId),
-            onStarClick: (relativePath) => {
-              if (!favoritesController) return;
-              favoritesController.toggle(relativePath);
-              renderApp();
-            },
-            onHeaderToggle: (groupKey) => {
-              if (groupCollapsedState.has(groupKey)) groupCollapsedState.delete(groupKey);
-              else groupCollapsedState.set(groupKey, true);
-              try {
-                const arr = [...groupCollapsedState.keys()];
-                window.localStorage.setItem(
-                  'markdownVault.aiSessions.collapsed', JSON.stringify(arr),
-                );
-              } catch (_e) { /* quota — silent */ }
-              renderApp();
-            },
-            isCollapsed: (groupKey) => groupCollapsedState.has(groupKey),
-            // Stage S5 round-3 QA fix (issue B): bucket-collapse callbacks.
-            onBucketToggle: (groupKey, layerId) => {
-              const bk = `${groupKey}:${layerId}`;
-              if (bucketCollapsedState.has(bk)) bucketCollapsedState.delete(bk);
-              else bucketCollapsedState.set(bk, true);
-              try {
-                const arr = [...bucketCollapsedState.keys()];
-                window.localStorage.setItem(
-                  'markdownVault.aiSessions.bucketCollapsed', JSON.stringify(arr),
-                );
-              } catch (_e) { /* quota — silent */ }
-              renderApp();
-            },
-            isBucketCollapsed: (groupKey, layerId) =>
-              bucketCollapsedState.has(`${groupKey}:${layerId}`),
-          });
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(
-          '[session-viewer] Grouped list renderer init failed; grouped tree disabled.',
-          err,
-        );
-        groupedListRenderer = null;
-      }
-
       // Dictionary lookup (⌘⇧D). We capture the selection plus its
       // surrounding block so the local Dictionary app can translate in
       // context. The main process holds the token and does the POST; here
@@ -5668,33 +4538,7 @@
             || (toastPreviewMount && toastPreviewMount.contains(focused));
           if (!inTextSurface) {
             e.preventDefault();
-            // Stage 6.6: for the AI Sessions grouped tree, arrow keys
-            // must traverse the VISUAL display order
-            // (Favorites → Codex (Today / W3 / Older) → Claude → Other),
-            // respecting any collapsed groups / buckets. For all
-            // other filters, the flat note list IS the
-            // getVisibleResults order, so we keep that path.
-            let orderedIds;
-            if (
-              currentFilter === 'sessions' &&
-              favoritesController &&
-              window.SessionViewer && window.SessionViewer.flattenVisibleGroupedTree
-            ) {
-              const items = notesToSessionItems(notes);
-              const tree = window.SessionViewer.groupAndSort(items, {
-                sort: 'newest',
-                today: new Date(),
-                isFavorite: (it) => favoritesController.isFavorite(it.relativePath),
-              });
-              const visibleRows = window.SessionViewer.flattenVisibleGroupedTree(tree, {
-                isGroupCollapsed:  (gk) => groupCollapsedState.has(gk),
-                isBucketCollapsed: (gk, layerId) =>
-                  bucketCollapsedState.has(`${gk}:${layerId}`),
-              });
-              orderedIds = visibleRows.map((it) => it.id);
-            } else {
-              orderedIds = getVisibleResults().map((r) => r.note.id);
-            }
+            const orderedIds = getVisibleResults().map((r) => r.note.id);
             const currentIndex = orderedIds.indexOf(selectedNoteId);
             const delta = e.key === 'ArrowDown' ? 1 : -1;
             const nextIndex = currentIndex + delta;

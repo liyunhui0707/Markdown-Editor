@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>Restricted synthetic document QA</title>
+<style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}#composition-copy-panel pre{user-select:text;max-height:240px;overflow:auto}#composition-warning,#composition-copy-panel{border:1px solid #9a6b00;padding:12px;margin:12px 0;max-width:760px}[hidden]{display:none!important}
+
+</style><link rel="stylesheet" href="document-writing-shell.css"><link rel="stylesheet" href="document-reading-view.css"><link rel="stylesheet" href="document-panels.css"><link rel="stylesheet" href="document-find.css"></head>
+<body>
+<div id="writing-app" hidden>
+  <aside id="document-sidebar" aria-label="文档导航">
+    <div class="sidebar-brand"><span class="brand-mark" aria-hidden="true">m↓</span><strong>Markdown</strong><button id="close-session-sidebar" class="icon-button" aria-label="收起文档侧栏" title="收起侧栏">‹</button></div>
+    <div id="sidebar-actions"></div>
+    <label class="session-filter" for="session-filter"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="session-filter" type="search" placeholder="筛选已打开文档" autocomplete="off"></label>
+    <div class="session-heading"><span>当前窗口</span><span id="session-count">0</span></div>
+    <nav id="session-list" aria-label="已打开文档"></nav>
+    <p id="session-empty">打开一份文档，<br>或从新的草稿开始。</p>
+    <div id="sidebar-bottom"></div>
+  </aside>
+  <button id="sidebar-scrim" aria-label="关闭文档侧栏" hidden></button>
+  <section id="writing-workspace" aria-label="Markdown 工作区">
+    <div id="writing-toolbar"><span id="reading-mode">阅读 · 原文件只读</span><div id="reading-tools">
+      <button id="show-document-find" disabled aria-label="在文档中查找" title="在文档中查找（⌘F）" aria-controls="document-find" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
+      <button id="show-reading-settings" aria-label="阅读设置" title="阅读设置（⌘,）" aria-haspopup="dialog" aria-controls="reading-settings-dialog" aria-expanded="false">Aa</button>
+      <button id="toggle-document-outline" aria-label="显示或隐藏文档大纲" title="文档大纲" aria-controls="document-outline" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1"/></svg></button>
+    </div></div>
+    <section id="document-find" role="search" aria-label="文档内查找" hidden>
+      <input id="find-query" type="search" aria-label="查找正文" placeholder="查找正文…" maxlength="256" autocomplete="off" spellcheck="false">
+      <label title="区分大小写"><input id="find-case" type="checkbox" aria-label="区分大小写">Aa</label>
+      <output id="find-count" role="status" aria-live="polite"></output>
+      <button id="find-previous" aria-label="上一个匹配" title="上一个（Shift+Enter）">↑</button><button id="find-next" aria-label="下一个匹配" title="下一个（Enter）">↓</button><button id="find-close" aria-label="关闭查找" title="关闭查找（Escape）">×</button>
+    </section>
+    <div id="writing-body"><main id="document-scroll" aria-label="文档正文"></main>
+    <aside id="document-outline" aria-label="文档大纲" hidden><div class="outline-heading"><h2>文档大纲</h2><span id="outline-count">0</span><button id="close-document-outline" aria-label="收起文档大纲">×</button></div>
+      <nav id="outline-list" aria-label="跳转到标题"></nav><p id="outline-empty">添加标题后，<br>大纲会显示在这里。</p>
+    </aside></div>
+    <footer id="writing-footer"><span id="document-statistics" title="已确认 Markdown 原文字符数（不计空白）"></span></footer>
+  </section>
+</div>
+<header id="document-header" hidden>
+<div id="header-start"><button id="toggle-session-sidebar" class="icon-button" aria-label="显示或隐藏文档侧栏" aria-controls="document-sidebar" aria-expanded="true" title="显示或隐藏侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+  <button id="open-file" disabled aria-label="打开 Markdown" title="打开 Markdown 文件（⌘O）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7V5a1 1 0 0 1 1-1h6l2 2h8a1 1 0 0 1 1 1v3M3 8h17a1 1 0 0 1 1 1l-2 10H4L2 9a1 1 0 0 1 1-1Z"/></svg>
+    <span>打开…</span>
+  </button>
+</div>
+  <details id="document-info" hidden>
+    <summary title="文档信息与切换"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
+    <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
+      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。暂不支持的 Markdown 格式按原文显示。</p></div>
+  </details>
+<div id="header-end"><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
+</header>
+<div id="writing-actions" hidden><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="create-test-copy" hidden>创建测试副本</button></div>
+<div id="writing-status" hidden><span id="readonly-badge"></span><output id="backup-summary" role="status" hidden></output></div>
+<div id="format-toolbar" hidden role="toolbar" aria-label="正文格式">
+<select id="format-block" aria-label="段落格式" title="对当前单行段落或整个单层列表应用格式"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="heading-4" disabled>标题 4</option><option value="heading-5" disabled>标题 5</option><option value="heading-6" disabled>标题 6</option><option value="unsupported" disabled>只读结构</option></select>
+<button id="format-bold" aria-label="加粗" aria-pressed="false" title="选中文字加粗（⌘B）；取消时选中完整粗体">B</button>
+<span class="format-divider"></span><button id="format-undo" aria-label="撤销" title="撤销（⌘Z）">↶</button><button id="format-redo" aria-label="重做" title="重做（⌘⇧Z）">↷</button>
+</div>
+<output id="copy-summary-compact" role="status" hidden></output><output id="copy-operation-alert" role="status" hidden></output>
+<div id="confirmed-copy-actions" hidden><div class="copy-action-buttons"><button id="open-confirmed-copy" title="只读打开最近确认的新文件，保留当前草稿">打开已导出文件</button><button id="reveal-confirmed-copy">在 Finder 中显示</button></div><output id="copy-action-status" role="status"></output></div>
+<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；多段请粘贴到一个普通段落内。连续空段落及复杂格式暂不支持。</p>
+<output id="draft-backup-status" role="status" hidden></output>
+<details id="draft-recovery-panel" hidden><summary>本地草稿：恢复与管理</summary>
+<p class="panel-intro">继续上次的写作。恢复时会打开独立副本，原文件不变。</p>
+<div class="section-heading"><h3>待恢复</h3><button id="refresh-drafts">刷新草稿列表</button></div>
+<p id="draft-recovery-status" role="status"></p><div id="draft-empty" class="panel-empty" hidden><strong>暂时没有待恢复草稿</strong><p>新建或编辑副本后，已确认的正文会自动备份到本机。</p></div><div id="draft-recovery-list"></div>
+<details id="draft-archive-panel"><summary>已归档（可放回）</summary><p id="draft-archive-empty">没有已归档草稿。</p><div id="draft-archive-list"></div></details>
+<div id="draft-management-confirmation" hidden><p id="draft-management-description"></p><button id="confirm-draft-management">确认归档</button><button id="cancel-draft-management">取消</button></div>
+<output id="draft-operation-status" role="status"></output>
+<details class="panel-help"><summary>备份范围与容量</summary><p>草稿只保存在本机应用私有目录，不会改写原文件。每份通常保留最近两次完整快照；损坏或未知记录保留。最多 32 份待恢复草稿、总共 128 条本地记录（含归档与异常记录）。归档保留正文、释放待恢复名额，不清空磁盘记录。使用中或记录异常的草稿不能归档。达到上限会停止相应备份或整理并提示。</p></details></details>
+<section id="test-copy-panel" hidden aria-label="Create a new Markdown copy">
+<h3 class="section-label">另存为文件</h3><details id="test-copy-location-help" class="panel-help"><summary>可用位置与保存规则</summary><p id="test-copy-description">Development only — copies are created in a private, isolated temporary directory. They may be cleaned up. Do not use them for important or long-term documents. No ordinary Save As or overwrite is enabled.</p></details>
+<output id="test-copy-reason" role="status"></output>
+<div id="test-copy-confirmation" hidden><p id="test-copy-confirm-revision" class="confirmation-snapshot"></p><div class="confirmation-actions"><button id="cancel-test-copy">返回编辑</button><button id="confirm-test-copy">选择位置…</button></div></div>
+<div id="copy-empty" class="panel-empty"><strong>尚未另存新文件</strong><p>另存后会在这里显示文件位置与确认结果。本地备份不等于 Markdown 文件保存。</p></div>
+<section id="confirmed-copy-card" class="detail-card" hidden><h3>最近确认的新文件</h3><output id="test-copy-summary" role="status" aria-label="Confirmed file summary"></output>
+<details id="test-copy-receipt" hidden><summary>修订与 SHA-256</summary><output id="test-copy-result" aria-label="Last confirmed copy"></output></details></section>
+<section id="latest-copy-card" class="detail-card" hidden><h3>本次操作</h3><output id="test-copy-operation" role="status" aria-label="Latest copy operation"></output></section>
+<details><summary>如何重新打开已创建文件</summary><p>点击正文上方的「打开已导出文件」即可只读打开最近确认的新文件，或使用「在 Finder 中显示」定位。文件身份或内容无法核对时不会自动打开，可用「打开…」（⌘O）手动检查。新文件以只读方式打开；继续编辑请创建独立副本。之后的修改不会自动写回任何文件。</p></details>
+</section>
+<div id="input-alerts"></div>
+<output id="viewer-status" role="status" aria-live="polite">打开 Markdown 或新建草稿开始。</output>
+<section id="empty-state" hidden aria-labelledby="welcome-title">
+  <svg class="welcome-icon" viewBox="0 0 68 76" fill="none" aria-hidden="true"><path d="M17 4h24l14 15v49a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#f0f3f7" stroke="currentColor" stroke-width="1.5"/><path d="M40 4v16h15M24 34h20M24 43h20M24 52h13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <p class="welcome-kicker">属于你的写作空间</p><h1 id="welcome-title">写下此刻的想法。</h1>
+  <p>打开 Markdown 阅读，或新建草稿开始写作。<br>原文件始终受到保护。</p>
+  <div class="welcome-actions"><button id="empty-new" disabled>新建草稿</button><button id="empty-open" disabled>打开 Markdown <kbd aria-hidden="true">⌘O</kbd></button></div>
+  <p class="welcome-note">文件以只读方式打开，点击「编辑副本」开始修改。</p>
+</section>
+<div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
+<button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
+<button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
+<button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>
+</div><output class="developer-only" id="status">Waiting for main-owned fixture sessions</output><div id="editor"></div>
+<p id="composition-status" hidden role="status">正在输入。请在输入法中完成或取消选词；确认前暂缓切换和另存文件，当前内容保留。</p>
+<section class="input-protection" id="composition-warning" hidden aria-label="Unconfirmed input warning">
+<p role="status">当前输入无法安全确认。请先在输入法中完成或取消选词；不会自动重置或丢弃内容，可查看下方保留副本。</p>
+<button id="view-composition-copy">查看并保留输入副本</button></section>
+<section class="input-protection" id="composition-copy-panel" hidden aria-label="Composition input copies">
+<p>Copies are memory only. Exit, page refresh or a crash may lose them. Native IME preedit outside DOM/controller may not be captured; these copies may be incomplete.</p>
+<p>Editing recovery is unavailable: safe retirement of the native input context has not been verified. Viewing or cancelling does not unlock, submit or discard input.</p>
+<output id="composition-copy-status" role="status"></output>
+<p><label for="composition-markdown">Retained local Markdown (not necessarily confirmed or saved)</label></p>
+<pre id="composition-markdown" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="Retained local Markdown"></pre><button id="copy-composition-markdown">Copy local Markdown</button>
+<p><label for="composition-dom">Retained partial DOM plain text</label></p><p id="composition-dom-note"></p>
+<pre id="composition-dom" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="Retained partial DOM text"></pre><button id="copy-composition-dom">Copy partial DOM text</button>
+<button id="cancel-composition-copy">Cancel copy view</button></section>
+<details class="developer-only" open><summary>Complete source retained in main memory</summary><pre id="source"></pre></details>
+<details class="input-protection" id="recovery-panel" hidden><summary>内存中保留的未确认输入</summary>
+<output id="recovery-status"></output><select id="recovery-record" aria-label="Recovery record"></select>
+<button id="discard-recovery" title="Only removes the selected in-memory record; does not change confirmed Markdown.">Discard selected recovery record</button>
+<pre id="recovery"></pre></details>
+<dialog id="draft-dialog" class="writing-dialog side-panel" aria-labelledby="draft-dialog-title"><div class="panel-heading"><h2 id="draft-dialog-title">本地草稿</h2><button id="close-draft-dialog" autofocus aria-label="关闭草稿面板">关闭</button></div><div id="draft-dialog-content" class="panel-content"></div></dialog>
+<dialog id="document-details-dialog" class="writing-dialog side-panel" aria-labelledby="document-details-title"><div class="panel-heading"><h2 id="document-details-title">文档与保存详情</h2><button id="close-document-details-dialog" autofocus aria-label="关闭详情面板">关闭</button></div><div id="document-details-content" class="panel-content"><section class="detail-card document-identity"><span class="section-label">当前文档</span><h3 id="details-document-name"></h3><span id="details-document-kind" class="state-pill"></span><p id="details-document-location"></p><dl class="document-facts"><div><dt>已确认修订</dt><dd id="details-document-revision"></dd></div><div><dt>原文字符</dt><dd id="details-document-count"></dd></div></dl></section><section id="details-backup-card" class="detail-card"><h3>本地备份</h3><div id="details-backup-content"></div><details class="panel-help" id="details-writing-help"><summary>备份与编辑范围</summary></details></section></div></dialog>
+<dialog id="copy-confirm-dialog" class="writing-dialog" aria-labelledby="copy-confirm-title"><div class="save-dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 14h8M8 17h5"/></svg></div><p class="section-label">保留一份 Markdown</p><h2 id="copy-confirm-title">另存为新文件</h2><p>选择一个新文件名，保留此刻已确认的内容。已有文件不会被覆盖。</p><p class="save-dialog-note">另存后仍可继续编辑草稿；后续修改不会自动写回新文件。</p></dialog>
+<dialog id="reading-settings-dialog" class="writing-dialog" aria-labelledby="reading-settings-title">
+  <div class="panel-heading"><h2 id="reading-settings-title">阅读与外观</h2><button id="close-reading-settings" autofocus aria-label="关闭阅读设置">完成</button></div>
+  <div class="reading-settings-body"><h3>外观主题</h3><div class="reading-theme-options" role="group" aria-label="外观主题">
+    <button id="reading-theme-light" aria-pressed="true"><span class="reading-theme-preview" aria-hidden="true"></span>浅色</button>
+    <button id="reading-theme-dark" aria-pressed="false"><span class="reading-theme-preview dark" aria-hidden="true"></span>深色</button>
+    <button id="reading-theme-system" aria-pressed="false"><span class="reading-theme-preview system" aria-hidden="true"></span>跟随系统</button>
+  </div><h3>正文排版</h3>
+  <label class="reading-setting-row" for="reading-font"><span>正文字体<small>选择熟悉的阅读质感</small></span><select id="reading-font"><option value="sans">简洁黑体</option><option value="serif">书刊宋体</option></select></label>
+  <label class="reading-setting-row" for="reading-size"><span>字号<small>适合你的阅读距离</small></span><select id="reading-size"><option value="16">16 px</option><option value="17" selected>17 px</option><option value="19">19 px</option><option value="21">21 px</option></select></label>
+  <label class="reading-setting-row" for="reading-width"><span>正文宽度<small>留白也属于文字</small></span><select id="reading-width"><option value="580">紧凑</option><option value="680" selected>舒适</option><option value="800">宽阔</option></select></label>
+  <label class="reading-setting-row" for="reading-spacing"><span>行距<small>让长文更易阅读</small></span><select id="reading-spacing"><option value="1.65">紧凑</option><option value="1.95" selected>舒适</option><option value="2.2">宽松</option></select></label>
+  </div><div class="reading-settings-footer"><p>仅调整显示，不改变文档格式。<br>设置在当前窗口内保持，重启恢复默认。</p><button id="reset-reading-settings">恢复默认</button></div>
+</dialog>
+<script src="document-demo-bundle.js"></script></body></html>

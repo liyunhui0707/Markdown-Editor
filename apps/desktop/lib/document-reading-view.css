@@ -1,0 +1,77 @@
+/* Reading controls extend the approved shell without changing editor contents. */
+body[data-document-viewer] {
+  --body-size:17px; --body-spacing:1.95;
+  --body-font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  --selection:#cbdbc5; --code-ink:#59645a; --warning-bg:#faf0e3;
+  --warning-ink:#885b29; --warning-line:#bd915a; --on-accent:#fff;
+}
+body[data-document-viewer][data-reading-theme=dark] {
+  color-scheme:dark; --paper:#222723; --panel:#1d221e; --surface:#2b312c;
+  --ink:#e0e5dd; --muted:#a0aa9e; --line:#394239; --accent:#b0c5a5;
+  --active:#354333; --selection:#496044; --code-ink:#bac5b5;
+  --warning-bg:#3b3023; --warning-ink:#e6bd88; --warning-line:#b28d57; --on-accent:#20281e;
+}
+body[data-document-viewer][data-reading-font=serif] {--body-font:"Songti SC","STSong",Georgia,serif}
+body[data-document-viewer] #editor {font-family:var(--body-font);font-size:var(--body-size);line-height:var(--body-spacing)}
+body[data-document-viewer] ::selection {background:var(--selection)}
+body[data-document-viewer] .tiptap pre {color:var(--code-ink)}
+#writing-workspace {position:relative}
+#writing-body {display:flex;flex:1;min-height:0;min-width:0}
+#document-scroll {min-width:0}
+#writing-toolbar {justify-content:space-between;gap:8px}
+#reading-tools {display:flex;gap:3px;flex:none;margin-left:auto}
+#reading-tools button {padding:3px 7px;border-color:transparent;background:transparent;color:var(--muted);height:30px;min-width:30px}
+#reading-tools button:hover:enabled,#reading-tools button[aria-expanded=true] {background:var(--active);color:var(--accent)}
+#show-reading-settings {font-family:Georgia,serif!important;font-size:15px!important}
+#document-outline {width:194px;flex:none;border-left:1px solid var(--line);background:var(--paper);overflow:auto;padding:25px 15px 30px}
+.outline-heading {display:flex;align-items:center;gap:8px;margin:0 2px 20px;color:var(--muted)}
+.outline-heading h2 {font-size:11px;font-weight:500;margin:0;letter-spacing:1px}
+#outline-count {font-size:10px}
+#close-document-outline {margin-left:auto;padding:0 6px;border-color:transparent;background:transparent;color:var(--muted);font-size:18px}
+#outline-list {display:flex;flex-direction:column;gap:3px}
+#outline-list button {background:transparent;text-align:left;font-size:11px;line-height:1.7;border-color:transparent;padding:7px 8px;overflow-wrap:anywhere}
+#outline-list button[data-level="2"] {padding-left:16px}
+#outline-list button[data-level="3"] {padding-left:24px}
+#outline-list button:is([data-level="4"],[data-level="5"],[data-level="6"]) {padding-left:32px}
+#outline-list button[aria-current=location] {background:var(--active);color:var(--accent)}
+#outline-empty {font-size:12px;line-height:1.9;color:var(--muted);padding:0 8px}
+#reading-settings-dialog {width:560px}
+#reading-settings-dialog h3 {font-size:12px;font-weight:600;margin:0 0 16px;color:var(--ink)}
+.reading-settings-body {padding:24px 28px 16px}
+.reading-theme-options {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:29px}
+body[data-document-viewer] .reading-theme-options button {display:flex;flex-direction:column;gap:9px;align-items:center;padding:8px 8px 10px;background:transparent;border:1px solid var(--line);font-size:12px}
+body[data-document-viewer] .reading-theme-options button[aria-pressed=true] {border-color:var(--accent);background:var(--active)}
+.reading-theme-preview {display:block;position:relative;width:100%;height:61px;overflow:hidden;background:#fdfcf9;border:1px solid #d5dbd1;border-radius:4px}
+.reading-theme-preview::before {content:'';position:absolute;inset:0 68% 0 0;background:#e6e8e0}
+.reading-theme-preview::after {content:'';position:absolute;inset:13px 14% 32px 43%;border-top:3px solid #829479;border-bottom:2px solid #c1c8ba;box-shadow:0 10px #d9dfd4}
+.reading-theme-preview.dark {background:#222723;border-color:#414d40}
+.reading-theme-preview.dark::before {background:#181e18}
+.reading-theme-preview.dark::after {border-top-color:#b0c5a5;border-bottom-color:#667360;box-shadow:0 10px #404e3c}
+.reading-theme-preview.system {background:linear-gradient(90deg,#fdfcf9 50%,#222723 50%)}
+.reading-setting-row {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid var(--line);font-size:13px}
+.reading-setting-row small {display:block;font-size:11px;line-height:1.7;color:var(--muted);margin-top:4px}
+body[data-document-viewer] .reading-setting-row select {padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:12px;min-width:116px;max-width:150px}
+.reading-settings-footer {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:6px 28px 24px}
+.reading-settings-footer p {font-size:11px;line-height:1.8;color:var(--muted);margin:8px 0}
+#reset-reading-settings {white-space:nowrap;background:transparent;font-size:11px}
+body[data-document-viewer][data-reading-theme=dark] :is(#sidebar-actions #new-temporary,#empty-new,#copy-confirm-dialog #confirm-test-copy) {color:var(--on-accent)}
+body[data-document-viewer][data-reading-theme=dark] :is(#backup-summary[data-tone=error],#draft-operation-status) {color:var(--warning-ink)}
+body[data-document-viewer][data-reading-theme=dark] :is(#copy-operation-alert,#test-copy-operation[data-tone=error]:not(:empty),#draft-backup-status[data-tone=error],.input-protection,#composition-status,#viewer-status[data-notice]) {background:var(--warning-bg);color:var(--warning-ink);border-color:var(--warning-line)}
+body[data-document-viewer][data-reading-theme=dark] #copy-operation-alert[data-tone=neutral] {background:var(--panel);color:var(--muted);border-color:var(--line)}
+@media(max-width:1179px) {
+  #document-outline {position:absolute;z-index:8;right:12px;top:105px;bottom:44px;width:min(260px,calc(100% - 24px));border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 40px #17201926;padding:20px 16px;background:var(--surface)}
+}
+@media(max-width:460px) {
+  #writing-toolbar {padding:0 10px;gap:2px}
+  #format-toolbar {gap:2px}
+  #format-toolbar select {max-width:90px;margin-right:0}
+  #format-toolbar button {padding:2px 6px}
+  .format-divider {margin:0 3px}
+  #reading-tools {gap:0}
+  .reading-settings-body {padding:20px 18px 12px}
+  .reading-settings-footer {padding:6px 18px 20px;gap:10px}
+  .reading-setting-row {gap:10px}
+  .reading-setting-row small {max-width:160px}
+  .reading-theme-options {gap:8px}
+  .reading-theme-preview {height:49px}
+}

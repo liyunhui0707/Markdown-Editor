@@ -1,8 +1,15 @@
 import { spawn } from 'node:child_process';
 
 const minimum = {
-  tests: 2626,
-  pass: 2624,
+  // Phase 2: remove 379 importer/viewer tests and 11 session renderer tests;
+  // retain shared coverage and add 23 editor-boundary/renderer/scalar tests.
+  // Security follow-up adds seven dependency regressions.
+  // Note-load history boundary adds eight Tiptap regressions.
+  // Math delimiter rules add 19 parser/serializer cases and one factory case.
+  // A6 adds four factory dirty-state and fifteen main-process save guards.
+  // September 9 security follow-up adds six parser/lockfile regressions.
+  tests: 2366,
+  pass: 2364,
   fail: 0,
   cancelled: 0,
   skipped: 2,

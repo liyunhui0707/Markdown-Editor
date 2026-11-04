@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Markdown · 交互设计原型</title><link rel="stylesheet" href="style.css"><script src="demo-content.js" defer></script><script src="app.js" defer></script></head>
+<body>
+<div class="app-window" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="文档导航">
+    <div class="sidebar-top"><div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div><button class="icon-button" data-action="sidebar" title="收起侧栏" aria-label="收起侧栏" data-icon="sidebar"></button></div>
+    <button class="brand" data-action="home"><span class="brand-mark" aria-hidden="true">m<span>↓</span></span><span>Markdown</span></button>
+    <button class="search-trigger" data-action="search"><span data-icon="search"></span><span>搜索文档</span><kbd>⌘ K</kbd></button>
+    <nav class="primary-nav" aria-label="资料分类">
+      <button data-nav="recent" class="active"><span data-icon="clock"></span>最近打开<span class="count" id="recent-count">4</span></button>
+      <button data-nav="starred"><span data-icon="star"></span>已收藏<span class="count" id="star-count">2</span></button>
+      <button data-nav="drafts"><span data-icon="file-pen"></span>本地草稿<span class="count" id="draft-count">1</span></button>
+    </nav>
+    <div class="list-heading"><span id="list-label">今天</span><button class="icon-button" data-action="new" title="新建文档" aria-label="新建文档" data-icon="plus"></button></div>
+    <div id="document-list" class="document-list"></div>
+    <div class="sidebar-bottom"><button data-nav="archived"><span data-icon="archive"></span>已归档<span class="count" id="archive-count">1</span></button><button data-action="settings"><span data-icon="settings"></span>设置<span class="shortcut">⌘ ,</span></button></div>
+  </aside>
+  <section class="workspace">
+    <header class="titlebar">
+      <div class="title-start"><button class="icon-button reveal-sidebar" data-action="sidebar" aria-label="显示侧栏" title="显示侧栏" data-icon="sidebar"></button><span class="file-icon" data-icon="file"></span><button class="document-title" id="document-title" data-action="info">让文字，回到中心<span class="chevron" data-icon="chevron-down"></span></button><span class="file-extension">.md</span></div>
+      <div class="title-actions"><button class="icon-button" data-action="focus" title="专注模式 · ⌘⇧F" aria-label="专注模式" data-icon="focus"></button><button class="icon-button" data-action="outline" title="显示或隐藏大纲" aria-label="显示或隐藏大纲" aria-pressed="true" data-icon="outline"></button><span class="divider"></span><button class="quiet-button export-button" data-action="export"><span data-icon="export"></span>另存文件</button><button class="icon-button" data-action="more" aria-label="更多文档操作" title="更多文档操作" data-icon="more"></button></div>
+    </header>
+    <div class="editor-tools" id="editor-tools">
+      <div class="format-tools" role="toolbar" aria-label="格式工具栏"><button class="text-select" data-action="format-menu">正文 <span data-icon="chevron-down"></span></button><span class="divider"></span><button class="format-button" data-format="bold" title="加粗 · ⌘B" aria-label="加粗"><b>B</b></button><button class="format-button" data-format="italic" title="斜体" aria-label="斜体"><i>I</i></button><button class="icon-button" data-action="link" title="插入链接" aria-label="插入链接" data-icon="link"></button><button class="icon-button" data-format="code" title="行内代码" aria-label="行内代码" data-icon="code"></button><span class="divider"></span><button class="icon-button" data-action="list-menu" title="列表" aria-label="列表" data-icon="list"></button><button class="icon-button" data-format="quote" title="引用" aria-label="引用" data-icon="quote"></button><button class="icon-button" data-action="insert" title="插入内容" aria-label="插入内容" data-icon="plus"></button></div>
+      <div class="view-switch" role="group" aria-label="编辑视图"><button data-view="write" class="active" aria-pressed="true">写作</button><button data-view="read" aria-pressed="false">阅读</button><button data-view="source" aria-pressed="false" title="源文本视觉预览">源码</button></div>
+    </div>
+    <div class="document-area" id="document-area">
+      <div class="document-scroll" id="document-scroll"><div class="inline-notice" id="notice" hidden></div><article class="page" id="page" spellcheck="false" aria-label="示例文档内容"></article><textarea class="source-view" id="source-view" aria-label="Markdown 源码预览" readonly hidden></textarea><section class="home-view" id="home-view" hidden></section></div>
+      <aside class="outline" id="outline" aria-label="文档大纲"><div class="outline-heading">文档大纲<button class="icon-button" data-action="outline" aria-label="关闭大纲" title="关闭大纲" data-icon="x"></button></div><nav id="outline-items"></nav><div class="outline-foot"><span data-icon="feather"></span><span>给想法一点空间。</span></div></aside>
+    </div>
+    <footer class="statusbar"><button id="document-status" data-action="info"><span class="status-dot"></span>本地草稿已备份</button><div class="document-stats"><span id="word-count">0 字</span><span id="reading-time">约 1 分钟</span><span class="status-separator"></span><button data-action="typography" id="zoom-button">100%</button><span>Markdown</span></div></footer>
+  </section>
+  <button class="focus-exit quiet-button" data-action="focus"><span data-icon="focus"></span>退出专注 <kbd>Esc</kbd></button>
+  <div class="popover" id="popover" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+<div class="prototype-caption"><span>交互外观原型 <span class="caption-dot">·</span> 仅示例数据，不读写真实文件</span><div><label for="preview-state">体验状态</label><select id="preview-state"><option value="normal">正常写作</option><option value="typing">中文输入中</option><option value="error">保存未完成</option><option value="empty">空白文档</option></select><button id="reset-demo">重置演示</button></div></div>
+<dialog id="search-dialog" class="search-dialog"><div class="search-box"><span data-icon="search"></span><input id="search-input" placeholder="搜索文档或开始一项操作…" aria-label="搜索示例文档" autocomplete="off"><button class="key-button" data-close>Esc</button></div><div id="search-results"></div><div class="search-footer"><span>搜索标题与正文</span><span><kbd>↑</kbd><kbd>↓</kbd> 选择 <kbd>↵</kbd> 打开</span></div></dialog>
+<dialog id="settings-dialog" class="settings-dialog"><div class="modal-title"><h2>设置</h2><button class="icon-button" data-close aria-label="关闭设置" data-icon="x"></button></div><div class="settings-layout"><nav class="settings-tabs" aria-label="设置分类"><button data-settings="appearance" class="active"><span data-icon="sun"></span>外观</button><button data-settings="writing"><span data-icon="file-pen"></span>写作</button><button data-settings="shortcuts"><span data-icon="keyboard"></span>快捷键</button><button data-settings="about"><span data-icon="info"></span>关于</button></nav><div id="settings-body"></div></div></dialog>
+<dialog id="export-dialog" class="export-dialog"><div class="modal-title"><h2>另存为 Markdown</h2><button class="icon-button" data-close aria-label="关闭另存窗口" data-icon="x"></button></div><div class="export-body"><div class="export-file-icon" data-icon="file"></div><p class="modal-description">让这一刻的文字，成为一份独立的文件。</p><label for="export-name">文件名称</label><div class="filename-input"><input id="export-name" value="让文字，回到中心" autocomplete="off"><span>.md</span></div><label for="export-location">保存位置</label><select id="export-location"><option>下载</option><option>写作 · 示例文件夹</option></select><div class="soft-note"><span data-icon="info"></span><span>这里只演示保存界面，不会在磁盘创建文件。</span></div><div class="modal-actions"><button class="secondary-button" data-close>取消</button><button class="primary-button" id="confirm-export">演示另存</button></div></div></dialog>
+<dialog id="link-dialog" class="small-dialog"><div class="modal-title"><h2>插入链接</h2><button class="icon-button" data-close aria-label="关闭链接窗口" data-icon="x"></button></div><form id="link-form"><label for="link-text">显示文字</label><input id="link-text" value="延伸阅读" required><label for="link-url">链接地址</label><input id="link-url" value="https://example.com" type="url" required><div class="modal-actions"><button type="button" class="secondary-button" data-close>取消</button><button class="primary-button">插入</button></div></form></dialog>
+</body></html>

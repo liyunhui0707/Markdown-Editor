@@ -1,14 +1,13 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.17.4",
+  "version": "0.37.1",
   "description": "Desktop shell for the Markdown Vault App",
-  "main": "main.js",
+  "main": "document-app-main.js",
   "scripts": {
     "dev": "electron .",
-    "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js test/session-import/*.test.mjs test/session-viewer/*.test.js",
+    "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js",
     "test:ci": "node tools/check-test-baseline.mjs",
-    "session-import:claude": "node tools/session-import/import-claude.mjs",
-    "session-import:codex": "node tools/session-import/import-codex.mjs",
+    "test:e2e": "playwright test --config=e2e/playwright.config.cjs",
     "test:write-engine": "node --test test/write-engine.test.js",
     "test:tiptap-corpus": "node --test test/tiptap-corpus-manifest.test.mjs test/tiptap-roundtrip-corpus.test.mjs test/tiptap-readiness.test.mjs",
     "check:tiptap-readiness": "npm run test:tiptap-corpus && node tools/check-tiptap-readiness.mjs",
@@ -28,14 +27,30 @@
     "audit:full": "npm audit --audit-level=high",
     "spike:cm6": "electron spike/codemirror6/spike-main.js",
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
-    "pack": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
-    "dist": "electron-builder -m zip",
-    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir zip"
+    "pack": "npm run pack:document",
+    "dist": "npm run dist:mac",
+    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir zip",
+    "dev:document": "electron document-app-main.js",
+    "pack:document": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
+    "dev:legacy": "electron main.js"
   },
   "author": "",
   "license": "MIT",
   "build": {
     "appId": "com.markdownvault.desktop",
+    "files": [
+      "document-app-main.js",
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json",
+      "lib/**/*",
+      "!**/.env{,.*}",
+      "!**/{secrets,Inbox,.local,.codex,.claude,.workflow,e2e,test-results}{,/**/*}",
+      "!lib/session-viewer{,/**/*}",
+      "!lib/session-import-ipc.js",
+      "!lib/session-title.js"
+    ],
     "mac": {
       "identity": null,
       "minimumSystemVersion": "12.0",
@@ -43,7 +58,8 @@
     }
   },
   "devDependencies": {
-    "electron": "^43.4.1",
+    "@playwright/test": "1.63.0",
+    "electron": "^43.8.1",
     "electron-builder": "^26.15.7",
     "esbuild": "^0.25.12"
   },
@@ -55,19 +71,19 @@
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.28.0",
     "@lezer/markdown": "^1.6.3",
-    "@tiptap/core": "^3.26.0",
-    "@tiptap/extension-image": "^3.26.0",
-    "@tiptap/extension-table": "^3.26.0",
-    "@tiptap/extension-table-cell": "^3.26.0",
-    "@tiptap/extension-table-header": "^3.26.0",
-    "@tiptap/extension-table-row": "^3.26.0",
-    "@tiptap/extension-task-item": "^3.26.0",
-    "@tiptap/extension-task-list": "^3.26.0",
-    "@tiptap/pm": "^3.26.0",
-    "@tiptap/starter-kit": "^3.26.0",
+    "@tiptap/core": "^3.30.5",
+    "@tiptap/extension-image": "^3.30.5",
+    "@tiptap/extension-table": "^3.30.5",
+    "@tiptap/extension-table-cell": "^3.30.5",
+    "@tiptap/extension-table-header": "^3.30.5",
+    "@tiptap/extension-table-row": "^3.30.5",
+    "@tiptap/extension-task-item": "^3.30.5",
+    "@tiptap/extension-task-list": "^3.30.5",
+    "@tiptap/pm": "^3.30.5",
+    "@tiptap/starter-kit": "^3.30.5",
     "@toast-ui/editor": "^3.2.2",
     "highlight.js": "^11.11.1",
-    "katex": "^0.16.47",
+    "katex": "0.19.1",
     "marked": "^17.0.5",
     "mermaid": "^11.17.0",
     "remark-gfm": "^4.0.1",
@@ -77,6 +93,7 @@
     "unified": "^11.0.5"
   },
   "overrides": {
-    "dompurify": "3.4.14"
+    "dompurify": "3.4.17",
+    "katex": "$katex"
   }
 }

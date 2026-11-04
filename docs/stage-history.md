@@ -1,11 +1,377 @@
 # Stage History
 
+## 0.37.1 — bounded dependency gate repair (2026-11-04)
+
+Update DOMPurify to 3.4.17, KaTeX to 0.19.1 (including Mermaid/remark-math
+consumers), Electron within the existing 43.x series to 43.8.7, and patched
+brace-expansion/undici resolutions. No editor/save-policy change. Keep original
+audit thresholds; production audit passes with zero findings, full audit has
+16 moderate build-tool findings and no high/critical findings. The version floor
+and inherited-trust regression fail on the previous dependencies. Rebuild vendor
+assets from the lockfile; preserve all historical acceptance limits and SEC-01.
+See the dated phase record for final verification and integration evidence.
+
+## 0.37.0 — local double-clickable Document app (2026-11-04)
+
+Default dev/build use the trusted Document entry and shared existing lifecycle.
+Installed `~/Applications/Markdown.app` runs independently of source paths. Fixed
+private profile, single-instance activation and original draft location; no save
+policy expansion or overwrite. Old Vault/CM6/spike runtime excluded from package,
+old 0.18.0 dist recoverably archived with hashes/path mapping. Historical source,
+branches and backups retained. README/AGENTS/roadmap now distinguish current and
+historical behavior. 82 focused Node cases and five final affected Electron cases
+PASS; ordinary installed startup observed. Initial direct-demo entry regression
+fixed and retained in evidence. Native IME/formal FAIL/SEC-01/release limits remain.
+New modules below 300 lines; the existing E2E harness is 2071 lines with only the
+fixture entry adapted. Full evidence and limitations are in the phase record.
+
+
+## 0.36.0 — confirmed export shortcuts V1 (2026-11-04)
+
+After the approved 0.35.0 checkpoint `ddc3fab`, add readonly reopening and Finder
+location from the last main-confirmed export. Service retains receipt authority;
+IPC checks owner/session/revision without renderer target paths. Revalidate file
+identity and exact content; construct the opened model from those verified bytes.
+Existing source, drafts/history, failed-operation state and overwrite protection
+are unchanged. Receipt authority is session-local, not restored from backups.
+
+174 distinct focused Node tests PASS; one final Air Electron workflow PASS.
+Initial test menu-toggle error retained. A functional pass then exposed offscreen
+buttons in screenshot review; fixed the shell mount and added viewport assertions.
+Final light/dark/390px captures inspected, original/export hashes unchanged,
+process exit clean. Finder system call is stubbed and its path checked; native
+Finder UI and IME are NOT VERIFIED. Earlier manual/formal FAIL, SEC-01 and release
+restrictions remain. Preserved in local WIP commit `3839f96` (0.36.0); not release approval.
+New view/test are 37/42 lines; existing entry/E2E are 392/2070 lines. Retain their
+current lifecycle harness; no broad split/refactor in this bounded feature.
+Exact evidence and test-artifact retention are in the phase document.
+
+## 0.35.0 local WIP checkpoint (2026-11-04)
+
+User-approved checkpoint of the accepted writing workspace, draft management,
+basic formatting and document find. Exact scope: 40 verified candidate files plus
+the two version files. Prior per-stage evidence is retained; find validation is
+45 Node passes and two distinct Air find passes, plus the adjacent layout case.
+No release sign-off: native IME NOT VERIFIED, historical manual/formal 1B-3 FAIL,
+SEC-01, restricted new-file creation and overwrite prohibition remain. No push,
+merge, tag or release is authorized by this checkpoint.
+
+## Document find V1 and accepted visual baseline — uncommitted (2026-11-04)
+
+The user accepted the existing layout. Prior 37 candidate hashes matched;
+bounded Codex A self-review found no new confirmed P0/P1, and pre-find files/scope
+were preserved separately. No independent review or Git checkpoint is claimed.
+
+Cmd/Ctrl+F now searches displayed document text with literal highlights, exact
+count, case option, next/previous and Escape focus return. Search respects current
+session identity and composing/pending states, changes no Markdown/history/save
+authority, and caps displayed results at 1,000 (query 256 UTF-16 units).
+45 Node PASS; two distinct Air find cases PASS, plus the adjacent integrated
+appearance case. Fixed Air-reproduced readonly focus/selection return; corrected
+one test's assumption about per-edit Undo. Light/dark/narrow captures inspected;
+original bytes/hash unchanged. All processes exited cleanly. Evidence and exact
+limits are recorded in `document-editing-interaction-phase1b3.md`.
+
+Find logic/test 140/121 lines; existing entry/E2E 382/2001 lines reuse the existing
+lifecycle harness. Native IME NOT VERIFIED and earlier manual/formal FAIL, SEC-01,
+overwrite/save/release restrictions remain. Version 0.34.0; 0.35.0 is proposed for
+the next local WIP checkpoint, not yet applied or committed.
+
+
+## Integrated appearance acceptance — uncommitted (2026-11-04)
+
+Reviewed the connected welcome/writing/sidebar/outline/settings/draft/detail/save
+surfaces as one workflow. Air reproduced a title disclosure that did not dismiss
+with Escape or outside clicks; fixed only shell dismissal, with focus return and
+composition/pending/modal guards. Existing editor, IPC, source and save authority
+are unchanged. Prior 37 candidates matched their recorded hashes before work.
+
+36 focused Node PASS (three new regressions); three Air Electron cases PASS in
+22.9s, with 36 snapshot hashes unchanged and three clean process exits. The new
+integrated case covers panel keyboard return, save cancellation, real-session
+state retention and 390/760/1024/1440px layout. Actual welcome/light/dark/narrow
+captures inspected; original bytes/hash unchanged. Initial failing reproduction
+retained; its additional assertion compared pending vs completed backup metadata,
+so the test now waits for backup completion before snapshot comparison.
+
+No new Home/Downloads fixture or export; synthetic drafts/evidence stay in private
+Air temporary directories. Prior export/reopen and archive results are reused.
+Bundle reproduction and diff checks PASS. This is bounded Codex self-verification,
+not independent review, user visual acceptance or native IME verification. Earlier
+manual/formal FAIL and release limits remain. Version 0.34.0, no staging/commit.
+Shell logic/test are 160/160 lines; shared E2E 1921 lines reuses its existing harness.
+
+## Approved prototype integration — batch 3, uncommitted (2026-11-04)
+
+Unified real draft cards/empty states, document identity and backup details,
+separate confirmed-file/latest-operation cards, and save confirmation. Expandable
+limits retain necessary warnings; failure stays visible on the writing surface.
+Draft management is single-flight and cannot be dismissed while awaiting its result.
+No save authority, storage, source mapping or editor behavior expansion.
+
+55 focused Node PASS (six new regressions); two distinct Air Electron cases PASS,
+covering archive/restart/restore, failure/partial-record retention, export/reopen,
+original bytes/hash and light/dark/narrow screenshots. One initial screenshot callback
+missed `app`; corrected test only and reran that case. Initial failure is retained,
+not counted as PASS. Successful Home export fixture reclaimed; evidence/partial
+fixtures stay in private temporary storage. Bundle reproduction and diff checks PASS.
+Bounded Codex self-review found no new blocking issue; not independent model review.
+Native IME NOT VERIFIED, historical manual FAIL and release/save limits remain.
+User visual acceptance pending; version 0.34.0, no staging/commit. New panel CSS
+69 lines; draft view/shell 141/149. Shared E2E remains 1856 lines to reuse the existing
+isolated harness, with no unrelated extraction. See phase document for evidence.
+
+## Approved prototype integration — batch 2, uncommitted (2026-11-04)
+
+Connects real heading outline/scroll navigation and reading appearance to the
+existing Document-First editor: light/dark/system theme, body font/size/width/spacing,
+responsive outline and Cmd+, settings. Display choices are window-local and do not
+modify Markdown, revisions, history or the editor instance. Outline positions are
+bound to the confirmed session and rendered document; pending/composition/stale
+rows cannot navigate. Unsupported/opaque headings are omitted.
+
+11 targeted Node PASS; three Air Electron cases PASS (21.9s, three clean exits).
+35 runtime/test snapshot hashes match before and after execution. Real Air captures
+of dark and narrow outline/settings were visually inspected. Follow-system uses
+emulated media in automation; controlled composition is not native IME acceptance.
+Bundle reproduction and whitespace checks PASS. Bounded Codex self-review found no
+new blocking issue in this batch; this is not independent review or release approval.
+Earlier candidates and all save restrictions remain. New user visual acceptance
+is pending; historical IME NOT VERIFIED/manual FAIL stays scoped. Version 0.34.0,
+no staging/commit. New reading logic/style are 153/77 lines; entry/E2E stay 379/1830
+lines to reuse the existing controllers/harness. See phase document for evidence.
+
+## Approved prototype integration — batch 1, uncommitted (2026-11-04)
+
+The real Document-First window now uses the approved prototype's warm paper/green
+palette, collapsible real-session sidebar, compact header/format bar, 680px writing
+column, welcome page and bottom status bar. Sidebar filtering is name-only over
+existing authorized sessions. Navigation reuses the original snapshot/load path;
+the active row follows confirmed identity, including failed/pending switches.
+Existing source, save, draft and composition protections remain. Outline, themes
+and settings are deferred to later integration batches, not simulated as features.
+
+83 targeted Node PASS; four distinct Pro Electron cases PASS; two Air Electron
+cases PASS on `mac-panmiaomiao`. Air used a new private snapshot (33 matching file
+hashes), matching dependency entries, Node 24.20.0 / Electron 43.4.1 / Playwright
+1.63.0, with two clean exits. Coverage includes 390/640/1050/1440px layouts,
+switching/history, filter/collapse, controlled composition, IPC-failure retention
+and unchanged original bytes/hash. Pro also covers export/reopen and receipts.
+An initial new-test Undo assertion assumed whole-word grouping; corrected to one
+character, then passed. The failed run is retained and is not counted as PASS.
+
+Bundle reproduction and whitespace checks PASS; bounded Codex self-review found
+no new unresolved P0/P1 in this presentation slice. This is not independent model
+review, native IME acceptance or release approval. Manual visual acceptance is
+pending; historical IME NOT VERIFIED/FAIL and save restrictions remain. Version
+0.34.0, no staging/commit. Entry/E2E remain 377/1750 lines to reuse existing
+controllers/harness; shell logic/style are separate 132/179-line files.
+See the phase document for local/Air evidence and fixture locations.
+
+
+## Writing UI V2 — uncommitted candidate (2026-11-03)
+
+Body-first Document window with one Chinese toolbar, title/session switcher,
+compact readonly/unsaved/backup state and on-demand draft/details side panels.
+Draft list refreshes on opening. Failed/unknown operations stay visible; export
+receipts remain distinct from later edits and local backup. Save confirmation
+uses existing frozen-state/Cancel semantics, including Escape refusal during IPC.
+No editor, save authority or storage-format expansion. Prior Draft Management V1
+candidate preserved; renderer entry/E2E remain oversized legacy files, with the
+new presentation logic kept in a separate small shell module.
+
+100 targeted Node PASS; 3 Pro Electron cases PASS / 4 clean exits, including
+responsive visuals, switching/history, archive/restart/return, controlled
+composition, new-file export/reopen/hash and retained success on later failure.
+Evidence: `/private/tmp/markdown-writing-ui-node-final.log` and
+`/private/tmp/markdown-writing-ui-e2e-4.log` plus screenshots. Brief inactive test
+window display is used only for reliable macOS captures; native dialogs are
+stubbed and native IME is NOT VERIFIED. Air connection entry unavailable: NOT RUN,
+no device changes. Local self-review only, no new unresolved P0/P1 identified.
+New UI/manual QA pending; historical limitations and release gates remain.
+Version 0.34.0 unchanged; no commit. See the phase document for evidence and the
+retained first-run empty-fixture mapping; successful export fixture was reclaimed.
+
+
+## Draft Management V1 — uncommitted candidate (2026-11-03)
+
+The local recovery panel now distinguishes same-name drafts by backup time,
+revision and short ID. Explicit, cancellable **归档** retains the body and removes
+an inactive verified draft from the recovery list; **已归档 → 放回待恢复列表**
+reverses it. This is logical archive membership in verified snapshot generations,
+not deletion of the draft; normal generation retention still applies. Active and
+unreadable groups cannot be organized. The existing
+snapshot writer, owner/session gates and source-of-truth model are reused.
+
+The UI distinguishes 32 non-archived draft slots from the unchanged 128-record
+ceiling. Archive frees a slot but does not reclaim disk records. Unknown/partial
+records remain, and full capacity refuses writes. Stale confirmations, directory
+changes, permission errors and uncertain replies do not report success or retry.
+A self-review correction scopes an unknown management response to management,
+so it cannot accidentally block an unrelated document's checked new-file export.
+
+**94 focused Node PASS; one two-process Pro Electron case PASS**, with two clean
+exits, exact restored BOM/CRLF bytes, unchanged original bytes/hash, cancel,
+archive/return, active/corrupt refusal and retained writing/history on permission
+failure. Hidden synthetic windows and stubbed open selection are automated
+coverage, not native IME or user manual acceptance. Bundle reproduction and Git
+whitespace checks PASS. Codex local self-review found no remaining new P0/P1 in
+this scope; no independent Reviewer was called. New manual acceptance is pending.
+
+Store/view/IPC are 156/119/253 lines; the existing Electron regression file is
+1507 lines, extended by 55 lines to reuse its isolated lifecycle fixture. No new
+storage framework, dependencies, save authority, version bump or commit. Version
+remains 0.34.0. Original overwrite, coordination-required, native IME NOT VERIFIED,
+prior Chinese manual FAIL, SEC-01, formal phase-1B3 FAIL and release gates remain.
+See [scoped evidence](document-editing-interaction-phase1b3.md#draft-management-v1-2026-11-03-uncommitted).
+
+
+## 0.34.0 local WIP checkpoint — Local Draft Recovery V1 (2026-11-03)
+
+Main-confirmed temporary/edit-copy content now receives a bounded local recovery
+snapshot. On restart, “恢复本地草稿 / 恢复副本” creates an independent temporary
+session with exact Markdown bytes, fresh revision/history and no overwrite
+permission. Backup status is separate from Markdown export receipts; Not saved
+and later-edit semantics remain unchanged. This local WIP checkpoint contains the
+16 scoped feature/documentation files plus the two project version files. The
+minor bump changes only the three project version fields; dependencies and
+configuration remain unchanged. This is not complete acceptance or release approval.
+
+**138 focused Node PASS; 2 scoped Pro Electron cases PASS.** The final strengthened
+restart/edit/export/reopen case has three clean Electron exits; the separate
+corrupt-generation/permission-failure case has one. These use hidden synthetic
+windows, controlled input and stubbed dialog selection, not native IME/manual QA.
+Initial harness failures (close confirmation, an unset synthetic target and DOM
+selection timing) and a foreground input interference run are retained, not
+counted as passes. Final successful Home export fixtures were verified and
+reclaimed; the two earlier retained fixtures were moved intact into temporary
+run evidence with a restore mapping. No historical fixtures were touched.
+
+The user supplied screenshots and reported “应该是可以了”: **limited manual
+backup/list/restore PASS**, with Not saved retained. This does not establish full
+process exit, byte/hash equality, post-restore export/reopen or native IME acceptance.
+Runtime/test/bundle fingerprints match the successful automated evidence; this
+closeout reuses that evidence and adds no product code or unrelated test matrix.
+Codex local self-review found no unresolved new P0/P1 in this scope; it is not an
+independent second-model review. No push, merge, tag or release is included.
+
+Private app-data storage retains up to 32 drafts, normally two verified generations
+per draft; partial/unverifiable records remain. Capacity stops backups explicitly.
+V1 does not persist renderer-only recovery text, IME preedit or Undo history;
+a sudden exit can lose the latest unbacked edits. No draft dismissal UI, encryption,
+installer acceptance, hostile same-user race guarantee or power-loss guarantee.
+Original overwrite remains prohibited; coordination-required, SEC-01, formal
+phase-1B3 FAIL and native Chinese IME NOT VERIFIED/prior manual FAIL remain.
+
+New modules are 122/37/55 lines (store/scheduling/view). The existing renderer
+entry remains 370 lines; IPC 248, focused tests 179 and 499. The existing Electron
+regression file is about 1450 lines: retain its established lifecycle/owned-fixture
+helper for these two cases rather than introduce a parallel test harness. No
+Document Model, Source Map, Service, File Store or Persistent Copy policy changes.
+Details and evidence: [local draft scope](document-editing-interaction-phase1b3.md#local-draft-recovery-v1-2026-11-03-uncommitted).
+
+## 0.33.0 local WIP checkpoint (2026-11-03)
+
+This checkpoint consolidates the 22 reviewed candidate paths below with the two
+project version files. The dated "uncommitted 0.32.0" notes are historical;
+this closeout supersedes their candidate/commit status, not their evidence limits.
+The minor bump covers new multiline plain-text paste (up to 32 paragraphs) and
+checked Downloads new-file support, with native-caret Backspace, literal bracket
+and first-native-metadata timing corrections. No dependency or build setting changes.
+
+Candidate fingerprints match the saved evidence and subsequent manual-QA record.
+Reuse **187 focused Node PASS**, **one final Pro Electron PASS** with two clean
+process exits, and the earlier scoped Air multiline/caret evidence. The final
+Electron test stubs dialogs; separate native Downloads RED/GREEN runs used the
+user's Save click and confirmed source/disk/fresh-process hashes. The user then
+reported **limited manual QA PASS** for Downloads receipts, literal brackets and
+truthful subsequent-edit/Not saved status. Bundle reproduction and Git diff checks
+pass. No new product change or unrelated test matrix is part of this closeout.
+
+This is a **local recovery checkpoint, not complete acceptance or release approval**.
+The earlier DeepSeek review covers the directory-compatibility candidate only;
+subsequent metadata/timing/bracket fixes have Codex A self-review and targeted
+verification, not another independent model review. No new confirmed P0/P1 was
+found within that scope. Original files stay read-only; exclusive new-file export
+never overwrites and never clears the current session's Not saved/history state.
+Old partial/unknown outcomes remain blocked and retained. Nested/unsupported/sync
+directories, arbitrary Save As and general save() remain unavailable;
+coordination-required remains in force. Native Chinese IME remains NOT VERIFIED,
+the earlier Chinese-input manual FAIL is not lifted, and SEC-01, formal phase-1B3
+FAIL, installer/release, malicious same-user concurrency and power-loss durability
+gates remain. No push, merge, tag or release is included.
+
+
+Native Downloads save-confirmation fix (uncommitted 0.32.0): user QA found native
+MACL/last-used xattrs on the newly created file, outside the earlier directory-only
+coverage. Restricted new-file opt-in plus internal writer/parent metadata-hash
+checks; no overwrite or old-state unlock. 101 Node / one controlled Air Electron
+PASS, two clean exits. Native manual save confirmation remains pending; prior
+review does not cover this follow-up. File Store remains 311 lines; keep the
+small verification addition beside existing create ownership rather than split
+the save module during this bug fix (policy 219, parent process 94 lines). See the [native metadata follow-up](document-save-hardening-phase1b.md#native-save-dialog-new-file-attributes-follow-up-2026-11-02-uncommitted).
+
+
+Downloads new-file compatibility is an **uncommitted 0.32.0 candidate**: directory-
+only default deny-delete ACL + opaque MACL fingerprint support; verified Downloads
+suggestion and refreshed guidance. No overwrite, IPC or writer-state change.
+97 distinct targeted Node / one Air Electron case PASS (two clean exits, independent bundle,
+synthetic ACL/MACL directory and cross-process reopen; strengthened case rerun).
+One DeepSeek review completed, Codex A verified no new P0/P1 and added native MACL
+evidence. Failed-fixture retention and synchronous probe latency remain. Native dialog selection was
+stubbed; native IME and earlier manual FAIL remain. Save-policy stays 217 lines;
+persistent-copy tests 326 and shared E2E 1313 remain together to reuse fixture/process
+ownership. See [bounded save evidence](document-save-hardening-phase1b.md#downloads-directory-metadata-compatibility-2026-11-02-uncommitted-0320).
+
+
 Concise record of completed stages, their key deliverables, and known deferred items.
+
+## Current restricted Document follow-up (2026-11-02)
+
+Native-caret Backspace follow-up is an **uncommitted fix** on the multiline
+candidate. Same-paragraph DOM/PM selection lag now reconciles only a confirmed
+collapsed caret before the existing command and source gates. Actual Air RED
+reproduced refusal; GREEN 161 Node / two Air cases with three clean app exits,
+faithful new-file reopen and unchanged original. No selection wait needed in
+the fast-key regression. User separately reports save/reopen manual PASS; ACL
+refusals and native IME NOT VERIFIED remain. Helper 26 lines, renderer 367,
+controller tests 742, shared E2E 1301; no unrelated restructuring. See the
+[bounded follow-up](document-editing-interaction-phase1b3.md#user-savereopen-qa-and-native-caret-backspace-follow-up-2026-11-02).
+
+
+Multiline plain paste V1 is now an **uncommitted candidate** on 0.32.0. Up to 32
+nonempty plain paragraphs paste atomically through one existing IPC/history
+operation. Only the selected source range changes; existing newline style, BOM
+and untouched Markdown survive. 158 targeted Node tests and two targeted Air
+Electron cases PASS, with four successful clean exits and identical rebuilt
+bundle. A rapid native-caret/PM-selection timing refusal remains documented; no
+source guard was relaxed. Runtime files: source-map 221, controller 215, paste
+helper 46 lines. Controller tests 687; shared E2E 1289 lines retain existing
+fixture/process infrastructure rather than adding a framework. See the current
+[bounded implementation and evidence](document-editing-interaction-phase1b3.md#multiline-plain-paste-v1-2026-11-02-uncommitted).
+
+
+Plain paste / new-file feedback V1 is preserved as local WIP 0.32.0,
+not released. The user reports paste manual QA PASS; this does not certify IME. Single-line text/plain paste uses the existing PM and
+source-range gates; native Edit gains Paste. Clear failure/unknown messages stay
+separate from the last confirmed file, with directory guidance and folded details.
+147 Node and 3 Pro Electron cases PASS; five clean app exits and identical rebuilt
+bundle. Controlled clipboard events/native-dialog stubs are not native clipboard
+or IME acceptance. Runtime helper 31 lines, existing renderer 362, controller tests
+624 and shared E2E 1202; no unrelated split or new framework. See the bounded
+scope, RED/GREEN and remaining gates in
+[phase 1B-3](document-editing-interaction-phase1b3.md#plain-paste-and-clear-new-file-feedback-v1-2026-11-02-uncommitted).
 
 ## Completed stages
 
 | Stage | Title | Status | Key deliverables |
 |---|---|---|---|
+| `0.18.0` follow-up / A8 | September 9 dependency-security remediation | Implemented locally; ready for scoped review | Updates 32 Tiptap records 3.30.4 → 3.30.5 and packaging js-yaml 4.3.1 → 4.3.2; no other resolution or app-source changes. Six added tests: bounded public parser probes, ordinary attributes, YAML budget/normal parsing and lockfile policy. RED 5 failures → security 14/14; full 2,366 tests / 2,364 pass / 2 skips; both audits zero. Actual installed versions checked after recovering stale npm hidden-lock metadata. Repeat bundles, cached unsigned packaging and 25 packaged-source synthetic assertions pass. Generated clean-tree check still awaits authorized integration; A7/native QA pending. See `docs/dependency-security-sep9.md`. |
+| `0.18.0` follow-up / A6 | Untouched-note dirty state and metadata-safe refusal | Implemented locally; review/native acceptance pending; audits block shipping | Loaded/Source raw snapshots prevent normalization-only dirty state while preserving actual rich edits and undo. Main refuses unsupported frontmatter before save/rename, retaining disk and unsaved edits; general YAML preservation is deferred. Nineteen new regressions; 2,360 tests / 2,358 pass / 2 skips, corpus 44/44, 16 synthetic Electron assertions, repeat build and cached unsigned packaging pass. Fresh audits report 31 production / 32 full high-severity dependency findings; no automatic upgrade. Existing 352-line entry and 867-line main retained for scoped boundary changes; new guard 37 lines; affected tests below 300 lines. See `docs/a6-dirty-state-investigation.md`. |
+| `0.18.0` follow-up | Tiptap currency/math delimiter safety | Implemented locally; native acceptance pending | Approved Pandoc-style single-dollar boundaries preserve currency and intended math; safe serializer fences protect math atoms next to digits. A 51-line adapter retains remark's tokenizer/converter and display/multi-dollar behavior; no new dependencies. Twenty new tests, 2,341 total / 2,339 pass / 2 skips; corpus reports zero known blockers. Audits, deterministic rebuild, cached-runtime unsigned packaging and synthetic mounted/save/reopen QA pass. Tiptap stays opt-in. See `docs/tiptap-math-delimiter-fix.md`. |
+| `0.18.0` follow-up | Tiptap note-load undo safety | Implemented locally; native acceptance pending | Fresh note-local state prevents immediate undo from reversing a load or restoring another note. Same-note Source/Rich body edits remain undoable. Eight regressions; 2,321 tests / 2,319 pass / 2 skips; audits clear; deterministic rebuild and unsigned packaging pass. Packaged synthetic undo/save/switch checks pass; native IME/keyboard/close QA remains open. Existing 333-line entry retained for a seven-line fix. See `docs/tiptap-load-undo-fix.md`. |
+| `0.18.0` follow-up | Dependency security remediation | Implemented locally; native acceptance pending | Tiptap family 3.30.4, compatible ProseMirror updates and fast-uri 3.1.7 clear both audits. Seven dependency regressions added (six initial red failures); 2,313 tests / 2,311 pass / 2 skips on Node 24 and 25. Clean install, deterministic Tiptap/Toast UI rebuilds and unsigned packaging pass. Generated clean-tree gate awaits authorized commit. Packaged QA found an existing immediate-load undo defect, reproduced identically with old/new bundles; no unrelated fix included. See `docs/dependency-security-followup.md`. |
+| `0.18.0` / Split Phase 2 | Independent Markdown editor product boundary | Implemented locally; release gates pending | Removes session viewer/search/grouping/favorites UI, session import IPC/CLI, and session-only tests. Keeps Markdown engines, AI Imports, Local AI, shared frontmatter decoding, and existing data. Main-process path policy excludes reserved agent directories before reading bodies and rejects editor writes there. Adds boundary and stale-filter regressions; 2,306 tests, 2,304 pass, 2 opt-in skips. Generated assets unchanged after rebuild; unsigned macOS packaging passes. Dependency audits and native QA still block release. No commit/tag/push. Existing large main/renderer files shrink; unrelated module extraction is deferred. See `docs/editor-session-split.md`. |
 | `0.17.4` | Tiptap GFM table-alignment integrity | Done; one independent blocker remains | Preserves `left` / `center` / `right` / unaligned GFM column semantics through the remark mdast↔ProseMirror bridge using Tiptap's existing table-cell `align` attribute. Reclassifies only `table-column-alignment` as a normalized corpus contract, keeps `math-currency-delimiter` as the sole promotion blocker, rebuilds the Tiptap renderer bundle, and adds focused converter, schema, corpus, readiness, and manual-QA coverage. Tiptap remains opt-in; `hybrid-cm6` remains the default. App version `0.17.4`. |
 | `0.17.3` | Tiptap corpus and release-readiness tooling | Done; blockers documented | Added the representative committed Markdown round-trip corpus, strict manifest validation, promotion-readiness command, clean-install/generated-bundle/dependency-audit/macOS packaging checks, and explicit blocker reporting. The corpus identified table-column alignment and math/currency delimiter ambiguity as the two initial promotion blockers. |
 | Tiptap arc (`0.10.0`–`0.17.2`) | ProseMirror/Tiptap WYSIWYG pivot and consolidation | Done; opt-in stabilization | Replaced the abandoned CM6-decoration WYSIWYG direction with an opt-in Tiptap 3 surface backed by a `unified`/`remark` mdast↔ProseMirror bridge. Added GFM task lists/tables, frontmatter preservation, KaTeX math, Mermaid, safe image rendering, raw HTML/reference/footnote passthrough, Source/Rich toggle, vault-backed image paste/drop, and note-switch safety. The consolidation fixes mixed task/plain lists so plain items never gain `[ ]`, preserves ordered-run numbering, retains the mainline AI-session title work, keeps extracted plugins outside this repository, upgrades Mermaid to `11.17.x`, and pins DOMPurify `3.4.14`; app version `0.17.2`. Tiptap remains opt-in pending the stabilization gates in `docs/roadmap.md`. |
@@ -96,3 +462,176 @@ Concise record of completed stages, their key deliverables, and known deferred i
 - **Claude Design prototype** — Deferred.
 - **Auto-save** — Deferred.
 - **Multi-window support** — Deferred.
+
+
+## Basic writing V1 — limited developer implementation (2026-10-26)
+
+At 0.21.0 (uncommitted), the synthetic Document demo supports ordinary paragraph
+Enter/split, one whitespace-backed empty input slot, Backspace join and exact
+main-owned Undo/Redo. See [the bounded contract and results](document-editing-interaction-phase1b3.md#basic-writing-v1-enter-and-one-empty-input-slot-2026-10-26).
+Focused Node/PM/IPC: 88 PASS; source Electron: 14 PASS including a real two-
+paragraph keyboard chain. Continuous semantic empty paragraphs, complex block
+structure and native macOS IME remain unaccepted. This does not change the
+historical Reload failure, existing P2 or Phase 1B-3 formal FAIL. Real file writes
+remain prohibited; no version bump, commit, package or publication is implied.
+
+
+## Document-First Open V1 — read-only developer entry (2026-10-26)
+
+At 0.22.0, `--document-readonly` bypasses Vault initialization and opens one
+native-selected UTF-8 `.md` file at a time, with name/location/read-only status.
+Headings/paragraphs/bold use the restricted Tiptap projection; other syntax is
+literal text. Main denies writes and renderer paths. Two-directory source IPC/
+UI tests and an actual native-dialog A/B/cancel/close check pass with unchanged
+file bytes. See [scope and bounded evidence](document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
+No Finder integration, true-file saving or release acceptance. Existing Phase
+1B-3 formal FAIL and SEC-01 remain. Entry stays below 300 lines; the existing
+main (>800 lines) only receives a launch guard, without unrelated restructuring.
+
+
+## Document UI/UX V1 — read-only entry presentation (2026-10-28)
+
+Uncommitted at 0.23.0: compact toolbar with truncated name/on-demand path,
+read-only label, welcome open action, centered 780px responsive reading surface
+and consistent Chinese/English typography. Reuses the existing Tiptap and native
+window; no model, IPC or file capability change. Pro: 7 Node tests and separate
+headless layout probes. Air: 2 current-candidate Electron cases PASS with seven
+content screenshots and normal exit. Initial scrollbar-measurement test failure
+is preserved and corrected without weakening assertions. See the
+[bounded scope and evidence](document-editing-interaction-phase1b3.md#document-uiux-v1-2026-10-28-uncommitted-at-0230).
+Real file writes remain prohibited; Phase 1B-3 formal FAIL and SEC-01 remain.
+User visual acceptance is pending; no commit, version or release is implied.
+
+
+## Document Writing Entry V1 — temporary writing in the document window
+
+Uncommitted at 0.24.0 (2026-10-28): exposes the existing restricted paragraph
+editor in the approved document window through a main-created temporary session.
+Real files remain read-only; no writeback. Reuses source-map/controller/history,
+adds a visible memory-only notice and conservative native close confirmation.
+See [contract and checks](document-editing-interaction-phase1b3.md#document-writing-entry-v1-2026-10-28-uncommitted-at-0240).
+No release or formal Phase 1B-3 PASS is implied.
+
+
+## Existing Document Editing V1 — independent copy, not in-place editing
+
+Implemented/tested at 0.28.0 (2026-10-30), retained as a limited local WIP
+checkpoint at 0.29.0: adds Edit a copy to the existing document
+window. Main clones the opened bytes into a separate temporary session; original
+read-only permissions remain unchanged. Reuses existing paragraph/history mapping
+and Persistent Copy; no Model, Service, writer or save-policy changes. See the
+[bounded contract and evidence](document-editing-interaction-phase1b3.md#existing-document-editing-v1--independent-editable-copies-2026-10-30).
+The renderer entry stays above the ~300-line guideline to keep its existing
+lifecycle ownership intact; no general refactor is included. No release, merge,
+real-file overwrite or phase 1B-3 formal PASS is implied.
+
+Existing Document Editing V1 manual-QA repair (2026-10-30, uncommitted 0.28.0):
+confirmed pointer/IME completion mismatch and editable opaque-block rejection
+paths; narrow renderer event handling plus readonly node decorations, with source,
+session and save policies unchanged. Targeted Node 124 PASS / Air Electron 6 PASS;
+prior user QA FAIL remains pending retest. No-end-without-confirmation stays
+fail-closed. See the existing phase document; not full IME or release acceptance.
+
+
+Existing Document Editing V1 WIP closeout (0.29.0): Codex A local diff self-check
+found no new confirmed P0/P1; this was not independent model review. Reused
+matching Node 124 PASS / Air 6 PASS evidence. Pro ordinary input/history/switching
+passed, but zero composition events were produced: native Chinese IME remains
+NOT VERIFIED and the earlier user Chinese-input FAIL is not cleared. The minor
+bump only updates three project version fields. Full product/phase 1B-3 acceptance
+remains FAIL; no general Save As, original overwrite, release or GitHub approval.
+
+
+## Save As New File V1 (0.29.0 uncommitted)
+
+Reuses Persistent Copy to create new files in ordinary nonempty user-owned local
+APFS folders directly under home; known system/sync locations stay refused.
+Adds safe Unicode/space basenames and the **Save as new file…** label. Existing
+files are never replaced; sessions remain Not saved and original readonly rights
+are unchanged. No new state machine, model, IPC or writer lifecycle. See the
+[save contract](document-save-hardening-phase1b.md#save-as-new-file-v1--bounded-product-implementation-0290-uncommitted).
+The prior controlled in-place-save preflight is closed as BLOCKED; its final-check
+race and durability/dirty semantics are retained in that contract. No further
+coordination research, version change or commit is included. Existing large File
+Store/test modules remain in place; additions use the established tests.
+
+
+Save As New File V1 P2 follow-up: remove the forced unsupported home destination
+and put folder guidance in the native Save dialog. Preserve the last confirmed
+receipt separately from the latest operation result, per session. Added one small
+Node view test file (10 tests) and extended the two existing Electron cases;
+RED/GREEN recorded, 10 Node and 2 Pro Electron PASS, four clean process exits.
+Dialogs are stubbed; native IME remains NOT VERIFIED and prior manual FAIL remains.
+The one authorized external review is PARTIAL (budget exit), not upgraded to PASS;
+Codex A verified two P2s and no new confirmed P0/P1. No further Reviewer call.
+Proposed combined-feature checkpoint version: 0.30.0; current version stays 0.29.0
+until a separately authorized commit. No safety-policy expansion in these fixes.
+
+
+### Ordinary Paragraph Compatibility V1 (2026-11-01, uncommitted at 0.30.0)
+
+Plain top-level soft-wrapped source paragraphs now project to one PM paragraph,
+with per-source-line ranges and protected separators. LF/CRLF, Unicode and
+untouched content remain exact; cross-line/structural edits are explicitly refused.
+Source-map remains 179 lines; renderer 360, controller tests 552 and existing E2E
+1113: minimal additions reuse existing ownership rather than splitting frameworks.
+RED 1 PASS/8 FAIL; final 126 focused Node PASS, one Pro Electron edit/export/reopen
+PASS, two clean app exits, reproducible demo bundle. Native IME NOT VERIFIED and
+historical manual/phase 1B-3 FAIL remain. See the existing phase-1B3 contract for
+scope/evidence; no overwrite, version bump, commit or release acceptance.
+
+
+Ordinary Paragraph Compatibility V1 closeout (2026-11-02): local WIP version
+0.31.0. Codex A self-review found no new confirmed P0/P1; not independent review.
+Unchanged candidate evidence: 126 Node PASS, 1 Pro Electron PASS with 2 clean exits;
+additional in-memory probe: 318 reversible edits, 87 safe refusals. Only project
+version fields and this closeout record change; all existing native IME, formal
+phase FAIL, SEC-01 and overwrite limitations remain. No release/merge approval.
+
+
+### Literal brackets and Downloads confirmation correction (2026-11-03, WIP)
+
+User QA found two compatibility defects: ordinary ASCII brackets were rejected
+by a blanket source-map guard; native Downloads creation failed when ctime moved
+during the first metadata inspection. Permit brackets only when remark retains
+exact supported text leaves and the full projection comparison still matches.
+Link/reference/task syntax remains protected; no escaping or whole-file rewrite.
+Capture new-file native metadata before the strict verification baseline; retain
+all later metadata/byte/identity/sync checks and unknown-state blocking.
+
+RED reproduced both defects. Final: **187 focused Node PASS** (83 editing/source
+mapping, 13 persistent-copy, 91 safety/metadata/receipt), **1 Pro Electron PASS**
+with two clean exits and fresh-process read-only reopening. Separate real native
+Downloads RED/GREEN runs required the user's Save click; post-fix hashes matched
+and Not saved remained true. Native IME is not covered. Demo bundle independently
+rebuilds byte-identically; existing 22-file candidate retained, no version or Git
+commit. Codex A bounded self-review found no new confirmed P0/P1, not an independent
+second-model review. Large existing test files are extended rather than split
+for this bounded regression. Old user files and unresolved receipts remain intact;
+see the save-hardening document for native traces and retained evidence.
+
+
+2026-11-03 user manual confirmation: limited manual QA PASS for Downloads new-file
+confirmation, literal half-width brackets, and truthful subsequent-edit/Not saved
+receipts. The user explicitly reports all tested operations passed. Existing
+187 Node / one Pro Electron and native synthetic RED/GREEN evidence is retained;
+no unrelated tests repeated. This is not full native IME or release sign-off;
+version remains 0.32.0 and the candidate remains uncommitted.
+
+
+### Writing V3 — quiet composition and basic formatting (2026-11-04, uncommitted)
+
+Normal IME input has one compact status with stable body position; actual input,
+backup and export failures stay visible. Chinese names, `本地草稿`, backup and
+export states distinguish memory/draft/file outcomes. A small format bar adds
+headings 1–3, selected bold and flat tight lists through bounded source patches
+and main-owned revision/history checks. No whole-file serialization or new writer.
+Original readonly and exclusive-new-file protections remain unchanged.
+
+210 focused Node and four distinct Pro Electron cases PASS (five successful clean
+app exits); exact BOM/CRLF export/reopen and unchanged source hashes recorded in
+[the phase contract](document-editing-interaction-phase1b3.md#writing-v3--quiet-input-and-basic-formatting-candidate-2026-11-04).
+Air NOT RUN (name resolution). Controlled composition is not native IME: native
+NOT VERIFIED, historical manual/formal FAIL and release limits remain. Existing
+Draft Management/UI V2 candidate retained, version 0.34.0, no commit. Renderer
+377/E2E1682 lines reuse existing ownership; new format helpers are 114/56/38 lines.

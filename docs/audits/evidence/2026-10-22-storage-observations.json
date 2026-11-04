@@ -1,0 +1,75 @@
+[
+  {
+    "name": "adjacent-heading",
+    "original": "# Title\nDO NOT LOSE THIS LINE\nSecond paragraph.\n",
+    "loadedTitle": "Title",
+    "loadedBody": "Second paragraph.\n",
+    "unchangedAfterLoad": true,
+    "external": null,
+    "save": {
+      "ok": true,
+      "path": "/private/tmp/markdown-editor-audit-20261022.CmjWjm/storage-fixtures/adjacent-heading/sample.md",
+      "fileName": "sample.md",
+      "relativePath": "sample.md"
+    },
+    "savedBytes": "# Title\n\nSecond paragraph.\n\nLOCAL EDIT\n"
+  },
+  {
+    "name": "plain-document",
+    "original": "Ordinary Markdown without a title.\n",
+    "loadedTitle": "sample",
+    "loadedBody": "Ordinary Markdown without a title.\n",
+    "unchangedAfterLoad": true,
+    "external": null,
+    "save": {
+      "ok": true,
+      "path": "/private/tmp/markdown-editor-audit-20261022.CmjWjm/storage-fixtures/plain-document/sample.md",
+      "fileName": "sample.md",
+      "relativePath": "sample.md"
+    },
+    "savedBytes": "# sample\n\nOrdinary Markdown without a title.\n\nLOCAL EDIT\n"
+  },
+  {
+    "name": "indented-code",
+    "original": "# Title\n\n    const keepIndent = true;\n",
+    "loadedTitle": "Title",
+    "loadedBody": "const keepIndent = true;\n",
+    "unchangedAfterLoad": true,
+    "external": null,
+    "save": {
+      "ok": true,
+      "path": "/private/tmp/markdown-editor-audit-20261022.CmjWjm/storage-fixtures/indented-code/sample.md",
+      "fileName": "sample.md",
+      "relativePath": "sample.md"
+    },
+    "savedBytes": "# Title\n\nconst keepIndent = true;\n\nLOCAL EDIT\n"
+  },
+  {
+    "name": "external-edit",
+    "original": "# Title\n\nOriginal body.\n",
+    "loadedTitle": "Title",
+    "loadedBody": "Original body.\n",
+    "unchangedAfterLoad": true,
+    "external": "# Title\n\nEXTERNAL UPDATE MUST SURVIVE\n",
+    "save": {
+      "ok": true,
+      "path": "/private/tmp/markdown-editor-audit-20261022.CmjWjm/storage-fixtures/external-edit/sample.md",
+      "fileName": "sample.md",
+      "relativePath": "sample.md"
+    },
+    "savedBytes": "# Title\n\nOriginal body.\n\nLOCAL EDIT\n"
+  },
+  {
+    "name": "unsupported-yaml",
+    "original": "---\ncustom: keep-me\n---\n\n# Title\n\nOriginal body.\n",
+    "loadedTitle": "Title",
+    "loadedBody": "Original body.\n",
+    "unchangedAfterLoad": true,
+    "external": null,
+    "save": {
+      "ok": false,
+      "error": "Save blocked: this note has unsupported frontmatter. The original file is unchanged. Keep your edits and use a YAML-capable editor to preserve its metadata."
+    },
+    "savedBytes": "---\ncustom: keep-me\n---\n\n# Title\n\nOriginal body.\n"
+  }
+]
