@@ -10,7 +10,7 @@ test('updated math and Mermaid bundles render in Electron with untrusted input r
       const inherited = window.katex.renderToString(String.raw`\href{https://example.invalid/synthetic}{x}`,
         Object.assign(Object.create({ trust: true }), { strict: 'ignore' }));
       const mount = document.createElement('div'); mount.innerHTML = math; document.body.append(mount);
-      const fraction = mount.querySelector('.katex-mfrac');
+      const fraction = mount.querySelector('.katex-html .mfrac');
       const measured = { fraction: !!fraction, height: fraction?.getBoundingClientRect().height,
         font: fraction ? getComputedStyle(fraction).fontFamily : '' };
       mount.remove();
@@ -23,6 +23,7 @@ test('updated math and Mermaid bundles render in Electron with untrusted input r
         unsafeAttributes, scripts: parsed.querySelectorAll('script').length,
         executed: window.syntheticUnsafe === true };
     });
+    console.log('dependency-rendering-evidence:' + JSON.stringify({ version: result.version, measured: result.measured, svg: result.svg, unsafeAttributes: result.unsafeAttributes, scripts: result.scripts, executed: result.executed }));
     expect(result.version).toBe(require('katex/package.json').version);
     expect(result.math).toContain('<mfrac>'); expect(result.math).toContain('<msup>');
     expect(result.measured.fraction).toBe(true); expect(result.measured.height).toBeGreaterThan(0);

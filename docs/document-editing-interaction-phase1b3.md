@@ -2169,3 +2169,9 @@ failed and its alternate release download stalled. With explicit user approval,
 the existing CI adds only three affected Electron checks (dependency rendering,
 read-only open, confirmed export shortcuts) using the locked runtime; no
 thresholds are relaxed. Results are pending in this follow-up commit.
+
+CI run 41849928665 passed the full Node/audit/generated checks and two Document
+Electron flows on 43.8.7. The new math smoke failed because its selector expected
+`.katex-mfrac`, whereas the actual 0.19.1 output uses `.katex-html .mfrac`. The
+MathML fraction/exponent assertions already passed. Corrected only that test
+selector, retained all layout/font/security assertions, and reran the full CI.
