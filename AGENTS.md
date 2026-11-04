@@ -9,8 +9,10 @@ This file provides guidance to Codex when working with code in this repository.
 `lib/document-window-main.js`. Both `npm run dev` and the local `Markdown.app`
 use it. `main.js` / `npm run dev:legacy` retain the old Vault application solely
 for historical development; the dedicated document package excludes that runtime.
-Use the explicitly approved branch; current development is
-`feat/document-editing-interaction-phase1b3`, not the recovery baseline branch.
+Use the explicitly approved branch. `feat/document-editor` collects the existing
+Document baseline for integration; subsequent work uses short feature branches
+from `main`. A Worktree directory name is not its current Git branch. Preserve
+the recovery baseline; do not create a long-lived `develop` branch.
 
 Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
 Supported edits patch verified source-map ranges and reparse; **do not serialize

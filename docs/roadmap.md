@@ -6,7 +6,10 @@ The Document writing workspace is now the default and available as a local
 `Markdown.app`. Preserve the accepted visual baseline and existing file-safety
 boundaries. The short closeout packages current work, corrects stale entry/docs,
 and retires obsolete build artifacts recoverably; it is not a feature expansion
-or release. Next product slice: explicit close of an individual open document,
+or release. Git integration first: publish the reviewed development history on
+`feat/document-editor`, integrate through a checked PR to `main`, then use short
+feature branches in the existing Worktree. No release/tag is implied.
+Next product slice: explicit close of an individual open document,
 with current-draft/export status and cancellation, preserving other sessions and
 recoverable backups. Do not implement it as part of packaging.
 
