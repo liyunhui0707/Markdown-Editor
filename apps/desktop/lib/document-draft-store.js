@@ -40,7 +40,8 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       if (!r || envelope.sha256 !== hash(JSON.stringify(r)) || r.version !== 1 || !uuid.test(r.id)
           || name !== `${r.id}.${r.generation}.json` || !Number.isSafeInteger(r.generation) || r.generation < 1
           || !Number.isSafeInteger(r.revision) || r.revision < 0 || typeof r.label !== 'string' || r.label.length > 512
-          || !Number.isSafeInteger(r.time) || typeof r.body !== 'string') fail('invalid-draft');
+          || !Number.isSafeInteger(r.time) || typeof r.body !== 'string'
+          || (r.archived !== undefined && typeof r.archived !== 'boolean')) fail('invalid-draft');
       const bytes = Buffer.from(r.body, 'base64');
       const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
       if (bytes.length > 524288 || bytes.toString('base64') !== r.body || hash(bytes) !== r.contentHash
@@ -52,7 +53,7 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
     if (!uuid.test(id)) fail('invalid-draft');
     return all.filter(n => n.startsWith(id + '.')).sort((a, b) => Number(b.split('.')[1]) - Number(a.split('.')[1]));
   }
-  function recover(id) {
+  function resolve(id) {
     const entries = group(id); let rejected = 0;
     for (const name of entries) {
       try { return { ok: true, ...read(name), warning: rejected ? 'newer-draft-unreadable' : null }; }
@@ -60,29 +61,48 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
     }
     return { ok: false, code: entries.length ? 'draft-unreadable' : 'draft-unavailable' };
   }
+  function recover(id) {
+    const r = resolve(id);
+    return r.ok && r.archived ? { ok: false, code: 'draft-archived' } : r;
+  }
+  function managementToken(id, all = names()) {
+    const entries = group(id, all);
+    if (!entries.length) fail('draft-unavailable');
+    return hash(entries.map(n => n + ':' + read(n).identity).join('\n'));
+  }
   function list() {
     try {
       const all = names(), ids = [...new Set(all.map(n => n.split('.')[0]))];
-      if (ids.length > 32) fail('draft-capacity');
-      return { ok: true, drafts: ids.map(id => {
-        const r = recover(id);
-        return { id, ...(r.ok ? { label: r.label, revision: r.revision, time: r.time, token: r.token, sha256: r.contentHash, warning: r.warning } : { label: '无法读取的草稿', warning: r.code }), recoverable: r.ok };
-      }).sort((a, b) => (b.time || 0) - (a.time || 0)) };
-    } catch (e) { return { ok: false, code: e.code || 'draft-read-failed', drafts: [] }; }
+      const rows = ids.map(id => {
+        const r = resolve(id); let manageToken = null;
+        try { manageToken = managementToken(id, all); } catch { /* Keep every unverifiable group visible. */ }
+        return { id, manageToken, archived: !!(r.ok && r.archived && !r.warning),
+          ...(r.ok ? { label: r.label, revision: r.revision, time: r.time, token: r.token, sha256: r.contentHash, warning: r.warning || (!manageToken ? 'draft-record-unreadable' : null) }
+            : { label: '无法读取的草稿', warning: r.code }), recoverable: r.ok && !r.archived };
+      }).sort((a, b) => (b.time || 0) - (a.time || 0));
+      const drafts = rows.filter(r => !r.archived), archived = rows.filter(r => r.archived);
+      return { ok: true, drafts, archived, capacity: { active: drafts.length, limit: 32, records: all.length, maxRecords: 128 } };
+    } catch (e) { return { ok: false, code: e.code || 'draft-read-failed', drafts: [], archived: [] }; }
   }
-  function save({ id, token = null, fingerprint = null, label, revision, bytes }) {
+  function writeRecord({ id, token = null, fingerprint = null, label, revision, bytes }, management = null) {
     let fd, directory, created = false, attempted = false;
     try {
       if (!uuid.test(id) || !Buffer.isBuffer(bytes) || bytes.length > 524288 || typeof label !== 'string' || label.length > 512
           || !Number.isSafeInteger(revision) || revision < 0) fail('invalid-draft');
       const all = names(), previous = group(id, all);
       if ((previous[0] || null) !== token) fail('draft-conflict');
-      if (!previous.length && new Set(all.map(n => n.split('.')[0])).size >= 32 || all.length >= 128) fail('draft-capacity');
-      if (token && read(token).identity !== fingerprint) fail('draft-conflict');
+      const prior = token ? read(token) : null;
+      if (prior && prior.identity !== fingerprint) fail('draft-conflict');
+      if (prior?.archived && !management) fail('draft-archived');
+      if (all.length >= 128) fail('draft-record-capacity');
+      if (!management?.archived && (!previous.length || prior?.archived)) {
+        const catalog = list(); if (!catalog.ok) fail(catalog.code);
+        if (catalog.capacity.active >= 32) fail('draft-capacity');
+      }
       const generation = token ? Number(token.split('.')[1]) + 1 : 1;
       if (generation > 9999999999) fail('draft-capacity');
       const name = `${id}.${generation}.json`, file = path.join(root, name);
-      const record = { version: 1, id, generation, revision, label, time: Date.now(), contentHash: hash(bytes), body: bytes.toString('base64') };
+      const record = { version: 1, id, generation, revision, label, time: management ? management.time : Date.now(), archived: management?.archived === true, contentHash: hash(bytes), body: bytes.toString('base64') };
       const encoded = Buffer.from(JSON.stringify({ record, sha256: hash(JSON.stringify(record)) }));
       if (encoded.length > MAX_RECORD) fail('draft-capacity');
       directory = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW); verifyRoot();
@@ -116,7 +136,21 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       if (directory !== undefined) try { fs.closeSync(directory); } catch { /* Directory sync/read verification determines receipt. */ }
     }
   }
-  // Explicit dismissal is not part of V1. At capacity retain drafts and report it.
-  return { list, recover, save, newId: randomUUID };
+  function save(data) { return writeRecord(data); }
+  function manage(id, action, expectedToken) {
+    try {
+      if (!['archive', 'unarchive'].includes(action) || !/^[a-f0-9]{64}$/.test(expectedToken)) fail('invalid-draft-operation');
+      const all = names();
+      if (managementToken(id, all) !== expectedToken) fail('draft-conflict');
+      const current = read(group(id, all)[0]), archived = action === 'archive';
+      if (!!current.archived === archived) fail('draft-conflict');
+      // A verified generation changes membership without deleting the draft.
+      // The same bounded writer retains its body and applies normal generation retention.
+      const result = writeRecord({ id, token: current.token, fingerprint: current.identity,
+        label: current.label, revision: current.revision, bytes: current.bytes }, { archived, time: current.time });
+      return result.ok ? { ok: true, state: archived ? 'archived' : 'available' } : result;
+    } catch (e) { return { ok: false, state: 'not-changed', code: e.code || 'draft-management-failed' }; }
+  }
+  return { list, recover, save, manage, newId: randomUUID };
 }
 module.exports = { createDraftStore };

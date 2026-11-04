@@ -7,7 +7,7 @@ const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned capabilities. Native selection is the only open authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit = null, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   const backups = draftStore && createDraftBackups(draftStore, (document, backup) => {
     for (const [sessionId, s] of sessions) if (s.document === document) {
@@ -109,7 +109,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
           || opened.document.revision !== 0 || opened.document.dirty || !opened.document.bytesForSave().equals(bytes)) return failure('temporary-create-failed');
       if (!opened?.ok) return failure('temporary-create-failed');
       const number = ++binding.temporaryCount;
-      const label = recovery ? ('恢复：' + recovery.label.replace(/^恢复：/, '')).slice(0, 512) : source ? `Copy ${number} of ${source.label}` : 'Temporary ' + number;
+      const label = recovery ? ('恢复：' + recovery.label.replace(/^恢复：/, '')).slice(0, 512) : source ? `${source.label} · 编辑副本 ${number}` : '未命名 ' + number;
       const id = provision(binding.win, opened.document, label, { temporary: true });
       backups?.attach(opened.document, label, recovery);
       return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
@@ -137,14 +137,15 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+      format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
-    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId'])
+    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId', 'action', 'expectedToken'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
-    if (['list-drafts', 'restore-draft'].includes(payload.operation)) {
+    if (['list-drafts', 'restore-draft', 'manage-draft'].includes(payload.operation)) {
       if (!draftStore) return failure('drafts-unavailable');
       try {
         if (payload.operation === 'list-drafts') {
@@ -153,6 +154,11 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
         }
         if (typeof payload.draftId !== 'string' || !/^[a-f0-9-]{36}$/.test(payload.draftId)) return failure('invalid-draft');
         if (backups.active(payload.draftId)) return failure('draft-already-open');
+        if (payload.operation === 'manage-draft') {
+          if (!['archive', 'unarchive'].includes(payload.action) || typeof payload.expectedToken !== 'string'
+              || !/^[a-f0-9]{64}$/.test(payload.expectedToken)) return failure('invalid-draft-operation');
+          return draftStore.manage(payload.draftId, payload.action, payload.expectedToken);
+        }
         const recovered = draftStore.recover(payload.draftId);
         if (!recovered.ok) return failure(recovered.code);
         const result = newTemporary(binding, null, () => authorizedBinding(event) === binding, recovered);
@@ -169,8 +175,8 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
       committed: result.committed, selection: result.selection, snapshot: snapshot(id, s) }); // Only bounded snapshots/receipts; no fs objects or raw exception strings
     if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
-    if (s.readOnly && ['edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
+    if (s.readOnly && ['format', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
+    if (['format', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
@@ -206,6 +212,23 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
           if (s.document.dirty || state.durabilityUncertain || state.replacementUnverified) return reply(failure('unresolved-save-state'));
           const result = service.close(s.document); if (result.ok) invalidate(id, s); return { ok: result.ok, code: result.code };
         }
+        case 'format': {
+          if (s.document.blocked) return reply(failure('conversion-blocked'));
+          if (typeof mapFormatEdit !== 'function') return reply(failure('format-unavailable'));
+          const before = s.document.text;
+          const mapped = mapFormatEdit(before, { action: payload.action, from: payload.from, to: payload.to });
+          if (!mapped.ok) return reply(failure(mapped.code));
+          const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
+          if (result.ok && s.document.text !== before) {
+            // Source patches are main-owned history only; the renderer can never submit one.
+            s.undo.push({ format: true, before: sourceHash(before), after: sourceHash(s.document.text),
+              undo: mapped.inverseSource, redo: mapped.change,
+              undoSelection: { from: payload.from, to: payload.to }, redoSelection: mapped.selection });
+            if (s.undo.length > 64) s.undo.shift();
+            s.redo = []; backups?.changed(s.document);
+          }
+          return reply({ ...result, selection: mapped.selection });
+        }
         case 'edit': {
           const before = s.document.text;
           const change = { from: payload.from, to: payload.to, insert: payload.insert };
@@ -229,7 +252,10 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, windowFor
           if (!entry) return reply(failure('history-empty'));
           const fromHash = undoing ? entry.after : entry.before, toHash = undoing ? entry.before : entry.after;
           if (sourceHash(s.document.text) !== fromHash) return reply(failure('history-diverged'));
-          const change = entry[payload.operation], mapped = mapTextEdit(s.document.text, change, entry.leaf, entry.paragraphSeparator);
+          const change = entry[payload.operation], mapped = entry.format
+            ? { ok: true, source: s.document.text.slice(0, change.from) + change.insert + s.document.text.slice(change.to),
+              change, selection: entry[undoing ? 'undoSelection' : 'redoSelection'] }
+            : mapTextEdit(s.document.text, change, entry.leaf, entry.paragraphSeparator);
           if (!mapped.ok || sourceHash(mapped.source) !== toHash) return reply(failure('history-diverged'));
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok) {

@@ -14,9 +14,9 @@
   };
   var __copyProps = (to, from2, except, desc) => {
     if (from2 && typeof from2 === "object" || typeof from2 === "function") {
-      for (let key of __getOwnPropNames(from2))
-        if (!__hasOwnProp.call(to, key) && key !== except)
-          __defProp(to, key, { get: () => from2[key], enumerable: !(desc = __getOwnPropDesc(from2, key)) || desc.enumerable });
+      for (let key2 of __getOwnPropNames(from2))
+        if (!__hasOwnProp.call(to, key2) && key2 !== except)
+          __defProp(to, key2, { get: () => from2[key2], enumerable: !(desc = __getOwnPropDesc(from2, key2)) || desc.enumerable });
     }
     return to;
   };
@@ -52,10 +52,10 @@
         if (obj.constructor && !hasOwnConstructor && !hasIsPrototypeOf) {
           return false;
         }
-        var key;
-        for (key in obj) {
+        var key2;
+        for (key2 in obj) {
         }
-        return typeof key === "undefined" || hasOwn.call(obj, key);
+        return typeof key2 === "undefined" || hasOwn.call(obj, key2);
       };
       var setProperty = function setProperty2(target, options) {
         if (defineProperty && options.name === "__proto__") {
@@ -120,45 +120,33 @@
     }
   });
 
-  // node_modules/@tiptap/core/dist/rolldown-runtime-D7D4PA-g.js
-  var __defProp2 = Object.defineProperty;
-  var __exportAll = (all2, no_symbols) => {
-    let target = {};
-    for (var name in all2) __defProp2(target, name, {
-      get: all2[name],
-      enumerable: true
-    });
-    if (!no_symbols) __defProp2(target, Symbol.toStringTag, { value: "Module" });
-    return target;
-  };
-
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content3) {
     this.content = content3;
   }
   OrderedMap.prototype = {
     constructor: OrderedMap,
-    find: function(key) {
+    find: function(key2) {
       for (var i = 0; i < this.content.length; i += 2)
-        if (this.content[i] === key) return i;
+        if (this.content[i] === key2) return i;
       return -1;
     },
     // :: (string) → ?any
     // Retrieve the value stored under `key`, or return undefined when
     // no such key exists.
-    get: function(key) {
-      var found2 = this.find(key);
+    get: function(key2) {
+      var found2 = this.find(key2);
       return found2 == -1 ? void 0 : this.content[found2 + 1];
     },
     // :: (string, any, ?string) → OrderedMap
     // Create a new map by replacing the value of `key` with a new
     // value, or adding a binding to the end of the map. If `newKey` is
     // given, the key of the binding will be replaced with that key.
-    update: function(key, value, newKey) {
-      var self = newKey && newKey != key ? this.remove(newKey) : this;
-      var found2 = self.find(key), content3 = self.content.slice();
+    update: function(key2, value, newKey) {
+      var self = newKey && newKey != key2 ? this.remove(newKey) : this;
+      var found2 = self.find(key2), content3 = self.content.slice();
       if (found2 == -1) {
-        content3.push(newKey || key, value);
+        content3.push(newKey || key2, value);
       } else {
         content3[found2 + 1] = value;
         if (newKey) content3[found2] = newKey;
@@ -167,8 +155,8 @@
     },
     // :: (string) → OrderedMap
     // Return a map with the given key removed, if it existed.
-    remove: function(key) {
-      var found2 = this.find(key);
+    remove: function(key2) {
+      var found2 = this.find(key2);
       if (found2 == -1) return this;
       var content3 = this.content.slice();
       content3.splice(found2, 2);
@@ -176,23 +164,23 @@
     },
     // :: (string, any) → OrderedMap
     // Add a new key to the start of the map.
-    addToStart: function(key, value) {
-      return new OrderedMap([key, value].concat(this.remove(key).content));
+    addToStart: function(key2, value) {
+      return new OrderedMap([key2, value].concat(this.remove(key2).content));
     },
     // :: (string, any) → OrderedMap
     // Add a new key to the end of the map.
-    addToEnd: function(key, value) {
-      var content3 = this.remove(key).content.slice();
-      content3.push(key, value);
+    addToEnd: function(key2, value) {
+      var content3 = this.remove(key2).content.slice();
+      content3.push(key2, value);
       return new OrderedMap(content3);
     },
     // :: (string, string, any) → OrderedMap
     // Add a key after the given key. If `place` is not found, the new
     // key is added to the end.
-    addBefore: function(place, key, value) {
-      var without = this.remove(key), content3 = without.content.slice();
+    addBefore: function(place, key2, value) {
+      var without = this.remove(key2), content3 = without.content.slice();
       var found2 = without.find(place);
-      content3.splice(found2 == -1 ? content3.length : found2, 0, key, value);
+      content3.splice(found2 == -1 ? content3.length : found2, 0, key2, value);
       return new OrderedMap(content3);
     },
     // :: ((key: string, value: any))
@@ -232,8 +220,8 @@
     // Turn ordered map into a plain object.
     toObject: function() {
       var result = {};
-      this.forEach(function(key, value) {
-        result[key] = value;
+      this.forEach(function(key2, value) {
+        result[key2] = value;
       });
       return result;
     },
@@ -3342,9 +3330,9 @@
     /**
     @internal
     */
-    serializeMark(mark, inline, options = {}) {
+    serializeMark(mark, inline2, options = {}) {
       let toDOM = this.marks[mark.type.name];
-      return toDOM && renderSpec(doc(options), toDOM(mark, inline), null, mark.attrs);
+      return toDOM && renderSpec(doc(options), toDOM(mark, inline2), null, mark.attrs);
     }
     static renderSpec(doc3, structure, xmlNS = null, blockArraysIn) {
       if (typeof structure == "string")
@@ -5922,15 +5910,15 @@
     Store a metadata property in this transaction, keyed either by
     name or by plugin.
     */
-    setMeta(key, value) {
-      this.meta[typeof key == "string" ? key : key.key] = value;
+    setMeta(key2, value) {
+      this.meta[typeof key2 == "string" ? key2 : key2.key] = value;
       return this;
     }
     /**
     Retrieve a metadata property for a given name or plugin.
     */
-    getMeta(key) {
-      return this.meta[typeof key == "string" ? key : key.key];
+    getMeta(key2) {
+      return this.meta[typeof key2 == "string" ? key2 : key2.key];
     }
     /**
     Returns true if this transaction doesn't contain any metadata,
@@ -6253,656 +6241,6 @@
     }
   };
 
-  // node_modules/prosemirror-commands/dist/index.js
-  var deleteSelection = (state, dispatch) => {
-    if (state.selection.empty)
-      return false;
-    if (dispatch)
-      dispatch(state.tr.deleteSelection().scrollIntoView());
-    return true;
-  };
-  function atBlockStart(state, view) {
-    let { $cursor } = state.selection;
-    if (!$cursor || (view ? !view.endOfTextblock("backward", state) : $cursor.parentOffset > 0))
-      return null;
-    return $cursor;
-  }
-  var joinBackward = (state, dispatch, view) => {
-    let $cursor = atBlockStart(state, view);
-    if (!$cursor)
-      return false;
-    let $cut = findCutBefore($cursor);
-    if (!$cut) {
-      let range = $cursor.blockRange(), target = range && liftTarget(range);
-      if (target == null)
-        return false;
-      if (dispatch)
-        dispatch(state.tr.lift(range, target).scrollIntoView());
-      return true;
-    }
-    let before = $cut.nodeBefore;
-    if (deleteBarrier(state, $cut, dispatch, -1))
-      return true;
-    if ($cursor.parent.content.size == 0 && (textblockAt(before, "end") || NodeSelection.isSelectable(before))) {
-      for (let depth = $cursor.depth; ; depth--) {
-        let delStep = replaceStep(state.doc, $cursor.before(depth), $cursor.after(depth), Slice.empty);
-        if (delStep && delStep.slice.size < delStep.to - delStep.from) {
-          if (dispatch) {
-            let tr2 = state.tr.step(delStep);
-            tr2.setSelection(textblockAt(before, "end") ? Selection.findFrom(tr2.doc.resolve(tr2.mapping.map($cut.pos, -1)), -1) : NodeSelection.create(tr2.doc, $cut.pos - before.nodeSize));
-            dispatch(tr2.scrollIntoView());
-          }
-          return true;
-        }
-        if (depth == 1 || $cursor.node(depth - 1).childCount > 1)
-          break;
-      }
-    }
-    if (before.isAtom && $cut.depth == $cursor.depth - 1) {
-      if (dispatch)
-        dispatch(state.tr.delete($cut.pos - before.nodeSize, $cut.pos).scrollIntoView());
-      return true;
-    }
-    return false;
-  };
-  var joinTextblockBackward = (state, dispatch, view) => {
-    let $cursor = atBlockStart(state, view);
-    if (!$cursor)
-      return false;
-    let $cut = findCutBefore($cursor);
-    return $cut ? joinTextblocksAround(state, $cut, dispatch) : false;
-  };
-  var joinTextblockForward = (state, dispatch, view) => {
-    let $cursor = atBlockEnd(state, view);
-    if (!$cursor)
-      return false;
-    let $cut = findCutAfter($cursor);
-    return $cut ? joinTextblocksAround(state, $cut, dispatch) : false;
-  };
-  function joinTextblocksAround(state, $cut, dispatch) {
-    let before = $cut.nodeBefore, beforeText = before, beforePos = $cut.pos - 1;
-    for (; !beforeText.isTextblock; beforePos--) {
-      if (beforeText.type.spec.isolating)
-        return false;
-      let child = beforeText.lastChild;
-      if (!child)
-        return false;
-      beforeText = child;
-    }
-    let after = $cut.nodeAfter, afterText = after, afterPos = $cut.pos + 1;
-    for (; !afterText.isTextblock; afterPos++) {
-      if (afterText.type.spec.isolating)
-        return false;
-      let child = afterText.firstChild;
-      if (!child)
-        return false;
-      afterText = child;
-    }
-    let step = replaceStep(state.doc, beforePos, afterPos, Slice.empty);
-    if (!step || step.from != beforePos || step instanceof ReplaceStep && step.slice.size >= afterPos - beforePos)
-      return false;
-    if (dispatch) {
-      let tr2 = state.tr.step(step);
-      tr2.setSelection(TextSelection.create(tr2.doc, beforePos));
-      dispatch(tr2.scrollIntoView());
-    }
-    return true;
-  }
-  function textblockAt(node2, side, only = false) {
-    for (let scan = node2; scan; scan = side == "start" ? scan.firstChild : scan.lastChild) {
-      if (scan.isTextblock)
-        return true;
-      if (only && scan.childCount != 1)
-        return false;
-    }
-    return false;
-  }
-  var selectNodeBackward = (state, dispatch, view) => {
-    let { $head, empty: empty3 } = state.selection, $cut = $head;
-    if (!empty3)
-      return false;
-    if ($head.parent.isTextblock) {
-      if (view ? !view.endOfTextblock("backward", state) : $head.parentOffset > 0)
-        return false;
-      $cut = findCutBefore($head);
-    }
-    let node2 = $cut && $cut.nodeBefore;
-    if (!node2 || !NodeSelection.isSelectable(node2))
-      return false;
-    if (dispatch)
-      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, $cut.pos - node2.nodeSize)).scrollIntoView());
-    return true;
-  };
-  function findCutBefore($pos) {
-    if (!$pos.parent.type.spec.isolating)
-      for (let i = $pos.depth - 1; i >= 0; i--) {
-        if ($pos.index(i) > 0)
-          return $pos.doc.resolve($pos.before(i + 1));
-        if ($pos.node(i).type.spec.isolating)
-          break;
-      }
-    return null;
-  }
-  function atBlockEnd(state, view) {
-    let { $cursor } = state.selection;
-    if (!$cursor || (view ? !view.endOfTextblock("forward", state) : $cursor.parentOffset < $cursor.parent.content.size))
-      return null;
-    return $cursor;
-  }
-  var joinForward = (state, dispatch, view) => {
-    let $cursor = atBlockEnd(state, view);
-    if (!$cursor)
-      return false;
-    let $cut = findCutAfter($cursor);
-    if (!$cut)
-      return false;
-    let after = $cut.nodeAfter;
-    if (deleteBarrier(state, $cut, dispatch, 1))
-      return true;
-    if ($cursor.parent.content.size == 0 && (textblockAt(after, "start") || NodeSelection.isSelectable(after))) {
-      let delStep = replaceStep(state.doc, $cursor.before(), $cursor.after(), Slice.empty);
-      if (delStep && delStep.slice.size < delStep.to - delStep.from) {
-        if (dispatch) {
-          let tr2 = state.tr.step(delStep);
-          tr2.setSelection(textblockAt(after, "start") ? Selection.findFrom(tr2.doc.resolve(tr2.mapping.map($cut.pos)), 1) : NodeSelection.create(tr2.doc, tr2.mapping.map($cut.pos)));
-          dispatch(tr2.scrollIntoView());
-        }
-        return true;
-      }
-    }
-    if (after.isAtom && $cut.depth == $cursor.depth - 1) {
-      if (dispatch)
-        dispatch(state.tr.delete($cut.pos, $cut.pos + after.nodeSize).scrollIntoView());
-      return true;
-    }
-    return false;
-  };
-  var selectNodeForward = (state, dispatch, view) => {
-    let { $head, empty: empty3 } = state.selection, $cut = $head;
-    if (!empty3)
-      return false;
-    if ($head.parent.isTextblock) {
-      if (view ? !view.endOfTextblock("forward", state) : $head.parentOffset < $head.parent.content.size)
-        return false;
-      $cut = findCutAfter($head);
-    }
-    let node2 = $cut && $cut.nodeAfter;
-    if (!node2 || !NodeSelection.isSelectable(node2))
-      return false;
-    if (dispatch)
-      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, $cut.pos)).scrollIntoView());
-    return true;
-  };
-  function findCutAfter($pos) {
-    if (!$pos.parent.type.spec.isolating)
-      for (let i = $pos.depth - 1; i >= 0; i--) {
-        let parent = $pos.node(i);
-        if ($pos.index(i) + 1 < parent.childCount)
-          return $pos.doc.resolve($pos.after(i + 1));
-        if (parent.type.spec.isolating)
-          break;
-      }
-    return null;
-  }
-  var joinUp = (state, dispatch) => {
-    let sel = state.selection, nodeSel = sel instanceof NodeSelection, point3;
-    if (nodeSel) {
-      if (sel.node.isTextblock || !canJoin(state.doc, sel.from))
-        return false;
-      point3 = sel.from;
-    } else {
-      point3 = joinPoint(state.doc, sel.from, -1);
-      if (point3 == null)
-        return false;
-    }
-    if (dispatch) {
-      let tr2 = state.tr.join(point3);
-      if (nodeSel)
-        tr2.setSelection(NodeSelection.create(tr2.doc, point3 - state.doc.resolve(point3).nodeBefore.nodeSize));
-      dispatch(tr2.scrollIntoView());
-    }
-    return true;
-  };
-  var joinDown = (state, dispatch) => {
-    let sel = state.selection, point3;
-    if (sel instanceof NodeSelection) {
-      if (sel.node.isTextblock || !canJoin(state.doc, sel.to))
-        return false;
-      point3 = sel.to;
-    } else {
-      point3 = joinPoint(state.doc, sel.to, 1);
-      if (point3 == null)
-        return false;
-    }
-    if (dispatch)
-      dispatch(state.tr.join(point3).scrollIntoView());
-    return true;
-  };
-  var lift2 = (state, dispatch) => {
-    let { $from, $to } = state.selection;
-    let range = $from.blockRange($to), target = range && liftTarget(range);
-    if (target == null)
-      return false;
-    if (dispatch)
-      dispatch(state.tr.lift(range, target).scrollIntoView());
-    return true;
-  };
-  var newlineInCode = (state, dispatch) => {
-    let { $head, $anchor } = state.selection;
-    if (!$head.parent.type.spec.code || !$head.sameParent($anchor))
-      return false;
-    if (dispatch)
-      dispatch(state.tr.insertText("\n").scrollIntoView());
-    return true;
-  };
-  function defaultBlockAt(match) {
-    for (let i = 0; i < match.edgeCount; i++) {
-      let { type } = match.edge(i);
-      if (type.isTextblock && !type.hasRequiredAttrs())
-        return type;
-    }
-    return null;
-  }
-  var exitCode = (state, dispatch) => {
-    let { $head, $anchor } = state.selection;
-    if (!$head.parent.type.spec.code || !$head.sameParent($anchor))
-      return false;
-    let above = $head.node(-1), after = $head.indexAfter(-1), type = defaultBlockAt(above.contentMatchAt(after));
-    if (!type || !above.canReplaceWith(after, after, type))
-      return false;
-    if (dispatch) {
-      let pos = $head.after(), tr2 = state.tr.replaceWith(pos, pos, type.createAndFill());
-      tr2.setSelection(Selection.near(tr2.doc.resolve(pos), 1));
-      dispatch(tr2.scrollIntoView());
-    }
-    return true;
-  };
-  var createParagraphNear = (state, dispatch) => {
-    let sel = state.selection, { $from, $to } = sel;
-    if (sel instanceof AllSelection || $from.parent.inlineContent || $to.parent.inlineContent)
-      return false;
-    let type = defaultBlockAt($to.parent.contentMatchAt($to.indexAfter()));
-    if (!type || !type.isTextblock)
-      return false;
-    if (dispatch) {
-      let side = (!$from.parentOffset && $to.index() < $to.parent.childCount ? $from : $to).pos;
-      let tr2 = state.tr.insert(side, type.createAndFill());
-      tr2.setSelection(TextSelection.create(tr2.doc, side + 1));
-      dispatch(tr2.scrollIntoView());
-    }
-    return true;
-  };
-  var liftEmptyBlock = (state, dispatch) => {
-    let { $cursor } = state.selection;
-    if (!$cursor || $cursor.parent.content.size)
-      return false;
-    if ($cursor.depth > 1 && $cursor.after() != $cursor.end(-1)) {
-      let before = $cursor.before();
-      if (canSplit(state.doc, before)) {
-        if (dispatch)
-          dispatch(state.tr.split(before).scrollIntoView());
-        return true;
-      }
-    }
-    let range = $cursor.blockRange(), target = range && liftTarget(range);
-    if (target == null)
-      return false;
-    if (dispatch)
-      dispatch(state.tr.lift(range, target).scrollIntoView());
-    return true;
-  };
-  function splitBlockAs(splitNode) {
-    return (state, dispatch) => {
-      let { $from, $to } = state.selection;
-      if (state.selection instanceof NodeSelection && state.selection.node.isBlock) {
-        if (!$from.parentOffset || !canSplit(state.doc, $from.pos))
-          return false;
-        if (dispatch)
-          dispatch(state.tr.split($from.pos).scrollIntoView());
-        return true;
-      }
-      if (!$from.depth)
-        return false;
-      let types = [];
-      let splitDepth, deflt, atEnd = false, atStart = false;
-      for (let d = $from.depth; ; d--) {
-        let node2 = $from.node(d);
-        if (node2.isBlock) {
-          atEnd = $from.end(d) == $from.pos + ($from.depth - d);
-          atStart = $from.start(d) == $from.pos - ($from.depth - d);
-          deflt = defaultBlockAt($from.node(d - 1).contentMatchAt($from.indexAfter(d - 1)));
-          let splitType = splitNode && splitNode($to.parent, atEnd, $from);
-          types.unshift(splitType || (atEnd && deflt ? { type: deflt } : null));
-          splitDepth = d;
-          break;
-        } else {
-          if (d == 1)
-            return false;
-          types.unshift(null);
-        }
-      }
-      let tr2 = state.tr;
-      if (state.selection instanceof TextSelection || state.selection instanceof AllSelection)
-        tr2.deleteSelection();
-      let splitPos = tr2.mapping.map($from.pos);
-      let can = canSplit(tr2.doc, splitPos, types.length, types);
-      if (!can) {
-        types[0] = deflt ? { type: deflt } : null;
-        can = canSplit(tr2.doc, splitPos, types.length, types);
-      }
-      if (!can)
-        return false;
-      tr2.split(splitPos, types.length, types);
-      if (!atEnd && atStart && $from.node(splitDepth).type != deflt) {
-        let first2 = tr2.mapping.map($from.before(splitDepth)), $first = tr2.doc.resolve(first2);
-        if (deflt && $from.node(splitDepth - 1).canReplaceWith($first.index(), $first.index() + 1, deflt))
-          tr2.setNodeMarkup(tr2.mapping.map($from.before(splitDepth)), deflt);
-      }
-      if (dispatch)
-        dispatch(tr2.scrollIntoView());
-      return true;
-    };
-  }
-  var splitBlock = splitBlockAs();
-  var selectParentNode = (state, dispatch) => {
-    let { $from, to } = state.selection, pos;
-    let same = $from.sharedDepth(to);
-    if (same == 0)
-      return false;
-    pos = $from.before(same);
-    if (dispatch)
-      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, pos)));
-    return true;
-  };
-  var selectAll = (state, dispatch) => {
-    if (dispatch)
-      dispatch(state.tr.setSelection(new AllSelection(state.doc)));
-    return true;
-  };
-  function joinMaybeClear(state, $pos, dispatch) {
-    let before = $pos.nodeBefore, after = $pos.nodeAfter, index2 = $pos.index();
-    if (!before || !after || !before.type.compatibleContent(after.type))
-      return false;
-    if (!before.content.size && $pos.parent.canReplace(index2 - 1, index2)) {
-      if (dispatch)
-        dispatch(state.tr.delete($pos.pos - before.nodeSize, $pos.pos).scrollIntoView());
-      return true;
-    }
-    if (!$pos.parent.canReplace(index2, index2 + 1) || !(after.isTextblock || canJoin(state.doc, $pos.pos)))
-      return false;
-    if (dispatch)
-      dispatch(state.tr.join($pos.pos).scrollIntoView());
-    return true;
-  }
-  function deleteBarrier(state, $cut, dispatch, dir) {
-    let before = $cut.nodeBefore, after = $cut.nodeAfter, conn, match;
-    let isolated = before.type.spec.isolating || after.type.spec.isolating;
-    if (!isolated && joinMaybeClear(state, $cut, dispatch))
-      return true;
-    let canDelAfter = !isolated && $cut.parent.canReplace($cut.index(), $cut.index() + 1);
-    if (canDelAfter && (conn = (match = before.contentMatchAt(before.childCount)).findWrapping(after.type)) && match.matchType(conn[0] || after.type).validEnd) {
-      if (dispatch) {
-        let end = $cut.pos + after.nodeSize, wrap3 = Fragment.empty;
-        for (let i = conn.length - 1; i >= 0; i--)
-          wrap3 = Fragment.from(conn[i].create(null, wrap3));
-        wrap3 = Fragment.from(before.copy(wrap3));
-        let tr2 = state.tr.step(new ReplaceAroundStep($cut.pos - 1, end, $cut.pos, end, new Slice(wrap3, 1, 0), conn.length, true));
-        let $joinAt = tr2.doc.resolve(end + 2 * conn.length);
-        if ($joinAt.nodeAfter && $joinAt.nodeAfter.type == before.type && canJoin(tr2.doc, $joinAt.pos))
-          tr2.join($joinAt.pos);
-        dispatch(tr2.scrollIntoView());
-      }
-      return true;
-    }
-    let selAfter = after.type.spec.isolating || dir > 0 && isolated ? null : Selection.findFrom($cut, 1);
-    let range = selAfter && selAfter.$from.blockRange(selAfter.$to), target = range && liftTarget(range);
-    if (target != null && target >= $cut.depth) {
-      if (dispatch)
-        dispatch(state.tr.lift(range, target).scrollIntoView());
-      return true;
-    }
-    if (canDelAfter && textblockAt(after, "start", true) && textblockAt(before, "end")) {
-      let at = before, wrap3 = [];
-      for (; ; ) {
-        wrap3.push(at);
-        if (at.isTextblock)
-          break;
-        at = at.lastChild;
-      }
-      let afterText = after, afterDepth = 1;
-      for (; !afterText.isTextblock; afterText = afterText.firstChild)
-        afterDepth++;
-      if (at.canReplace(at.childCount, at.childCount, afterText.content)) {
-        if (dispatch) {
-          let end = Fragment.empty;
-          for (let i = wrap3.length - 1; i >= 0; i--)
-            end = Fragment.from(wrap3[i].copy(end));
-          let tr2 = state.tr.step(new ReplaceAroundStep($cut.pos - wrap3.length, $cut.pos + after.nodeSize, $cut.pos + afterDepth, $cut.pos + after.nodeSize - afterDepth, new Slice(end, wrap3.length, 0), 0, true));
-          dispatch(tr2.scrollIntoView());
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-  function selectTextblockSide(side) {
-    return function(state, dispatch) {
-      let sel = state.selection, $pos = side < 0 ? sel.$from : sel.$to;
-      let depth = $pos.depth;
-      while ($pos.node(depth).isInline) {
-        if (!depth)
-          return false;
-        depth--;
-      }
-      if (!$pos.node(depth).isTextblock)
-        return false;
-      if (dispatch)
-        dispatch(state.tr.setSelection(TextSelection.create(state.doc, side < 0 ? $pos.start(depth) : $pos.end(depth))));
-      return true;
-    };
-  }
-  var selectTextblockStart = selectTextblockSide(-1);
-  var selectTextblockEnd = selectTextblockSide(1);
-  function wrapIn(nodeType, attrs = null) {
-    return function(state, dispatch) {
-      let { $from, $to } = state.selection;
-      let range = $from.blockRange($to), wrapping = range && findWrapping(range, nodeType, attrs);
-      if (!wrapping)
-        return false;
-      if (dispatch)
-        dispatch(state.tr.wrap(range, wrapping).scrollIntoView());
-      return true;
-    };
-  }
-  function setBlockType2(nodeType, attrs = null) {
-    return function(state, dispatch) {
-      let applicable = false;
-      for (let i = 0; i < state.selection.ranges.length && !applicable; i++) {
-        let { $from: { pos: from2 }, $to: { pos: to } } = state.selection.ranges[i];
-        state.doc.nodesBetween(from2, to, (node2, pos) => {
-          if (applicable)
-            return false;
-          if (!node2.isTextblock || node2.hasMarkup(nodeType, attrs))
-            return;
-          if (node2.type == nodeType) {
-            applicable = true;
-          } else {
-            let $pos = state.doc.resolve(pos), index2 = $pos.index();
-            applicable = $pos.parent.canReplaceWith(index2, index2 + 1, nodeType);
-          }
-        });
-      }
-      if (!applicable)
-        return false;
-      if (dispatch) {
-        let tr2 = state.tr;
-        for (let i = 0; i < state.selection.ranges.length; i++) {
-          let { $from: { pos: from2 }, $to: { pos: to } } = state.selection.ranges[i];
-          tr2.setBlockType(from2, to, nodeType, attrs);
-        }
-        dispatch(tr2.scrollIntoView());
-      }
-      return true;
-    };
-  }
-  function chainCommands(...commands) {
-    return function(state, dispatch, view) {
-      for (let i = 0; i < commands.length; i++)
-        if (commands[i](state, dispatch, view))
-          return true;
-      return false;
-    };
-  }
-  var backspace = chainCommands(deleteSelection, joinBackward, selectNodeBackward);
-  var del = chainCommands(deleteSelection, joinForward, selectNodeForward);
-  var pcBaseKeymap = {
-    "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlock),
-    "Mod-Enter": exitCode,
-    "Backspace": backspace,
-    "Mod-Backspace": backspace,
-    "Shift-Backspace": backspace,
-    "Delete": del,
-    "Mod-Delete": del,
-    "Mod-a": selectAll
-  };
-  var macBaseKeymap = {
-    "Ctrl-h": pcBaseKeymap["Backspace"],
-    "Alt-Backspace": pcBaseKeymap["Mod-Backspace"],
-    "Ctrl-d": pcBaseKeymap["Delete"],
-    "Ctrl-Alt-Backspace": pcBaseKeymap["Mod-Delete"],
-    "Alt-Delete": pcBaseKeymap["Mod-Delete"],
-    "Alt-d": pcBaseKeymap["Mod-Delete"],
-    "Ctrl-a": selectTextblockStart,
-    "Ctrl-e": selectTextblockEnd
-  };
-  for (let key in pcBaseKeymap)
-    macBaseKeymap[key] = pcBaseKeymap[key];
-  var mac = typeof navigator != "undefined" ? /Mac|iP(hone|[oa]d)/.test(navigator.platform) : typeof os != "undefined" && os.platform ? os.platform() == "darwin" : false;
-
-  // node_modules/prosemirror-schema-list/dist/index.js
-  function wrapInList(listType, attrs = null) {
-    return function(state, dispatch) {
-      let { $from, $to } = state.selection;
-      let range = $from.blockRange($to);
-      if (!range)
-        return false;
-      let tr2 = dispatch ? state.tr : null;
-      if (!wrapRangeInList(tr2, range, listType, attrs))
-        return false;
-      if (dispatch)
-        dispatch(tr2.scrollIntoView());
-      return true;
-    };
-  }
-  function wrapRangeInList(tr2, range, listType, attrs = null) {
-    let doJoin = false, outerRange = range, doc3 = range.$from.doc;
-    if (range.depth >= 2 && range.$from.node(range.depth - 1).type.compatibleContent(listType) && range.startIndex == 0) {
-      if (range.$from.index(range.depth - 1) == 0)
-        return false;
-      let $insert = doc3.resolve(range.start - 2);
-      outerRange = new NodeRange($insert, $insert, range.depth);
-      if (range.endIndex < range.parent.childCount)
-        range = new NodeRange(range.$from, doc3.resolve(range.$to.end(range.depth)), range.depth);
-      doJoin = true;
-    }
-    let wrap3 = findWrapping(outerRange, listType, attrs, range);
-    if (!wrap3)
-      return false;
-    if (tr2)
-      doWrapInList(tr2, range, wrap3, doJoin, listType);
-    return true;
-  }
-  function doWrapInList(tr2, range, wrappers, joinBefore, listType) {
-    let content3 = Fragment.empty;
-    for (let i = wrappers.length - 1; i >= 0; i--)
-      content3 = Fragment.from(wrappers[i].type.create(wrappers[i].attrs, content3));
-    tr2.step(new ReplaceAroundStep(range.start - (joinBefore ? 2 : 0), range.end, range.start, range.end, new Slice(content3, 0, 0), wrappers.length, true));
-    let found2 = 0;
-    for (let i = 0; i < wrappers.length; i++)
-      if (wrappers[i].type == listType)
-        found2 = i + 1;
-    let splitDepth = wrappers.length - found2;
-    let splitPos = range.start + wrappers.length - (joinBefore ? 2 : 0), parent = range.parent;
-    for (let i = range.startIndex, e = range.endIndex, first2 = true; i < e; i++, first2 = false) {
-      if (!first2 && canSplit(tr2.doc, splitPos, splitDepth)) {
-        tr2.split(splitPos, splitDepth);
-        splitPos += 2 * splitDepth;
-      }
-      splitPos += parent.child(i).nodeSize;
-    }
-    return tr2;
-  }
-  function liftListItem(itemType) {
-    return function(state, dispatch) {
-      let { $from, $to } = state.selection;
-      let range = $from.blockRange($to, (node2) => node2.childCount > 0 && node2.firstChild.type == itemType);
-      if (!range)
-        return false;
-      if (!dispatch)
-        return true;
-      if ($from.node(range.depth - 1).type == itemType)
-        return liftToOuterList(state, dispatch, itemType, range);
-      else
-        return liftOutOfList(state, dispatch, range);
-    };
-  }
-  function liftToOuterList(state, dispatch, itemType, range) {
-    let tr2 = state.tr, end = range.end, endOfList = range.$to.end(range.depth);
-    if (end < endOfList) {
-      tr2.step(new ReplaceAroundStep(end - 1, endOfList, end, endOfList, new Slice(Fragment.from(itemType.create(null, range.parent.copy())), 1, 0), 1, true));
-      range = new NodeRange(tr2.doc.resolve(range.$from.pos), tr2.doc.resolve(endOfList), range.depth);
-    }
-    const target = liftTarget(range);
-    if (target == null)
-      return false;
-    tr2.lift(range, target);
-    let $after = tr2.doc.resolve(tr2.mapping.map(end, -1) - 1);
-    if (canJoin(tr2.doc, $after.pos) && $after.nodeBefore.type == $after.nodeAfter.type)
-      tr2.join($after.pos);
-    dispatch(tr2.scrollIntoView());
-    return true;
-  }
-  function liftOutOfList(state, dispatch, range) {
-    let tr2 = state.tr, list3 = range.parent;
-    for (let pos = range.end, i = range.endIndex - 1, e = range.startIndex; i > e; i--) {
-      pos -= list3.child(i).nodeSize;
-      tr2.delete(pos - 1, pos + 1);
-    }
-    let $start = tr2.doc.resolve(range.start), item = $start.nodeAfter;
-    if (tr2.mapping.map(range.end) != range.start + $start.nodeAfter.nodeSize)
-      return false;
-    let atStart = range.startIndex == 0, atEnd = range.endIndex == list3.childCount;
-    let parent = $start.node(-1), indexBefore = $start.index(-1);
-    if (!parent.canReplace(indexBefore + (atStart ? 0 : 1), indexBefore + 1, item.content.append(atEnd ? Fragment.empty : Fragment.from(list3))))
-      return false;
-    let start = $start.pos, end = start + item.nodeSize;
-    tr2.step(new ReplaceAroundStep(start - (atStart ? 1 : 0), end + (atEnd ? 1 : 0), start + 1, end - 1, new Slice((atStart ? Fragment.empty : Fragment.from(list3.copy(Fragment.empty))).append(atEnd ? Fragment.empty : Fragment.from(list3.copy(Fragment.empty))), atStart ? 0 : 1, atEnd ? 0 : 1), atStart ? 0 : 1));
-    dispatch(tr2.scrollIntoView());
-    return true;
-  }
-  function sinkListItem(itemType) {
-    return function(state, dispatch) {
-      let { $from, $to } = state.selection;
-      let range = $from.blockRange($to, (node2) => node2.childCount > 0 && node2.firstChild.type == itemType);
-      if (!range)
-        return false;
-      let startIndex = range.startIndex;
-      if (startIndex == 0)
-        return false;
-      let parent = range.parent, nodeBefore = parent.child(startIndex - 1);
-      if (nodeBefore.type != itemType)
-        return false;
-      if (dispatch) {
-        let nestedBefore = nodeBefore.lastChild && nodeBefore.lastChild.type == parent.type;
-        let inner = Fragment.from(nestedBefore ? itemType.create() : null);
-        let slice2 = new Slice(Fragment.from(itemType.create(null, Fragment.from(parent.type.create(null, inner)))), nestedBefore ? 3 : 1, 0);
-        let before = range.start, after = range.end;
-        dispatch(state.tr.step(new ReplaceAroundStep(before - (nestedBefore ? 3 : 1), after, before, after, slice2, 1, true)).scrollIntoView());
-      }
-      return true;
-    };
-  }
-
   // node_modules/prosemirror-view/dist/index.js
   var domIndex = function(node2) {
     for (var index2 = 0; ; index2++) {
@@ -7015,11 +6353,11 @@
   var selectionCollapsed = function(domSel) {
     return domSel.focusNode && isEquivalentPosition(domSel.focusNode, domSel.focusOffset, domSel.anchorNode, domSel.anchorOffset);
   };
-  function keyEvent(keyCode, key) {
+  function keyEvent(keyCode, key2) {
     let event = document.createEvent("Event");
     event.initEvent("keydown", true, true);
     event.keyCode = keyCode;
-    event.key = event.code = key;
+    event.key = event.code = key2;
     return event;
   }
   function deepActiveElement(doc3) {
@@ -7058,7 +6396,7 @@
   var chrome_version = _chrome ? +_chrome[1] : 0;
   var safari = !ie && !!nav && /Apple Computer/.test(nav.vendor);
   var ios = safari && (/Mobile\/\w+/.test(agent) || !!nav && nav.maxTouchPoints > 2);
-  var mac2 = ios || (nav ? /Mac/.test(nav.platform) : false);
+  var mac = ios || (nav ? /Mac/.test(nav.platform) : false);
   var windows = nav ? /Win/.test(nav.platform) : false;
   var android = /Android \d/.test(agent);
   var webkit = !!doc2 && "webkitFontSmoothing" in doc2.documentElement.style;
@@ -8003,11 +7341,11 @@
       this.mark = mark;
       this.spec = spec;
     }
-    static create(parent, mark, inline, view) {
+    static create(parent, mark, inline2, view) {
       let custom = view.nodeViews[mark.type.name];
-      let spec = custom && custom(mark, view, inline);
+      let spec = custom && custom(mark, view, inline2);
       if (!spec || !spec.dom)
-        spec = DOMSerializer.renderSpec(document, mark.type.spec.toDOM(mark, inline), null, mark.attrs);
+        spec = DOMSerializer.renderSpec(document, mark.type.spec.toDOM(mark, inline2), null, mark.attrs);
       return new _MarkViewDesc(parent, mark, spec.dom, spec.contentDOM || spec.dom, spec);
     }
     parseRule() {
@@ -8142,19 +7480,19 @@
     // separate step, syncs the DOM inside `this.contentDOM` to
     // `this.children`.
     updateChildren(view, pos) {
-      let inline = this.node.inlineContent, off = pos;
+      let inline2 = this.node.inlineContent, off = pos;
       let composition = view.composing ? this.localCompositionInfo(view, pos) : null;
       let localComposition = composition && composition.pos > -1 ? composition : null;
       let compositionInChild = composition && composition.pos < 0;
       let updater = new ViewTreeUpdater(this, localComposition && localComposition.node, view);
       iterDeco(this.node, this.innerDeco, (widget, i, insideNode) => {
         if (widget.spec.marks)
-          updater.syncToMarks(widget.spec.marks, inline, view, i);
+          updater.syncToMarks(widget.spec.marks, inline2, view, i);
         else if (widget.type.side >= 0 && !insideNode)
-          updater.syncToMarks(i == this.node.childCount ? Mark.none : this.node.child(i).marks, inline, view, i);
+          updater.syncToMarks(i == this.node.childCount ? Mark.none : this.node.child(i).marks, inline2, view, i);
         updater.placeWidget(widget, view, off);
       }, (child, outerDeco, innerDeco, i) => {
-        updater.syncToMarks(child.marks, inline, view, i);
+        updater.syncToMarks(child.marks, inline2, view, i);
         let compIndex;
         if (updater.findNodeMatch(child, outerDeco, innerDeco, i)) ;
         else if (compositionInChild && view.state.selection.from > off && view.state.selection.to < off + child.nodeSize && (compIndex = updater.findIndexWithChild(composition.node)) > -1 && updater.updateNodeAt(child, outerDeco, innerDeco, compIndex, view)) ;
@@ -8164,7 +7502,7 @@
         }
         off += child.nodeSize;
       });
-      updater.syncToMarks([], inline, view, 0);
+      updater.syncToMarks([], inline2, view, 0);
       if (this.node.isTextblock)
         updater.addTextblockHacks();
       updater.destroyRest();
@@ -8530,7 +7868,7 @@
     }
     // Sync the current stack of mark descs with the given array of
     // marks, reusing existing mark descs when possible.
-    syncToMarks(marks, inline, view, parentIndex) {
+    syncToMarks(marks, inline2, view, parentIndex) {
       let keep = 0, depth = this.stack.length >> 1;
       let maxKeep = Math.min(depth, marks.length);
       while (keep < maxKeep && (keep == depth - 1 ? this.top : this.stack[keep + 1 << 1]).matchesMark(marks[keep]) && marks[keep].type.spec.spanning !== false)
@@ -8569,7 +7907,7 @@
           }
           this.top = this.top.children[this.index];
         } else {
-          let markDesc = MarkViewDesc.create(this.top, marks[depth], inline, view);
+          let markDesc = MarkViewDesc.create(this.top, marks[depth], inline2, view);
           this.top.children.splice(this.index, 0, markDesc);
           this.top = markDesc;
           this.changed = true;
@@ -9106,7 +8444,7 @@
         if (next && next instanceof NodeSelection)
           return apply(view, next);
         return false;
-      } else if (!(mac2 && mods.indexOf("m") > -1)) {
+      } else if (!(mac && mods.indexOf("m") > -1)) {
         let $head = sel.$head, node2 = $head.textOffset ? null : dir < 0 ? $head.nodeBefore : $head.nodeAfter, desc;
         if (!node2 || node2.isText)
           return false;
@@ -9317,7 +8655,7 @@
     let sel = view.state.selection;
     if (sel instanceof TextSelection && !sel.empty || mods.indexOf("s") > -1)
       return false;
-    if (mac2 && mods.indexOf("m") > -1)
+    if (mac && mods.indexOf("m") > -1)
       return false;
     let { $from, $to } = sel;
     if (!$from.parent.inlineContent || view.endOfTextblock(dir < 0 ? "up" : "down")) {
@@ -9384,23 +8722,23 @@
   }
   function captureKeyDown(view, event) {
     let code3 = event.keyCode, mods = getMods(event);
-    if (code3 == 8 || mac2 && code3 == 72 && mods == "c") {
+    if (code3 == 8 || mac && code3 == 72 && mods == "c") {
       return stopNativeHorizontalDelete(view, -1) || skipIgnoredNodes(view, -1);
-    } else if (code3 == 46 && !event.shiftKey || mac2 && code3 == 68 && mods == "c") {
+    } else if (code3 == 46 && !event.shiftKey || mac && code3 == 68 && mods == "c") {
       return stopNativeHorizontalDelete(view, 1) || skipIgnoredNodes(view, 1);
     } else if (code3 == 13 || code3 == 27) {
       return true;
-    } else if (code3 == 37 || mac2 && code3 == 66 && mods == "c") {
+    } else if (code3 == 37 || mac && code3 == 66 && mods == "c") {
       let dir = code3 == 37 ? findDirection(view, view.state.selection.from) == "ltr" ? -1 : 1 : -1;
       return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
-    } else if (code3 == 39 || mac2 && code3 == 70 && mods == "c") {
+    } else if (code3 == 39 || mac && code3 == 70 && mods == "c") {
       let dir = code3 == 39 ? findDirection(view, view.state.selection.from) == "ltr" ? 1 : -1 : 1;
       return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
-    } else if (code3 == 38 || mac2 && code3 == 80 && mods == "c") {
+    } else if (code3 == 38 || mac && code3 == 80 && mods == "c") {
       return selectVertically(view, -1, mods) || skipIgnoredNodes(view, -1);
-    } else if (code3 == 40 || mac2 && code3 == 78 && mods == "c") {
+    } else if (code3 == 40 || mac && code3 == 78 && mods == "c") {
       return safariDownArrowBug(view) || selectVertically(view, 1, mods) || skipIgnoredNodes(view, 1);
-    } else if (mods == (mac2 ? "m" : "c") && (code3 == 66 || code3 == 73 || code3 == 89 || code3 == 90)) {
+    } else if (mods == (mac ? "m" : "c") && (code3 == 66 || code3 == 73 || code3 == 89 || code3 == 90)) {
       return true;
     }
     return false;
@@ -9785,7 +9123,7 @@
   };
   editHandlers.keypress = (view, _event) => {
     let event = _event;
-    if (inOrNearComposition(view) || !event.charCode || event.ctrlKey && !event.altKey || mac2 && event.metaKey)
+    if (inOrNearComposition(view) || !event.charCode || event.ctrlKey && !event.altKey || mac && event.metaKey)
       return;
     if (view.someProp("handleKeyPress", (f) => f(view, event))) {
       event.preventDefault();
@@ -9899,7 +9237,7 @@
   function forceDOMFlush(view) {
     return endComposition(view);
   }
-  var selectNodeModifier = mac2 ? "metaKey" : "ctrlKey";
+  var selectNodeModifier = mac ? "metaKey" : "ctrlKey";
   handlers.mousedown = (view, _event) => {
     let event = _event;
     view.input.shiftKey = event.shiftKey;
@@ -10291,7 +9629,7 @@
       this.node = node2;
     }
   };
-  var dragCopyModifier = mac2 ? "altKey" : "ctrlKey";
+  var dragCopyModifier = mac ? "altKey" : "ctrlKey";
   function dragMoves(view, event) {
     let copy2;
     view.someProp("dragCopies", (test) => {
@@ -12209,6 +11547,1120 @@
       throw new RangeError("Plugins passed directly to the view must not have a state component");
   }
 
+  // lib/document-find-view.mjs
+  var FIND_LIMIT = 1e3;
+  var FIND_QUERY_LIMIT = 256;
+  function findDocumentText(doc3, query, matchCase = false) {
+    const matches2 = [];
+    let total = 0;
+    if (!query || query.length > FIND_QUERY_LIMIT) return { matches: matches2, total };
+    const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), matchCase ? "gu" : "giu");
+    function scan(text5, start) {
+      pattern.lastIndex = 0;
+      for (const hit of text5.matchAll(pattern)) {
+        total++;
+        if (matches2.length < FIND_LIMIT) matches2.push({ from: start + hit.index, to: start + hit.index + hit[0].length });
+      }
+    }
+    doc3.descendants((node2, pos) => {
+      if (!node2.isTextblock) return;
+      let text5 = "", start = pos + 1;
+      node2.forEach((child, offset) => {
+        if (child.isText) {
+          if (!text5) start = pos + 1 + offset;
+          text5 += child.text;
+        } else {
+          scan(text5, start);
+          text5 = "";
+        }
+      });
+      scan(text5, start);
+      return false;
+    });
+    return { matches: matches2, total };
+  }
+  var key = new PluginKey("documentFind");
+  function createFindPlugin() {
+    return new Plugin({ key, state: {
+      init: () => DecorationSet.empty,
+      apply: (tr2, previous3) => tr2.getMeta(key) ?? (tr2.docChanged ? previous3.map(tr2.mapping, tr2.doc) : previous3)
+    }, props: { decorations: (state) => key.getState(state) } });
+  }
+  function createFindView({ byId: byId2, context }) {
+    const bar = byId2("document-find"), input = byId2("find-query"), doc3 = bar.ownerDocument;
+    const button = byId2("show-document-find"), scroll = byId2("document-scroll");
+    let enabled = false, opened = false, queryComposing = false, mapped = null;
+    let matches2 = [], total = 0, active = -1;
+    const ready = () => {
+      const { state: s, editor: editor2, loading: loading2, invalid } = context();
+      return enabled && !!editor2 && !!s?.confirmed && !loading2 && !invalid && !s.locked && !s.pending && !s.historyPending && !s.composing && !s.compositionInvalid && !editor2.view.composing && s.source === s.confirmed.source;
+    };
+    const modal = () => doc3.querySelector("dialog[open]");
+    function publish() {
+      const { editor: editor2 } = context();
+      const decorations = matches2.map((m, i) => Decoration.inline(
+        m.from,
+        m.to,
+        { class: "document-find-hit" + (i === active ? " is-current" : ""), "data-find-index": String(i) }
+      ));
+      editor2.view.dispatch(editor2.state.tr.setMeta(key, DecorationSet.create(editor2.state.doc, decorations)).setMeta("addToHistory", false));
+    }
+    function controls(paused = false) {
+      for (const id of ["find-previous", "find-next"]) byId2(id).disabled = paused || !matches2.length;
+      byId2("find-case").disabled = paused;
+      input.disabled = !ready();
+      bar.dataset.paused = String(paused);
+      byId2("editor").dataset.findPaused = String(paused);
+      byId2("find-count").textContent = paused ? "\u7B49\u5F85\u8F93\u5165\u5B8C\u6210" : !input.value ? "" : total === 0 ? "\u65E0\u5339\u914D" : `${active + 1} / ${total}` + (total > FIND_LIMIT ? ` \xB7 \u4EC5\u5B9A\u4F4D\u524D ${FIND_LIMIT} \u5904` : "");
+    }
+    function sync() {
+      button.disabled = !ready();
+      if (!opened) return;
+      if (!ready() || queryComposing) {
+        controls(true);
+        return;
+      }
+      const { editor: editor2, state } = context(), current = {
+        doc: editor2.state.doc,
+        session: state.confirmed.sessionId,
+        query: input.value,
+        matchCase: byId2("find-case").checked
+      };
+      if (!mapped || Object.keys(current).some((k) => current[k] !== mapped[k])) {
+        const position2 = mapped?.session === current.session && mapped?.query === current.query ? matches2[active]?.from : null;
+        ({ matches: matches2, total } = findDocumentText(current.doc, current.query, current.matchCase));
+        active = matches2.length ? Math.max(0, position2 == null ? 0 : matches2.findIndex((m) => m.from >= position2)) : -1;
+        mapped = current;
+        publish();
+      }
+      controls();
+    }
+    function jump() {
+      const { editor: editor2, state } = context();
+      if (!opened || !ready() || queryComposing || modal() || !matches2[active] || mapped?.doc !== editor2.state.doc || mapped.session !== state.confirmed.sessionId) return;
+      const rect = editor2.view.coordsAtPos(matches2[active].from), bounds = scroll.getBoundingClientRect();
+      scroll.scrollTo({ top: Math.max(0, scroll.scrollTop + rect.top - bounds.top - scroll.clientHeight / 3), behavior: "auto" });
+    }
+    function move(direction) {
+      if (!ready() || queryComposing || modal()) return;
+      sync();
+      if (!matches2.length) return;
+      active = (active + direction + matches2.length) % matches2.length;
+      publish();
+      controls();
+      jump();
+    }
+    function open() {
+      if (!ready() || queryComposing || modal()) return;
+      opened = true;
+      bar.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      byId2("document-info").open = false;
+      sync();
+      input.focus();
+      input.select();
+    }
+    function close2() {
+      if (!opened || !ready() || queryComposing || modal()) return;
+      opened = false;
+      bar.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      matches2 = [];
+      total = 0;
+      active = -1;
+      mapped = null;
+      publish();
+      const { editor: editor2 } = context(), view = editor2.view;
+      view.dom.focus({ preventScroll: true });
+      if (!view.editable) {
+        const { anchor, head } = editor2.state.selection;
+        const a = view.domAtPos(anchor), h2 = view.domAtPos(head);
+        doc3.getSelection()?.setBaseAndExtent(a.node, a.offset, h2.node, h2.offset);
+      }
+      view.focus();
+    }
+    const guard = (event) => {
+      if (!ready() || queryComposing) event.preventDefault();
+    };
+    for (const id of ["show-document-find", "find-previous", "find-next", "find-close", "find-case"]) byId2(id).onpointerdown = guard;
+    input.onpointerdown = (event) => {
+      if (!ready()) event.preventDefault();
+    };
+    input.addEventListener("compositionstart", () => {
+      queryComposing = true;
+      controls(true);
+    });
+    input.addEventListener("compositionend", () => {
+      queryComposing = false;
+      sync();
+      jump();
+    });
+    input.oninput = (event) => {
+      if (!event.isComposing && !queryComposing) {
+        sync();
+        jump();
+      }
+    };
+    byId2("find-case").onchange = () => {
+      sync();
+      jump();
+    };
+    button.onclick = open;
+    byId2("find-previous").onclick = () => move(-1);
+    byId2("find-next").onclick = () => move(1);
+    byId2("find-close").onclick = close2;
+    doc3.addEventListener("keydown", (event) => {
+      if (!enabled || event.defaultPrevented || event.isComposing || event.keyCode === 229 || queryComposing || modal()) return;
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        open();
+      } else if (opened && event.key === "Escape" && ready()) {
+        event.preventDefault();
+        event.stopPropagation();
+        close2();
+      } else if (opened && bar.contains(event.target) && event.key === "Enter" && ready()) {
+        event.preventDefault();
+        move(event.shiftKey ? -1 : 1);
+      }
+    }, true);
+    return { sync, configure() {
+      enabled = true;
+      sync();
+    } };
+  }
+
+  // lib/document-reading-view.mjs
+  var defaultReading = Object.freeze({ theme: "light", font: "sans", size: "17", width: "680", spacing: "1.95" });
+  var choices = Object.freeze({
+    theme: ["light", "dark", "system"],
+    font: ["sans", "serif"],
+    size: ["16", "17", "19", "21"],
+    width: ["580", "680", "800"],
+    spacing: ["1.65", "1.95", "2.2"]
+  });
+  function changeReading(current, name, value) {
+    return Object.hasOwn(choices, name) && choices[name].includes(value) ? { ...current, [name]: value } : current;
+  }
+  function documentHeadings(doc3) {
+    const headings = [];
+    doc3?.forEach((node2, position2) => {
+      if (node2.type.name === "heading" && Number.isInteger(node2.attrs.level) && node2.attrs.level >= 1 && node2.attrs.level <= 6)
+        headings.push({ position: position2, level: node2.attrs.level, title: node2.textContent || "\u65E0\u6807\u9898" });
+    });
+    return headings;
+  }
+  function createReadingView({ byId: byId2, context }) {
+    let enabled = false, preferences = { ...defaultReading }, opened = false;
+    let mappedDoc = null, mappedSession = null, rows = [], scheduled = false;
+    const system = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+    const narrow = globalThis.matchMedia?.("(max-width: 1179px)");
+    const app = byId2("writing-app"), doc3 = app.ownerDocument, scroll = byId2("document-scroll");
+    const dialog = byId2("reading-settings-dialog");
+    const busy = () => {
+      const { state: s, loading: loading2 } = context();
+      return loading2 || s?.pending > 0 || s?.historyPending || s?.composing || s?.compositionInvalid;
+    };
+    const navigable = () => {
+      const { state: s, editor: editor2, invalid } = context();
+      return enabled && !busy() && !invalid && !s?.locked && !!s?.confirmed && !!editor2 && s.source === s.confirmed.source;
+    };
+    function showOutline(value) {
+      opened = value;
+      const visible = opened && !!context().state?.confirmed;
+      app.dataset.outline = visible ? "open" : "closed";
+      byId2("document-outline").hidden = !visible;
+      byId2("toggle-document-outline").setAttribute("aria-expanded", String(visible));
+      if (visible) updateActive();
+    }
+    function apply2() {
+      const dark = preferences.theme === "dark" || preferences.theme === "system" && system?.matches;
+      doc3.body.dataset.readingTheme = dark ? "dark" : "light";
+      doc3.body.dataset.readingFont = preferences.font;
+      for (const [name, value] of [["--body-size", preferences.size + "px"], ["--reading-width", preferences.width + "px"], ["--body-spacing", preferences.spacing]])
+        doc3.body.style.setProperty(name, value);
+      for (const theme of choices.theme) byId2("reading-theme-" + theme).setAttribute("aria-pressed", String(preferences.theme === theme));
+      for (const name of ["font", "size", "width", "spacing"]) byId2("reading-" + name).value = preferences[name];
+      scheduleActive();
+    }
+    const guardPointer = (event) => {
+      if (busy()) event.preventDefault();
+    };
+    function openSettings() {
+      if (!enabled || busy() || doc3.querySelector("dialog[open]")) return;
+      dialog.showModal();
+      byId2("show-reading-settings").setAttribute("aria-expanded", "true");
+    }
+    byId2("show-reading-settings").onpointerdown = guardPointer;
+    byId2("show-reading-settings").onclick = openSettings;
+    byId2("close-reading-settings").onclick = () => dialog.close();
+    dialog.addEventListener("close", () => byId2("show-reading-settings").setAttribute("aria-expanded", "false"));
+    for (const theme of choices.theme) byId2("reading-theme-" + theme).onclick = () => {
+      if (!enabled || busy() || !dialog.open) return;
+      preferences = changeReading(preferences, "theme", theme);
+      apply2();
+    };
+    for (const name of ["font", "size", "width", "spacing"]) byId2("reading-" + name).onchange = () => {
+      if (!enabled || busy() || !dialog.open) return;
+      preferences = changeReading(preferences, name, byId2("reading-" + name).value);
+      apply2();
+    };
+    byId2("reset-reading-settings").onclick = () => {
+      if (!enabled || busy() || !dialog.open) return;
+      preferences = { ...defaultReading };
+      apply2();
+    };
+    for (const id of ["toggle-document-outline", "close-document-outline"]) {
+      byId2(id).onpointerdown = guardPointer;
+      byId2(id).onclick = () => {
+        if (!enabled || busy() || !context().state?.confirmed) return;
+        showOutline(id === "toggle-document-outline" && !opened);
+        if (!opened) byId2("toggle-document-outline").focus();
+      };
+    }
+    function target(item2) {
+      const { editor: editor2, state } = context();
+      if (!navigable() || state.confirmed.sessionId !== mappedSession || editor2.state.doc !== mappedDoc) return null;
+      const node2 = editor2.view.nodeDOM(item2.position);
+      return node2?.nodeName === "H" + item2.level && editor2.view.dom.contains(node2) ? node2 : null;
+    }
+    function jump(item2) {
+      const node2 = target(item2);
+      if (!node2) return;
+      scroll.scrollTo({ top: Math.max(0, scroll.scrollTop + node2.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 28), behavior: "auto" });
+      if (narrow?.matches) {
+        showOutline(false);
+        byId2("toggle-document-outline").focus();
+      } else updateActive();
+    }
+    function updateActive() {
+      if (!enabled || !opened || !navigable()) return;
+      let active = rows[0];
+      for (const row of rows) {
+        const node2 = target(row.item);
+        if (node2 && node2.getBoundingClientRect().top <= scroll.getBoundingClientRect().top + 32) active = row;
+      }
+      if (scroll.scrollTop > 0 && scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2) active = rows.at(-1);
+      for (const row of rows) row.button.setAttribute("aria-current", row === active ? "location" : "false");
+    }
+    function scheduleActive() {
+      if (!enabled || scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        updateActive();
+      });
+    }
+    scroll.addEventListener("scroll", scheduleActive, { passive: true });
+    system?.addEventListener("change", () => {
+      if (enabled && preferences.theme === "system") apply2();
+    });
+    narrow?.addEventListener("change", () => {
+      if (enabled) {
+        showOutline(false);
+        scheduleActive();
+      }
+    });
+    doc3.addEventListener("keydown", (event) => {
+      if (!enabled) return;
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === ",") {
+        event.preventDefault();
+        openSettings();
+      } else if (event.key === "Escape" && opened && narrow?.matches && !doc3.querySelector("dialog[open]") && !busy()) {
+        event.preventDefault();
+        showOutline(false);
+        byId2("toggle-document-outline").focus();
+      }
+    });
+    function sync() {
+      if (!enabled) return;
+      const { state: s, editor: editor2 } = context();
+      byId2("show-reading-settings").disabled = !!busy();
+      byId2("toggle-document-outline").disabled = !!busy() || !s?.confirmed;
+      byId2("close-document-outline").disabled = !!busy();
+      const ready = navigable();
+      if (ready && (mappedDoc !== editor2.state.doc || mappedSession !== s.confirmed.sessionId)) {
+        mappedDoc = editor2.state.doc;
+        mappedSession = s.confirmed.sessionId;
+        rows = documentHeadings(mappedDoc).map((item2) => {
+          const button = doc3.createElement("button");
+          button.type = "button";
+          button.textContent = item2.title;
+          button.title = item2.title;
+          button.dataset.level = String(item2.level);
+          button.setAttribute("aria-label", "\u6807\u9898 " + item2.level + "\uFF1A" + item2.title);
+          button.onpointerdown = (event) => event.preventDefault();
+          const origin = mappedDoc, session = mappedSession;
+          button.onclick = () => {
+            if (mappedDoc === origin && mappedSession === session) jump(item2);
+          };
+          return { item: item2, button };
+        });
+        byId2("outline-list").replaceChildren(...rows.map((r) => r.button));
+      }
+      for (const row of rows) row.button.disabled = !ready;
+      byId2("outline-empty").hidden = rows.length > 0;
+      byId2("outline-count").textContent = String(rows.length);
+      showOutline(opened);
+      scheduleActive();
+    }
+    return { sync, configure() {
+      enabled = true;
+      opened = !narrow?.matches;
+      apply2();
+      sync();
+    }, close() {
+      if (dialog.open) dialog.close();
+      if (narrow?.matches) showOutline(false);
+    } };
+  }
+
+  // lib/document-format-view.mjs
+  function createFormatView({ byId: byId2, context, report }) {
+    const actions2 = ["paragraph", "heading-1", "heading-2", "heading-3", "bullet-list", "ordered-list"];
+    const blocked = () => {
+      const { state: s, loading: loading2, invalid } = context();
+      return !s || s.confirmed.readOnly || s.locked || invalid || loading2 || s.composing || s.compositionInvalid || s.pending || s.historyPending || s.recoveryRecords.length;
+    };
+    async function run3(action) {
+      const c = context();
+      if (blocked() || !c.editor) return false;
+      const { from: from2, to } = c.editor.state.selection;
+      const ok3 = await c.controller.format({ action, from: from2, to });
+      if (context().controller !== c.controller) return false;
+      if (!ok3) report(c.controller.state().code === "unsafe-format-range" ? "\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u683C\u5F0F\u64CD\u4F5C\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002\u6807\u9898\u9650\u5355\u884C\uFF1B\u52A0\u7C97\u9700\u9009\u4E2D\u540C\u4E00\u6BB5\u6587\u5B57\uFF08\u53D6\u6D88\u65F6\u9009\u4E2D\u5B8C\u6574\u7C97\u4F53\uFF09\uFF1B\u5217\u8868\u9650\u5355\u5C42\u3002" : "\u683C\u5F0F\u4FEE\u6539\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u72B6\u6001\u3002", true);
+      else report("\u683C\u5F0F\u5DF2\u5E94\u7528\uFF1B\u539F\u6587\u4EF6\u672A\u6539\u5199\u3002");
+      if (!context().invalid && !c.controller.state().locked) c.editor.view.focus();
+      sync();
+      return ok3;
+    }
+    const selector = byId2("format-block");
+    selector.onchange = () => {
+      if (actions2.includes(selector.value)) void run3(selector.value);
+    };
+    byId2("format-bold").onpointerdown = (e) => e.preventDefault();
+    byId2("format-bold").onclick = () => void run3("bold");
+    for (const id of ["format-undo", "format-redo"]) {
+      byId2(id).onpointerdown = (e) => e.preventDefault();
+      byId2(id).onclick = async () => {
+        const c = context();
+        if (blocked()) return;
+        await c.controller.history(id === "format-undo" ? "undo" : "redo");
+        if (context().controller === c.controller) c.editor.view.focus();
+      };
+    }
+    function sync() {
+      const { state: s, editor: editor2 } = context();
+      byId2("format-toolbar").hidden = !s || s.confirmed.readOnly || s.confirmed.temporary !== true;
+      const busy = !!blocked();
+      selector.disabled = busy;
+      byId2("format-bold").disabled = busy || !editor2 || editor2.state.selection.empty;
+      byId2("format-undo").disabled = busy || !s?.confirmed.canUndo;
+      byId2("format-redo").disabled = busy || !s?.confirmed.canRedo;
+      let value = "paragraph";
+      if (editor2) {
+        const pos = editor2.state.selection.$from;
+        for (let depth = 1; depth <= pos.depth; depth++) {
+          const node2 = pos.node(depth);
+          if (node2.type.name === "bulletList") {
+            value = "bullet-list";
+            break;
+          }
+          if (node2.type.name === "orderedList") {
+            value = "ordered-list";
+            break;
+          }
+          if (node2.type.name === "heading") value = "heading-" + node2.attrs.level;
+          if (node2.type.name === "codeBlock") value = "unsupported";
+        }
+      }
+      selector.value = value;
+      byId2("format-bold").setAttribute("aria-pressed", String(!!editor2?.isActive("bold")));
+    }
+    function key2(view, event) {
+      if (event.isComposing || view.composing || context().state?.composing) return false;
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        void run3("bold");
+        return true;
+      }
+      const pos = view.state.selection.$from, inList = Array.from({ length: pos.depth }, (_, i) => pos.node(i + 1).type.name).some((n) => n === "bulletList" || n === "orderedList");
+      if (pos.parent.type.name === "heading" && event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        void run3("split-heading");
+        return true;
+      }
+      if (inList && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && (event.key === "Enter" || event.key === "Backspace" && pos.parentOffset === 0 && view.state.selection.empty)) {
+        event.preventDefault();
+        void run3(event.key === "Enter" ? "split-list" : "join-list");
+        return true;
+      }
+      return false;
+    }
+    return { sync, key: key2, run: run3 };
+  }
+
+  // node_modules/@tiptap/core/dist/rolldown-runtime-D7D4PA-g.js
+  var __defProp2 = Object.defineProperty;
+  var __exportAll = (all2, no_symbols) => {
+    let target = {};
+    for (var name in all2) __defProp2(target, name, {
+      get: all2[name],
+      enumerable: true
+    });
+    if (!no_symbols) __defProp2(target, Symbol.toStringTag, { value: "Module" });
+    return target;
+  };
+
+  // node_modules/prosemirror-commands/dist/index.js
+  var deleteSelection = (state, dispatch) => {
+    if (state.selection.empty)
+      return false;
+    if (dispatch)
+      dispatch(state.tr.deleteSelection().scrollIntoView());
+    return true;
+  };
+  function atBlockStart(state, view) {
+    let { $cursor } = state.selection;
+    if (!$cursor || (view ? !view.endOfTextblock("backward", state) : $cursor.parentOffset > 0))
+      return null;
+    return $cursor;
+  }
+  var joinBackward = (state, dispatch, view) => {
+    let $cursor = atBlockStart(state, view);
+    if (!$cursor)
+      return false;
+    let $cut = findCutBefore($cursor);
+    if (!$cut) {
+      let range = $cursor.blockRange(), target = range && liftTarget(range);
+      if (target == null)
+        return false;
+      if (dispatch)
+        dispatch(state.tr.lift(range, target).scrollIntoView());
+      return true;
+    }
+    let before = $cut.nodeBefore;
+    if (deleteBarrier(state, $cut, dispatch, -1))
+      return true;
+    if ($cursor.parent.content.size == 0 && (textblockAt(before, "end") || NodeSelection.isSelectable(before))) {
+      for (let depth = $cursor.depth; ; depth--) {
+        let delStep = replaceStep(state.doc, $cursor.before(depth), $cursor.after(depth), Slice.empty);
+        if (delStep && delStep.slice.size < delStep.to - delStep.from) {
+          if (dispatch) {
+            let tr2 = state.tr.step(delStep);
+            tr2.setSelection(textblockAt(before, "end") ? Selection.findFrom(tr2.doc.resolve(tr2.mapping.map($cut.pos, -1)), -1) : NodeSelection.create(tr2.doc, $cut.pos - before.nodeSize));
+            dispatch(tr2.scrollIntoView());
+          }
+          return true;
+        }
+        if (depth == 1 || $cursor.node(depth - 1).childCount > 1)
+          break;
+      }
+    }
+    if (before.isAtom && $cut.depth == $cursor.depth - 1) {
+      if (dispatch)
+        dispatch(state.tr.delete($cut.pos - before.nodeSize, $cut.pos).scrollIntoView());
+      return true;
+    }
+    return false;
+  };
+  var joinTextblockBackward = (state, dispatch, view) => {
+    let $cursor = atBlockStart(state, view);
+    if (!$cursor)
+      return false;
+    let $cut = findCutBefore($cursor);
+    return $cut ? joinTextblocksAround(state, $cut, dispatch) : false;
+  };
+  var joinTextblockForward = (state, dispatch, view) => {
+    let $cursor = atBlockEnd(state, view);
+    if (!$cursor)
+      return false;
+    let $cut = findCutAfter($cursor);
+    return $cut ? joinTextblocksAround(state, $cut, dispatch) : false;
+  };
+  function joinTextblocksAround(state, $cut, dispatch) {
+    let before = $cut.nodeBefore, beforeText = before, beforePos = $cut.pos - 1;
+    for (; !beforeText.isTextblock; beforePos--) {
+      if (beforeText.type.spec.isolating)
+        return false;
+      let child = beforeText.lastChild;
+      if (!child)
+        return false;
+      beforeText = child;
+    }
+    let after = $cut.nodeAfter, afterText = after, afterPos = $cut.pos + 1;
+    for (; !afterText.isTextblock; afterPos++) {
+      if (afterText.type.spec.isolating)
+        return false;
+      let child = afterText.firstChild;
+      if (!child)
+        return false;
+      afterText = child;
+    }
+    let step = replaceStep(state.doc, beforePos, afterPos, Slice.empty);
+    if (!step || step.from != beforePos || step instanceof ReplaceStep && step.slice.size >= afterPos - beforePos)
+      return false;
+    if (dispatch) {
+      let tr2 = state.tr.step(step);
+      tr2.setSelection(TextSelection.create(tr2.doc, beforePos));
+      dispatch(tr2.scrollIntoView());
+    }
+    return true;
+  }
+  function textblockAt(node2, side, only = false) {
+    for (let scan = node2; scan; scan = side == "start" ? scan.firstChild : scan.lastChild) {
+      if (scan.isTextblock)
+        return true;
+      if (only && scan.childCount != 1)
+        return false;
+    }
+    return false;
+  }
+  var selectNodeBackward = (state, dispatch, view) => {
+    let { $head, empty: empty3 } = state.selection, $cut = $head;
+    if (!empty3)
+      return false;
+    if ($head.parent.isTextblock) {
+      if (view ? !view.endOfTextblock("backward", state) : $head.parentOffset > 0)
+        return false;
+      $cut = findCutBefore($head);
+    }
+    let node2 = $cut && $cut.nodeBefore;
+    if (!node2 || !NodeSelection.isSelectable(node2))
+      return false;
+    if (dispatch)
+      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, $cut.pos - node2.nodeSize)).scrollIntoView());
+    return true;
+  };
+  function findCutBefore($pos) {
+    if (!$pos.parent.type.spec.isolating)
+      for (let i = $pos.depth - 1; i >= 0; i--) {
+        if ($pos.index(i) > 0)
+          return $pos.doc.resolve($pos.before(i + 1));
+        if ($pos.node(i).type.spec.isolating)
+          break;
+      }
+    return null;
+  }
+  function atBlockEnd(state, view) {
+    let { $cursor } = state.selection;
+    if (!$cursor || (view ? !view.endOfTextblock("forward", state) : $cursor.parentOffset < $cursor.parent.content.size))
+      return null;
+    return $cursor;
+  }
+  var joinForward = (state, dispatch, view) => {
+    let $cursor = atBlockEnd(state, view);
+    if (!$cursor)
+      return false;
+    let $cut = findCutAfter($cursor);
+    if (!$cut)
+      return false;
+    let after = $cut.nodeAfter;
+    if (deleteBarrier(state, $cut, dispatch, 1))
+      return true;
+    if ($cursor.parent.content.size == 0 && (textblockAt(after, "start") || NodeSelection.isSelectable(after))) {
+      let delStep = replaceStep(state.doc, $cursor.before(), $cursor.after(), Slice.empty);
+      if (delStep && delStep.slice.size < delStep.to - delStep.from) {
+        if (dispatch) {
+          let tr2 = state.tr.step(delStep);
+          tr2.setSelection(textblockAt(after, "start") ? Selection.findFrom(tr2.doc.resolve(tr2.mapping.map($cut.pos)), 1) : NodeSelection.create(tr2.doc, tr2.mapping.map($cut.pos)));
+          dispatch(tr2.scrollIntoView());
+        }
+        return true;
+      }
+    }
+    if (after.isAtom && $cut.depth == $cursor.depth - 1) {
+      if (dispatch)
+        dispatch(state.tr.delete($cut.pos, $cut.pos + after.nodeSize).scrollIntoView());
+      return true;
+    }
+    return false;
+  };
+  var selectNodeForward = (state, dispatch, view) => {
+    let { $head, empty: empty3 } = state.selection, $cut = $head;
+    if (!empty3)
+      return false;
+    if ($head.parent.isTextblock) {
+      if (view ? !view.endOfTextblock("forward", state) : $head.parentOffset < $head.parent.content.size)
+        return false;
+      $cut = findCutAfter($head);
+    }
+    let node2 = $cut && $cut.nodeAfter;
+    if (!node2 || !NodeSelection.isSelectable(node2))
+      return false;
+    if (dispatch)
+      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, $cut.pos)).scrollIntoView());
+    return true;
+  };
+  function findCutAfter($pos) {
+    if (!$pos.parent.type.spec.isolating)
+      for (let i = $pos.depth - 1; i >= 0; i--) {
+        let parent = $pos.node(i);
+        if ($pos.index(i) + 1 < parent.childCount)
+          return $pos.doc.resolve($pos.after(i + 1));
+        if (parent.type.spec.isolating)
+          break;
+      }
+    return null;
+  }
+  var joinUp = (state, dispatch) => {
+    let sel = state.selection, nodeSel = sel instanceof NodeSelection, point3;
+    if (nodeSel) {
+      if (sel.node.isTextblock || !canJoin(state.doc, sel.from))
+        return false;
+      point3 = sel.from;
+    } else {
+      point3 = joinPoint(state.doc, sel.from, -1);
+      if (point3 == null)
+        return false;
+    }
+    if (dispatch) {
+      let tr2 = state.tr.join(point3);
+      if (nodeSel)
+        tr2.setSelection(NodeSelection.create(tr2.doc, point3 - state.doc.resolve(point3).nodeBefore.nodeSize));
+      dispatch(tr2.scrollIntoView());
+    }
+    return true;
+  };
+  var joinDown = (state, dispatch) => {
+    let sel = state.selection, point3;
+    if (sel instanceof NodeSelection) {
+      if (sel.node.isTextblock || !canJoin(state.doc, sel.to))
+        return false;
+      point3 = sel.to;
+    } else {
+      point3 = joinPoint(state.doc, sel.to, 1);
+      if (point3 == null)
+        return false;
+    }
+    if (dispatch)
+      dispatch(state.tr.join(point3).scrollIntoView());
+    return true;
+  };
+  var lift2 = (state, dispatch) => {
+    let { $from, $to } = state.selection;
+    let range = $from.blockRange($to), target = range && liftTarget(range);
+    if (target == null)
+      return false;
+    if (dispatch)
+      dispatch(state.tr.lift(range, target).scrollIntoView());
+    return true;
+  };
+  var newlineInCode = (state, dispatch) => {
+    let { $head, $anchor } = state.selection;
+    if (!$head.parent.type.spec.code || !$head.sameParent($anchor))
+      return false;
+    if (dispatch)
+      dispatch(state.tr.insertText("\n").scrollIntoView());
+    return true;
+  };
+  function defaultBlockAt(match) {
+    for (let i = 0; i < match.edgeCount; i++) {
+      let { type } = match.edge(i);
+      if (type.isTextblock && !type.hasRequiredAttrs())
+        return type;
+    }
+    return null;
+  }
+  var exitCode = (state, dispatch) => {
+    let { $head, $anchor } = state.selection;
+    if (!$head.parent.type.spec.code || !$head.sameParent($anchor))
+      return false;
+    let above = $head.node(-1), after = $head.indexAfter(-1), type = defaultBlockAt(above.contentMatchAt(after));
+    if (!type || !above.canReplaceWith(after, after, type))
+      return false;
+    if (dispatch) {
+      let pos = $head.after(), tr2 = state.tr.replaceWith(pos, pos, type.createAndFill());
+      tr2.setSelection(Selection.near(tr2.doc.resolve(pos), 1));
+      dispatch(tr2.scrollIntoView());
+    }
+    return true;
+  };
+  var createParagraphNear = (state, dispatch) => {
+    let sel = state.selection, { $from, $to } = sel;
+    if (sel instanceof AllSelection || $from.parent.inlineContent || $to.parent.inlineContent)
+      return false;
+    let type = defaultBlockAt($to.parent.contentMatchAt($to.indexAfter()));
+    if (!type || !type.isTextblock)
+      return false;
+    if (dispatch) {
+      let side = (!$from.parentOffset && $to.index() < $to.parent.childCount ? $from : $to).pos;
+      let tr2 = state.tr.insert(side, type.createAndFill());
+      tr2.setSelection(TextSelection.create(tr2.doc, side + 1));
+      dispatch(tr2.scrollIntoView());
+    }
+    return true;
+  };
+  var liftEmptyBlock = (state, dispatch) => {
+    let { $cursor } = state.selection;
+    if (!$cursor || $cursor.parent.content.size)
+      return false;
+    if ($cursor.depth > 1 && $cursor.after() != $cursor.end(-1)) {
+      let before = $cursor.before();
+      if (canSplit(state.doc, before)) {
+        if (dispatch)
+          dispatch(state.tr.split(before).scrollIntoView());
+        return true;
+      }
+    }
+    let range = $cursor.blockRange(), target = range && liftTarget(range);
+    if (target == null)
+      return false;
+    if (dispatch)
+      dispatch(state.tr.lift(range, target).scrollIntoView());
+    return true;
+  };
+  function splitBlockAs(splitNode) {
+    return (state, dispatch) => {
+      let { $from, $to } = state.selection;
+      if (state.selection instanceof NodeSelection && state.selection.node.isBlock) {
+        if (!$from.parentOffset || !canSplit(state.doc, $from.pos))
+          return false;
+        if (dispatch)
+          dispatch(state.tr.split($from.pos).scrollIntoView());
+        return true;
+      }
+      if (!$from.depth)
+        return false;
+      let types = [];
+      let splitDepth, deflt, atEnd = false, atStart = false;
+      for (let d = $from.depth; ; d--) {
+        let node2 = $from.node(d);
+        if (node2.isBlock) {
+          atEnd = $from.end(d) == $from.pos + ($from.depth - d);
+          atStart = $from.start(d) == $from.pos - ($from.depth - d);
+          deflt = defaultBlockAt($from.node(d - 1).contentMatchAt($from.indexAfter(d - 1)));
+          let splitType = splitNode && splitNode($to.parent, atEnd, $from);
+          types.unshift(splitType || (atEnd && deflt ? { type: deflt } : null));
+          splitDepth = d;
+          break;
+        } else {
+          if (d == 1)
+            return false;
+          types.unshift(null);
+        }
+      }
+      let tr2 = state.tr;
+      if (state.selection instanceof TextSelection || state.selection instanceof AllSelection)
+        tr2.deleteSelection();
+      let splitPos = tr2.mapping.map($from.pos);
+      let can = canSplit(tr2.doc, splitPos, types.length, types);
+      if (!can) {
+        types[0] = deflt ? { type: deflt } : null;
+        can = canSplit(tr2.doc, splitPos, types.length, types);
+      }
+      if (!can)
+        return false;
+      tr2.split(splitPos, types.length, types);
+      if (!atEnd && atStart && $from.node(splitDepth).type != deflt) {
+        let first2 = tr2.mapping.map($from.before(splitDepth)), $first = tr2.doc.resolve(first2);
+        if (deflt && $from.node(splitDepth - 1).canReplaceWith($first.index(), $first.index() + 1, deflt))
+          tr2.setNodeMarkup(tr2.mapping.map($from.before(splitDepth)), deflt);
+      }
+      if (dispatch)
+        dispatch(tr2.scrollIntoView());
+      return true;
+    };
+  }
+  var splitBlock = splitBlockAs();
+  var selectParentNode = (state, dispatch) => {
+    let { $from, to } = state.selection, pos;
+    let same = $from.sharedDepth(to);
+    if (same == 0)
+      return false;
+    pos = $from.before(same);
+    if (dispatch)
+      dispatch(state.tr.setSelection(NodeSelection.create(state.doc, pos)));
+    return true;
+  };
+  var selectAll = (state, dispatch) => {
+    if (dispatch)
+      dispatch(state.tr.setSelection(new AllSelection(state.doc)));
+    return true;
+  };
+  function joinMaybeClear(state, $pos, dispatch) {
+    let before = $pos.nodeBefore, after = $pos.nodeAfter, index2 = $pos.index();
+    if (!before || !after || !before.type.compatibleContent(after.type))
+      return false;
+    if (!before.content.size && $pos.parent.canReplace(index2 - 1, index2)) {
+      if (dispatch)
+        dispatch(state.tr.delete($pos.pos - before.nodeSize, $pos.pos).scrollIntoView());
+      return true;
+    }
+    if (!$pos.parent.canReplace(index2, index2 + 1) || !(after.isTextblock || canJoin(state.doc, $pos.pos)))
+      return false;
+    if (dispatch)
+      dispatch(state.tr.join($pos.pos).scrollIntoView());
+    return true;
+  }
+  function deleteBarrier(state, $cut, dispatch, dir) {
+    let before = $cut.nodeBefore, after = $cut.nodeAfter, conn, match;
+    let isolated = before.type.spec.isolating || after.type.spec.isolating;
+    if (!isolated && joinMaybeClear(state, $cut, dispatch))
+      return true;
+    let canDelAfter = !isolated && $cut.parent.canReplace($cut.index(), $cut.index() + 1);
+    if (canDelAfter && (conn = (match = before.contentMatchAt(before.childCount)).findWrapping(after.type)) && match.matchType(conn[0] || after.type).validEnd) {
+      if (dispatch) {
+        let end = $cut.pos + after.nodeSize, wrap3 = Fragment.empty;
+        for (let i = conn.length - 1; i >= 0; i--)
+          wrap3 = Fragment.from(conn[i].create(null, wrap3));
+        wrap3 = Fragment.from(before.copy(wrap3));
+        let tr2 = state.tr.step(new ReplaceAroundStep($cut.pos - 1, end, $cut.pos, end, new Slice(wrap3, 1, 0), conn.length, true));
+        let $joinAt = tr2.doc.resolve(end + 2 * conn.length);
+        if ($joinAt.nodeAfter && $joinAt.nodeAfter.type == before.type && canJoin(tr2.doc, $joinAt.pos))
+          tr2.join($joinAt.pos);
+        dispatch(tr2.scrollIntoView());
+      }
+      return true;
+    }
+    let selAfter = after.type.spec.isolating || dir > 0 && isolated ? null : Selection.findFrom($cut, 1);
+    let range = selAfter && selAfter.$from.blockRange(selAfter.$to), target = range && liftTarget(range);
+    if (target != null && target >= $cut.depth) {
+      if (dispatch)
+        dispatch(state.tr.lift(range, target).scrollIntoView());
+      return true;
+    }
+    if (canDelAfter && textblockAt(after, "start", true) && textblockAt(before, "end")) {
+      let at = before, wrap3 = [];
+      for (; ; ) {
+        wrap3.push(at);
+        if (at.isTextblock)
+          break;
+        at = at.lastChild;
+      }
+      let afterText = after, afterDepth = 1;
+      for (; !afterText.isTextblock; afterText = afterText.firstChild)
+        afterDepth++;
+      if (at.canReplace(at.childCount, at.childCount, afterText.content)) {
+        if (dispatch) {
+          let end = Fragment.empty;
+          for (let i = wrap3.length - 1; i >= 0; i--)
+            end = Fragment.from(wrap3[i].copy(end));
+          let tr2 = state.tr.step(new ReplaceAroundStep($cut.pos - wrap3.length, $cut.pos + after.nodeSize, $cut.pos + afterDepth, $cut.pos + after.nodeSize - afterDepth, new Slice(end, wrap3.length, 0), 0, true));
+          dispatch(tr2.scrollIntoView());
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+  function selectTextblockSide(side) {
+    return function(state, dispatch) {
+      let sel = state.selection, $pos = side < 0 ? sel.$from : sel.$to;
+      let depth = $pos.depth;
+      while ($pos.node(depth).isInline) {
+        if (!depth)
+          return false;
+        depth--;
+      }
+      if (!$pos.node(depth).isTextblock)
+        return false;
+      if (dispatch)
+        dispatch(state.tr.setSelection(TextSelection.create(state.doc, side < 0 ? $pos.start(depth) : $pos.end(depth))));
+      return true;
+    };
+  }
+  var selectTextblockStart = selectTextblockSide(-1);
+  var selectTextblockEnd = selectTextblockSide(1);
+  function wrapIn(nodeType, attrs = null) {
+    return function(state, dispatch) {
+      let { $from, $to } = state.selection;
+      let range = $from.blockRange($to), wrapping = range && findWrapping(range, nodeType, attrs);
+      if (!wrapping)
+        return false;
+      if (dispatch)
+        dispatch(state.tr.wrap(range, wrapping).scrollIntoView());
+      return true;
+    };
+  }
+  function setBlockType2(nodeType, attrs = null) {
+    return function(state, dispatch) {
+      let applicable = false;
+      for (let i = 0; i < state.selection.ranges.length && !applicable; i++) {
+        let { $from: { pos: from2 }, $to: { pos: to } } = state.selection.ranges[i];
+        state.doc.nodesBetween(from2, to, (node2, pos) => {
+          if (applicable)
+            return false;
+          if (!node2.isTextblock || node2.hasMarkup(nodeType, attrs))
+            return;
+          if (node2.type == nodeType) {
+            applicable = true;
+          } else {
+            let $pos = state.doc.resolve(pos), index2 = $pos.index();
+            applicable = $pos.parent.canReplaceWith(index2, index2 + 1, nodeType);
+          }
+        });
+      }
+      if (!applicable)
+        return false;
+      if (dispatch) {
+        let tr2 = state.tr;
+        for (let i = 0; i < state.selection.ranges.length; i++) {
+          let { $from: { pos: from2 }, $to: { pos: to } } = state.selection.ranges[i];
+          tr2.setBlockType(from2, to, nodeType, attrs);
+        }
+        dispatch(tr2.scrollIntoView());
+      }
+      return true;
+    };
+  }
+  function chainCommands(...commands) {
+    return function(state, dispatch, view) {
+      for (let i = 0; i < commands.length; i++)
+        if (commands[i](state, dispatch, view))
+          return true;
+      return false;
+    };
+  }
+  var backspace = chainCommands(deleteSelection, joinBackward, selectNodeBackward);
+  var del = chainCommands(deleteSelection, joinForward, selectNodeForward);
+  var pcBaseKeymap = {
+    "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlock),
+    "Mod-Enter": exitCode,
+    "Backspace": backspace,
+    "Mod-Backspace": backspace,
+    "Shift-Backspace": backspace,
+    "Delete": del,
+    "Mod-Delete": del,
+    "Mod-a": selectAll
+  };
+  var macBaseKeymap = {
+    "Ctrl-h": pcBaseKeymap["Backspace"],
+    "Alt-Backspace": pcBaseKeymap["Mod-Backspace"],
+    "Ctrl-d": pcBaseKeymap["Delete"],
+    "Ctrl-Alt-Backspace": pcBaseKeymap["Mod-Delete"],
+    "Alt-Delete": pcBaseKeymap["Mod-Delete"],
+    "Alt-d": pcBaseKeymap["Mod-Delete"],
+    "Ctrl-a": selectTextblockStart,
+    "Ctrl-e": selectTextblockEnd
+  };
+  for (let key2 in pcBaseKeymap)
+    macBaseKeymap[key2] = pcBaseKeymap[key2];
+  var mac2 = typeof navigator != "undefined" ? /Mac|iP(hone|[oa]d)/.test(navigator.platform) : typeof os != "undefined" && os.platform ? os.platform() == "darwin" : false;
+
+  // node_modules/prosemirror-schema-list/dist/index.js
+  function wrapInList(listType, attrs = null) {
+    return function(state, dispatch) {
+      let { $from, $to } = state.selection;
+      let range = $from.blockRange($to);
+      if (!range)
+        return false;
+      let tr2 = dispatch ? state.tr : null;
+      if (!wrapRangeInList(tr2, range, listType, attrs))
+        return false;
+      if (dispatch)
+        dispatch(tr2.scrollIntoView());
+      return true;
+    };
+  }
+  function wrapRangeInList(tr2, range, listType, attrs = null) {
+    let doJoin = false, outerRange = range, doc3 = range.$from.doc;
+    if (range.depth >= 2 && range.$from.node(range.depth - 1).type.compatibleContent(listType) && range.startIndex == 0) {
+      if (range.$from.index(range.depth - 1) == 0)
+        return false;
+      let $insert = doc3.resolve(range.start - 2);
+      outerRange = new NodeRange($insert, $insert, range.depth);
+      if (range.endIndex < range.parent.childCount)
+        range = new NodeRange(range.$from, doc3.resolve(range.$to.end(range.depth)), range.depth);
+      doJoin = true;
+    }
+    let wrap3 = findWrapping(outerRange, listType, attrs, range);
+    if (!wrap3)
+      return false;
+    if (tr2)
+      doWrapInList(tr2, range, wrap3, doJoin, listType);
+    return true;
+  }
+  function doWrapInList(tr2, range, wrappers, joinBefore, listType) {
+    let content3 = Fragment.empty;
+    for (let i = wrappers.length - 1; i >= 0; i--)
+      content3 = Fragment.from(wrappers[i].type.create(wrappers[i].attrs, content3));
+    tr2.step(new ReplaceAroundStep(range.start - (joinBefore ? 2 : 0), range.end, range.start, range.end, new Slice(content3, 0, 0), wrappers.length, true));
+    let found2 = 0;
+    for (let i = 0; i < wrappers.length; i++)
+      if (wrappers[i].type == listType)
+        found2 = i + 1;
+    let splitDepth = wrappers.length - found2;
+    let splitPos = range.start + wrappers.length - (joinBefore ? 2 : 0), parent = range.parent;
+    for (let i = range.startIndex, e = range.endIndex, first2 = true; i < e; i++, first2 = false) {
+      if (!first2 && canSplit(tr2.doc, splitPos, splitDepth)) {
+        tr2.split(splitPos, splitDepth);
+        splitPos += 2 * splitDepth;
+      }
+      splitPos += parent.child(i).nodeSize;
+    }
+    return tr2;
+  }
+  function liftListItem(itemType) {
+    return function(state, dispatch) {
+      let { $from, $to } = state.selection;
+      let range = $from.blockRange($to, (node2) => node2.childCount > 0 && node2.firstChild.type == itemType);
+      if (!range)
+        return false;
+      if (!dispatch)
+        return true;
+      if ($from.node(range.depth - 1).type == itemType)
+        return liftToOuterList(state, dispatch, itemType, range);
+      else
+        return liftOutOfList(state, dispatch, range);
+    };
+  }
+  function liftToOuterList(state, dispatch, itemType, range) {
+    let tr2 = state.tr, end = range.end, endOfList = range.$to.end(range.depth);
+    if (end < endOfList) {
+      tr2.step(new ReplaceAroundStep(end - 1, endOfList, end, endOfList, new Slice(Fragment.from(itemType.create(null, range.parent.copy())), 1, 0), 1, true));
+      range = new NodeRange(tr2.doc.resolve(range.$from.pos), tr2.doc.resolve(endOfList), range.depth);
+    }
+    const target = liftTarget(range);
+    if (target == null)
+      return false;
+    tr2.lift(range, target);
+    let $after = tr2.doc.resolve(tr2.mapping.map(end, -1) - 1);
+    if (canJoin(tr2.doc, $after.pos) && $after.nodeBefore.type == $after.nodeAfter.type)
+      tr2.join($after.pos);
+    dispatch(tr2.scrollIntoView());
+    return true;
+  }
+  function liftOutOfList(state, dispatch, range) {
+    let tr2 = state.tr, list3 = range.parent;
+    for (let pos = range.end, i = range.endIndex - 1, e = range.startIndex; i > e; i--) {
+      pos -= list3.child(i).nodeSize;
+      tr2.delete(pos - 1, pos + 1);
+    }
+    let $start = tr2.doc.resolve(range.start), item2 = $start.nodeAfter;
+    if (tr2.mapping.map(range.end) != range.start + $start.nodeAfter.nodeSize)
+      return false;
+    let atStart = range.startIndex == 0, atEnd = range.endIndex == list3.childCount;
+    let parent = $start.node(-1), indexBefore = $start.index(-1);
+    if (!parent.canReplace(indexBefore + (atStart ? 0 : 1), indexBefore + 1, item2.content.append(atEnd ? Fragment.empty : Fragment.from(list3))))
+      return false;
+    let start = $start.pos, end = start + item2.nodeSize;
+    tr2.step(new ReplaceAroundStep(start - (atStart ? 1 : 0), end + (atEnd ? 1 : 0), start + 1, end - 1, new Slice((atStart ? Fragment.empty : Fragment.from(list3.copy(Fragment.empty))).append(atEnd ? Fragment.empty : Fragment.from(list3.copy(Fragment.empty))), atStart ? 0 : 1, atEnd ? 0 : 1), atStart ? 0 : 1));
+    dispatch(tr2.scrollIntoView());
+    return true;
+  }
+  function sinkListItem(itemType) {
+    return function(state, dispatch) {
+      let { $from, $to } = state.selection;
+      let range = $from.blockRange($to, (node2) => node2.childCount > 0 && node2.firstChild.type == itemType);
+      if (!range)
+        return false;
+      let startIndex = range.startIndex;
+      if (startIndex == 0)
+        return false;
+      let parent = range.parent, nodeBefore = parent.child(startIndex - 1);
+      if (nodeBefore.type != itemType)
+        return false;
+      if (dispatch) {
+        let nestedBefore = nodeBefore.lastChild && nodeBefore.lastChild.type == parent.type;
+        let inner = Fragment.from(nestedBefore ? itemType.create() : null);
+        let slice2 = new Slice(Fragment.from(itemType.create(null, Fragment.from(parent.type.create(null, inner)))), nestedBefore ? 3 : 1, 0);
+        let before = range.start, after = range.end;
+        dispatch(state.tr.step(new ReplaceAroundStep(before - (nestedBefore ? 3 : 1), after, before, after, slice2, 1, true)).scrollIntoView());
+      }
+      return true;
+    };
+  }
+
   // node_modules/w3c-keyname/index.js
   var base = {
     8: "Backspace",
@@ -12687,15 +13139,15 @@
   function objectIncludes(object1, object2, options = { strict: true }) {
     const keys2 = Object.keys(object2);
     if (!keys2.length) return true;
-    return keys2.every((key) => {
-      if (options.strict) return object2[key] === object1[key];
-      if (isRegExp(object2[key])) return object2[key].test(object1[key]);
-      return object2[key] === object1[key];
+    return keys2.every((key2) => {
+      if (options.strict) return object2[key2] === object1[key2];
+      if (isRegExp(object2[key2])) return object2[key2].test(object1[key2]);
+      return object2[key2] === object1[key2];
     });
   }
   function findMarkInSet(marks, type, attributes = {}) {
-    return marks.find((item) => {
-      return item.type === type && objectIncludes(Object.fromEntries(Object.keys(attributes).map((k) => [k, item.attrs[k]])), attributes);
+    return marks.find((item2) => {
+      return item2.type === type && objectIncludes(Object.fromEntries(Object.keys(attributes).map((k) => [k, item2.attrs[k]])), attributes);
     });
   }
   function isMarkInSet(marks, type, attributes = {}) {
@@ -12820,7 +13272,7 @@
     return true;
   };
   var forEach = (items, fn) => (props) => {
-    return items.every((item, index2) => fn(item, {
+    return items.every((item2, index2) => fn(item2, {
       ...props,
       index: index2
     }));
@@ -12859,7 +13311,7 @@
     };
     const isTextContent = typeof content3 === "string";
     if (isJSONContent) try {
-      if (Array.isArray(content3) && content3.length > 0) return Fragment.fromArray(content3.map((item) => schema.nodeFromJSON(item)));
+      if (Array.isArray(content3) && content3.length > 0) return Fragment.fromArray(content3.map((item2) => schema.nodeFromJSON(item2)));
       const node2 = schema.nodeFromJSON(content3);
       if (options.errorOnInvalidContent) node2.check();
       return node2;
@@ -12978,7 +13430,7 @@
       }
       let newContent;
       if (isOnlyTextContent) {
-        if (Array.isArray(value)) newContent = value.map((item) => item.text || "").join("");
+        if (Array.isArray(value)) newContent = value.map((item2) => item2.text || "").join("");
         else if (isProseMirrorContent(value)) newContent = nodes.map((node2) => {
           var _node$text;
           return (_node$text = node2.text) !== null && _node$text !== void 0 ? _node$text : "";
@@ -13024,7 +13476,7 @@
     const defaultType = defaultBlockAt2($pos.parent.contentMatchAt($pos.index()));
     if (!defaultType) return false;
     const validAttrKeys = Object.keys(defaultType.spec.attrs || {});
-    const filteredAttrs = attrs ? Object.fromEntries(Object.entries(attrs).filter(([key]) => validAttrKeys.includes(key))) : {};
+    const filteredAttrs = attrs ? Object.fromEntries(Object.entries(attrs).filter(([key2]) => validAttrKeys.includes(key2))) : {};
     let node2;
     if (content3) {
       const parsed = createNodeFromContent(content3, editor2.schema);
@@ -13107,14 +13559,14 @@
   }
   var keyboardShortcut = (name) => ({ editor: editor2, view, tr: tr2, dispatch }) => {
     const keys2 = normalizeKeyName2(name).split(/-(?!$)/);
-    const key = keys2.find((item) => ![
+    const key2 = keys2.find((item2) => ![
       "Alt",
       "Ctrl",
       "Meta",
       "Shift"
-    ].includes(item));
+    ].includes(item2));
     const event = new KeyboardEvent("keydown", {
-      key: key === "Space" ? " " : key,
+      key: key2 === "Space" ? " " : key2,
       altKey: keys2.includes("Alt"),
       ctrlKey: keys2.includes("Ctrl"),
       metaKey: keys2.includes("Meta"),
@@ -13472,11 +13924,11 @@
     return pairs;
   }
   function mergeAttributes(...objects) {
-    return objects.filter((item) => !!item).reduce((items, item) => {
+    return objects.filter((item2) => !!item2).reduce((items, item2) => {
       const mergedAttributes = { ...items };
-      Object.entries(item).forEach(([key, value]) => {
-        if (key === "__proto__") {
-          Object.defineProperty(mergedAttributes, key, {
+      Object.entries(item2).forEach(([key2, value]) => {
+        if (key2 === "__proto__") {
+          Object.defineProperty(mergedAttributes, key2, {
             configurable: true,
             enumerable: true,
             value,
@@ -13484,27 +13936,27 @@
           });
           return;
         }
-        if (!mergedAttributes[key]) {
-          mergedAttributes[key] = value;
+        if (!mergedAttributes[key2]) {
+          mergedAttributes[key2] = value;
           return;
         }
-        if (key === "class") {
+        if (key2 === "class") {
           const valueClasses = value ? String(value).split(" ") : [];
-          const existingClasses = mergedAttributes[key] ? mergedAttributes[key].split(" ") : [];
+          const existingClasses = mergedAttributes[key2] ? mergedAttributes[key2].split(" ") : [];
           const insertClasses = valueClasses.filter((valueClass) => !existingClasses.includes(valueClass));
-          mergedAttributes[key] = [...existingClasses, ...insertClasses].join(" ");
-        } else if (key === "style") {
-          const styleMap = new Map([...parseStyleEntries(mergedAttributes[key]), ...parseStyleEntries(value)]);
-          mergedAttributes[key] = Array.from(styleMap.entries()).map(([property, val]) => `${property}: ${val}`).join("; ");
-        } else mergedAttributes[key] = value;
+          mergedAttributes[key2] = [...existingClasses, ...insertClasses].join(" ");
+        } else if (key2 === "style") {
+          const styleMap = new Map([...parseStyleEntries(mergedAttributes[key2]), ...parseStyleEntries(value)]);
+          mergedAttributes[key2] = Array.from(styleMap.entries()).map(([property, val]) => `${property}: ${val}`).join("; ");
+        } else mergedAttributes[key2] = value;
       });
       return mergedAttributes;
     }, {});
   }
   function getRenderedAttributes(nodeOrMark, extensionAttributes) {
-    return extensionAttributes.filter((attribute) => attribute.type === nodeOrMark.type.name).filter((item) => item.attribute.rendered).map((item) => {
-      if (!item.attribute.renderHTML) return { [item.name]: nodeOrMark.attrs[item.name] };
-      return item.attribute.renderHTML(nodeOrMark.attrs) || {};
+    return extensionAttributes.filter((attribute) => attribute.type === nodeOrMark.type.name).filter((item2) => item2.attribute.rendered).map((item2) => {
+      if (!item2.attribute.renderHTML) return { [item2.name]: nodeOrMark.attrs[item2.name] };
+      return item2.attribute.renderHTML(nodeOrMark.attrs) || {};
     }).reduce((attributes, attribute) => mergeAttributes(attributes, attribute), {});
   }
   function fromString(value) {
@@ -13521,12 +13973,12 @@
       getAttrs: (node2) => {
         const oldAttributes = parseRule.getAttrs ? parseRule.getAttrs(node2) : parseRule.attrs;
         if (oldAttributes === false) return false;
-        const newAttributes = extensionAttributes.reduce((items, item) => {
-          const value = item.attribute.parseHTML ? item.attribute.parseHTML(node2) : fromString(node2.getAttribute(item.name));
+        const newAttributes = extensionAttributes.reduce((items, item2) => {
+          const value = item2.attribute.parseHTML ? item2.attribute.parseHTML(node2) : fromString(node2.getAttribute(item2.name));
           if (value === null || value === void 0) return items;
           return {
             ...items,
-            [item.name]: value
+            [item2.name]: value
           };
         }, {});
         return {
@@ -13537,8 +13989,8 @@
     };
   }
   function cleanUpSchemaItem(data) {
-    return Object.fromEntries(Object.entries(data).filter(([key, value]) => {
-      if (key === "attrs" && isEmptyObject(value)) return false;
+    return Object.fromEntries(Object.entries(data).filter(([key2, value]) => {
+      if (key2 === "attrs" && isEmptyObject(value)) return false;
       return value !== null && value !== void 0;
     }));
   }
@@ -13650,7 +14102,7 @@
   function resolveExtensions(extensions) {
     const resolvedExtensions = sortExtensions(flattenExtensions(extensions));
     const duplicatedNames = findDuplicates(resolvedExtensions.map((extension2) => extension2.name));
-    if (duplicatedNames.length) console.warn(`[tiptap warn]: Duplicate extension names found: [${duplicatedNames.map((item) => `'${item}'`).join(", ")}]. This can lead to issues.`);
+    if (duplicatedNames.length) console.warn(`[tiptap warn]: Duplicate extension names found: [${duplicatedNames.map((item2) => `'${item2}'`).join(", ")}]. This can lead to issues.`);
     return resolvedExtensions;
   }
   function getSchema(extensions, editor2) {
@@ -13708,9 +14160,9 @@
   }
   function removeDuplicates(array, by = JSON.stringify) {
     const seen = {};
-    return array.filter((item) => {
-      const key = by(item);
-      return Object.prototype.hasOwnProperty.call(seen, key) ? false : seen[key] = true;
+    return array.filter((item2) => {
+      const key2 = by(item2);
+      return Object.prototype.hasOwnProperty.call(seen, key2) ? false : seen[key2] = true;
     });
   }
   function simplifyChangedRanges(changes) {
@@ -13801,8 +14253,8 @@
   }
   function getSplittedAttributes(extensionAttributes, typeName, attributes) {
     return Object.fromEntries(Object.entries(attributes).filter(([name]) => {
-      const extensionAttribute = extensionAttributes.find((item) => {
-        return item.type === typeName && item.name === name;
+      const extensionAttribute = extensionAttributes.find((item2) => {
+        return item2.type === typeName && item2.name === name;
       });
       if (!extensionAttribute) return false;
       return extensionAttribute.attribute.keepOnSplit;
@@ -13892,7 +14344,7 @@
   }
   function isList(name, extensions) {
     const { nodeExtensions } = splitExtensions(extensions);
-    const extension2 = nodeExtensions.find((item) => item.name === name);
+    const extension2 = nodeExtensions.find((item2) => item2.name === name);
     if (!extension2) return false;
     const group = callOrReturn(getExtensionField(extension2, "group", {
       name: extension2.name,
@@ -14009,8 +14461,8 @@
     }
     return canSetMark(state, tr2, type);
   };
-  var setMeta = (key, value) => ({ tr: tr2 }) => {
-    tr2.setMeta(key, value);
+  var setMeta = (key2, value) => ({ tr: tr2 }) => {
+    tr2.setMeta(key2, value);
     return true;
   };
   var setNode = (typeOrName, attributes = {}) => ({ state, dispatch, chain }) => {
@@ -14634,28 +15086,28 @@
   }
   function widgetKeyOf(decoration) {
     var _decoration$spec;
-    const key = (_decoration$spec = decoration.spec) === null || _decoration$spec === void 0 ? void 0 : _decoration$spec.key;
-    return typeof key === "string" ? key : void 0;
+    const key2 = (_decoration$spec = decoration.spec) === null || _decoration$spec === void 0 ? void 0 : _decoration$spec.key;
+    return typeof key2 === "string" ? key2 : void 0;
   }
   function findDuplicateWidgetKeys(decorationSet) {
     const extensionsByKey = /* @__PURE__ */ new Map();
     const counts = /* @__PURE__ */ new Map();
     for (const decoration of decorationSet.find()) {
       var _extensionName, _extensionsByKey$get, _counts$get;
-      const key = widgetKeyOf(decoration);
-      if (!key) continue;
+      const key2 = widgetKeyOf(decoration);
+      if (!key2) continue;
       const extension2 = (_extensionName = decoration.spec.extensionName) !== null && _extensionName !== void 0 ? _extensionName : "unknown";
-      const extensions = (_extensionsByKey$get = extensionsByKey.get(key)) !== null && _extensionsByKey$get !== void 0 ? _extensionsByKey$get : /* @__PURE__ */ new Set();
+      const extensions = (_extensionsByKey$get = extensionsByKey.get(key2)) !== null && _extensionsByKey$get !== void 0 ? _extensionsByKey$get : /* @__PURE__ */ new Set();
       extensions.add(extension2);
-      extensionsByKey.set(key, extensions);
-      counts.set(key, ((_counts$get = counts.get(key)) !== null && _counts$get !== void 0 ? _counts$get : 0) + 1);
+      extensionsByKey.set(key2, extensions);
+      counts.set(key2, ((_counts$get = counts.get(key2)) !== null && _counts$get !== void 0 ? _counts$get : 0) + 1);
     }
-    return Array.from(extensionsByKey, ([key, extensions]) => ({
-      key,
+    return Array.from(extensionsByKey, ([key2, extensions]) => ({
+      key: key2,
       extensions
-    })).filter(({ key }) => {
+    })).filter(({ key: key2 }) => {
       var _counts$get2;
-      return ((_counts$get2 = counts.get(key)) !== null && _counts$get2 !== void 0 ? _counts$get2 : 0) > 1;
+      return ((_counts$get2 = counts.get(key2)) !== null && _counts$get2 !== void 0 ? _counts$get2 : 0) > 1;
     });
   }
   function isAttrStep(step) {
@@ -14718,8 +15170,8 @@
   }
   function mapDecorationSet(set, mapping, doc3, widgetKeys) {
     return set.map(mapping, doc3, { onRemove: (removedSpec) => {
-      const key = removedSpec === null || removedSpec === void 0 ? void 0 : removedSpec.key;
-      if (typeof key === "string") widgetKeys.delete(key);
+      const key2 = removedSpec === null || removedSpec === void 0 ? void 0 : removedSpec.key;
+      if (typeof key2 === "string") widgetKeys.delete(key2);
     } });
   }
   function mapDecorations(name, previous3, tr2) {
@@ -14737,7 +15189,7 @@
   }
   function unionWidgetKeys(widgetKeysByExtension) {
     const merged = /* @__PURE__ */ new Set();
-    for (const keys2 of Object.values(widgetKeysByExtension)) for (const key of keys2) merged.add(key);
+    for (const keys2 of Object.values(widgetKeysByExtension)) for (const key2 of keys2) merged.add(key2);
     return merged;
   }
   function validateDecorationSpec(name, spec) {
@@ -14931,8 +15383,8 @@
           docSize
         }));
         for (const decoration of stale) {
-          const key = widgetKeyOf(decoration);
-          if (key) widgetKeys.delete(key);
+          const key2 = widgetKeyOf(decoration);
+          if (key2) widgetKeys.delete(key2);
         }
         set = set.remove(stale);
         const { decorations: pmDecorations, widgetKeys: addedKeys } = decorationsToPMDecorations(filterOutOfRangeDecorations({
@@ -14950,7 +15402,7 @@
           warnedExtensions: this.warnedOutOfRangeExtensions
         }), name);
         set = set.add(newState.doc, pmDecorations);
-        for (const key of addedKeys) widgetKeys.add(key);
+        for (const key2 of addedKeys) widgetKeys.add(key2);
       }
       return {
         set,
@@ -14995,11 +15447,11 @@
         return;
       }
       const duplicateKeys = findDuplicateWidgetKeys(state.mergedDecorationSet);
-      const nextWarningKeys = new Set(duplicateKeys.map(({ key }) => key));
-      for (const { key, extensions } of duplicateKeys) {
-        if (this.warnedWidgetKeys.has(key)) continue;
+      const nextWarningKeys = new Set(duplicateKeys.map(({ key: key2 }) => key2));
+      for (const { key: key2, extensions } of duplicateKeys) {
+        if (this.warnedWidgetKeys.has(key2)) continue;
         const names = Array.from(extensions).map((name) => `"${name}"`).join(", ");
-        console.warn(`[tiptap warn]: Duplicate widget decoration key "${key}" in extension${extensions.size === 1 ? "" : "s"} ${names}. Widget decoration keys must be globally unique, otherwise ProseMirror misplaces the widget DOM. Use a stable, unique key (e.g. \`comment-\${id}\`).`);
+        console.warn(`[tiptap warn]: Duplicate widget decoration key "${key2}" in extension${extensions.size === 1 ? "" : "s"} ${names}. Widget decoration keys must be globally unique, otherwise ProseMirror misplaces the widget DOM. Use a stable, unique key (e.g. \`comment-\${id}\`).`);
       }
       this.warnedWidgetKeys = nextWarningKeys;
     }
@@ -15145,9 +15597,9 @@ ${indentedChild}`;
   }
   function mergeDeep(target, source) {
     const output = { ...target };
-    if (isPlainObject(target) && isPlainObject(source)) Object.keys(source).forEach((key) => {
-      if (isPlainObject(source[key]) && isPlainObject(target[key])) output[key] = mergeDeep(target[key], source[key]);
-      else output[key] = source[key];
+    if (isPlainObject(target) && isPlainObject(source)) Object.keys(source).forEach((key2) => {
+      if (isPlainObject(source[key2]) && isPlainObject(target[key2])) output[key2] = mergeDeep(target[key2], source[key2]);
+      else output[key2] = source[key2];
     });
     return output;
   }
@@ -15815,12 +16267,12 @@ ${indentedChild}`;
           type: getMarkType(extension2.name, this.schema)
         });
         if (!addMarkView) return [];
-        const markView = (mark, view, inline) => {
+        const markView = (mark, view, inline2) => {
           const HTMLAttributes = getRenderedAttributes(mark, extensionAttributes);
           return addMarkView()({
             mark,
             view,
-            inline,
+            inline: inline2,
             editor: editor2,
             extension: extension2,
             HTMLAttributes,
@@ -16353,8 +16805,8 @@ ${indentedChild}`;
             const nodeAttributes = currentNode.node.attrs;
             const attrKeys = Object.keys(attributes);
             for (let index2 = 0; index2 < attrKeys.length; index2 += 1) {
-              const key = attrKeys[index2];
-              if (nodeAttributes[key] !== attributes[key]) break;
+              const key2 = attrKeys[index2];
+              if (nodeAttributes[key2] !== attributes[key2]) break;
             }
           } else node2 = currentNode;
         }
@@ -16372,7 +16824,7 @@ ${indentedChild}`;
       this.children.forEach((childPos) => {
         if (firstItemOnly && nodes.length > 0) return;
         if (childPos.node.type.name === selector) {
-          if (attrKeys.every((key) => attributes[key] === childPos.node.attrs[key])) nodes.push(childPos);
+          if (attrKeys.every((key2) => attributes[key2] === childPos.node.attrs[key2])) nodes.push(childPos);
         }
         if (firstItemOnly && nodes.length > 0) return;
         nodes = nodes.concat(childPos.querySelectorAll(selector, attributes, firstItemOnly));
@@ -16659,11 +17111,11 @@ img.ProseMirror-separator {
         dragging: null,
         editable: true,
         isDestroyed: false
-      }, { get: (obj, key) => {
-        if (this.editorView) return this.editorView[key];
-        if (key === "state") return this.editorState;
-        if (key in obj) return Reflect.get(obj, key);
-        throw new Error(`[tiptap error]: The editor view is not available. Cannot access view['${key}']. The editor may not be mounted yet.`);
+      }, { get: (obj, key2) => {
+        if (this.editorView) return this.editorView[key2];
+        if (key2 === "state") return this.editorState;
+        if (key2 in obj) return Reflect.get(obj, key2);
+        throw new Error(`[tiptap error]: The editor view is not available. Cannot access view['${key2}']. The editor may not be mounted yet.`);
       } });
     }
     /**
@@ -16981,9 +17433,9 @@ img.ProseMirror-separator {
           const startSpaces = fullMatch.search(/\S/);
           const textStart = range.from + fullMatch.indexOf(captureGroup);
           const textEnd = textStart + captureGroup.length;
-          if (getMarksBetween(range.from, range.to, state.doc).filter((item) => {
-            return item.mark.type.excluded.find((type) => type === config.type && type !== item.mark.type);
-          }).filter((item) => item.to > textStart).length) return null;
+          if (getMarksBetween(range.from, range.to, state.doc).filter((item2) => {
+            return item2.mark.type.excluded.find((type) => type === config.type && type !== item2.mark.type);
+          }).filter((item2) => item2.to > textStart).length) return null;
           if (textEnd < range.to) tr2.delete(textEnd, range.to);
           if (textStart > range.from) tr2.delete(range.from + startSpaces, textStart);
           const markEnd = range.from + startSpaces + captureGroup.length;
@@ -17095,9 +17547,9 @@ img.ProseMirror-separator {
           const startSpaces = fullMatch.search(/\S/);
           const textStart = range.from + fullMatch.indexOf(captureGroup);
           const textEnd = textStart + captureGroup.length;
-          if (getMarksBetween(range.from, range.to, state.doc).filter((item) => {
-            return item.mark.type.excluded.find((type) => type === config.type && type !== item.mark.type);
-          }).filter((item) => item.to > textStart).length) return null;
+          if (getMarksBetween(range.from, range.to, state.doc).filter((item2) => {
+            return item2.mark.type.excluded.find((type) => type === config.type && type !== item2.mark.type);
+          }).filter((item2) => item2.to > textStart).length) return null;
           if (textEnd < range.to) tr2.delete(textEnd, range.to);
           if (textStart > range.from) tr2.delete(range.from + startSpaces, textStart);
           markEnd = range.from + startSpaces + captureGroup.length;
@@ -18607,14 +19059,14 @@ ${prefix}
      * @param {MultiToken} [token] The token from linkify.tokenize
      * @returns {Opts[K] | any}
      */
-    get(key, operator, token) {
+    get(key2, operator, token) {
       const isCallable = operator != null;
-      let option = this.o[key];
+      let option = this.o[key2];
       if (!option) {
         return option;
       }
       if (typeof option === "object") {
-        option = token.t in option ? option[token.t] : defaults[key];
+        option = token.t in option ? option[token.t] : defaults[key2];
         if (typeof option === "function" && isCallable) {
           option = option(operator, token);
         }
@@ -18630,8 +19082,8 @@ ${prefix}
      * @param {MultiToken} [token]
      * @returns {Opts[L] | any}
      */
-    getObj(key, operator, token) {
-      let obj = this.o[key];
+    getObj(key2, operator, token) {
+      let obj = this.o[key2];
       if (typeof obj === "function" && operator != null) {
         obj = obj(operator, token.t, token);
       }
@@ -19131,7 +19583,7 @@ ${prefix}
               if (!newState.schema.marks.code) return true;
               return !newState.doc.rangeHasMark(link2.from, link2.to, newState.schema.marks.code);
             }).filter((link2) => options.validate(link2.value)).filter((link2) => options.shouldAutoLink(link2.value)).forEach((link2) => {
-              if (getMarksBetween(link2.from, link2.to, newState.doc).some((item) => item.mark.type === options.type)) return;
+              if (getMarksBetween(link2.from, link2.to, newState.doc).some((item2) => item2.mark.type === options.type)) return;
               tr2.addMark(link2.from, link2.to, options.type.create({ href: link2.href }));
             });
           }
@@ -19288,7 +19740,7 @@ ${prefix}
         slice2.content.forEach((node2) => {
           textContent += node2.textContent;
         });
-        const link2 = find(textContent, { defaultProtocol: options.defaultProtocol }).find((item) => item.isLink && item.value === textContent);
+        const link2 = find(textContent, { defaultProtocol: options.defaultProtocol }).find((item2) => item2.isLink && item2.value === textContent);
         if (!textContent || !link2 || shouldAutoLink !== void 0 && !shouldAutoLink(link2.value)) return false;
         return options.editor.commands.setMark(options.type, { href: link2.href });
       } }
@@ -19467,7 +19919,7 @@ ${prefix}
         const foundLinks = [];
         if (text5) {
           const { protocols, defaultProtocol } = this.options;
-          find(text5).filter((item) => item.isLink && this.options.isAllowedUri(item.value, {
+          find(text5).filter((item2) => item2.isLink && this.options.isAllowedUri(item2.value, {
             defaultValidate: (href) => !!isAllowedUri(href, protocols),
             protocols,
             defaultProtocol
@@ -20175,17 +20627,17 @@ ${prefix}
         content: match[3]
       });
     }
-    if (!areOrderedListMarkersSequential(parsedItems.map((item) => item.marker))) return null;
+    if (!areOrderedListMarkersSequential(parsedItems.map((item2) => item2.marker))) return null;
     return {
       type: "orderedList",
       attrs: buildOrderedListAttrsFromMarker(parsedItems[0].marker),
-      content: parsedItems.map((item) => ({
+      content: parsedItems.map((item2) => ({
         type: "listItem",
         content: [{
           type: "paragraph",
           content: [{
             type: "text",
-            text: item.content
+            text: item2.content
           }]
         }]
       }))
@@ -20195,9 +20647,9 @@ ${prefix}
     const result = [];
     let currentIndex = 0;
     while (currentIndex < items.length) {
-      const item = items[currentIndex];
-      if (item.indent === baseIndent) {
-        const { paragraphLines, blockLines } = splitItemContent(item.contentLines);
+      const item2 = items[currentIndex];
+      if (item2.indent === baseIndent) {
+        const { paragraphLines, blockLines } = splitItemContent(item2.contentLines);
         const mainText = paragraphLines.join("\n").trim();
         const tokens = [];
         if (mainText) tokens.push({
@@ -20229,7 +20681,7 @@ ${prefix}
         }
         result.push({
           type: "list_item",
-          raw: item.raw,
+          raw: item2.raw,
           tokens
         });
         currentIndex = lookAheadIndex;
@@ -20238,10 +20690,10 @@ ${prefix}
     return result;
   }
   function parseListItems(items, helpers) {
-    return items.map((item) => {
-      if (item.type !== "list_item") return helpers.parseChildren([item])[0];
+    return items.map((item2) => {
+      if (item2.type !== "list_item") return helpers.parseChildren([item2])[0];
       const content3 = [];
-      if (item.tokens && item.tokens.length > 0) item.tokens.forEach((itemToken) => {
+      if (item2.tokens && item2.tokens.length > 0) item2.tokens.forEach((itemToken) => {
         if (itemToken.type === "paragraph" || itemToken.type === "list" || itemToken.type === "blockquote" || itemToken.type === "code") content3.push(...helpers.parseChildren([itemToken]));
         else if (itemToken.type === "text" && itemToken.tokens) {
           const inlineContent = helpers.parseChildren([itemToken]);
@@ -20562,15 +21014,15 @@ ${prefix}
             if (!this.options.onReadOnlyChecked(node2, checked)) checkbox.checked = !checkbox.checked;
           }
         });
-        Object.entries(this.options.HTMLAttributes).forEach(([key, value]) => {
-          listItem2.setAttribute(key, value);
+        Object.entries(this.options.HTMLAttributes).forEach(([key2, value]) => {
+          listItem2.setAttribute(key2, value);
         });
         listItem2.dataset.checked = node2.attrs.checked;
         checkbox.checked = node2.attrs.checked;
         checkboxWrapper.append(checkbox, checkboxStyler);
         listItem2.append(checkboxWrapper, content3);
-        Object.entries(HTMLAttributes).forEach(([key, value]) => {
-          listItem2.setAttribute(key, value);
+        Object.entries(HTMLAttributes).forEach(([key2, value]) => {
+          listItem2.setAttribute(key2, value);
         });
         let prevRenderedAttributeKeys = new Set(Object.keys(HTMLAttributes));
         return {
@@ -20585,17 +21037,17 @@ ${prefix}
             const newHTMLAttributes = getRenderedAttributes(updatedNode, extensionAttributes);
             const newKeys = new Set(Object.keys(newHTMLAttributes));
             const staticAttrs = this.options.HTMLAttributes;
-            prevRenderedAttributeKeys.forEach((key) => {
-              if (!newKeys.has(key)) {
-                if (key in staticAttrs) listItem2.setAttribute(key, staticAttrs[key]);
-                else listItem2.removeAttribute(key);
+            prevRenderedAttributeKeys.forEach((key2) => {
+              if (!newKeys.has(key2)) {
+                if (key2 in staticAttrs) listItem2.setAttribute(key2, staticAttrs[key2]);
+                else listItem2.removeAttribute(key2);
               }
             });
-            Object.entries(newHTMLAttributes).forEach(([key, value]) => {
+            Object.entries(newHTMLAttributes).forEach(([key2, value]) => {
               if (value === null || value === void 0) {
-                if (key in staticAttrs) listItem2.setAttribute(key, staticAttrs[key]);
-                else listItem2.removeAttribute(key);
-              } else listItem2.setAttribute(key, value);
+                if (key2 in staticAttrs) listItem2.setAttribute(key2, staticAttrs[key2]);
+                else listItem2.removeAttribute(key2);
+              } else listItem2.setAttribute(key2, value);
             });
             prevRenderedAttributeKeys = newKeys;
             return true;
@@ -21483,19 +21935,19 @@ ${prefix}
       let transform = state.tr;
       let selection, remaining;
       let addAfter = [], addBefore = [];
-      this.items.forEach((item, i) => {
-        if (!item.step) {
+      this.items.forEach((item2, i) => {
+        if (!item2.step) {
           if (!remap) {
             remap = this.remapping(end, i + 1);
             mapFrom = remap.maps.length;
           }
           mapFrom--;
-          addBefore.push(item);
+          addBefore.push(item2);
           return;
         }
         if (remap) {
-          addBefore.push(new Item(item.map));
-          let step = item.step.map(remap.slice(mapFrom)), map4;
+          addBefore.push(new Item(item2.map));
+          let step = item2.step.map(remap.slice(mapFrom)), map4;
           if (step && transform.maybeStep(step).doc) {
             map4 = transform.mapping.maps[transform.mapping.maps.length - 1];
             addAfter.push(new Item(map4, void 0, void 0, addAfter.length + addBefore.length));
@@ -21504,10 +21956,10 @@ ${prefix}
           if (map4)
             remap.appendMap(map4, mapFrom);
         } else {
-          transform.maybeStep(item.step);
+          transform.maybeStep(item2.step);
         }
-        if (item.selection) {
-          selection = remap ? item.selection.map(remap.slice(mapFrom)) : item.selection;
+        if (item2.selection) {
+          selection = remap ? item2.selection.map(remap.slice(mapFrom)) : item2.selection;
           remaining = new _Branch(this.items.slice(0, end).append(addBefore.reverse().concat(addAfter)), this.eventCount - 1);
           return false;
         }
@@ -21520,21 +21972,21 @@ ${prefix}
       let oldItems = this.items, lastItem = !preserveItems && oldItems.length ? oldItems.get(oldItems.length - 1) : null;
       for (let i = 0; i < transform.steps.length; i++) {
         let step = transform.steps[i].invert(transform.docs[i]);
-        let item = new Item(transform.mapping.maps[i], step, selection), merged;
-        if (merged = lastItem && lastItem.merge(item)) {
-          item = merged;
+        let item2 = new Item(transform.mapping.maps[i], step, selection), merged;
+        if (merged = lastItem && lastItem.merge(item2)) {
+          item2 = merged;
           if (i)
             newItems.pop();
           else
             oldItems = oldItems.slice(0, oldItems.length - 1);
         }
-        newItems.push(item);
+        newItems.push(item2);
         if (selection) {
           eventCount++;
           selection = void 0;
         }
         if (!preserveItems)
-          lastItem = item;
+          lastItem = item2;
       }
       let overflow = eventCount - histOptions.depth;
       if (overflow > DEPTH_OVERFLOW) {
@@ -21545,9 +21997,9 @@ ${prefix}
     }
     remapping(from2, to) {
       let maps = new Mapping();
-      this.items.forEach((item, i) => {
-        let mirrorPos = item.mirrorOffset != null && i - item.mirrorOffset >= from2 ? maps.maps.length - item.mirrorOffset : void 0;
-        maps.appendMap(item.map, mirrorPos);
+      this.items.forEach((item2, i) => {
+        let mirrorPos = item2.mirrorOffset != null && i - item2.mirrorOffset >= from2 ? maps.maps.length - item2.mirrorOffset : void 0;
+        maps.appendMap(item2.map, mirrorPos);
       }, from2, to);
       return maps;
     }
@@ -21567,20 +22019,20 @@ ${prefix}
       let mapping = rebasedTransform.mapping;
       let newUntil = rebasedTransform.steps.length;
       let eventCount = this.eventCount;
-      this.items.forEach((item) => {
-        if (item.selection)
+      this.items.forEach((item2) => {
+        if (item2.selection)
           eventCount--;
       }, start);
       let iRebased = rebasedCount;
-      this.items.forEach((item) => {
+      this.items.forEach((item2) => {
         let pos = mapping.getMirror(--iRebased);
         if (pos == null)
           return;
         newUntil = Math.min(newUntil, pos);
         let map4 = mapping.maps[pos];
-        if (item.step) {
+        if (item2.step) {
           let step = rebasedTransform.steps[pos].invert(rebasedTransform.docs[pos]);
-          let selection = item.selection && item.selection.map(mapping.slice(iRebased + 1, pos));
+          let selection = item2.selection && item2.selection.map(mapping.slice(iRebased + 1, pos));
           if (selection)
             eventCount++;
           rebasedItems.push(new Item(map4, step, selection));
@@ -21599,8 +22051,8 @@ ${prefix}
     }
     emptyItemCount() {
       let count = 0;
-      this.items.forEach((item) => {
-        if (!item.step)
+      this.items.forEach((item2) => {
+        if (!item2.step)
           count++;
       });
       return count;
@@ -21614,18 +22066,18 @@ ${prefix}
     compress(upto = this.items.length) {
       let remap = this.remapping(0, upto), mapFrom = remap.maps.length;
       let items = [], events = 0;
-      this.items.forEach((item, i) => {
+      this.items.forEach((item2, i) => {
         if (i >= upto) {
-          items.push(item);
-          if (item.selection)
+          items.push(item2);
+          if (item2.selection)
             events++;
-        } else if (item.step) {
-          let step = item.step.map(remap.slice(mapFrom)), map4 = step && step.getMap();
+        } else if (item2.step) {
+          let step = item2.step.map(remap.slice(mapFrom)), map4 = step && step.getMap();
           mapFrom--;
           if (map4)
             remap.appendMap(map4, mapFrom);
           if (step) {
-            let selection = item.selection && item.selection.map(remap.slice(mapFrom));
+            let selection = item2.selection && item2.selection.map(remap.slice(mapFrom));
             if (selection)
               events++;
             let newItem = new Item(map4.invert(), step, selection), merged, last = items.length - 1;
@@ -21634,7 +22086,7 @@ ${prefix}
             else
               items.push(newItem);
           }
-        } else if (item.map) {
+        } else if (item2.map) {
           mapFrom--;
         }
       }, this.items.length, 0);
@@ -21644,8 +22096,8 @@ ${prefix}
   Branch.empty = new Branch(dist_default2.empty, 0);
   function cutOffEvents(items, n) {
     let cutPoint;
-    items.forEach((item, i) => {
-      if (item.selection && n-- == 0) {
+    items.forEach((item2, i) => {
+      if (item2.selection && n-- == 0) {
         cutPoint = i;
         return false;
       }
@@ -23501,18 +23953,18 @@ ${prefix}
      *   The current processor when setting, the value at `key` when getting, or
      *   the entire dataset when getting without key.
      */
-    data(key, value) {
-      if (typeof key === "string") {
+    data(key2, value) {
+      if (typeof key2 === "string") {
         if (arguments.length === 2) {
           assertUnfrozen("data", this.frozen);
-          this.namespace[key] = value;
+          this.namespace[key2] = value;
           return this;
         }
-        return own.call(this.namespace, key) && this.namespace[key] || void 0;
+        return own.call(this.namespace, key2) && this.namespace[key2] || void 0;
       }
-      if (key) {
+      if (key2) {
         assertUnfrozen("data", this.frozen);
-        this.namespace = key;
+        this.namespace = key2;
         return this;
       }
       return this.namespace;
@@ -23629,7 +24081,7 @@ ${prefix}
       assertParser("process", this.parser || this.Parser);
       assertCompiler("process", this.compiler || this.Compiler);
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject) {
+      function executor(resolve, reject2) {
         const realFile = vfile(file);
         const parseTree = (
           /** @type {HeadTree extends undefined ? Node : HeadTree} */
@@ -23659,7 +24111,7 @@ ${prefix}
         });
         function realDone(error, file2) {
           if (error || !file2) {
-            reject(error);
+            reject2(error);
           } else if (resolve) {
             resolve(file2);
           } else {
@@ -23763,7 +24215,7 @@ ${prefix}
         file = void 0;
       }
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject) {
+      function executor(resolve, reject2) {
         ok(
           typeof file !== "function",
           "`file` can\u2019t be a `done` anymore, we checked"
@@ -23776,7 +24228,7 @@ ${prefix}
             outputTree || tree
           );
           if (error) {
-            reject(error);
+            reject2(error);
           } else if (resolve) {
             resolve(resultingTree);
           } else {
@@ -24303,9 +24755,9 @@ ${prefix}
     return start;
     function start(code3) {
       if (continued < stack.length) {
-        const item = stack[continued];
-        self.containerState = item[1];
-        return effects.attempt(item[0].continuation, documentContinue, checkNewContainers)(code3);
+        const item2 = stack[continued];
+        self.containerState = item2[1];
+        return effects.attempt(item2[0].continuation, documentContinue, checkNewContainers)(code3);
       }
       return checkNewContainers(code3);
     }
@@ -25365,9 +25817,9 @@ ${prefix}
      * @returns {undefined}
      *   Nothing.
      */
-    push(item) {
+    push(item2) {
       this.setCursor(Number.POSITIVE_INFINITY);
-      this.left.push(item);
+      this.left.push(item2);
     }
     /**
      * Inserts many items to the high-numbered side of the array.
@@ -25391,9 +25843,9 @@ ${prefix}
      * @returns {undefined}
      *   Nothing.
      */
-    unshift(item) {
+    unshift(item2) {
       this.setCursor(0);
-      this.right.push(item);
+      this.right.push(item2);
     }
     /**
      * Inserts many items to the low-numbered side of the array;
@@ -27371,14 +27823,14 @@ ${prefix}
     return start;
     function start(code3) {
       let index2 = self.events.length;
-      let paragraph2;
+      let paragraph3;
       while (index2--) {
         if (self.events[index2][1].type !== "lineEnding" && self.events[index2][1].type !== "linePrefix" && self.events[index2][1].type !== "content") {
-          paragraph2 = self.events[index2][1].type === "paragraph";
+          paragraph3 = self.events[index2][1].type === "paragraph";
           break;
         }
       }
-      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph2)) {
+      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph3)) {
         effects.enter("setextHeadingLine");
         marker = code3;
         return before(code3);
@@ -27488,8 +27940,8 @@ ${prefix}
         let index2 = -1;
         if (list3) {
           while (++index2 < list3.length) {
-            const item = list3[index2];
-            if (!item.previous || item.previous.call(self, self.previous)) {
+            const item2 = list3[index2];
+            if (!item2.previous || item2.previous.call(self, self.previous)) {
               return true;
             }
           }
@@ -28158,7 +28610,7 @@ ${prefix}
         listItemValue: onenterlistitemvalue,
         listOrdered: opener(list3, onenterlistordered),
         listUnordered: opener(list3),
-        paragraph: opener(paragraph2),
+        paragraph: opener(paragraph3),
         reference: onenterreference,
         referenceString: buffer,
         resourceDestinationString: buffer,
@@ -28351,15 +28803,15 @@ ${prefix}
             length++;
           }
           if (event[1].type === "listItemPrefix") {
-            const item = {
+            const item2 = {
               type: "listItem",
               _spread: false,
               start: Object.assign({}, event[1].start),
               // @ts-expect-error: we’ll add `end` in a second.
               end: void 0
             };
-            listItem3 = item;
-            events.splice(index2, 0, ["enter", item, event[2]]);
+            listItem3 = item2;
+            events.splice(index2, 0, ["enter", item2, event[2]]);
             index2++;
             length++;
             firstBlankLineIndex = void 0;
@@ -28730,7 +29182,7 @@ ${prefix}
         children: []
       };
     }
-    function paragraph2() {
+    function paragraph3() {
       return {
         type: "paragraph",
         children: []
@@ -28773,29 +29225,29 @@ ${prefix}
     }
   }
   function extension(combined, extension2) {
-    let key;
-    for (key in extension2) {
-      if (own2.call(extension2, key)) {
-        switch (key) {
+    let key2;
+    for (key2 in extension2) {
+      if (own2.call(extension2, key2)) {
+        switch (key2) {
           case "canContainEols": {
-            const right = extension2[key];
+            const right = extension2[key2];
             if (right) {
-              combined[key].push(...right);
+              combined[key2].push(...right);
             }
             break;
           }
           case "transforms": {
-            const right = extension2[key];
+            const right = extension2[key2];
             if (right) {
-              combined[key].push(...right);
+              combined[key2].push(...right);
             }
             break;
           }
           case "enter":
           case "exit": {
-            const right = extension2[key];
+            const right = extension2[key2];
             if (right) {
-              Object.assign(combined[key], right);
+              Object.assign(combined[key2], right);
             }
             break;
           }
@@ -28926,9 +29378,9 @@ ${prefix}
         /** @type {unknown} */
         node2
       );
-      let key;
-      for (key in check) {
-        if (nodeAsRecord[key] !== checkAsRecord[key]) return false;
+      let key2;
+      for (key2 in check) {
+        if (nodeAsRecord[key2] !== checkAsRecord[key2]) return false;
       }
       return true;
     }
@@ -30334,8 +30786,8 @@ ${prefix}
       if (checkRule(state) === bullet && firstListItem) {
         let index2 = -1;
         while (++index2 < node2.children.length) {
-          const item = node2.children[index2];
-          if (item && item.type === "listItem" && item.children && item.children[0] && item.children[0].type === "thematicBreak") {
+          const item2 = node2.children[index2];
+          if (item2 && item2.type === "listItem" && item2.children && item2.children[0] && item2.children[0].type === "thematicBreak") {
             useDifferentMarker = true;
             break;
           }
@@ -32090,14 +32542,67 @@ ${prefix}
     toMarkdownExtensions.push(gfmToMarkdown(settings));
   }
 
+  // lib/document-list-source.mjs
+  function projectSimpleList(node2, source, position2, blockIndex) {
+    if (node2.type !== "list" || node2.spread || node2.children.length > 32) return null;
+    const content3 = [], spans = [], items = [];
+    let offset = position2 + 1, previousEnd = null, childIndex = 0;
+    for (const [itemIndex, item2] of node2.children.entries()) {
+      const a = item2.position.start.offset, b = item2.position.end.offset, raw = source.slice(a, b);
+      const marker = raw.match(node2.ordered ? /^(\d{1,9}[.)] )/ : /^([-+*] )/);
+      if (!marker || item2.checked !== null || item2.spread || item2.position.start.line !== item2.position.end.line || item2.children.length > 1 || item2.children.length && item2.children[0].type !== "paragraph" || /[<>{}\\`$|]/.test(raw) || previousEnd !== null && !/^(\r\n|\n|\r)$/.test(source.slice(previousEnd, a))) return null;
+      const inline2 = [], itemSpans = [], bodyFrom = a + marker[0].length;
+      let textOffset = 0;
+      for (const child of item2.children[0]?.children || []) {
+        const bold = child.type === "strong", leaf = bold && child.children?.length === 1 ? child.children[0] : child;
+        const start = leaf.position?.start.offset, end = leaf.position?.end.offset;
+        if (leaf.type !== "text" || !leaf.value || /[\r\n\0]/.test(leaf.value) || source.slice(start, end) !== leaf.value || bold && !["**", "__"].includes(source.slice(child.position.start.offset, start))) return null;
+        inline2.push({ type: "text", text: leaf.value, ...bold ? { marks: [{ type: "bold" }] } : {} });
+        itemSpans.push({
+          text: leaf.value,
+          sourceFrom: start,
+          sourceTo: end,
+          bold,
+          from: offset + 2 + textOffset,
+          to: offset + 2 + textOffset + leaf.value.length,
+          blockIndex,
+          childIndex: childIndex++,
+          itemIndex,
+          inlineIndex: inline2.length - 1
+        });
+        textOffset += leaf.value.length;
+      }
+      if (inline2.length === 1 && !itemSpans[0].bold) {
+        const text5 = source.slice(bodyFrom, b);
+        if (text5.trimStart() !== text5) return null;
+        inline2[0].text = text5;
+        itemSpans[0].text = text5;
+        itemSpans[0].sourceFrom = bodyFrom;
+        itemSpans[0].sourceTo = b;
+        itemSpans[0].to = itemSpans[0].from + text5.length;
+        textOffset = text5.length;
+      } else if (!inline2.length) {
+        if (b !== bodyFrom) return null;
+        itemSpans.push({ text: "", sourceFrom: b, sourceTo: b, bold: false, from: offset + 2, to: offset + 2, blockIndex, childIndex: childIndex++, itemIndex, inlineIndex: 0 });
+      } else if (source.slice(bodyFrom, itemSpans[0].sourceFrom) !== (itemSpans[0].bold ? source.slice(itemSpans[0].sourceFrom - 2, itemSpans[0].sourceFrom) : "")) return null;
+      items.push({ sourceFrom: a, sourceTo: b, bodyFrom, marker: marker[0], from: offset + 2, to: offset + 2 + textOffset });
+      content3.push({ type: "listItem", content: [{ type: "paragraph", content: inline2 }] });
+      spans.push(...itemSpans);
+      offset += textOffset + 4;
+      previousEnd = b;
+    }
+    return { doc: { type: node2.ordered ? "orderedList" : "bulletList", ...node2.ordered ? { attrs: { start: node2.start } } : {}, content: content3 }, spans, items, size: offset - position2 + 1 };
+  }
+
   // lib/document-source-map.mjs
+  var spanBlock = (projection, span) => span.itemIndex === void 0 ? projection.doc.content[span.blockIndex] : projection.doc.content[span.blockIndex].content[span.itemIndex].content[0];
   var parser = unified().use(remarkParse).use(remarkGfm);
   var unsafe = () => ({ ok: false, code: "unsafe-source-range" });
   var validText = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
   var splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   function projectSource(source) {
     if (typeof source !== "string" || source.length > 131072) throw Error("Unsupported source");
-    const tree = parser.parse(source), content3 = [], spans = [];
+    const tree = parser.parse(source), content3 = [], spans = [], blocks = [];
     const lines = (text5) => {
       const tokens = text5.match(/\r\n|\n|\r/g) || [];
       return tokens.join("") === text5 ? tokens : [];
@@ -32115,11 +32620,13 @@ ${prefix}
         blockIndex: content3.length,
         childIndex: 0
       });
+      blocks.push({ from: position2, to: position2 + 2, sourceFrom: at, sourceTo: at });
       content3.push({ type: "paragraph", content: [] });
       position2 += 2;
     }
     function opaque(text5) {
       if (!text5) return;
+      blocks.push(null);
       content3.push({ type: "codeBlock", attrs: { language: null }, content: [{ type: "text", text: text5 }] });
       position2 += text5.length + 2;
     }
@@ -32131,6 +32638,28 @@ ${prefix}
           opaque(source.slice(fm, end));
           previousEnd = end;
         }
+        continue;
+      }
+      const list3 = projectSimpleList(node2, source, position2, content3.length);
+      if (list3) {
+        const gap2 = lines(source.slice(previousEnd, start));
+        if (!content3.length && gap2.length >= 2 || content3.length && gap2.length >= 4) {
+          emptyParagraph(!content3.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
+          for (const span of list3.spans) {
+            span.from += 2;
+            span.to += 2;
+            span.blockIndex++;
+          }
+          for (const item2 of list3.items) {
+            item2.from += 2;
+            item2.to += 2;
+          }
+        }
+        blocks.push({ from: position2, to: position2 + list3.size, sourceFrom: start, sourceTo: end, items: list3.items });
+        content3.push(list3.doc);
+        spans.push(...list3.spans);
+        position2 += list3.size;
+        previousEnd = end;
         continue;
       }
       const raw = source.slice(start, end), parts = [];
@@ -32197,6 +32726,7 @@ ${prefix}
         block.content.push({ type: "text", text: part.text, ...part.bold ? { marks: [{ type: "bold" }] } : {} });
         offset += part.text.length;
       }
+      blocks.push({ from: position2, to: position2 + offset + 2, sourceFrom: start, sourceTo: end });
       content3.push(block);
       position2 += offset + 2;
     }
@@ -32206,7 +32736,7 @@ ${prefix}
       if (source === "" || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
       else content3.push({ type: "paragraph", content: [] });
     }
-    return { doc: { type: "doc", content: content3 }, spans };
+    return { doc: { type: "doc", content: content3 }, spans, blocks };
   }
   function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
     const { from: from2, to, insert } = change, plain = (span) => {
@@ -32220,8 +32750,8 @@ ${prefix}
       const span = spans.find((s) => from2 >= s.from && from2 <= s.to);
       if (!span || !span.text || splits(span.text, from2 - span.from)) return null;
       const offset = from2 - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
-      const paragraph2 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
-      expected.content.splice(span.blockIndex, 1, paragraph2(left), paragraph2(right));
+      const paragraph3 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+      expected.content.splice(span.blockIndex, 1, paragraph3(left), paragraph3(right));
       a = b = span.sourceFrom + offset;
       text5 = delimiter;
       inverse = { from: from2, to: from2 + 2, insert: "" };
@@ -32308,8 +32838,8 @@ ${prefix}
     if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype || Object.keys(leaf).length !== 3 || Object.keys(leaf).some((k) => !["blockIndex", "childIndex", "bold"].includes(k)) || !Number.isSafeInteger(leaf.blockIndex) || leaf.blockIndex < 0 || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== "boolean")) return unsafe();
     if (paragraphSeparator !== null && (leaf !== null || !["\n\n", "\r\n\r\n", "\r\r"].includes(paragraphSeparator))) return unsafe();
     if (leaf === null) {
-      const paragraph2 = paragraphEdit(source, projection, change, true, paragraphSeparator);
-      if (paragraph2) return paragraph2;
+      const paragraph3 = paragraphEdit(source, projection, change, true, paragraphSeparator);
+      if (paragraph3) return paragraph3;
       const paste = paragraphPaste(source, projection, change, paragraphSeparator);
       if (paste) return paste;
       if (paragraphSeparator !== null) return unsafe();
@@ -32320,7 +32850,7 @@ ${prefix}
     const span = matches2[0], a = from2 - span.from, b = to - span.from;
     if (splits(span.text, a) || splits(span.text, b)) return unsafe();
     const text5 = span.text.slice(0, a) + insert + span.text.slice(b);
-    if (!text5 && (span.textOffset !== void 0 || projection.doc.content[span.blockIndex].type !== "paragraph" || span.bold || projection.doc.content[span.blockIndex].content.length > 1)) return unsafe();
+    if (!text5 && (span.textOffset !== void 0 || spanBlock(projection, span).type !== "paragraph" || span.bold || spanBlock(projection, span).content.length > 1)) return unsafe();
     const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
     const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
     if (next.length > 131072) return unsafe();
@@ -32329,8 +32859,8 @@ ${prefix}
     if (span.textOffset !== void 0) {
       const node2 = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
       node2.text = node2.text.slice(0, at) + text5 + node2.text.slice(at + span.text.length);
-    } else if (!span.text || !text5) expected.content[span.blockIndex].content = text5 ? [{ type: "text", text: text5 }] : [];
-    else expected.content[span.blockIndex].content[span.childIndex].text = text5;
+    } else if (!span.text || !text5) spanBlock({ doc: expected }, span).content = text5 ? [{ type: "text", text: text5 }] : [];
+    else spanBlock({ doc: expected }, span).content[span.inlineIndex ?? span.childIndex].text = text5;
     if (!text5 && !nextProjection.spans.some((s) => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
     if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
     return {
@@ -32356,7 +32886,7 @@ ${prefix}
   }
   function operationMessage(receipt) {
     if (!receipt || !receipt.code && receipt.state === "not-created") return "";
-    if (receipt.ok && receipt.state === "created-confirmed") return `\u672C\u6B21\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002\u5F53\u524D\u7F16\u8F91\u526F\u672C\u4ECD\u4E3A Not saved\u3002`;
+    if (receipt.ok && receipt.state === "created-confirmed") return `\u672C\u6B21\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002\u540E\u7EED\u7F16\u8F91\u4FDD\u7559\u5728\u8349\u7A3F\u4E2D\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u8BE5\u6587\u4EF6\u3002`;
     let text5;
     if (receipt.created === false) {
       const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u4E0B\u8F7D\u6216\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u5176\u4ED6\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\uFF0C\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
@@ -32381,28 +32911,46 @@ ${receipt.filePath}` : ""}`;
     function render3(s) {
       const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
       persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-      byId2("create-test-copy").textContent = persistent ? "Save as new file\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
-      byId2("confirm-test-copy").textContent = persistent ? "Choose location\u2026" : "Create new test copy";
+      byId2("create-test-copy").textContent = persistent ? "\u53E6\u5B58\u65B0\u6587\u4EF6\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
+      byId2("confirm-test-copy").textContent = persistent ? "\u9009\u62E9\u4F4D\u7F6E\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
       byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u4E3B\u6587\u4EF6\u5939\u76F4\u5C5E\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\uFF0C\u4F8B\u5982\u4E0B\u8F7D\u6216\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u684C\u9762\u3001\u6587\u7A3F\u3001\u8D44\u6E90\u5E93\u3001\u9690\u85CF\u4E0E\u540C\u6B65\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4EC5\u652F\u6301\u9632\u6B62\u5220\u9664\u76EE\u5F55\u81EA\u8EAB\u7684\u9ED8\u8BA4\u6743\u9650\uFF08ACL\uFF09\uFF0C\u5176\u4ED6\u989D\u5916\u6743\u9650\u4ECD\u4F1A\u88AB\u62D2\u7EDD\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
       byId2("create-test-copy").hidden = !enabled;
       byId2("test-copy-panel").hidden = !enabled;
+      for (const id of ["copy-summary-compact", "copy-operation-alert"]) byId2(id).hidden = true;
       if (!enabled) return;
       const reason = refusal(c);
       byId2("create-test-copy").disabled = !!reason;
-      byId2("test-copy-reason").textContent = confirmation ? "Review the revision below, then confirm or cancel." : reason ? `Copy unavailable: ${reason}. Current writing is retained.` : "";
+      byId2("test-copy-reason").textContent = confirmation ? "\u8BF7\u786E\u8BA4\u5185\u5BB9\u540E\u9009\u62E9\u4F4D\u7F6E\uFF0C\u6216\u53D6\u6D88\u8FD4\u56DE\u7F16\u8F91\u3002" : reason ? `\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF08${reason}\uFF09\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002` : "";
       byId2("test-copy-confirmation").hidden = !confirmation || confirmation.sessionId !== c.selected;
       const receipt = receipts.get(c.selected) || s.confirmed.copyState;
       const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
       if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
       const last = confirmedReceipts.get(c.selected);
-      byId2("test-copy-result").textContent = last ? `Last confirmed copy \u2014 ${persistent ? "New Markdown file" : "Test copy"} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.
+      byId2("test-copy-result").textContent = last ? `\u6700\u540E\u786E\u8BA4\u7684${persistent ? "Markdown \u6587\u4EF6" : "\u6D4B\u8BD5\u526F\u672C"} \xB7 \u4FEE\u8BA2 ${last.revision}\u3002\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u3002
 ${last.filePath}
 SHA-256: ${last.sha256}` : "";
       byId2("test-copy-summary").textContent = last ? `\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF1A${last.filePath}
-\u5DF2\u786E\u8BA4\u4FEE\u8BA2 ${last.revision}\u3002${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA\u3002" : "\u4EC5\u4EE3\u8868\u8BE5\u4FEE\u8BA2\u7684\u65B0\u6587\u4EF6\u526F\u672C\u3002"}\u5F53\u524D\u7F16\u8F91\u526F\u672C\u4ECD\u4E3A Not saved\u3002` : "";
+\u5DF2\u786E\u8BA4\u4FEE\u8BA2 ${last.revision}\u3002${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA\u3002" : "\u4EC5\u4EE3\u8868\u8BE5\u4FEE\u8BA2\u7684\u65B0\u6587\u4EF6\u526F\u672C\u3002"}\u540E\u7EED\u7F16\u8F91\u4FDD\u7559\u5728\u8349\u7A3F\u4E2D\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u8BE5\u6587\u4EF6\u3002` : "";
       byId2("test-copy-receipt").hidden = !last;
+      byId2("confirmed-copy-card").hidden = !last;
+      byId2("copy-empty").hidden = !!last;
+      const compact = byId2("copy-summary-compact"), alert = byId2("copy-operation-alert");
+      compact.textContent = last ? `\u5DF2\u53E6\u5B58\u65B0\u6587\u4EF6\uFF1A${last.filePath.split("/").pop()} \xB7 ${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA" : "\u5F53\u524D\u5185\u5BB9\u5DF2\u5BFC\u51FA"}\u3002` : "";
+      compact.hidden = !last;
+      alert.textContent = receipt?.ok === false ? operationMessage(receipt).split("\n\u539F\u56E0\uFF1A")[0] + (receipt.filePath ? `
+${receipt.filePath}` : "") : reason && !confirmation ? {
+        "composition-active": s.compositionInvalid ? "\u5F53\u524D\u8F93\u5165\u672A\u80FD\u786E\u8BA4\uFF0C\u8BF7\u67E5\u770B\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002" : "",
+        "unconfirmed-input": "\u8FD8\u6709\u672A\u786E\u8BA4\u7684\u8F93\u5165\uFF0C\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF1B\u8BF7\u5148\u68C0\u67E5\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002",
+        "document-locked": "\u5F53\u524D\u6587\u6863\u6682\u4E0D\u80FD\u5BFC\u51FA\u3002\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u9519\u8BEF\u63D0\u793A\u3002",
+        "unresolved-copy-state": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002",
+        "copy-outcome-unknown": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002"
+      }[reason] || "" : "";
+      alert.hidden = !alert.textContent;
+      alert.dataset.tone = receipt?.code === "create-cancelled" || !receipt?.code ? "neutral" : "error";
       byId2("test-copy-operation").textContent = operationMessage(receipt);
+      byId2("latest-copy-card").hidden = !byId2("test-copy-operation").textContent;
       byId2("test-copy-operation").dataset.tone = confirmed ? "success" : receipt?.code === "create-cancelled" ? "neutral" : receipt?.ok === false ? "error" : "neutral";
+      byId2("latest-copy-card").dataset.tone = byId2("test-copy-operation").dataset.tone;
     }
     function finish() {
       confirmation = null;
@@ -32420,7 +32968,7 @@ SHA-256: ${last.sha256}` : "";
       const s = c.controller.state().confirmed;
       confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
       busy(true);
-      byId2("test-copy-confirm-revision").textContent = `Create a new ${persistent ? "Markdown file" : "test copy"} of confirmed revision ${s.revision}?`;
+      byId2("test-copy-confirm-revision").textContent = `\u5C06\u5DF2\u786E\u8BA4\u7684\u4FEE\u8BA2 ${s.revision} \u521B\u5EFA\u4E3A${persistent ? "\u65B0\u7684 Markdown \u6587\u4EF6" : "\u6D4B\u8BD5\u526F\u672C"}\u3002\u8BF7\u9009\u62E9\u4F4D\u7F6E\uFF0C\u6216\u53D6\u6D88\u8FD4\u56DE\u7F16\u8F91\u3002`;
       byId2("confirm-test-copy").disabled = false;
       byId2("cancel-test-copy").disabled = false;
       rerender();
@@ -32459,6 +33007,150 @@ SHA-256: ${last.sha256}` : "";
     return { render: render3 };
   }
 
+  // lib/document-format-edit.mjs
+  var reject = () => ({ ok: false, code: "unsafe-format-range" });
+  var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "bold", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading"];
+  var paragraph2 = (content3) => ({ type: "paragraph", content: content3 });
+  var item = (content3) => ({ type: "listItem", content: [paragraph2(content3)] });
+  var inline = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
+  var splits2 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
+  function merge(nodes) {
+    const result = [];
+    for (const node2 of nodes.filter((n) => n.text)) {
+      const last = result.at(-1);
+      if (last && JSON.stringify(last.marks) === JSON.stringify(node2.marks)) last.text += node2.text;
+      else result.push({ ...node2 });
+    }
+    return result;
+  }
+  function mapFormatEdit(source, command2) {
+    if (!command2 || Object.getPrototypeOf(command2) !== Object.prototype || Object.keys(command2).length !== 3 || Object.keys(command2).some((k) => !["action", "from", "to"].includes(k))) return reject();
+    const { action, from: from2, to } = command2;
+    if (!actions.includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject();
+    const p = projectSource(source), index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
+    if (index2 < 0) return reject();
+    const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
+    const list3 = !!block.items, selected2 = p.spans.find((s) => s.blockIndex === index2 && from2 >= s.from && to <= s.to);
+    let a = block.sourceFrom, b = block.sourceTo, text5, offset = from2 - block.from - 1, targetIndex = index2, targetItem = null;
+    const nl = source.slice(a, b).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
+    if (action === "bold") {
+      if (!selected2 || from2 === to || selected2.textOffset !== void 0) return reject();
+      const start = from2 - selected2.from, end = to - selected2.from, value = selected2.text.slice(start, end);
+      if (splits2(selected2.text, start) || splits2(selected2.text, end) || !value.trim() || value.trim() !== value) return reject();
+      const parent = spanBlock({ doc: expected }, selected2), child = selected2.inlineIndex ?? selected2.childIndex;
+      a = selected2.sourceFrom + start;
+      b = selected2.sourceFrom + end;
+      if (selected2.bold) {
+        if (start !== 0 || end !== selected2.text.length) return reject();
+        a -= 2;
+        b += 2;
+        text5 = value;
+        parent.content.splice(child, 1, { type: "text", text: value });
+      } else {
+        text5 = "**" + value + "**";
+        parent.content.splice(child, 1, ...inline(selected2.text.slice(0, start)), { type: "text", text: value, marks: [{ type: "bold" }] }, ...inline(selected2.text.slice(end)));
+      }
+      parent.content = merge(parent.content);
+      targetItem = selected2.itemIndex ?? null;
+      offset = to - (list3 ? block.items[targetItem].from : block.from + 1);
+    } else if (action === "split-heading") {
+      if (node2.type !== "heading" || !selected2 || selected2.bold || node2.content.length !== 1 || from2 !== to) return reject();
+      const at = from2 - selected2.from;
+      if (at === 0 || splits2(selected2.text, at)) return reject();
+      a = b = selected2.sourceFrom + at;
+      text5 = nl + nl;
+      expected.content[index2].content = inline(selected2.text.slice(0, at));
+      expected.content.splice(index2 + 1, 0, paragraph2(inline(selected2.text.slice(at))));
+      targetIndex = index2 + 1;
+      offset = 0;
+    } else if (action === "split-list" || action === "join-list") {
+      if (!list3 || !selected2 || from2 !== to || selected2.bold) return reject();
+      const i = selected2.itemIndex, row = block.items[i], textNode = node2.content[i].content[0];
+      if (textNode.content.length > 1 || splits2(selected2.text, from2 - selected2.from)) return reject();
+      const at = from2 - selected2.from, items = expected.content[index2].content;
+      if (action === "split-list") {
+        if (!selected2.text) {
+          if (i !== items.length - 1) return reject();
+          a = i ? block.items[i - 1].sourceTo : block.sourceFrom;
+          b = row.sourceTo;
+          text5 = i ? nl + nl : "";
+          if (i) {
+            items.pop();
+            expected.content.splice(index2 + 1, 0, paragraph2([]));
+            targetIndex = index2 + 1;
+          } else expected.content.splice(index2, 1, paragraph2([]));
+          offset = 0;
+        } else {
+          a = b = selected2.sourceFrom + at;
+          const marker = node2.type === "orderedList" ? `${Math.min(999999999, node2.attrs.start + i + 1)}${row.marker.trim().at(-1)} ` : row.marker;
+          text5 = nl + marker;
+          items.splice(i, 1, item(inline(selected2.text.slice(0, at))), item(inline(selected2.text.slice(at))));
+          targetItem = i + 1;
+          offset = 0;
+        }
+      } else {
+        if (i === 0 || at !== 0) return reject();
+        const previous3 = node2.content[i - 1].content[0];
+        if (previous3.content.some((n) => n.marks?.length)) return reject();
+        const left = previous3.content.map((n) => n.text).join("");
+        a = block.items[i - 1].sourceTo;
+        b = row.bodyFrom;
+        text5 = "";
+        items.splice(i - 1, 2, item(inline(left + selected2.text)));
+        targetItem = i - 1;
+        offset = left.length;
+      }
+    } else if (list3) {
+      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject();
+      const rows = block.items.map((row) => source.slice(row.bodyFrom, row.sourceTo));
+      if (action === "paragraph" || action === "bullet-list" && node2.type === "bulletList" || action === "ordered-list" && node2.type === "orderedList") {
+        text5 = rows.join(nl + nl);
+        expected.content.splice(index2, 1, ...node2.content.map((n) => paragraph2(n.content[0].content)));
+        targetIndex = index2 + (selected2?.itemIndex ?? 0);
+        offset = selected2 ? from2 - block.items[selected2.itemIndex].from : 0;
+      } else {
+        text5 = rows.map((s, i) => (action === "ordered-list" ? `${i + 1}. ` : "- ") + s).join(nl);
+        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: node2.content };
+        targetItem = selected2?.itemIndex ?? 0;
+        offset = selected2 ? from2 - block.items[targetItem].from : 0;
+      }
+    } else {
+      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject();
+      const raw = source.slice(a, b), prefix = node2.type === "heading" ? raw.match(/^#{1,6}[ \t]+/)?.[0] : "";
+      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject();
+      const body = raw.slice(prefix.length);
+      if (!body || body.trim() !== body) return reject();
+      if (action === "paragraph") {
+        text5 = body;
+        expected.content[index2] = paragraph2(node2.content);
+      } else if (action.startsWith("heading-")) {
+        text5 = "#".repeat(Number(action.at(-1))) + " " + body;
+        expected.content[index2] = { type: "heading", attrs: { level: Number(action.at(-1)) }, content: node2.content };
+      } else {
+        text5 = (action === "ordered-list" ? "1. " : "- ") + body;
+        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: [item(node2.content)] };
+        targetItem = 0;
+      }
+    }
+    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject();
+    const next = source.slice(0, a) + text5 + source.slice(b);
+    if (next.length > 131072) return reject();
+    const projection = projectSource(next);
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject();
+    const target = projection.blocks[targetIndex];
+    if (!target) return reject();
+    const position2 = (targetItem === null ? target.from + 1 : target.items?.[targetItem]?.from) + offset;
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject();
+    return {
+      ok: true,
+      source: next,
+      projection,
+      change: { from: a, to: b, insert: text5 },
+      inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) },
+      selection: { from: action === "bold" ? position2 - (to - from2) : position2, to: position2 }
+    };
+  }
+
   // lib/document-edit-controller.mjs
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
@@ -32486,9 +33178,9 @@ SHA-256: ${last.sha256}` : "";
       to--;
       end--;
     }
-    const splits2 = (text5, n) => /[\uD800-\uDBFF]/.test(text5[n - 1] || "") && /[\uDC00-\uDFFF]/.test(text5[n] || "");
-    if (splits2(before.text, from2) || splits2(after.text, from2)) from2--;
-    if (splits2(before.text, to) || splits2(after.text, end)) {
+    const splits3 = (text5, n) => /[\uD800-\uDBFF]/.test(text5[n - 1] || "") && /[\uDC00-\uDFFF]/.test(text5[n] || "");
+    if (splits3(before.text, from2) || splits3(after.text, from2)) from2--;
+    if (splits3(before.text, to) || splits3(after.text, end)) {
       to++;
       end++;
     }
@@ -32587,17 +33279,17 @@ SHA-256: ${last.sha256}` : "";
       flight = true;
       try {
         while (queue.length && !disposed) {
-          const item = queue[0], revision = confirmed.revision;
+          const item2 = queue[0], revision = confirmed.revision;
           let reply;
           try {
-            reply = await send("edit", { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit });
+            reply = await send("edit", { sessionId: initial.sessionId, expectedRevision: revision, ...item2.edit });
           } catch {
             await reconcile(null, "ipc-failed");
             break;
           }
           if (disposed) break;
-          const next = reply?.snapshot, expected = revision + Number(item.source !== confirmed.source);
-          if (!reply?.ok || !valid(next) || next.source !== item.source || next.revision !== expected) {
+          const next = reply?.snapshot, expected = revision + Number(item2.source !== confirmed.source);
+          if (!reply?.ok || !valid(next) || next.source !== item2.source || next.revision !== expected) {
             await reconcile(reply?.ok ? null : reply, reply?.code || "ack-mismatch");
             break;
           }
@@ -32634,11 +33326,11 @@ SHA-256: ${last.sha256}` : "";
       return true;
     }
     function accept(tr2) {
-      const item = prepared.get(tr2);
+      const item2 = prepared.get(tr2);
       prepared.delete(tr2);
-      if (!item || disposed) return;
-      source = item.source;
-      if (!composition) queue.push(item);
+      if (!item2 || disposed) return;
+      source = item2.source;
+      if (!composition) queue.push(item2);
       code3 = composition ? "composing-local" : "edit-queued";
       notify();
       if (!composition) void pump();
@@ -32711,6 +33403,50 @@ SHA-256: ${last.sha256}` : "";
         code3 = reply.code || operation;
         if (reply.ok) onReset(source, reply.selection);
         return reply.ok;
+      } finally {
+        historyPending = false;
+        notify();
+      }
+    }
+    async function format(command2) {
+      if (disposed || locked || atCapacity() || composition || historyPending || confirmed.readOnly) return false;
+      historyPending = true;
+      const epoch = failures;
+      notify();
+      try {
+        await idle();
+        if (disposed || locked || failures !== epoch || recoveries.length) return false;
+        const mapped = mapFormatEdit(source, command2);
+        if (!mapped.ok) {
+          code3 = mapped.code;
+          return false;
+        }
+        const revision = confirmed.revision;
+        let reply;
+        try {
+          reply = await send("format", { sessionId: initial.sessionId, expectedRevision: revision, ...command2 });
+        } catch {
+          await reconcile(null, "ipc-failed");
+          return false;
+        }
+        if (disposed) return false;
+        if (!reply?.ok) {
+          if (valid(reply?.snapshot) && reply.snapshot.source === confirmed.source && reply.snapshot.revision === revision) {
+            code3 = reply.code;
+            return false;
+          }
+          await reconcile(reply, reply?.code || "ack-mismatch");
+          return false;
+        }
+        if (!valid(reply.snapshot) || reply.snapshot.source !== mapped.source || reply.snapshot.revision !== revision + Number(mapped.source !== source)) {
+          await reconcile(null, "ack-mismatch");
+          return false;
+        }
+        confirmed = structuredClone(reply.snapshot);
+        source = confirmed.source;
+        code3 = "formatted";
+        onReset(source, mapped.selection);
+        return true;
       } finally {
         historyPending = false;
         notify();
@@ -32796,6 +33532,7 @@ SHA-256: ${last.sha256}` : "";
       beginComposition,
       endComposition: endComposition2,
       history: history3,
+      format,
       reload,
       refresh,
       idle,
@@ -32813,28 +33550,28 @@ SHA-256: ${last.sha256}` : "";
   // lib/document-plain-paste.mjs
   function pastePlainText(view, event, { state, blocked = false, report }) {
     event.preventDefault();
-    const reject = (message) => {
+    const reject2 = (message) => {
       report(message, true);
       return true;
     };
     if (!state || blocked || !view.editable || state.confirmed.readOnly || state.locked || state.historyPending || state.pending || state.source !== state.confirmed.source) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (view.composing || state.composing || state.compositionInvalid) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     let text5;
     try {
       const data = event.clipboardData;
       if (!data || data.files?.length || !Array.from(data.types || []).includes("text/plain")) {
-        return reject("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u3002\u56FE\u7247\u548C\u6587\u4EF6\u6682\u4E0D\u652F\u6301\u3002");
+        return reject2("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u3002\u56FE\u7247\u548C\u6587\u4EF6\u6682\u4E0D\u652F\u6301\u3002");
       }
       text5 = data.getData("text/plain");
     } catch {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x09\x0b\x0c\x0e-\x1f\x7f\u2028\u2029]/u.test(text5)) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
     }
     if (!text5) return true;
     let tr2;
@@ -32843,7 +33580,7 @@ SHA-256: ${last.sha256}` : "";
       const lines = normalized.split(/\n\n?/);
       const canonical = lines.join("\n\n");
       if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical.length > 4096) {
-        return reject("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+        return reject2("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
       }
       const schema = view.state.schema;
       const slice2 = new Slice(Fragment.fromArray(lines.map((line) => schema.nodes.paragraph.create(null, schema.text(line)))), 1, 1);
@@ -32851,15 +33588,206 @@ SHA-256: ${last.sha256}` : "";
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u5355\u884C\u53EF\u5728\u5B89\u5168\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF0C\u591A\u6BB5\u8BF7\u5728\u5355\u4E2A\u666E\u901A\u6BB5\u843D\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u5355\u884C\u53EF\u5728\u5B89\u5168\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF0C\u591A\u6BB5\u8BF7\u5728\u5355\u4E2A\u666E\u901A\u6BB5\u843D\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     return true;
+  }
+
+  // lib/document-writing-shell.mjs
+  function createWritingShell({ byId: byId2, context, refreshDrafts = () => {
+  }, reading = null }) {
+    let enabled = false, previousSession = null;
+    const metadata = /* @__PURE__ */ new Map(), rows = /* @__PURE__ */ new Map();
+    const blocked = () => {
+      const { loading: loading2, state: s } = context();
+      return loading2 || s?.pending > 0 || s?.historyPending || s?.composing || s?.compositionInvalid;
+    };
+    const media = globalThis.matchMedia?.("(max-width: 760px)");
+    function sidebar(open) {
+      byId2("writing-app").dataset.sidebar = open ? "open" : "closed";
+      byId2("toggle-session-sidebar").setAttribute("aria-expanded", String(open));
+      byId2("sidebar-scrim").hidden = !open || !media?.matches;
+      byId2("document-sidebar").inert = !open;
+    }
+    for (const id of ["toggle-session-sidebar", "close-session-sidebar", "sidebar-scrim"]) {
+      byId2(id).onpointerdown = (event) => {
+        if (blocked()) event.preventDefault();
+      };
+      byId2(id).onclick = () => {
+        if (!enabled || blocked()) return;
+        const open = id === "toggle-session-sidebar" && byId2("writing-app").dataset.sidebar !== "open";
+        sidebar(open);
+        if (!open) byId2("toggle-session-sidebar").focus();
+      };
+    }
+    byId2("document-sidebar").addEventListener("pointerdown", (event) => {
+      if (blocked()) event.preventDefault();
+    });
+    byId2("session-filter").oninput = () => syncNavigation();
+    byId2("empty-new").onclick = () => {
+      if (enabled && !blocked()) byId2("new-temporary").click();
+    };
+    const panels = [["show-drafts", "draft-dialog"], ["show-details", "document-details-dialog"]];
+    for (const [buttonId, dialogId] of panels) {
+      const button = byId2(buttonId), dialog = byId2(dialogId);
+      button.onpointerdown = (event) => {
+        if (blocked()) event.preventDefault();
+      };
+      button.onclick = () => {
+        if (!enabled || blocked() || button.disabled) return;
+        byId2("document-info").open = false;
+        dialog.showModal();
+        button.setAttribute("aria-expanded", "true");
+        if (buttonId === "show-drafts") void refreshDrafts();
+      };
+      const close2 = () => {
+        if (dialogId === "draft-dialog") {
+          if (byId2("cancel-draft-management").disabled) return;
+          byId2("cancel-draft-management").click();
+        }
+        dialog.close();
+      };
+      byId2("close-" + dialogId).onclick = close2;
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        close2();
+      });
+      dialog.addEventListener("close", () => button.setAttribute("aria-expanded", "false"));
+    }
+    const confirmation = byId2("copy-confirm-dialog");
+    confirmation.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      if (!byId2("cancel-test-copy").disabled) byId2("cancel-test-copy").click();
+    });
+    const info = byId2("document-info"), doc3 = info.ownerDocument, title = info.querySelector("summary");
+    const canDismissTitle = () => enabled && info.open && !blocked() && !doc3.querySelector("dialog[open]");
+    doc3.addEventListener("pointerdown", (event) => {
+      if (!event.defaultPrevented && canDismissTitle() && !info.contains(event.target)) info.open = false;
+    }, true);
+    doc3.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229 || !canDismissTitle()) return;
+      const returnFocus = info.contains(doc3.activeElement);
+      event.preventDefault();
+      event.stopPropagation();
+      info.open = false;
+      if (returnFocus) title.focus();
+    }, true);
+    title.addEventListener("pointerdown", (event) => {
+      if (blocked()) event.preventDefault();
+    });
+    title.addEventListener("click", (event) => {
+      if (blocked()) event.preventDefault();
+    });
+    function closePanels() {
+      reading?.close();
+      for (const [, id] of panels) if (byId2(id).open) byId2(id).close();
+      byId2("document-info").open = false;
+      if (media?.matches) sidebar(false);
+    }
+    function navigate(id) {
+      const select = byId2("documents"), c = context();
+      if (!enabled || blocked() || select.disabled || c.unavailable?.(id) || ![...select.options].some((o) => o.value === id) || id === c.state?.confirmed?.sessionId) return;
+      select.value = id;
+      return select.onchange?.();
+    }
+    function syncNavigation() {
+      if (!enabled) return;
+      const c = context(), confirmed = c.state?.confirmed, select = byId2("documents");
+      if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly });
+      const options = [...select.options], ids = new Set(options.map((o) => o.value));
+      for (const [id, row] of rows) if (!ids.has(id)) {
+        row.button.remove();
+        rows.delete(id);
+        metadata.delete(id);
+      }
+      const list3 = byId2("session-list"), doc4 = list3.ownerDocument;
+      for (const option of options) {
+        const id = option.value;
+        if (!rows.has(id)) {
+          const button2 = doc4.createElement("button"), label2 = doc4.createElement("strong"), detail2 = doc4.createElement("small");
+          button2.type = "button";
+          button2.className = "session-row";
+          button2.dataset.sessionId = id;
+          button2.append(label2, detail2);
+          button2.onclick = () => navigate(id);
+          button2.onpointerdown = (event) => {
+            if (blocked()) event.preventDefault();
+          };
+          rows.set(id, { button: button2, label: label2, detail: detail2 });
+          list3.append(button2);
+        }
+        const { button, label, detail } = rows.get(id), m = metadata.get(id);
+        label.textContent = option.textContent;
+        button.title = option.textContent;
+        button.setAttribute("aria-current", String(id === confirmed?.sessionId));
+        button.disabled = !!(blocked() || select.disabled || c.unavailable?.(id));
+        detail.textContent = c.unavailable?.(id) ? "\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528" : c.pendingSession === id ? "\u6B63\u5728\u5207\u6362\u2026" : m?.temporary ? "\u72EC\u7ACB\u8349\u7A3F" : m?.readOnly ? "\u539F\u6587\u53EA\u8BFB" : "\u5DF2\u6253\u5F00\u6587\u6863";
+        button.hidden = !option.textContent.toLocaleLowerCase().includes(byId2("session-filter").value.trim().toLocaleLowerCase());
+      }
+      byId2("session-count").textContent = String(options.length);
+      byId2("session-empty").hidden = [...rows.values()].some((r) => !r.button.hidden);
+      byId2("session-empty").textContent = options.length ? "\u6CA1\u6709\u5339\u914D\u7684\u5DF2\u6253\u5F00\u6587\u6863\u3002" : "\u6253\u5F00\u4E00\u4EFD\u6587\u6863\uFF0C\u6216\u4ECE\u65B0\u7684\u8349\u7A3F\u5F00\u59CB\u3002";
+    }
+    function sync() {
+      if (!enabled) return;
+      const s = context().state, current = s?.confirmed;
+      byId2("writing-status").hidden = !s;
+      byId2("show-drafts").disabled = !!blocked() || byId2("draft-recovery-panel").hidden;
+      byId2("show-details").disabled = !!blocked() || !s;
+      byId2("empty-new").disabled = !!blocked() || byId2("new-temporary").disabled;
+      for (const id of ["toggle-session-sidebar", "close-session-sidebar", "session-filter", "sidebar-scrim"]) byId2(id).disabled = !!blocked();
+      byId2("reading-mode").hidden = !current?.readOnly;
+      byId2("document-statistics").textContent = current ? current.source.replace(/\s/gu, "").length.toLocaleString() + " \u5B57\u7B26 \xB7 Markdown" : "Markdown";
+      if (current?.sessionId !== previousSession) {
+        byId2("document-scroll").scrollTop = 0;
+        byId2("session-filter").value = "";
+        previousSession = current?.sessionId;
+      }
+      byId2("details-document-name").textContent = current?.label || "\u672A\u6253\u5F00\u6587\u6863";
+      byId2("details-document-kind").textContent = current?.temporary ? "\u72EC\u7ACB\u8349\u7A3F \xB7 \u672A\u5B58\u4E3A\u6587\u4EF6" : "\u539F\u6587\u4EF6 \xB7 \u53EA\u8BFB";
+      byId2("details-document-location").textContent = current?.temporary ? "\u6B63\u6587\u4FDD\u5B58\u5728\u5F53\u524D\u7F16\u8F91\u4F1A\u8BDD\u4E2D\uFF0C\u539F\u6587\u4EF6\u4E0D\u4F1A\u88AB\u6539\u5199\u3002" : current?.location || "";
+      byId2("details-document-revision").textContent = String(current?.revision ?? "\u2014");
+      byId2("details-document-count").textContent = current ? current.source.replace(/\s/gu, "").length.toLocaleString() : "\u2014";
+      byId2("details-backup-card").hidden = !current?.temporary;
+      syncNavigation();
+      reading?.sync();
+      if (!byId2("test-copy-confirmation").hidden) {
+        if (!confirmation.open) {
+          closePanels();
+          confirmation.showModal();
+        }
+      } else if (confirmation.open) confirmation.close();
+    }
+    return { sync, closePanels, configure() {
+      enabled = true;
+      byId2("writing-app").hidden = false;
+      byId2("sidebar-actions").append(byId2("new-temporary"), byId2("open-file"));
+      byId2("sidebar-bottom").append(byId2("show-drafts"));
+      byId2("header-start").append(byId2("document-info"));
+      byId2("header-end").prepend(byId2("writing-actions"));
+      byId2("writing-workspace").prepend(byId2("document-header"));
+      byId2("writing-toolbar").prepend(byId2("format-toolbar"));
+      byId2("document-scroll").append(byId2("copy-summary-compact"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
+      byId2("writing-footer").prepend(byId2("writing-status"));
+      byId2("document-switcher").append(byId2("documents"));
+      byId2("draft-dialog-content").append(byId2("draft-recovery-panel"));
+      byId2("draft-recovery-panel").open = true;
+      byId2("details-writing-help").append(byId2("temporary-notice"));
+      byId2("details-backup-content").append(byId2("draft-backup-status"));
+      byId2("document-details-content").append(byId2("test-copy-panel"));
+      confirmation.append(byId2("test-copy-confirmation"));
+      for (const id of ["composition-status", "composition-warning", "composition-copy-panel", "recovery-panel"]) byId2("input-alerts").append(byId2(id));
+      sidebar(!media?.matches);
+      media?.addEventListener("change", () => sidebar(!media.matches));
+      reading?.configure();
+      sync();
+    } };
   }
 
   // lib/document-draft-view.mjs
   function createDraftView({ api: api2, byId: byId2, context, restore }) {
     const receipts = /* @__PURE__ */ new Map();
-    let enabled = false;
+    let enabled = false, busy = false, refreshSequence = 0, selection = null;
     function remember(sessionId, backup) {
       if (!backup || !Number.isSafeInteger(backup.sequence)) return;
       const old = receipts.get(sessionId);
@@ -32868,58 +33796,164 @@ SHA-256: ${last.sha256}` : "";
     function render3(s) {
       const node2 = byId2("draft-backup-status");
       node2.hidden = !enabled || !s?.confirmed.temporary;
-      if (node2.hidden) return;
+      const summary = byId2("backup-summary");
+      summary.hidden = node2.hidden;
+      if (node2.hidden) {
+        summary.hidden = !s?.confirmed.temporary;
+        summary.textContent = "\u672C\u5730\u5907\u4EFD\u4E0D\u53EF\u7528 \xB7 \u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u4FDD\u7559\u5185\u5BB9";
+        summary.dataset.tone = "error";
+        return;
+      }
       remember(s.confirmed.sessionId, s.confirmed.draftBackup);
       const r = receipts.get(s.confirmed.sessionId), last = r?.revision == null ? "\u5C1A\u65E0\u5DF2\u786E\u8BA4\u5907\u4EFD" : `\u6700\u540E\u5DF2\u5907\u4EFD\u4FEE\u8BA2 ${r.revision}`;
       const unsettled = s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords?.length || s.locked || s.source !== s.confirmed.source || context().invalid;
-      node2.textContent = r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u8FD9\u4E0D\u662F Markdown \u6587\u4EF6\u4FDD\u5B58\uFF0C\u5F53\u524D\u4ECD\u4E3A Not saved\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
+      node2.textContent = r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u5907\u4EFD\u7528\u4E8E\u6062\u590D\u8349\u7A3F\uFF1B\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
+      if (r?.code === "draft-capacity") node2.textContent += " \u5F85\u6062\u590D\u8349\u7A3F\u5DF2\u6EE1\uFF0C\u8BF7\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\uFF1B\u4E0B\u6B21\u786E\u8BA4\u7F16\u8F91\u65F6\u4F1A\u518D\u6B21\u5C1D\u8BD5\u5907\u4EFD\u3002";
+      if (r?.code === "draft-record-capacity") node2.textContent += " \u672C\u5730\u8BB0\u5F55\u5DF2\u8FBE\u4E0A\u9650\uFF1B\u5F52\u6863\u4E0D\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF0C\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
       if (unsettled) node2.textContent += " \u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u5305\u542B\u5728\u5907\u4EFD\u4FDD\u8BC1\u4E2D\u3002";
       node2.dataset.tone = ["backup-failed", "draft-unverified"].includes(r?.state) ? "error" : "";
+      summary.dataset.tone = node2.dataset.tone;
+      summary.textContent = node2.dataset.tone === "error" ? "\u672C\u5730\u5907\u4EFD\u672A\u786E\u8BA4 \xB7 \u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\uFF0C\u8BE6\u60C5\u4E2D\u53EF\u67E5\u770B\u539F\u56E0" : s.composing && !s.compositionInvalid ? "\u8F93\u5165\u4E2D\u2026" : unsettled ? "\u6B63\u5728\u786E\u8BA4\u4FEE\u6539\u2026" : r?.state === "backed-up" && r.revision === s.confirmed.revision ? "\u5DF2\u5907\u4EFD" : r?.state === "backup-pending" ? "\u6B63\u5728\u5907\u4EFD\u2026" : "\u5C1A\u672A\u5907\u4EFD";
     }
-    async function refresh() {
-      if (!enabled) return;
-      const panel = byId2("draft-recovery-list"), status = byId2("draft-recovery-status");
-      try {
-        const result = await api2.listDrafts();
-        if (!result.ok) {
-          status.textContent = `\u65E0\u6CD5\u8BFB\u53D6\u672C\u5730\u8349\u7A3F\uFF1A${result.code}\u3002\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\u3002`;
-          return;
-        }
-        panel.replaceChildren();
-        status.textContent = result.drafts.length ? `\u53D1\u73B0 ${result.drafts.length} \u4EFD\u8349\u7A3F\u3002\u4EC5\u6062\u590D\u6700\u8FD1\u53EF\u9A8C\u8BC1\u7684\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002` : "\u6CA1\u6709\u53EF\u6062\u590D\u7684\u672C\u5730\u8349\u7A3F\u3002";
-        for (const d of result.drafts) {
-          const row = document.createElement("p"), button = document.createElement("button"), label = document.createElement("span");
-          label.textContent = `${d.label}${d.recoverable ? " \xB7 \u4FEE\u8BA2 " + d.revision : ""}${d.warning ? " \xB7 \u8F83\u65B0\u8BB0\u5F55\u635F\u574F\u6216\u672A\u786E\u8BA4\uFF0C\u53EF\u80FD\u53EA\u80FD\u6062\u590D\u8F83\u65E9\u5185\u5BB9" : ""} `;
-          button.textContent = d.active ? "\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00" : "\u6062\u590D\u526F\u672C";
-          button.disabled = d.active || !d.recoverable;
-          button.onclick = async () => {
-            const c = context(), s = c.state;
-            if (c.loading || s?.pending || s?.historyPending || s?.composing) {
-              status.textContent = "\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\uFF0C\u518D\u6062\u590D\u8349\u7A3F\u3002";
+    const blocked = () => {
+      const c = context(), s = c.state;
+      return c.loading || s?.pending || s?.historyPending || s?.composing;
+    };
+    function cancel() {
+      selection = null;
+      byId2("draft-management-confirmation").hidden = true;
+    }
+    function choose(d, action) {
+      if (busy || blocked()) {
+        byId2("draft-operation-status").textContent = "\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u3002";
+        return;
+      }
+      selection = { draftId: d.id, action, expectedToken: d.manageToken };
+      byId2("draft-management-description").textContent = `${action === "archive" ? "\u5F52\u6863" : "\u653E\u56DE"}\u201C${d.label}\u201D\uFF08${d.id.slice(0, 8)} \xB7 \u4FEE\u8BA2 ${d.revision}\uFF09\uFF1F` + (action === "archive" ? "\u5C06\u79FB\u51FA\u5F85\u6062\u590D\u5217\u8868\uFF0C\u5185\u5BB9\u4ECD\u7559\u5728\u672C\u673A\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002\u4E0D\u4F1A\u5220\u9664 Markdown \u6587\u4EF6\u3002" : "\u5C06\u91CD\u65B0\u5360\u7528\u4E00\u4EFD\u5F85\u6062\u590D\u8349\u7A3F\u540D\u989D\uFF1B\u4E0D\u4F1A\u6253\u5F00\u6587\u6863\u6216\u6539\u5199\u4EFB\u4F55 Markdown \u6587\u4EF6\u3002");
+      byId2("confirm-draft-management").textContent = action === "archive" ? "\u786E\u8BA4\u5F52\u6863" : "\u786E\u8BA4\u653E\u56DE";
+      byId2("draft-management-confirmation").hidden = false;
+    }
+    function addRows(panel, drafts2, archived) {
+      for (const d of drafts2) {
+        const row = document.createElement("p"), label = document.createElement("span"), meta = document.createElement("span");
+        row.dataset.draftId = d.id;
+        row.className = "draft-card";
+        label.className = "draft-card-title";
+        label.textContent = d.label;
+        const badge = document.createElement("span"), actions2 = document.createElement("span");
+        badge.className = "state-pill";
+        badge.dataset.tone = d.warning ? "error" : "neutral";
+        badge.textContent = d.warning ? "\u9700\u8981\u68C0\u67E5" : d.active ? "\u6B63\u5728\u4F7F\u7528" : archived ? "\u5DF2\u5F52\u6863" : d.recoverable ? "\u53EF\u6062\u590D" : "\u65E0\u6CD5\u6062\u590D";
+        actions2.className = "draft-actions";
+        meta.className = "draft-detail";
+        meta.textContent = `${d.time ? new Date(d.time).toLocaleString() : "\u5907\u4EFD\u65F6\u95F4\u672A\u77E5"} \xB7 ${d.id.slice(0, 8)}` + (Number.isSafeInteger(d.revision) ? ` \xB7 \u4FEE\u8BA2 ${d.revision}` : "") + (d.warning ? " \xB7 \u8F83\u65B0\u8BB0\u5F55\u635F\u574F\u6216\u672A\u786E\u8BA4\uFF0C\u6216\u5B58\u5728\u5F02\u5E38\u65E7\u8BB0\u5F55\uFF1B\u4FDD\u7559\u539F\u8BB0\u5F55\uFF0C\u6682\u505C\u6574\u7406" : "") + (d.active ? " \xB7 \u4F7F\u7528\u4E2D\uFF0C\u5173\u95ED\u7A97\u53E3\u540E\u53EF\u5F52\u6863" : "");
+        row.append(label, badge, meta);
+        if (!archived) {
+          const restoreButton = document.createElement("button");
+          restoreButton.textContent = d.active ? "\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00" : "\u6062\u590D\u526F\u672C";
+          restoreButton.disabled = d.active || !d.recoverable;
+          restoreButton.onclick = async () => {
+            if (busy || blocked()) {
+              byId2("draft-operation-status").textContent = "\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\uFF0C\u518D\u6062\u590D\u8349\u7A3F\u3002";
               return;
             }
-            button.disabled = true;
-            await restore(d.id);
-            await refresh();
+            busy = true;
+            cancel();
+            restoreButton.disabled = true;
+            try {
+              await restore(d.id);
+            } finally {
+              busy = false;
+              await refresh();
+            }
           };
-          row.append(label, button);
-          panel.append(row);
+          restoreButton.className = "primary-action";
+          actions2.append(restoreButton);
         }
-      } catch {
-        status.textContent = "\u8349\u7A3F\u8BFB\u53D6\u901A\u4FE1\u5931\u8D25\uFF0C\u5F53\u524D\u5185\u5BB9\u4E0E\u78C1\u76D8\u8BB0\u5F55\u4FDD\u7559\u3002";
+        const manage = document.createElement("button");
+        manage.textContent = archived ? "\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868" : "\u5F52\u6863";
+        manage.disabled = d.active || !d.manageToken;
+        manage.onclick = () => choose(d, archived ? "unarchive" : "archive");
+        actions2.append(manage);
+        row.append(actions2);
+        panel.append(row);
       }
     }
+    async function refresh() {
+      if (!enabled || busy) return;
+      const sequence = ++refreshSequence, status = byId2("draft-recovery-status");
+      byId2("draft-empty").hidden = true;
+      status.textContent = "\u6B63\u5728\u8BFB\u53D6\u672C\u5730\u8349\u7A3F\u2026";
+      status.dataset.tone = "neutral";
+      try {
+        const result = await api2.listDrafts();
+        if (sequence !== refreshSequence || busy) return;
+        cancel();
+        const panel = byId2("draft-recovery-list"), archive = byId2("draft-archive-list");
+        panel.replaceChildren();
+        archive.replaceChildren();
+        if (!result.ok) {
+          status.dataset.tone = "error";
+          status.textContent = `\u65E0\u6CD5\u8BFB\u53D6\u672C\u5730\u8349\u7A3F\uFF1A${result.code}\u3002\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\uFF0C\u6682\u505C\u6574\u7406\u3002`;
+          return;
+        }
+        const c = result.capacity;
+        byId2("draft-empty").hidden = result.drafts.length > 0;
+        status.textContent = `\u5F85\u6062\u590D ${result.drafts.length} / ${c?.limit ?? 32} \u4EFD\uFF0C\u5DF2\u5F52\u6863 ${result.archived?.length ?? 0} \u4EFD\u3002` + (c ? ` \u672C\u5730\u8BB0\u5F55 ${c.records} / ${c.maxRecords}\u3002` : "") + (c?.records >= c?.maxRecords ? " \u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u5F52\u6863\u4E0D\u80FD\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF1B\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : c?.active >= c?.limit ? " \u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u53EF\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\u3002" : "") + " \u4EC5\u6062\u590D\u5DF2\u786E\u8BA4\u6B63\u6587\uFF0C\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002";
+        addRows(panel, result.drafts, false);
+        addRows(archive, result.archived || [], true);
+        byId2("draft-archive-empty").hidden = !!result.archived?.length;
+      } catch {
+        if (sequence !== refreshSequence) return;
+        cancel();
+        byId2("draft-recovery-list").replaceChildren();
+        byId2("draft-archive-list").replaceChildren();
+        byId2("draft-empty").hidden = true;
+        status.dataset.tone = "error";
+        status.textContent = "\u8349\u7A3F\u8BFB\u53D6\u901A\u4FE1\u5931\u8D25\uFF0C\u5F53\u524D\u5185\u5BB9\u4E0E\u78C1\u76D8\u8BB0\u5F55\u4FDD\u7559\uFF0C\u6682\u505C\u6574\u7406\u3002";
+      }
+    }
+    byId2("cancel-draft-management").onclick = () => {
+      if (!busy) cancel();
+    };
+    byId2("confirm-draft-management").onclick = async () => {
+      if (!selection || busy) return;
+      const output = byId2("draft-operation-status");
+      if (blocked()) {
+        output.textContent = "\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u3002";
+        return;
+      }
+      const request = selection;
+      busy = true;
+      ++refreshSequence;
+      output.dataset.tone = "neutral";
+      output.textContent = "\u6B63\u5728\u6574\u7406\uFF0C\u8BF7\u7A0D\u5019\u2026";
+      for (const id of ["refresh-drafts", "confirm-draft-management", "cancel-draft-management", "close-draft-dialog"]) byId2(id).disabled = true;
+      try {
+        const r = await api2.manageDraft(request);
+        output.dataset.tone = r.ok ? "success" : "error";
+        output.textContent = r.ok ? request.action === "archive" ? "\u5DF2\u5F52\u6863\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002" : "\u5DF2\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868\u3002" : `\u8349\u7A3F\u6574\u7406\u672A\u786E\u8BA4\uFF1A${r.code}\u3002` + (r.state === "draft-unverified" || ["draft-operation-unknown", "ipc-outcome-unknown"].includes(r.code) ? "\u7ED3\u679C\u53EF\u80FD\u5DF2\u53D1\u751F\u53D8\u5316\uFF0C\u8BB0\u5F55\u4FDD\u7559\uFF1B\u8BF7\u5237\u65B0\u6838\u5BF9\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002" : r.code === "draft-capacity" ? "\u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u8BF7\u5148\u5F52\u6863\u5176\u4ED6\u95F2\u7F6E\u8349\u7A3F\u3002" : r.code === "draft-record-capacity" ? "\u672C\u5730\u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u5F52\u6863\u4E0D\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF1B\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "\u8BF7\u5237\u65B0\u5217\u8868\u6838\u5BF9\uFF1B\u5F53\u524D\u5199\u4F5C\u4FDD\u7559\u3002");
+      } catch {
+        output.dataset.tone = "error";
+        output.textContent = "\u8349\u7A3F\u6574\u7406\u901A\u4FE1\u4E2D\u65AD\uFF0C\u7ED3\u679C\u672A\u77E5\u3002\u8BB0\u5F55\u4FDD\u7559\uFF0C\u8BF7\u5237\u65B0\u6838\u5BF9\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002";
+      } finally {
+        busy = false;
+        cancel();
+        for (const id of ["refresh-drafts", "confirm-draft-management", "cancel-draft-management", "close-draft-dialog"]) byId2(id).disabled = false;
+        await refresh();
+      }
+    };
     api2.onDraftStatus(({ sessionId, backup }) => {
       remember(sessionId, backup);
       render3(context().state);
     });
     byId2("refresh-drafts").onclick = refresh;
-    return { render: render3, configure(data) {
+    return { render: render3, refresh, configure(data) {
       enabled = data.draftsEnabled === true;
       byId2("draft-recovery-panel").hidden = !(enabled || data.draftError);
       if (data.draftError) byId2("draft-recovery-status").textContent = "\u672C\u5730\u8349\u7A3F\u4E0D\u53EF\u7528\uFF0C\u5F53\u524D\u5199\u4F5C\u4ECD\u4EC5\u5728\u5185\u5B58\u4E2D\u3002\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
       if (enabled) {
-        byId2("temporary-notice").textContent = "Not saved \u2014 \u5DF2\u786E\u8BA4\u6B63\u6587\u4F1A\u5907\u4EFD\u5230\u672C\u673A\u5E94\u7528\u79C1\u6709\u76EE\u5F55\u3002\u8BF7\u67E5\u770B\u4E0B\u65B9\u5907\u4EFD\u72B6\u6001\uFF1B\u5C1A\u672A\u786E\u8BA4\u7684\u8F93\u5165\u3001Undo \u5386\u53F2\u4E0E\u8F93\u5165\u6062\u590D\u8BB0\u5F55\u4E0D\u4FDD\u8BC1\u8DE8\u9000\u51FA\u4FDD\u7559\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u624D\u4F1A\u751F\u6210 Markdown \u6587\u4EF6\uFF0C\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u66F4\u65B0\u5B83\u3002\u652F\u6301\u6700\u591A 32 \u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\u3002";
+        byId2("temporary-notice").textContent = "\u672A\u5B58\u4E3A\u6587\u4EF6 \u2014 \u5DF2\u786E\u8BA4\u6B63\u6587\u4F1A\u5907\u4EFD\u5230\u672C\u673A\u5E94\u7528\u79C1\u6709\u76EE\u5F55\u3002\u8BF7\u67E5\u770B\u5907\u4EFD\u72B6\u6001\uFF1B\u5C1A\u672A\u786E\u8BA4\u7684\u8F93\u5165\u3001Undo \u5386\u53F2\u4E0E\u8F93\u5165\u6062\u590D\u8BB0\u5F55\u4E0D\u4FDD\u8BC1\u8DE8\u9000\u51FA\u4FDD\u7559\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u624D\u4F1A\u751F\u6210 Markdown \u6587\u4EF6\uFF0C\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u66F4\u65B0\u5B83\u3002\u652F\u6301\u6700\u591A 32 \u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\u3002";
         void refresh();
       }
     } };
@@ -32935,8 +33969,8 @@ SHA-256: ${last.sha256}` : "";
       const at = view.posAtDOM(dom.anchorNode, dom.anchorOffset), pos = view.state.doc.resolve(at);
       if (pos.parent.type.name !== "paragraph" || pos.parentOffset !== 0 || current.$from.start() !== pos.start() || current.from === at) return false;
       const element2 = dom.anchorNode.nodeType === 3 ? dom.anchorNode.parentElement : dom.anchorNode;
-      const paragraph2 = element2.closest("p");
-      if (!paragraph2 || view.nodeDOM(pos.before()) !== paragraph2 || paragraph2.textContent !== pos.parent.textContent) return false;
+      const paragraph3 = element2.closest("p");
+      if (!paragraph3 || view.nodeDOM(pos.before()) !== paragraph3 || paragraph3.textContent !== pos.parent.textContent) return false;
       next = TextSelection.create(view.state.doc, at);
     } catch {
       return false;
@@ -32960,15 +33994,19 @@ SHA-256: ${last.sha256}` : "";
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  var formatView = createFormatView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
+  var readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+  var writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id) => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
+  var findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id) => openDocument(true, false, id) });
   function persistentCopyNote(receipt) {
     if (receipt?.ok === true && receipt.state === "created-confirmed" && receipt.created === true && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
-      return `Confirmed copy: revision ${receipt.revision}. Later edits are not included; this temporary document remains Not saved.`;
+      return `\u5DF2\u786E\u8BA4\u6587\u4EF6\u526F\u672C\uFF1A\u4FEE\u8BA2 ${receipt.revision}\u3002\u4E0D\u5305\u542B\u540E\u7EED\u7F16\u8F91\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002`;
     }
     if (receipt && receipt.created !== false && receipt.state !== "not-created") {
-      return "Copy result is unconfirmed; a file may exist. This temporary document remains Not saved.";
+      return "\u521B\u5EFA\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u5B58\u5728\u3002\u5F53\u524D\u8349\u7A3F\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u52FF\u91CD\u590D\u521B\u5EFA\u3002";
     }
-    return "No confirmed copy receipt. This temporary document remains Not saved.";
+    return "\u5C1A\u65E0\u5DF2\u786E\u8BA4\u7684\u6587\u4EF6\u526F\u672C\u3002\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002";
   }
   var readOnlyWindow = false;
   var readOnlyDocument = () => controller?.state().confirmed.readOnly === true || readOnlyWindow && controller?.state().confirmed.temporary !== true;
@@ -33092,22 +34130,25 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("edit-copy").disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
       byId("document-name").textContent = current.label;
       byId("document-full-name").textContent = current.label;
-      byId("document-location").textContent = temporary ? "Independent writing \u2014 no linked saved file" : current.location;
+      byId("document-location").textContent = temporary ? "\u72EC\u7ACB\u7F16\u8F91\u526F\u672C \xB7 \u4E0D\u4F1A\u5199\u56DE\u539F\u6587\u4EF6" : current.location;
       byId("document-info").querySelector("summary").title = current.label;
-      byId("readonly-badge").textContent = temporary ? "Not saved" : "Read-only";
-      byId("readonly-badge").title = temporary ? "Not saved to a Markdown file. Check the separate local draft backup status." : "Original file is read-only. Edit a copy to work in a separate unsaved document.";
-      byId("document-info-note").textContent = temporary ? current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "Read-only preview. Some Markdown formatting is shown as plain text.";
+      byId("readonly-badge").textContent = temporary ? "\u672C\u5730\u8349\u7A3F" : "\u539F\u6587\u53EA\u8BFB";
+      byId("readonly-badge").title = temporary ? "\u672C\u5730\u5907\u4EFD\u4E0E\u53E6\u5B58\u6587\u4EF6\u662F\u4E0D\u540C\u72B6\u6001\uFF0C\u8BF7\u67E5\u770B\u65C1\u8FB9\u7684\u5907\u4EFD\u63D0\u793A\u3002" : "\u539F\u6587\u4EF6\u53EA\u8BFB\uFF0C\u7F16\u8F91\u526F\u672C\u4E0D\u4F1A\u6539\u5199\u539F\u6587\u4EF6\u3002";
+      byId("document-info-note").textContent = temporary ? current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "\u539F\u6587\u4EF6\u53EA\u8BFB\u3002\u6682\u4E0D\u652F\u6301\u7684 Markdown \u683C\u5F0F\u6309\u539F\u6587\u663E\u793A\u3002";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
-      document.title = current.label + (temporary ? " \u2014 Not saved" : " \u2014 Read-only");
+      document.title = current.label + (temporary ? " \u2014 \u8349\u7A3F" : " \u2014 \u539F\u6587\u53EA\u8BFB");
       if (navigationError || activeInvalid() || s.locked) viewerStatus("Editing unavailable: " + (navigationError || lifecycleCode(selected) || s.code) + ". Retained input copies remain in this window.", true);
-      else if (s.code === "unsafe-source-range") viewerStatus("Edit not applied. Change text within one supported source line; source line breaks and unsupported Markdown are protected.", true);
-      else if (s.code === "memory-edited") viewerStatus("Changes are in this unsaved copy. Existing files have not been modified.");
+      else if (["unsafe-source-range", "unsafe-format-range"].includes(s.code)) viewerStatus("\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u4FEE\u6539\uFF0C\u539F\u6709\u5185\u5BB9\u5DF2\u4FDD\u7559\u3002\u8BF7\u5728\u53D7\u652F\u6301\u7684\u6BB5\u843D\u3001\u6807\u9898\u6216\u5355\u5C42\u5217\u8868\u5185\u7F16\u8F91\uFF1B\u590D\u6742 Markdown \u5757\u4FDD\u6301\u53EA\u8BFB\u3002", true);
+      else if (s.code === "memory-edited") viewerStatus("\u4FEE\u6539\u4FDD\u7559\u5728\u5F53\u524D\u8349\u7A3F\u4E2D\uFF0C\u539F\u6587\u4EF6\u672A\u6539\u5199\u3002");
     }
-    byId("composition-status").hidden = !s.composing;
+    byId("composition-status").hidden = !s.composing || readOnlyWindow;
     draftView.render(s);
     testCopyView.render(s);
     renderCompositionCopies(s);
+    writingShell.sync();
+    formatView.sync();
+    findView.sync();
     show();
   }
   function resetSource(source, selection) {
@@ -33136,7 +34177,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       if (node2.type.name === "codeBlock") decorations.push(Decoration.node(
         pos,
         pos + node2.nodeSize,
-        { contenteditable: "false", "aria-readonly": "true", title: "Read-only Markdown block. Edit a supported ordinary paragraph instead." }
+        { contenteditable: "false", "aria-readonly": "true", title: "\u6B64 Markdown \u5757\u6682\u4E0D\u652F\u6301\u7F16\u8F91\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002" }
       ));
     });
     return DecorationSet.create(state.doc, decorations);
@@ -33169,7 +34210,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     });
     if (!editor) {
       const gate = Extension.create({ name: "verifiedSourceRange", addProseMirrorPlugins() {
-        return [new Plugin({ props: { decorations: protectOpaqueBlocks }, filterTransaction(tr2) {
+        return [createFindPlugin(), new Plugin({ props: { decorations: protectOpaqueBlocks }, filterTransaction(tr2) {
           if (!resetting && tr2.docChanged && (activeInvalid() || loading || readOnlyDocument())) {
             show(readOnlyDocument() ? "read-only-document" : activeInvalid() ? "session-invalidated" : "document-loading");
             return false;
@@ -33194,8 +34235,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         enableInputRules: false,
         enablePasteRules: false,
         extensions: [src_default.configure({ undoRedo: false, trailingNode: false }), gate],
-        editorProps: { handleDOMEvents: {
+        editorProps: { attributes: { tabindex: "0" }, handleDOMEvents: {
           keydown: (view, event) => {
+            if (formatView.key(view, event)) return true;
             syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
             return false;
           },
@@ -33234,6 +34276,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
           }
         } },
         // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
+        onTransaction: () => queueMicrotask(() => findView.sync()),
+        onSelectionUpdate: () => formatView.sync(),
         onUpdate: ({ transaction }) => {
           if (!resetting) controller.accept(transaction);
         }
@@ -33245,6 +34289,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     const id = byId("documents").value, s = controller?.state();
     if (loading && !switching || s?.pending || s?.composing || s?.historyPending) {
       byId("documents").value = selected || "";
+      writingShell.sync();
       show("document-busy");
       return;
     }
@@ -33260,7 +34305,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       if (epoch !== switchEpoch) return;
       if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) {
         install(r.snapshot);
-        if (readOnlyWindow) viewerStatus("Document selected.");
+        if (readOnlyWindow) {
+          writingShell.closePanels();
+          viewerStatus("\u5DF2\u5207\u6362\u6587\u6863\u3002");
+        }
       } else {
         failedSession = id;
         navigationError = "switch-failed:" + (lifecycleCode(id) || r.code || "invalid-snapshot");
@@ -33274,7 +34322,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         pendingSession = null;
         byId("documents").value = selected || "";
         if (controller) render2(controller.state());
-        else show();
+        else {
+          writingShell.sync();
+          show();
+        }
       }
     }
   }
@@ -33344,7 +34395,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (failedSession === sessionId) navigationError = "switch-failed:" + lifecycleCode(sessionId);
     else if (selected === sessionId) navigationError = state === "invalidated" ? "session-invalidated" : state;
     if (controller) render2(controller.state());
-    else show();
+    else {
+      writingShell.sync();
+      show();
+    }
   });
   function viewerStatus(message, notice = false) {
     byId("viewer-status").textContent = message;
@@ -33359,7 +34413,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     const epoch = ++switchEpoch;
     for (const id of ["open-file", "empty-open", "new-temporary"]) byId(id).disabled = true;
     if (controller) render2(controller.state());
-    viewerStatus(editingCopy ? "Creating independent editable copy\u2026" : temporary ? "Creating temporary document\u2026" : "Opening\u2026");
+    else writingShell.sync();
+    viewerStatus(editingCopy ? "\u6B63\u5728\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u2026" : temporary ? "\u6B63\u5728\u65B0\u5EFA\u8349\u7A3F\u2026" : "\u6B63\u5728\u6253\u5F00\u2026");
     let candidate = null;
     try {
       const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
@@ -33370,23 +34425,23 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
           "draft-unreadable": "\u8349\u7A3F\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",
           "draft-read-failed": "\u8349\u7A3F\u8BFB\u53D6\u5931\u8D25\uFF0C\u539F\u8BB0\u5F55\u5DF2\u4FDD\u7559\u3002",
           "draft-unavailable": "\u8349\u7A3F\u5DF2\u4E0D\u53EF\u7528\u3002",
-          "open-cancelled": "Open cancelled.",
-          "file-unavailable": "The selected file no longer exists.",
-          "read-failed": "The selected file cannot be read.",
-          "unsupported-encoding": "Only UTF-8 Markdown is supported.",
-          "unsupported-size": "The selected file exceeds the preview size limit.",
-          "parse-failed": "This content exceeds the supported preview limits.",
-          "unsupported-path": "Choose one supported .md file.",
-          "unsupported-file": "Choose a regular file, not a link.",
-          "edit-copy-outcome-unknown": "The copy request outcome is unknown. Do not retry; the original remains read-only.",
-          "temporary-create-failed": "Unable to create an independent copy.",
-          "copy-session-invalidated": "The original session is no longer available.",
-          "source-hash-mismatch": "The opened contents could not be verified.",
-          "stale-revision": "The opened revision changed.",
-          "external-change": "The file changed while it was being read.",
-          "session-limit": "This window has reached its eight-document limit."
+          "open-cancelled": "\u5DF2\u53D6\u6D88\u6253\u5F00\u3002",
+          "file-unavailable": "\u6240\u9009\u6587\u4EF6\u5DF2\u4E0D\u5B58\u5728\u3002",
+          "read-failed": "\u65E0\u6CD5\u8BFB\u53D6\u6240\u9009\u6587\u4EF6\u3002",
+          "unsupported-encoding": "\u76EE\u524D\u4EC5\u652F\u6301 UTF-8 Markdown\u3002",
+          "unsupported-size": "\u6587\u4EF6\u8D85\u8FC7\u5F53\u524D\u5927\u5C0F\u9650\u5236\u3002",
+          "parse-failed": "\u5185\u5BB9\u8D85\u8FC7\u5F53\u524D\u9884\u89C8\u9650\u5236\u3002",
+          "unsupported-path": "\u8BF7\u9009\u62E9\u4E00\u4E2A\u53D7\u652F\u6301\u7684 .md \u6587\u4EF6\u3002",
+          "unsupported-file": "\u8BF7\u9009\u62E9\u666E\u901A\u6587\u4EF6\uFF0C\u7B26\u53F7\u94FE\u63A5\u6682\u4E0D\u652F\u6301\u3002",
+          "edit-copy-outcome-unknown": "\u526F\u672C\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u8BF7\u52FF\u91CD\u590D\u521B\u5EFA\uFF1B\u539F\u6587\u4EF6\u4ECD\u4E3A\u53EA\u8BFB\u3002",
+          "temporary-create-failed": "\u65E0\u6CD5\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u3002",
+          "copy-session-invalidated": "\u539F\u6587\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528\u3002",
+          "source-hash-mismatch": "\u65E0\u6CD5\u9A8C\u8BC1\u5DF2\u6253\u5F00\u7684\u5185\u5BB9\u3002",
+          "stale-revision": "\u5DF2\u6253\u5F00\u7684\u6587\u6863\u4FEE\u8BA2\u53D1\u751F\u53D8\u5316\u3002",
+          "external-change": "\u6587\u4EF6\u5728\u8BFB\u53D6\u671F\u95F4\u53D1\u751F\u53D8\u5316\u3002",
+          "session-limit": "\u5F53\u524D\u7A97\u53E3\u5DF2\u8FBE\u5230\u516B\u4EFD\u6587\u6863\u4E0A\u9650\u3002"
         };
-        viewerStatus((messages[r.code] || "Unable to open the selected file.") + " Current document unchanged.", true);
+        viewerStatus((messages[r.code] || "\u65E0\u6CD5\u6253\u5F00\u6240\u9009\u6587\u4EF6\u3002") + " \u5F53\u524D\u6587\u6863\u672A\u6539\u53D8\u3002", true);
         return;
       }
       candidate = r.snapshot;
@@ -33403,7 +34458,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("documents").append(option);
       install(candidate);
       byId("document-info").hidden = false;
-      byId("document-info").open = false;
+      writingShell.closePanels();
       byId("empty-state").hidden = true;
       document.body.dataset.documentState = "open";
       window.scrollTo(0, 0);
@@ -33414,7 +34469,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } catch {
         }
       }
-      viewerStatus(draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002Undo \u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4ECD\u4E3A Not saved\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002Undo \u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4ECD\u4E3A Not saved\u3002" : editingCopy ? "Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported." : temporary ? "Temporary document ready. Writing is not saved." : "Read-only preview. The original file has not been modified.");
+      viewerStatus(draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : editingCopy ? "\u5DF2\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u53EA\u8BFB\uFF1B\u78C1\u76D8\u4E0A\u7684\u540E\u7EED\u53D8\u5316\u4E0D\u4F1A\u81EA\u52A8\u5BFC\u5165\u3002" : temporary ? "\u8349\u7A3F\u5DF2\u5C31\u7EEA\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u70B9\u51FB\u300C\u7F16\u8F91\u526F\u672C\u300D\u5F00\u59CB\u4FEE\u6539\u3002");
     } catch {
       if (candidate && selected !== candidate.sessionId) {
         try {
@@ -33422,11 +34477,12 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } catch {
         }
       }
-      viewerStatus("Unable to display the selected file. Current document unchanged.", true);
+      viewerStatus("Unable to display the selected file. \u5F53\u524D\u6587\u6863\u672A\u6539\u53D8\u3002", true);
     } finally {
       loading = false;
       for (const id of ["open-file", "empty-open", "new-temporary"]) byId(id).disabled = false;
       if (controller) render2(controller.state());
+      else writingShell.sync();
       if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
     }
   }
@@ -33453,11 +34509,12 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("empty-open").disabled = false;
       byId("writing-actions").hidden = false;
       byId("new-temporary").disabled = false;
-      byId("writing-actions").append(byId("documents"));
       byId("documents").hidden = true;
-      byId("documents").setAttribute("aria-label", "Open documents");
+      byId("documents").setAttribute("aria-label", "\u5207\u6362\u5DF2\u6253\u5F00\u6587\u6863");
+      writingShell.configure();
+      findView.configure();
       byId("open-file").disabled = false;
-      document.title = "Markdown \u2014 Read-only";
+      document.title = "Markdown";
     } else byId("connect").disabled = false;
   });
 })();

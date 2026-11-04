@@ -1,3 +1,6 @@
+import { createFindPlugin, createFindView } from './document-find-view.mjs';
+import { createReadingView } from './document-reading-view.mjs';
+import { createFormatView } from './document-format-view.mjs';
 import { Editor, Extension, getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
@@ -6,6 +9,7 @@ import { projectSource } from './document-source-map.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
+import { createWritingShell } from './document-writing-shell.mjs';
 import { createDraftView } from './document-draft-view.mjs';
 import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
 
@@ -13,16 +17,20 @@ const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
+const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
+const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+const writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
+const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 function persistentCopyNote(receipt) {
   if (receipt?.ok === true && receipt.state === 'created-confirmed' && receipt.created === true
       && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
-    return `Confirmed copy: revision ${receipt.revision}. Later edits are not included; this temporary document remains Not saved.`;
+    return `已确认文件副本：修订 ${receipt.revision}。不包含后续编辑；当前为独立草稿。`;
   }
   if (receipt && receipt.created !== false && receipt.state !== 'not-created') {
-    return 'Copy result is unconfirmed; a file may exist. This temporary document remains Not saved.';
+    return '创建结果未确认，文件可能已存在。当前草稿仍保留，请勿重复创建。';
   }
-  return 'No confirmed copy receipt. This temporary document remains Not saved.';
+  return '尚无已确认的文件副本。当前为独立草稿。';
 }
 let readOnlyWindow = false;
 const readOnlyDocument = () => controller?.state().confirmed.readOnly === true
@@ -113,20 +121,20 @@ function render(s) {
     byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
     byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
     byId('document-name').textContent = current.label; byId('document-full-name').textContent = current.label;
-    byId('document-location').textContent = temporary ? 'Independent writing — no linked saved file' : current.location;
+    byId('document-location').textContent = temporary ? '独立编辑副本 · 不会写回原文件' : current.location;
     byId('document-info').querySelector('summary').title = current.label;
-    byId('readonly-badge').textContent = temporary ? 'Not saved' : 'Read-only';
-    byId('readonly-badge').title = temporary ? 'Not saved to a Markdown file. Check the separate local draft backup status.' : 'Original file is read-only. Edit a copy to work in a separate unsaved document.';
-    byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : 'Read-only preview. Some Markdown formatting is shown as plain text.';
+    byId('readonly-badge').textContent = temporary ? '本地草稿' : '原文只读';
+    byId('readonly-badge').title = temporary ? '本地备份与另存文件是不同状态，请查看旁边的备份提示。' : '原文件只读，编辑副本不会改写原文件。';
+    byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : '原文件只读。暂不支持的 Markdown 格式按原文显示。';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
-    document.title = current.label + (temporary ? ' — Not saved' : ' — Read-only');
+    document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (s.code === 'unsafe-source-range') viewerStatus('Edit not applied. Change text within one supported source line; source line breaks and unsupported Markdown are protected.', true);
-    else if (s.code === 'memory-edited') viewerStatus('Changes are in this unsaved copy. Existing files have not been modified.');
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题或单层列表内编辑；复杂 Markdown 块保持只读。', true);
+    else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
-  byId('composition-status').hidden = !s.composing;
-  draftView.render(s); testCopyView.render(s); renderCompositionCopies(s); show();
+  byId('composition-status').hidden = !s.composing || readOnlyWindow;
+  draftView.render(s); testCopyView.render(s); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -154,7 +162,7 @@ function protectOpaqueBlocks(state) {
   // the source-range gate rejects/redraws that mutation. The gate remains final.
   state.doc.descendants((node, pos) => {
     if (node.type.name === 'codeBlock') decorations.push(Decoration.node(pos, pos + node.nodeSize,
-      { contenteditable: 'false', 'aria-readonly': 'true', title: 'Read-only Markdown block. Edit a supported ordinary paragraph instead.' }));
+      { contenteditable: 'false', 'aria-readonly': 'true', title: '此 Markdown 块暂不支持编辑，原文已保留。' }));
   });
   return DecorationSet.create(state.doc, decorations);
 }
@@ -182,7 +190,7 @@ function install(snapshot) {
   });
   if (!editor) {
     const gate = Extension.create({ name: 'verifiedSourceRange', addProseMirrorPlugins() {
-      return [new Plugin({ props: { decorations: protectOpaqueBlocks }, filterTransaction(tr) {
+      return [createFindPlugin(), new Plugin({ props: { decorations: protectOpaqueBlocks }, filterTransaction(tr) {
         if (!resetting && tr.docChanged && (activeInvalid() || loading || readOnlyDocument())) { show(readOnlyDocument() ? 'read-only-document' : activeInvalid() ? 'session-invalidated' : 'document-loading'); return false; }
         return resetting || !tr.docChanged || controller.prepare(tr);
       } })];
@@ -192,8 +200,9 @@ function install(snapshot) {
     } });
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
       extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
-      editorProps: { handleDOMEvents: {
+      editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
+          if (formatView.key(view, event)) return true;
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
           return false; // Existing Tiptap Backspace command and source gate perform the edit.
         },
@@ -218,6 +227,8 @@ function install(snapshot) {
           event.preventDefault(); void history(event.inputType === 'historyUndo' ? 'undo' : 'redo'); return true;
         },
       } }, // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
+      onTransaction: () => queueMicrotask(() => findView.sync()),
+      onSelectionUpdate: () => formatView.sync(),
       onUpdate: ({ transaction }) => { if (!resetting) controller.accept(transaction); } });
   } else resetSource(snapshot.source, { from: 1, to: 1 });
   render(controller.state());
@@ -225,7 +236,7 @@ function install(snapshot) {
 async function load() {
   const id = byId('documents').value, s = controller?.state();
   if ((loading && !switching) || s?.pending || s?.composing || s?.historyPending) {
-    byId('documents').value = selected || ''; show('document-busy'); return;
+    byId('documents').value = selected || ''; writingShell.sync(); show('document-busy'); return;
   }
   const epoch = ++switchEpoch;
   loading = true; switching = true; pendingSession = id; failedSession = null; navigationError = '';
@@ -233,14 +244,14 @@ async function load() {
   try {
     const r = await api.snapshot({ sessionId: id });
     if (epoch !== switchEpoch) return;
-    if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) { install(r.snapshot); if (readOnlyWindow) viewerStatus('Document selected.'); }
+    if (!lifecycles.has(id) && r.ok && r.snapshot?.sessionId === id) { install(r.snapshot); if (readOnlyWindow) { writingShell.closePanels(); viewerStatus('已切换文档。'); } }
     else { failedSession = id; navigationError = 'switch-failed:' + (lifecycleCode(id) || r.code || 'invalid-snapshot'); }
   } catch { if (epoch === switchEpoch) navigationError = 'switch-failed:ipc-failed'; }
   finally {
     if (epoch === switchEpoch) {
       loading = false; switching = false; pendingSession = null;
       byId('documents').value = selected || '';
-      if (controller) render(controller.state()); else show();
+      if (controller) render(controller.state()); else { writingShell.sync(); show(); }
     }
   }
 }
@@ -281,7 +292,7 @@ api.onLifecycle(({ sessionId, state }) => {
   }
   if (failedSession === sessionId) navigationError = 'switch-failed:' + lifecycleCode(sessionId);
   else if (selected === sessionId) navigationError = state === 'invalidated' ? 'session-invalidated' : state;
-  if (controller) render(controller.state()); else show();
+  if (controller) render(controller.state()); else { writingShell.sync(); show(); }
 });
 function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
@@ -295,22 +306,22 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
       || state.recoveryRecords.length || state.source !== original.source)) return;
   loading = true; const epoch = ++switchEpoch;
   for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = true;
-  if (controller) render(controller.state());
-  viewerStatus(editingCopy ? 'Creating independent editable copy…' : temporary ? 'Creating temporary document…' : 'Opening…');
+  if (controller) render(controller.state()); else writingShell.sync();
+  viewerStatus(editingCopy ? '正在创建独立编辑副本…' : temporary ? '正在新建草稿…' : '正在打开…');
   let candidate = null;
   try {
     const r = await (draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
     if (!r.ok) {
-      const messages = { 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': 'Open cancelled.', 'file-unavailable': 'The selected file no longer exists.',
-        'read-failed': 'The selected file cannot be read.', 'unsupported-encoding': 'Only UTF-8 Markdown is supported.',
-        'unsupported-size': 'The selected file exceeds the preview size limit.', 'parse-failed': 'This content exceeds the supported preview limits.',
-        'unsupported-path': 'Choose one supported .md file.', 'unsupported-file': 'Choose a regular file, not a link.',
-        'edit-copy-outcome-unknown': 'The copy request outcome is unknown. Do not retry; the original remains read-only.',
-        'temporary-create-failed': 'Unable to create an independent copy.', 'copy-session-invalidated': 'The original session is no longer available.',
-        'source-hash-mismatch': 'The opened contents could not be verified.', 'stale-revision': 'The opened revision changed.',
-        'external-change': 'The file changed while it was being read.', 'session-limit': 'This window has reached its eight-document limit.' };
-      viewerStatus((messages[r.code] || 'Unable to open the selected file.') + ' Current document unchanged.', true);
+      const messages = { 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': '已取消打开。', 'file-unavailable': '所选文件已不存在。',
+        'read-failed': '无法读取所选文件。', 'unsupported-encoding': '目前仅支持 UTF-8 Markdown。',
+        'unsupported-size': '文件超过当前大小限制。', 'parse-failed': '内容超过当前预览限制。',
+        'unsupported-path': '请选择一个受支持的 .md 文件。', 'unsupported-file': '请选择普通文件，符号链接暂不支持。',
+        'edit-copy-outcome-unknown': '副本创建结果未知，请勿重复创建；原文件仍为只读。',
+        'temporary-create-failed': '无法创建独立编辑副本。', 'copy-session-invalidated': '原文会话已不可用。',
+        'source-hash-mismatch': '无法验证已打开的内容。', 'stale-revision': '已打开的文档修订发生变化。',
+        'external-change': '文件在读取期间发生变化。', 'session-limit': '当前窗口已达到八份文档上限。' };
+      viewerStatus((messages[r.code] || '无法打开所选文件。') + ' 当前文档未改变。', true);
       return;
     }
     candidate = r.snapshot;
@@ -325,7 +336,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     navigationError = '';
     const option = document.createElement('option'); option.value = candidate.sessionId; option.textContent = candidate.label;
     byId('documents').append(option); install(candidate);
-    byId('document-info').hidden = false; byId('document-info').open = false;
+    byId('document-info').hidden = false; writingShell.closePanels();
     byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; window.scrollTo(0, 0);
     if (!editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
       try {
@@ -334,15 +345,15 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
       }
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
-    viewerStatus(draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。Undo 历史从此处重新开始；当前仍为 Not saved。' : '已恢复本地草稿为独立副本。Undo 历史从此处重新开始；当前仍为 Not saved。') : editingCopy ? 'Independent unsaved copy of the opened contents. Original file remains read-only; later disk changes are not imported.' : temporary ? 'Temporary document ready. Writing is not saved.' : 'Read-only preview. The original file has not been modified.');
+    viewerStatus(draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。撤销历史从此处重新开始；当前为独立草稿。' : '已恢复本地草稿为独立副本。撤销历史从此处重新开始；当前为独立草稿。') : editingCopy ? '已创建独立编辑副本，原文件保持只读；磁盘上的后续变化不会自动导入。' : temporary ? '草稿已就绪。另存新文件后才能在 Finder 中找到。' : '原文只读；点击「编辑副本」开始修改。');
   } catch {
     if (candidate && selected !== candidate.sessionId) {
       try { await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision }); } catch { /* main revokes on window close */ }
     }
-    viewerStatus('Unable to display the selected file. Current document unchanged.', true);
+    viewerStatus('Unable to display the selected file. 当前文档未改变。', true);
   } finally {
     loading = false; for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = false;
-    if (controller) render(controller.state());
+    if (controller) render(controller.state()); else writingShell.sync();
     if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
@@ -364,7 +375,8 @@ api.onReady(data => {
     document.body.dataset.documentViewer = 'true'; document.body.dataset.documentState = 'empty';
     byId('document-header').hidden = false; byId('empty-state').hidden = false; byId('empty-open').disabled = false;
     byId('writing-actions').hidden = false; byId('new-temporary').disabled = false;
-    byId('writing-actions').append(byId('documents')); byId('documents').hidden = true; byId('documents').setAttribute('aria-label', 'Open documents');
-    byId('open-file').disabled = false; document.title = 'Markdown — Read-only';
+    byId('documents').hidden = true; byId('documents').setAttribute('aria-label', '切换已打开文档');
+    writingShell.configure(); findView.configure();
+    byId('open-file').disabled = false; document.title = 'Markdown';
   } else byId('connect').disabled = false;
 });

@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 // Sandboxed isolated preload: no generic invoke, paths, fs or policy options.
 const states = new Map(), listeners = new Set(), lifecycleListeners = new Set();
-let pending = 0, composing = false;
+let pending = 0, composing = false, draftManagementUnknown = false;
 const copies = new Set(), unknown = new Map();
 document.addEventListener('compositionstart', () => { composing = true; }, true);
 document.addEventListener('compositionend', () => { composing = false; }, true);
@@ -18,9 +18,13 @@ const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
   const forking = operation === 'edit-copy' || operation === 'restore-draft';
+  const managing = operation === 'manage-draft';
+  if (operation === 'format' && composing) return { ok: false, code: 'composition-active' };
+  if (operation === 'format' && pending) return { ok: false, code: 'document-busy' };
+  if (managing && draftManagementUnknown) return { ok: false, code: 'draft-operation-unknown' };
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
-  if (creating || forking) {
-    if (operation === 'restore-draft' && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
+  if (creating || forking || managing) {
+    if ((operation === 'restore-draft' || managing) && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
     if (pending) return { ok: false, code: 'document-busy' };
@@ -33,11 +37,16 @@ const request = async (operation, data = {}) => {
   ++pending;
   try { result = await ipcRenderer.invoke('document-demo:request', { ...data, operation }); }
   catch (error) {
+    if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
     unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (creating || forking) return { ok: false, code: unknown.get(sessionId) };
+    if (creating || forking || managing) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (creating || forking) copies.delete(sessionId); }
+  } finally { --pending; if (creating || forking || managing) copies.delete(sessionId); }
+  if (managing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      result.state !== (data.action === 'archive' ? 'archived' : 'available')))) {
+    draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' };
+  }
   if (forking && (!result || typeof result.ok !== 'boolean' || (result.ok &&
       (typeof result.snapshot?.sessionId !== 'string' || result.snapshot.sessionId === sessionId
        || result.snapshot.temporary !== true || result.snapshot.readOnly !== false)))) {
@@ -63,6 +72,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
   listDrafts: () => request('list-drafts'),
+  manageDraft: data => request('manage-draft', data),
   restoreDraft: draftId => request('restore-draft', { draftId }),
   onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
     if (typeof data?.sessionId === 'string' && !states.has(data.sessionId)) handler(data);
@@ -74,6 +84,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   list: () => request('list'),
   snapshot: data => request('snapshot', data),
   edit: data => request('edit', data),
+  format: data => request('format', data),
   undo: data => request('undo', data),
   redo: data => request('redo', data),
   check: data => request('check', data),

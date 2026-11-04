@@ -30,6 +30,28 @@ as math; prices and invalid boundary forms remain literal. Repeat with `$5$`
 (numeric math), display math, code and an escaped currency dollar (`\$5`).
 Scripted equivalents pass; record physical-input acceptance separately.
   
+## Integrated appearance — optional final visual check (2026-11-04)
+
+Use the Document-First candidate, not the standalone design demo or legacy Vault
+window. Automation has already checked the combined workflow; the items below
+are a short user preference check, **not recorded as performed or PASS**.
+
+1. Start a disposable new draft and type two paragraphs. Compare light/dark using
+   **Aa**. Expect comfortable contrast, readable type and a clear writing area;
+   record any preferred font size/spacing rather than repeating filesystem tests.
+2. Open a synthetic Markdown file, create its editing copy, then open the title,
+   drafts and details panels. Escape should return from the panel; the title menu
+   also closes on outside click. Expect clear original/draft labels, no lost text
+   and no clipped controls after narrowing the window.
+3. In the draft, open **另存新文件…**, inspect the confirmation, then **返回编辑**.
+   Expect clear separation between local backup and file export, and unchanged
+   writing on cancellation. Actual export/reopen already has bounded automated
+   evidence; this optional appearance check need not create another file.
+
+Visual acceptance is pending until the user reports it. Native Chinese IME is a
+separate functional acceptance gap; controlled events and these screenshots do not
+clear historical failures or certify a release.
+
 ## App startup  
   
 - [ ] App starts from development mode  
@@ -1770,3 +1792,156 @@ this as **limited manual backup/list/restore PASS**, not full feature acceptance
 The screenshots alone do not establish full process exit, byte/hash equality,
 post-restore export/reopen or native IME behavior; the separate automated evidence
 continues to cover its stated scope. No user draft files were read for this note.
+
+
+### Draft Management V1 — manual acceptance pending (2026-11-03)
+
+Use disposable synthetic drafts with the current candidate. Existing user draft
+content must not be removed as part of automated testing.
+
+1. After backing up two drafts and reopening the app, click **草稿** in the header.
+   Verify time, revision and short ID distinguish same-name items.
+2. Choose **归档** on an inactive draft, then **取消**: it remains in the list.
+   Repeat and confirm: it appears under **已归档（可放回）**.
+3. Restart, choose **放回待恢复列表**, confirm, then **恢复副本**. Confirm the expected
+   body is present, Not saved remains, and old Undo history has not been restored.
+4. A draft in use has disabled archive controls. Error/partial groups must remain
+   visible and cannot be organized. Archive is reversible and does not erase a
+   Markdown file or release disk-record capacity.
+
+The two-process automated GUI case covers cancel/archive/return/restore, original
+bytes/hash, corrupt/active blocking and permission-failure retention using hidden
+synthetic windows. It is not user manual acceptance or native IME evidence. Prior
+manual backup/list/restore PASS remains limited to the earlier recovery feature;
+this new management interaction has not yet received user manual acceptance.
+
+
+### Writing UI V2 — short experience check, not yet performed by user (2026-11-03)
+
+1. Open a disposable Markdown document. The body should appear below one compact
+   toolbar/status line. Choose **编辑副本**, type in a supported paragraph and
+   use Undo/Redo. Click the title to switch original/copy: original remains readonly.
+2. Open **草稿**. The list refreshes; recovery/archive/return remains available.
+   Close with **关闭** or Escape. **详情** contains backup/export evidence and limits.
+   Neither panel should occupy the normal writing page when closed.
+3. Choose **另存新文件…**. Cancel the confirmation with Escape and continue typing;
+   then create a new file in a supported directory and reopen it. The editing copy
+   still says **未存为文件**; later edits show **后续修改尚未导出**. A failed later
+   attempt must stay visible alongside the earlier confirmed export.
+
+Automated evidence: 100 Node and 3 Pro Electron cases PASS. UI widths include
+390/640/1050/1440 CSS px. Windows are hidden except brief inactive screenshot
+capture; controlled input and stubbed native selection are not native IME/Save
+Dialog manual acceptance. Air NOT RUN (current connection entry unavailable).
+Prior manual successes and historical native IME NOT VERIFIED/FAIL remain scoped
+as previously recorded. This presentation change does not permit original-file
+overwrite, arbitrary destinations, or recovery of old Undo/native preedit.
+
+
+### Writing V3 — bounded experience check, user acceptance pending (2026-11-04)
+
+1. In a synthetic editing copy, use macOS Chinese Pinyin to type, choose/cancel a
+   candidate, and continue in another paragraph. Normal preedit should show only
+   `输入中…` without pushing the body down; completion re-enables controls. A
+   persistent disabled state or lost text is a failure, not cleared by these tests.
+2. On nonempty single-line text choose 标题 2; Enter into a paragraph. Select text,
+   click B / Cmd+B, select the whole bold text to remove it, and Undo/Redo. Convert
+   a plain paragraph to a list; Enter, type a second item, Enter twice to exit.
+   Nested/task/complex blocks should remain protected without losing other edits.
+3. Switch original/copy, export to a fresh filename in a supported destination and
+   reopen. `本地草稿` / `已备份` / `当前内容已导出` describe different states; later
+   edits must show `后续修改尚未导出` and leave the file unchanged.
+
+210 Node / four distinct Pro Electron cases PASS are controlled evidence only.
+CDP browser composition and stubbed native selection do not establish actual
+system Pinyin or native save-dialog acceptance. Prior native IME NOT VERIFIED and
+historical manual FAIL remain. Use synthetic content; do not replace original files.
+
+
+### Approved prototype integration — batch 1 (2026-11-04)
+
+Automated PASS: 83 targeted Node, four distinct Pro Electron cases and two Air
+Electron cases. Real Electron rendering at 390/640/1050/1440px, sidebar filtering,
+original/copy navigation, Undo/Redo, controlled composition gates and failed IPC
+retaining the confirmed document are covered. Original bytes/hash remain exact.
+Pro additionally covers the unchanged new-file export/reopen and receipt flow.
+Air uses a verified current snapshot and existing runtime, not the old source copy.
+Synthetic browser input and stubbed file selection do not establish native Pinyin
+or native save-dialog acceptance. Historical IME NOT VERIFIED/FAIL remains scoped.
+
+Optional visual experience check, not yet performed by the user:
+
+1. Open a disposable Markdown file, create an editing copy, then switch between
+   the two real rows in the sidebar. Text/history should remain and original is readonly.
+2. Filter by an open document's name, clear the filter and collapse/reopen the
+   sidebar. Resize the window: narrow mode uses an overlay without horizontal overflow.
+3. Open 草稿 at the sidebar bottom and 详情 in the header. Close the panels and
+   continue writing. Backup/export status stays in its distinct place; normal
+   composition shows 输入中… without shifting the body.
+
+This batch connects the main layout and document list only. Outline, theme and
+settings screens remain standalone prototype work; no file-tree or full-text
+search is implied by the sidebar. Existing save destinations/overwrite guards remain.
+
+
+### Approved prototype integration — batch 2 (2026-11-04)
+
+Automated evidence: 11 focused Node and three Air Electron cases PASS. Covers real
+heading navigation (including duplicate titles), heading edits/Undo/Redo, stale
+session rows, blocked composition/pending input, theme/reading options, identical
+editor instance and unchanged source/revision on display changes. Original file
+bytes/hash remain exact. Air screenshots cover dark desktop and 390px settings/
+outline; existing responsive/sidebar/IPC-failure cases also pass. Follow-system
+uses emulated media; native Pinyin remains NOT VERIFIED and historical FAIL remains.
+
+Optional short experience check; not yet performed by the user:
+
+1. Open a synthetic document with headings. Show the right outline and click its
+   titles; create a copy, edit a heading and Undo/Redo. The outline should follow.
+2. Click **Aa** or Cmd+,; try dark/system theme, font, size, width and line spacing.
+   Close the dialog and continue writing. Switching documents keeps these display
+   choices; restarting resets them. Exported Markdown should not gain display styles.
+3. Narrow the window and open/close the outline and settings. Confirm the reading
+   comfort and contrast. Automated layout checks do not replace this preference check.
+
+Only supported rendered headings appear. No original-file overwrite or destination
+policy expansion is included. No real system appearance setting was changed by tests.
+
+
+### Approved prototype integration — batch 3 (2026-11-04)
+
+55 focused Node and two distinct Air Electron scenarios PASS. Covers empty/error
+draft states, active/uncertain cards, archive/return/restart/restore, protected partial
+records, retained content on failure, export/reopen and original bytes/hash. Save
+success remains distinct from later failure. Light/dark and 390px panel screenshots
+were checked. One test-only screenshot callback correction preceded the final
+archive-case PASS. Native selection is stubbed and composition controlled; native
+macOS IME NOT VERIFIED and historical manual FAIL are not cleared.
+
+Optional visual acceptance, not yet performed by the user: open **草稿**, inspect
+cards and **已归档**, then close without changing records. Open **详情** on an
+original and an editing copy; identity, backup and file export must read as distinct
+states. Open **另存新文件…**, use **返回编辑** or Escape, and continue writing.
+Check comfort/contrast in both themes. No extra manual file creation is required
+to review this visual batch; automated export still uses exclusive new-file creation.
+
+
+### Document find V1 — optional short experience check (2026-11-04)
+
+The user accepted the prior visual baseline. Air automated find coverage passed;
+the following new human check has **not** been claimed as performed:
+
+1. Open a synthetic document and press Cmd+F. Search Chinese/English text, use
+   Enter/Shift+Enter, toggle Aa for case sensitivity, then Escape back to the text.
+2. In an edit copy, leave find open, edit a matching paragraph and Undo/Redo.
+   The count updates. Switch original/copy; matches belong to the displayed text.
+3. Optional: try the same bar in dark mode and a narrow window. It should not
+   obscure the current document or produce horizontal page overflow.
+
+Find is literal, current-document only; no replacement. It covers displayed
+protected blocks, not hidden source syntax; matches do not cross block boundaries.
+Queries are limited to 256 UTF-16 units; at most the first 1,000 matches are
+highlighted/navigable with an explicit limit notice and an accurate total.
+Normal composition pauses navigation. Air composition checks used controlled
+events, **not native macOS IME**. Native IME remains NOT VERIFIED and earlier
+manual/formal FAIL is not cleared. File save/overwrite policies are unchanged.

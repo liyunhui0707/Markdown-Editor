@@ -1,6 +1,10 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
+import { projectSimpleList } from './document-list-source.mjs';
+
+export const spanBlock = (projection, span) => span.itemIndex === undefined ? projection.doc.content[span.blockIndex]
+  : projection.doc.content[span.blockIndex].content[span.itemIndex].content[0];
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
 const parser = unified().use(remarkParse).use(remarkGfm);
@@ -11,7 +15,7 @@ const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1
 
 export function projectSource(source) {
   if (typeof source !== 'string' || source.length > 131072) throw Error('Unsupported source');
-  const tree = parser.parse(source), content = [], spans = [];
+  const tree = parser.parse(source), content = [], spans = [], blocks = [];
   const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
     ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
@@ -20,10 +24,12 @@ export function projectSource(source) {
   function emptyParagraph(at) {
     spans.push({ text: '', sourceFrom: at, sourceTo: at, bold: false,
       from: position + 1, to: position + 1, blockIndex: content.length, childIndex: 0 });
+    blocks.push({from:position,to:position+2,sourceFrom:at,sourceTo:at});
     content.push({ type: 'paragraph', content: [] }); position += 2;
   }
   function opaque(text) {
     if (!text) return;
+    blocks.push(null);
     content.push({ type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text }] });
     position += text.length + 2;
   }
@@ -31,6 +37,18 @@ export function projectSource(source) {
   for (const node of tree.children) {
     let start = node.position.start.offset, end = node.position.end.offset;
     if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
+    const list = projectSimpleList(node, source, position, content.length);
+    if (list) {
+      const gap = lines(source.slice(previousEnd, start));
+      if ((!content.length && gap.length >= 2) || (content.length && gap.length >= 4)) {
+        emptyParagraph(!content.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+        // The empty cursor slot shifts all ProseMirror positions by two.
+        for (const span of list.spans) { span.from += 2; span.to += 2; span.blockIndex++; }
+        for (const item of list.items) { item.from += 2; item.to += 2; }
+      }
+      blocks.push({from:position,to:position+list.size,sourceFrom:start,sourceTo:end,items:list.items});
+      content.push(list.doc); spans.push(...list.spans); position += list.size; previousEnd=end; continue;
+    }
     const raw = source.slice(start, end), parts = [];
     // Literal brackets are safe only when remark keeps exact text leaves. Links,
     // references and other structural changes still fail the projection check.
@@ -86,6 +104,7 @@ export function projectSource(source) {
       block.content.push({ type: 'text', text: part.text, ...(part.bold ? { marks: [{ type: 'bold' }] } : {}) });
       offset += part.text.length;
     }
+    blocks.push({from:position,to:position+offset+2,sourceFrom:start,sourceTo:end});
     content.push(block); position += offset + 2;
   }
   const tail = lines(source.slice(previousEnd));
@@ -94,7 +113,7 @@ export function projectSource(source) {
     if (source === '' || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
     else content.push({ type: 'paragraph', content: [] }); // Ambiguous blank-only input remains non-editable.
   }
-  return { doc: { type: 'doc', content }, spans };
+  return { doc: { type: 'doc', content }, spans, blocks };
 }
 
 function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
@@ -204,8 +223,8 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();
   const text = span.text.slice(0, a) + insert + span.text.slice(b);
-  if (!text && (span.textOffset !== undefined || projection.doc.content[span.blockIndex].type !== 'paragraph'
-      || span.bold || projection.doc.content[span.blockIndex].content.length > 1)) return unsafe();
+  if (!text && (span.textOffset !== undefined || spanBlock(projection, span).type !== 'paragraph'
+      || span.bold || spanBlock(projection, span).content.length > 1)) return unsafe();
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > 131072) return unsafe();
@@ -214,8 +233,8 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if (span.textOffset !== undefined) {
     const node = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
     node.text = node.text.slice(0, at) + text + node.text.slice(at + span.text.length);
-  } else if (!span.text || !text) expected.content[span.blockIndex].content = text ? [{ type: 'text', text }] : [];
-  else expected.content[span.blockIndex].content[span.childIndex].text = text;
+  } else if (!span.text || !text) spanBlock({doc:expected}, span).content = text ? [{ type: 'text', text }] : [];
+  else spanBlock({doc:expected}, span).content[span.inlineIndex ?? span.childIndex].text = text;
   if (!text && !nextProjection.spans.some(s => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,

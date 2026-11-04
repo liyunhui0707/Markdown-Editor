@@ -4,15 +4,15 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { EventEmitter } = require('node:events');
 const { createDocumentService } = require('../lib/document-service');
 const { createDocumentSessions, registerDocumentIpc, CHANNEL } = require('../lib/document-session-ipc');
-let projectSource, mapTextEdit;
-test.before(async () => { ({ projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs')); });
+let projectSource, mapTextEdit, mapFormatEdit;
+test.before(async () => { ({ projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs')); ({mapFormatEdit}=await import('../lib/document-format-edit.mjs')); });
 function fixture(options = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-ipc-')));
   const file = path.join(root, 'a.md'); fs.writeFileSync(file, '\ufeff# 标题😀\r\n\r\nA **粗体** end.\r\n', { flag: 'wx', mode: 0o640 });
   const service = createDocumentService(options.experimental ? { fs: options.io, unsafeExperimentalRoot: root } : {});
   const document = service.open(file).document;
   const windows = new Map();
-  const manager = createDocumentSessions({ service, projectSource, mapTextEdit, windowFor: wc => windows.get(wc) });
+  const manager = createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit, windowFor: wc => windows.get(wc) });
   const win = new EventEmitter(), wc = new EventEmitter(), frame = { url: 'file:///synthetic/demo.html' };
   const notices = [];
   Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url,
@@ -368,27 +368,27 @@ for (const receipt of [undefined, { ok: true, state: 'not-created', created: fal
   { ok: false, state: 'target-exists', created: false }]) {
   test('persistent copy note: no confirmed receipt does not imply an existing copy ' + (receipt?.state || 'initial'), () => {
     const h = copyHeader({ temporary: true, persistentCopyEnabled: true, copyState: receipt });
-    assert.match(h.note, /No confirmed copy receipt/); assert.doesNotMatch(h.note, /exists on disk|no file exists|no file was created/i);
-    assert.equal(h.badge, 'Not saved');
+    assert.match(h.note, /尚无已确认的文件副本/); assert.doesNotMatch(h.note, /exists on disk|no file exists|no file was created/i);
+    assert.equal(h.badge, '本地草稿');
   });
 }
 test('persistent copy note: only confirmed success names the copied revision and excludes later edits', () => {
   const h = copyHeader({ temporary: true, persistentCopyEnabled: true, revision: 9,
     copyState: { ok: true, state: 'created-confirmed', created: true, revision: 7 } });
-  assert.match(h.note, /revision 7/); assert.doesNotMatch(h.note, /revision 9/);
-  assert.match(h.note, /Later edits are not included/); assert.equal(h.badge, 'Not saved');
+  assert.match(h.note, /修订 7/); assert.doesNotMatch(h.note, /修订 9/);
+  assert.match(h.note, /不包含后续编辑/); assert.equal(h.badge, '本地草稿');
 });
 for (const state of ['create-outcome-unknown', 'created-partial', 'created-unverified', 'durability-uncertain']) {
   test('persistent copy note: ' + state + ' never claims absence or confirmed success', () => {
     const h = copyHeader({ temporary: true, persistentCopyEnabled: true,
       copyState: { ok: false, state, created: state === 'create-outcome-unknown' ? null : true, revision: 7 } });
-    assert.match(h.note, /unconfirmed; a file may exist/); assert.doesNotMatch(h.note, /Confirmed copy:|no file/i);
-    assert.equal(h.badge, 'Not saved');
+    assert.match(h.note, /创建结果未确认，文件可能已存在/); assert.doesNotMatch(h.note, /已确认文件副本：|文件不存在/i);
+    assert.equal(h.badge, '本地草稿');
   });
 }
 test('copy wording leaves normal temporary and readonly header behavior unchanged', () => {
   assert.match(copyHeader({ temporary: true }).note, /No save or export/);
-  const ro = copyHeader({ readOnly: true }); assert.match(ro.note, /Read-only preview/); assert.equal(ro.badge, 'Read-only');
+  const ro = copyHeader({ readOnly: true }); assert.match(ro.note, /原文件只读/); assert.equal(ro.badge, '原文只读');
 });
 
 
@@ -465,7 +465,7 @@ test('opaque projection blocks are browser-readonly without changing original PM
   const decorations = protect(state).find(); assert.equal(decorations.length, 2);
   for (const d of decorations) {
     assert.equal(state.doc.nodeAt(d.from).type.name, 'codeBlock');
-    assert.equal(d.type.attrs.contenteditable, 'false'); assert.match(d.type.attrs.title, /Read-only/);
+    assert.equal(d.type.attrs.contenteditable, 'false'); assert.match(d.type.attrs.title, /暂不支持编辑/);
   }
   assert.deepEqual(state.doc.toJSON(), before);
 });
@@ -496,4 +496,47 @@ test('preload backup receipts for revoked sessions never reach the renderer', ()
   f.events.emit('document-demo:invalidated', {}, { sessionId: 'live' });
   f.events.emit('document-demo:draft-status', {}, { sessionId: 'live', backup: { revision: 2 } });
   assert.equal(seen.length, 1); assert.equal(seen[0].backup.revision, 1);
+});
+
+
+test('preload draft management fences composition, concurrent operations and lost/malformed acknowledgements', async () => {
+  const request = { draftId: 'draft', action: 'archive', expectedToken: 'a'.repeat(64) }, f = preloadFixture();
+  f.dom.emit('compositionstart'); assert.equal((await f.api.manageDraft(request)).code, 'composition-active');
+  assert.equal(f.pending.length, 0); f.dom.emit('compositionend');
+  const operation = f.api.manageDraft(request);
+  assert.equal((await f.api.restoreDraft('draft')).code, 'document-busy');
+  assert.equal((await f.api.manageDraft(request)).code, 'document-busy');
+  f.pending[0].reject(Error('lost')); assert.equal((await operation).code, 'draft-operation-unknown');
+  assert.equal((await f.api.manageDraft(request)).code, 'draft-operation-unknown'); assert.equal(f.pending.length, 1);
+  const list = f.api.listDrafts(); f.pending[1].resolve({ ok: true, drafts: [], archived: [] }); assert.equal((await list).ok, true);
+  // Uncertain archive membership cannot taint an unrelated document export.
+  const copy = f.api.createPersistentCopy({ sessionId: 'active', expectedRevision: 2, expectedSha256: 'b'.repeat(64) });
+  f.pending[2].resolve({ ok: true, copy: { state: 'created-confirmed' } }); assert.equal((await copy).ok, true);
+  for (const response of [null, { ok: true, state: 'available' }, { ok: true, state: 'archived' }]) {
+    const g = preloadFixture(), call = g.api.manageDraft(request); g.pending[0].resolve(response);
+    const result = await call; assert.equal(result.ok, response?.state === 'archived');
+  }
+});
+
+test('format IPC rejects readonly, foreign frames, stale revision and injected source/history/path fields',()=>{
+  const f=fixture(),disk=fs.readFileSync(f.file),span=projectSource(f.document.text).spans[0];
+  const q={operation:'format',sessionId:f.id,expectedRevision:0,from:span.from,to:span.to,action:'heading-2'};
+  assert.equal(f.manager.request({sender:f.wc,senderFrame:{url:f.frame.url}},q).code,'unauthorized-sender');
+  for(const [key,value] of [['source','bad'],['path','/tmp/target'],['inverseSource',{}],['format',true],['leaf',{}]])assert.equal(f.call({...q,[key]:value}).code,'invalid-request');
+  assert.equal(f.call({...q,expectedRevision:1}).code,'stale-revision');
+  const id=f.manager.provision(f.win,f.service.open(f.file).document,'Readonly',{readOnly:true});
+  assert.equal(f.call({...q,sessionId:id}).code,'read-only-document');
+  assert.equal(f.call(q).ok,true);assert.equal(f.document.text.startsWith('## 标题😀\r\n'),true);
+  assert.equal(f.call({...q,expectedRevision:0}).code,'stale-revision');
+  assert.equal(f.call({operation:'snapshot',sessionId:id}).snapshot.revision,0);
+  assert.deepEqual(fs.readFileSync(f.file),disk);
+  f.win.emit('closed');assert.equal(f.call({...q,expectedRevision:1}).code,'unauthorized-sender');
+});
+test('format preload refuses live composition, concurrent request and invalidated authority',async()=>{
+  const f=preloadFixture(),q={sessionId:'a',expectedRevision:0,action:'heading-1',from:1,to:1};
+  f.dom.emit('compositionstart');assert.equal((await f.api.format(q)).code,'composition-active');assert.equal(f.pending.length,0);
+  f.dom.emit('compositionend');const request=f.api.format(q);assert.equal(f.pending[0].payload.operation,'format');
+  assert.equal((await f.api.format(q)).code,'document-busy');
+  f.events.emit('document-demo:invalidated',{}, {sessionId:'a'});f.pending[0].resolve({ok:true});
+  assert.equal((await request).code,'unknown-session');assert.equal((await f.api.format(q)).code,'unknown-session');
 });

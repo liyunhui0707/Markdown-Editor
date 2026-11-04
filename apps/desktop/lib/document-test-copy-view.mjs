@@ -13,7 +13,7 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
 
 function operationMessage(receipt) {
   if (!receipt || (!receipt.code && receipt.state === 'not-created')) return '';
-  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。当前编辑副本仍为 Not saved。`;
+  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。`;
   let text;
   if (receipt.created === false) {
     const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选下载或主文件夹直属的其他普通本地文件夹，仍需通过权限检查。'
@@ -39,17 +39,18 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
   function render(s) {
     const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
     persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-    byId('create-test-copy').textContent = persistent ? 'Save as new file…' : '创建测试副本';
-    byId('confirm-test-copy').textContent = persistent ? 'Choose location…' : 'Create new test copy';
+    byId('create-test-copy').textContent = persistent ? '另存新文件…' : '创建测试副本';
+    byId('confirm-test-copy').textContent = persistent ? '选择位置…' : '创建测试副本';
     byId('test-copy-description').textContent = persistent
       ? '选择主文件夹直属的普通本地 APFS 文件夹，例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。主文件夹本身、桌面、文稿、资源库、隐藏与同步目录不受支持；仅支持防止删除目录自身的默认权限（ACL），其他额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
       : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;
+    for (const id of ['copy-summary-compact', 'copy-operation-alert']) byId(id).hidden = true;
     if (!enabled) return;
     const reason = refusal(c);
     byId('create-test-copy').disabled = !!reason;
-    byId('test-copy-reason').textContent = confirmation ? 'Review the revision below, then confirm or cancel.' : reason ? `Copy unavailable: ${reason}. Current writing is retained.` : '';
+    byId('test-copy-reason').textContent = confirmation ? '请确认内容后选择位置，或取消返回编辑。' : reason ? `暂不能另存文件（${reason}），当前内容仍保留。` : '';
     byId('test-copy-confirmation').hidden = !confirmation || confirmation.sessionId !== c.selected;
     const receipt = receipts.get(c.selected) || s.confirmed.copyState;
     const confirmed = receipt?.ok === true && receipt.state === 'created-confirmed';
@@ -57,14 +58,30 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
     const last = confirmedReceipts.get(c.selected);
     byId('test-copy-result').textContent = last
-      ? `Last confirmed copy — ${persistent ? 'New Markdown file' : 'Test copy'} created: revision ${last.revision}. Current temporary document is still Not saved; later edits do not update this copy.\n${last.filePath}\nSHA-256: ${last.sha256}` : '';
+      ? `最后确认的${persistent ? 'Markdown 文件' : '测试副本'} · 修订 ${last.revision}。后续编辑不会自动写回。\n${last.filePath}\nSHA-256: ${last.sha256}` : '';
     byId('test-copy-summary').textContent = last
-      ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}当前编辑副本仍为 Not saved。`
+      ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}后续编辑保留在草稿中，不会自动写回该文件。`
       : '';
     byId('test-copy-receipt').hidden = !last;
+    byId('confirmed-copy-card').hidden = !last;
+    byId('copy-empty').hidden = !!last;
+    const compact = byId('copy-summary-compact'), alert = byId('copy-operation-alert');
+    compact.textContent = last ? `已另存新文件：${last.filePath.split('/').pop()} · ${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出' : '当前内容已导出'}。` : '';
+    compact.hidden = !last;
+    // Essential failures stay on the writing surface, even with an earlier success.
+    alert.textContent = receipt?.ok === false ? operationMessage(receipt).split('\n原因：')[0] + (receipt.filePath ? `\n${receipt.filePath}` : '')
+      : reason && !confirmation ? ({ 'composition-active': s.compositionInvalid ? '当前输入未能确认，请查看保留的输入内容。' : '',
+        'unconfirmed-input': '还有未确认的输入，暂不能另存文件；请先检查保留的输入内容。',
+        'document-locked': '当前文档暂不能导出。内容仍保留，请查看输入或会话错误提示。',
+        'unresolved-copy-state': '上次创建结果尚未确认，暂停再次创建；请查看详情，保留当前内容。',
+        'copy-outcome-unknown': '上次创建结果未知，暂停再次创建；请查看详情，保留当前内容。' }[reason] || '') : '';
+    alert.hidden = !alert.textContent;
+    alert.dataset.tone = receipt?.code === 'create-cancelled' || !receipt?.code ? 'neutral' : 'error';
     byId('test-copy-operation').textContent = operationMessage(receipt);
+    byId('latest-copy-card').hidden = !byId('test-copy-operation').textContent;
     byId('test-copy-operation').dataset.tone = confirmed ? 'success'
       : receipt?.code === 'create-cancelled' ? 'neutral' : receipt?.ok === false ? 'error' : 'neutral';
+    byId('latest-copy-card').dataset.tone = byId('test-copy-operation').dataset.tone;
   }
   function finish() {
     confirmation = null; busy(false); rerender();
@@ -78,7 +95,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     const s = c.controller.state().confirmed;
     confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
     busy(true); // Freeze edits, history and switching through confirmation and response.
-    byId('test-copy-confirm-revision').textContent = `Create a new ${persistent ? 'Markdown file' : 'test copy'} of confirmed revision ${s.revision}?`;
+    byId('test-copy-confirm-revision').textContent = `将已确认的修订 ${s.revision} 创建为${persistent ? '新的 Markdown 文件' : '测试副本'}。请选择位置，或取消返回编辑。`;
     byId('confirm-test-copy').disabled = false; byId('cancel-test-copy').disabled = false; rerender();
   };
   byId('cancel-test-copy').onclick = () => { if (confirmation) finish(); }; // No IPC or source mutation.

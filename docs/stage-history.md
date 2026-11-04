@@ -1,5 +1,185 @@
 # Stage History
 
+## 0.35.0 local WIP checkpoint (2026-11-04)
+
+User-approved checkpoint of the accepted writing workspace, draft management,
+basic formatting and document find. Exact scope: 40 verified candidate files plus
+the two version files. Prior per-stage evidence is retained; find validation is
+45 Node passes and two distinct Air find passes, plus the adjacent layout case.
+No release sign-off: native IME NOT VERIFIED, historical manual/formal 1B-3 FAIL,
+SEC-01, restricted new-file creation and overwrite prohibition remain. No push,
+merge, tag or release is authorized by this checkpoint.
+
+## Document find V1 and accepted visual baseline — uncommitted (2026-11-04)
+
+The user accepted the existing layout. Prior 37 candidate hashes matched;
+bounded Codex A self-review found no new confirmed P0/P1, and pre-find files/scope
+were preserved separately. No independent review or Git checkpoint is claimed.
+
+Cmd/Ctrl+F now searches displayed document text with literal highlights, exact
+count, case option, next/previous and Escape focus return. Search respects current
+session identity and composing/pending states, changes no Markdown/history/save
+authority, and caps displayed results at 1,000 (query 256 UTF-16 units).
+45 Node PASS; two distinct Air find cases PASS, plus the adjacent integrated
+appearance case. Fixed Air-reproduced readonly focus/selection return; corrected
+one test's assumption about per-edit Undo. Light/dark/narrow captures inspected;
+original bytes/hash unchanged. All processes exited cleanly. Evidence and exact
+limits are recorded in `document-editing-interaction-phase1b3.md`.
+
+Find logic/test 140/121 lines; existing entry/E2E 382/2001 lines reuse the existing
+lifecycle harness. Native IME NOT VERIFIED and earlier manual/formal FAIL, SEC-01,
+overwrite/save/release restrictions remain. Version 0.34.0; 0.35.0 is proposed for
+the next local WIP checkpoint, not yet applied or committed.
+
+
+## Integrated appearance acceptance — uncommitted (2026-11-04)
+
+Reviewed the connected welcome/writing/sidebar/outline/settings/draft/detail/save
+surfaces as one workflow. Air reproduced a title disclosure that did not dismiss
+with Escape or outside clicks; fixed only shell dismissal, with focus return and
+composition/pending/modal guards. Existing editor, IPC, source and save authority
+are unchanged. Prior 37 candidates matched their recorded hashes before work.
+
+36 focused Node PASS (three new regressions); three Air Electron cases PASS in
+22.9s, with 36 snapshot hashes unchanged and three clean process exits. The new
+integrated case covers panel keyboard return, save cancellation, real-session
+state retention and 390/760/1024/1440px layout. Actual welcome/light/dark/narrow
+captures inspected; original bytes/hash unchanged. Initial failing reproduction
+retained; its additional assertion compared pending vs completed backup metadata,
+so the test now waits for backup completion before snapshot comparison.
+
+No new Home/Downloads fixture or export; synthetic drafts/evidence stay in private
+Air temporary directories. Prior export/reopen and archive results are reused.
+Bundle reproduction and diff checks PASS. This is bounded Codex self-verification,
+not independent review, user visual acceptance or native IME verification. Earlier
+manual/formal FAIL and release limits remain. Version 0.34.0, no staging/commit.
+Shell logic/test are 160/160 lines; shared E2E 1921 lines reuses its existing harness.
+
+## Approved prototype integration — batch 3, uncommitted (2026-11-04)
+
+Unified real draft cards/empty states, document identity and backup details,
+separate confirmed-file/latest-operation cards, and save confirmation. Expandable
+limits retain necessary warnings; failure stays visible on the writing surface.
+Draft management is single-flight and cannot be dismissed while awaiting its result.
+No save authority, storage, source mapping or editor behavior expansion.
+
+55 focused Node PASS (six new regressions); two distinct Air Electron cases PASS,
+covering archive/restart/restore, failure/partial-record retention, export/reopen,
+original bytes/hash and light/dark/narrow screenshots. One initial screenshot callback
+missed `app`; corrected test only and reran that case. Initial failure is retained,
+not counted as PASS. Successful Home export fixture reclaimed; evidence/partial
+fixtures stay in private temporary storage. Bundle reproduction and diff checks PASS.
+Bounded Codex self-review found no new blocking issue; not independent model review.
+Native IME NOT VERIFIED, historical manual FAIL and release/save limits remain.
+User visual acceptance pending; version 0.34.0, no staging/commit. New panel CSS
+69 lines; draft view/shell 141/149. Shared E2E remains 1856 lines to reuse the existing
+isolated harness, with no unrelated extraction. See phase document for evidence.
+
+## Approved prototype integration — batch 2, uncommitted (2026-11-04)
+
+Connects real heading outline/scroll navigation and reading appearance to the
+existing Document-First editor: light/dark/system theme, body font/size/width/spacing,
+responsive outline and Cmd+, settings. Display choices are window-local and do not
+modify Markdown, revisions, history or the editor instance. Outline positions are
+bound to the confirmed session and rendered document; pending/composition/stale
+rows cannot navigate. Unsupported/opaque headings are omitted.
+
+11 targeted Node PASS; three Air Electron cases PASS (21.9s, three clean exits).
+35 runtime/test snapshot hashes match before and after execution. Real Air captures
+of dark and narrow outline/settings were visually inspected. Follow-system uses
+emulated media in automation; controlled composition is not native IME acceptance.
+Bundle reproduction and whitespace checks PASS. Bounded Codex self-review found no
+new blocking issue in this batch; this is not independent review or release approval.
+Earlier candidates and all save restrictions remain. New user visual acceptance
+is pending; historical IME NOT VERIFIED/manual FAIL stays scoped. Version 0.34.0,
+no staging/commit. New reading logic/style are 153/77 lines; entry/E2E stay 379/1830
+lines to reuse the existing controllers/harness. See phase document for evidence.
+
+## Approved prototype integration — batch 1, uncommitted (2026-11-04)
+
+The real Document-First window now uses the approved prototype's warm paper/green
+palette, collapsible real-session sidebar, compact header/format bar, 680px writing
+column, welcome page and bottom status bar. Sidebar filtering is name-only over
+existing authorized sessions. Navigation reuses the original snapshot/load path;
+the active row follows confirmed identity, including failed/pending switches.
+Existing source, save, draft and composition protections remain. Outline, themes
+and settings are deferred to later integration batches, not simulated as features.
+
+83 targeted Node PASS; four distinct Pro Electron cases PASS; two Air Electron
+cases PASS on `mac-panmiaomiao`. Air used a new private snapshot (33 matching file
+hashes), matching dependency entries, Node 24.20.0 / Electron 43.4.1 / Playwright
+1.63.0, with two clean exits. Coverage includes 390/640/1050/1440px layouts,
+switching/history, filter/collapse, controlled composition, IPC-failure retention
+and unchanged original bytes/hash. Pro also covers export/reopen and receipts.
+An initial new-test Undo assertion assumed whole-word grouping; corrected to one
+character, then passed. The failed run is retained and is not counted as PASS.
+
+Bundle reproduction and whitespace checks PASS; bounded Codex self-review found
+no new unresolved P0/P1 in this presentation slice. This is not independent model
+review, native IME acceptance or release approval. Manual visual acceptance is
+pending; historical IME NOT VERIFIED/FAIL and save restrictions remain. Version
+0.34.0, no staging/commit. Entry/E2E remain 377/1750 lines to reuse existing
+controllers/harness; shell logic/style are separate 132/179-line files.
+See the phase document for local/Air evidence and fixture locations.
+
+
+## Writing UI V2 — uncommitted candidate (2026-11-03)
+
+Body-first Document window with one Chinese toolbar, title/session switcher,
+compact readonly/unsaved/backup state and on-demand draft/details side panels.
+Draft list refreshes on opening. Failed/unknown operations stay visible; export
+receipts remain distinct from later edits and local backup. Save confirmation
+uses existing frozen-state/Cancel semantics, including Escape refusal during IPC.
+No editor, save authority or storage-format expansion. Prior Draft Management V1
+candidate preserved; renderer entry/E2E remain oversized legacy files, with the
+new presentation logic kept in a separate small shell module.
+
+100 targeted Node PASS; 3 Pro Electron cases PASS / 4 clean exits, including
+responsive visuals, switching/history, archive/restart/return, controlled
+composition, new-file export/reopen/hash and retained success on later failure.
+Evidence: `/private/tmp/markdown-writing-ui-node-final.log` and
+`/private/tmp/markdown-writing-ui-e2e-4.log` plus screenshots. Brief inactive test
+window display is used only for reliable macOS captures; native dialogs are
+stubbed and native IME is NOT VERIFIED. Air connection entry unavailable: NOT RUN,
+no device changes. Local self-review only, no new unresolved P0/P1 identified.
+New UI/manual QA pending; historical limitations and release gates remain.
+Version 0.34.0 unchanged; no commit. See the phase document for evidence and the
+retained first-run empty-fixture mapping; successful export fixture was reclaimed.
+
+
+## Draft Management V1 — uncommitted candidate (2026-11-03)
+
+The local recovery panel now distinguishes same-name drafts by backup time,
+revision and short ID. Explicit, cancellable **归档** retains the body and removes
+an inactive verified draft from the recovery list; **已归档 → 放回待恢复列表**
+reverses it. This is logical archive membership in verified snapshot generations,
+not deletion of the draft; normal generation retention still applies. Active and
+unreadable groups cannot be organized. The existing
+snapshot writer, owner/session gates and source-of-truth model are reused.
+
+The UI distinguishes 32 non-archived draft slots from the unchanged 128-record
+ceiling. Archive frees a slot but does not reclaim disk records. Unknown/partial
+records remain, and full capacity refuses writes. Stale confirmations, directory
+changes, permission errors and uncertain replies do not report success or retry.
+A self-review correction scopes an unknown management response to management,
+so it cannot accidentally block an unrelated document's checked new-file export.
+
+**94 focused Node PASS; one two-process Pro Electron case PASS**, with two clean
+exits, exact restored BOM/CRLF bytes, unchanged original bytes/hash, cancel,
+archive/return, active/corrupt refusal and retained writing/history on permission
+failure. Hidden synthetic windows and stubbed open selection are automated
+coverage, not native IME or user manual acceptance. Bundle reproduction and Git
+whitespace checks PASS. Codex local self-review found no remaining new P0/P1 in
+this scope; no independent Reviewer was called. New manual acceptance is pending.
+
+Store/view/IPC are 156/119/253 lines; the existing Electron regression file is
+1507 lines, extended by 55 lines to reuse its isolated lifecycle fixture. No new
+storage framework, dependencies, save authority, version bump or commit. Version
+remains 0.34.0. Original overwrite, coordination-required, native IME NOT VERIFIED,
+prior Chinese manual FAIL, SEC-01, formal phase-1B3 FAIL and release gates remain.
+See [scoped evidence](document-editing-interaction-phase1b3.md#draft-management-v1-2026-11-03-uncommitted).
+
+
 ## 0.34.0 local WIP checkpoint — Local Draft Recovery V1 (2026-11-03)
 
 Main-confirmed temporary/edit-copy content now receives a bounded local recovery
@@ -391,3 +571,21 @@ receipts. The user explicitly reports all tested operations passed. Existing
 187 Node / one Pro Electron and native synthetic RED/GREEN evidence is retained;
 no unrelated tests repeated. This is not full native IME or release sign-off;
 version remains 0.32.0 and the candidate remains uncommitted.
+
+
+### Writing V3 — quiet composition and basic formatting (2026-11-04, uncommitted)
+
+Normal IME input has one compact status with stable body position; actual input,
+backup and export failures stay visible. Chinese names, `本地草稿`, backup and
+export states distinguish memory/draft/file outcomes. A small format bar adds
+headings 1–3, selected bold and flat tight lists through bounded source patches
+and main-owned revision/history checks. No whole-file serialization or new writer.
+Original readonly and exclusive-new-file protections remain unchanged.
+
+210 focused Node and four distinct Pro Electron cases PASS (five successful clean
+app exits); exact BOM/CRLF export/reopen and unchanged source hashes recorded in
+[the phase contract](document-editing-interaction-phase1b3.md#writing-v3--quiet-input-and-basic-formatting-candidate-2026-11-04).
+Air NOT RUN (name resolution). Controlled composition is not native IME: native
+NOT VERIFIED, historical manual/formal FAIL and release limits remain. Existing
+Draft Management/UI V2 candidate retained, version 0.34.0, no commit. Renderer
+377/E2E1682 lines reuse existing ownership; new format helpers are 114/56/38 lines.

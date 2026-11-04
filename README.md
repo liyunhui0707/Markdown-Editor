@@ -53,15 +53,49 @@ cd apps/desktop
 mise exec -- npm run dev -- --document-readonly
 ```
 
-Use **Open Markdown…** or **Cmd+O** to select one `.md` file from any directory,
-then open a different file in the same window. No Vault is required. A compact
-toolbar shows the document name and read-only status; click the name to view its
-full name and directory. The centered reading surface and welcome window share
-one interface. Opened files cannot be edited or saved.
+Use **打开…** or **Cmd+O** to select one `.md` file from any directory,
+then open a different file in the same window. No Vault is required. The approved
+prototype's first integration batch provides a collapsible sidebar of real open
+sessions, a compact document/format toolbar, a centered writing surface and a
+bottom status bar. The sidebar filters open document names only; it does not scan
+folders or search document content. Click a row to switch original/copy, or click
+the document title to see its full name and directory. Press Escape or click outside to dismiss the title menu;
+Escape returns focus to the title when focus was inside the menu. On narrow windows the
+sidebar becomes an overlay. The welcome page offers New and Open. Opened original
+files cannot be edited or saved.
+
+The second integration batch adds a real **文档大纲** on the right: click a heading
+to scroll to it without changing the caret or document. It lists supported headings
+rendered by the editor, excluding code and protected/opaque structures, and follows
+confirmed heading edits and Undo/Redo. Narrow windows use a closable overlay.
+Choose **Aa** (or **Cmd+,**) for light/dark/follow-system appearance, body font,
+size, width and line spacing. These display choices keep the existing editor and
+Markdown unchanged, remain across document switches in this window, and reset on
+restart. They do not change exported Markdown formatting. Navigation/settings
+pause while input or an edit is unconfirmed.
+
+**Cmd/Ctrl+F** or the search icon opens document find: literal text highlights,
+current/total count, optional case sensitivity, Enter/Shift+Enter navigation and
+Escape to return to the editor. It searches displayed text (including protected
+blocks), crosses inline marks but not block boundaries, and does not change the
+document, revision or history. Queries allow 256 UTF-16 units; for more than 1,000
+matches the total remains exact but only the first 1,000 are highlighted/navigable.
+Edits and session switches refresh matches; unsettled input pauses navigation.
+Find does not replace text or search folders. The user has accepted the current
+visual layout as the baseline for subsequent functional work.
+
+**草稿** shows recovery cards, active/uncertain labels and reversible archive
+actions. Empty results are distinguished from list errors. **详情** separates
+current-document identity, local backup, the last confirmed new file and the latest
+operation; later failure never replaces an earlier success receipt. Technical
+details and limits are expandable. Save confirmation offers **返回编辑** or
+**选择位置…**; Escape cancels through the existing handler. Draft-management
+confirmation cannot be closed while its request is pending. These panels support
+the same light/dark appearance and narrow-window layout as the editor.
 Cancel or an open error keeps the current document. The ordinary `npm run dev`
 entry continues to use the existing Vault UI.
 
-Click **New temporary document**, or open a file and choose **Edit a copy**, to
+Click **新建**, or open a file and choose **编辑副本**, to
 write in an independent session. Confirmed writing receives a separate local draft
 backup; the original file stays read-only.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
@@ -77,7 +111,22 @@ Leading/trailing blank lines, consecutive empty paragraphs, cross-block selectio
 multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
 are refused as a whole. The native Edit menu includes Paste for system dialogs.
 
-To enable the existing restricted **Save as new file…** flow, use:
+The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列表**, selection
+**加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
+reparse it; they do not normalize the whole file. Headings require a nonempty
+single source line. Bold applies within one text leaf; removing it requires the
+whole bold leaf. Lists support up to 32 flat, tight, one-line items: Enter splits
+a plain item, Enter on the last empty item exits, and Backspace at a nonfirst plain
+item's start joins it to the previous plain item. Converting a list applies to the
+whole current list. Nested/task/loose lists and complex structures remain protected.
+Typing Markdown markers is not a general formatting shortcut in this preview.
+
+Normal IME composition shows only **输入中…**, without moving the writing area.
+Formatting, switching and export stay disabled until input is confirmed. Invalid
+input, backup failure and uncertain file creation still show actionable warnings;
+no composition state is cleared by a timer or by hiding its status.
+
+To enable the existing restricted **另存新文件…** flow, use:
 
 ```bash
 mise exec -- node tools/run-document-copy-demo.cjs --persistent
@@ -99,12 +148,18 @@ Only new files are created; existing targets are never overwritten. The UI
 separates the last confirmed file's path/revision/hash from later failures and
 reports uncertain outcomes without claiming that no file exists.
 
-**Not saved** still describes the editing session: later edits do not update a
-previously created file. **恢复本地草稿** lists local recovery snapshots after a
-restart. **恢复副本** opens an independent temporary session with the confirmed
+**本地草稿** describes the independent editing session, not a saved Markdown file.
+**已备份** confirms its local backup; **当前内容已导出** confirms the exported
+revision only. Later edits show **后续修改尚未导出** and do not update the file. Open **草稿** at the bottom of the sidebar to list local recovery
+snapshots after a restart. **恢复副本** opens an independent temporary session with the confirmed
 Markdown bytes (including BOM/newlines), a fresh revision and empty Undo history.
-The separate backup indicator names its last confirmed revision; it never means
-that a Markdown file has been saved or an older export updated.
+The compact backup indicator is separate from file export; it never means that a
+Markdown file has been saved or an older export updated. **详情** contains the
+backup revision, export path/hash and destination limits. Normal writing keeps
+these explanations out of the document; backup/input/export failures remain visible.
+Switch open sessions using the sidebar or document-title menu. Drafts and details open in side
+panels; Escape closes them. The existing export confirmation remains cancellable
+before IPC, and cannot be dismissed while a create response is pending.
 
 Drafts are stored locally, unencrypted, under
 `~/Library/Application Support/Markdown Vault Document Drafts/` with private
@@ -112,15 +167,23 @@ permissions. Main-confirmed edits are coalesced over an 800 ms window; close als
 attempts a flush. Sudden exit can lose the newest unbacked edits. Uncommitted IME
 text, renderer recovery copies and prior Undo history are not persisted. A failed
 or uncertain backup preserves memory and earlier records and reports the failure.
-At most 32 drafts are supported, normally retaining two verified generations per
-draft. Damaged/uncertain records are retained; capacity exhaustion refuses further
-backups. V1 has no automatic draft dismissal after export or user deletion UI.
+The list shows backup time, revision and a short ID to distinguish same-name drafts.
+**归档** requires confirmation, moves an inactive verified draft out of the recovery
+list and retains its content locally; **已归档 → 放回待恢复列表** reverses it.
+Active drafts and groups with unreadable records cannot be organized. Cancel does
+not change records. An uncertain result is shown separately and never auto-retried.
+
+At most 32 non-archived drafts and 128 total snapshot records are supported,
+normally retaining two verified generations per draft. Archiving frees a recovery
+slot, not disk records. Archived, damaged and partial records still count toward
+the record ceiling; reaching it stops writes and asks users to export new Markdown
+files. There is no permanent-delete UI or automatic dismissal after export.
 Close/Quit still asks before discarding. The document selector retains temporary
 sessions while viewing real files. The eight-session limit is a development
 constraint. Native macOS IME remains unaccepted; this is not daily-writing or
 release sign-off.
 
-This restricted preview formats headings, paragraphs and bold. Other syntax,
+This restricted preview formats headings, paragraphs, bold and simple flat lists. Other syntax,
 including HTML, images, links and tables, is displayed as literal text; it does
 not load external resources. Only UTF-8 regular, non-linked `.md` files up to
 512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,

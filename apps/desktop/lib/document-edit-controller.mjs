@@ -1,3 +1,4 @@
+import { mapFormatEdit } from './document-format-edit.mjs';
 import { projectSource, mapTextEdit } from './document-source-map.mjs';
 
 function transactionEdit(source, tr) {
@@ -165,6 +166,30 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       return reply.ok;
     } finally { historyPending = false; notify(); }
   }
+  async function format(command) {
+    if (disposed || locked || atCapacity() || composition || historyPending || confirmed.readOnly) return false;
+    historyPending = true; const epoch = failures; notify();
+    try {
+      await idle(); if (disposed || locked || failures !== epoch || recoveries.length) return false;
+      const mapped = mapFormatEdit(source, command);
+      if (!mapped.ok) { code = mapped.code; return false; }
+      const revision = confirmed.revision;
+      let reply;
+      try { reply = await send('format', { sessionId: initial.sessionId, expectedRevision: revision, ...command }); }
+      catch { await reconcile(null, 'ipc-failed'); return false; }
+      if (disposed) return false;
+      if (!reply?.ok) {
+        if (valid(reply?.snapshot) && reply.snapshot.source === confirmed.source && reply.snapshot.revision === revision) { code = reply.code; return false; }
+        await reconcile(reply, reply?.code || 'ack-mismatch'); return false;
+      }
+      if (!valid(reply.snapshot) || reply.snapshot.source !== mapped.source
+          || reply.snapshot.revision !== revision + Number(mapped.source !== source)) {
+        await reconcile(null, 'ack-mismatch'); return false;
+      }
+      confirmed = structuredClone(reply.snapshot); source = confirmed.source; code = 'formatted';
+      onReset(source, mapped.selection); return true;
+    } finally { historyPending = false; notify(); }
+  }
   async function reload() {
     if (disposed || flight || queue.length || composition || historyPending) return false;
     historyPending = true; notify();
@@ -210,6 +235,6 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (index < 0) return false;
     recoveries.splice(index, 1); code = 'recovery-discarded'; notify(); return true;
   }
-  return { state, prepare, accept, beginComposition, endComposition, history, reload, refresh, idle, discardRecovery, retainCompositionCopy,
+  return { state, prepare, accept, beginComposition, endComposition, history, format, reload, refresh, idle, discardRecovery, retainCompositionCopy,
     dispose() { disposed = true; queue.length = 0; locked = true; for (const resolve of waiters.splice(0)) resolve(); } };
 }

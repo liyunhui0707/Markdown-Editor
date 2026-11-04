@@ -54,13 +54,13 @@ test('last confirmed path, revision and hash survive target-exists and cancellat
   const h = harness(), before = structuredClone(h.documents.get('A').state.confirmed);
   await h.attempt(confirmed());
   const receiptText = h.text('test-copy-result');
-  assert.match(receiptText, /revision 2/); assert.match(receiptText, /\/synthetic\/A.md/);
+  assert.match(receiptText, /修订 2/); assert.match(receiptText, /\/synthetic\/A.md/);
   assert.ok(receiptText.includes('a'.repeat(64)));
   for (const code of ['target-exists', 'create-cancelled']) {
     await h.attempt(refused(code));
     assert.equal(h.text('test-copy-result'), receiptText);
     assert.ok(h.text('test-copy-operation').includes(code));
-    assert.doesNotMatch(h.text('test-copy-operation'), /created: revision/);
+    assert.doesNotMatch(h.text('test-copy-operation'), /本次已创建新文件/);
     assert.equal(h.byId('create-test-copy').disabled, false);
   }
   for (const key of ['source', 'revision', 'dirty', 'canUndo', 'canRedo']) {
@@ -82,7 +82,7 @@ test('only a validated new success replaces the last confirmed revision', async 
   const s = h.documents.get('A').state;
   s.confirmed.revision = 3; s.confirmed.source += ' later'; s.source = s.confirmed.source; h.render();
   await h.attempt(refused('unsupported-copy-directory')); assert.equal(h.text('test-copy-result'), old);
-  await h.attempt(confirmed(3, 'new')); assert.match(h.text('test-copy-result'), /revision 3/);
+  await h.attempt(confirmed(3, 'new')); assert.match(h.text('test-copy-result'), /修订 3/);
   assert.match(h.text('test-copy-result'), /\/synthetic\/new.md/);
   assert.equal(s.confirmed.dirty, true); assert.equal(s.confirmed.canUndo, true);
 });
@@ -154,4 +154,48 @@ test('save feedback: success stays separate from later failure and reports later
   assert.match(h.text('test-copy-summary'), /修订 2/);
   assert.match(h.text('test-copy-operation'), /未创建文件/);
   assert.equal(s.confirmed.dirty, true);
+});
+
+
+test('writing surface keeps later failure visible beside the last verified export', async () => {
+  const h = harness(); await h.attempt(confirmed());
+  assert.equal(h.byId('copy-summary-compact').hidden, false); assert.match(h.text('copy-summary-compact'), /当前内容已导出/);
+  assert.equal(h.byId('copy-operation-alert').hidden, true);
+  h.documents.get('A').state.confirmed.revision++; h.render();
+  assert.match(h.text('copy-summary-compact'), /后续修改尚未导出/);
+  await h.attempt(refused('target-exists'));
+  assert.equal(h.byId('copy-operation-alert').hidden, false); assert.match(h.text('copy-operation-alert'), /同名目标已存在/);
+  assert.match(h.text('copy-summary-compact'), /A.md/);
+  const s = h.documents.get('B').state; s.confirmed.temporary = false; s.confirmed.readOnly = true; h.select('B');
+  assert.equal(h.byId('copy-summary-compact').hidden, true); assert.equal(h.byId('copy-operation-alert').hidden, true);
+});
+test('unknown creation remains visible without opening details and blocks repeat', async () => {
+  const h = harness(); await h.attempt(Error('lost response'));
+  assert.equal(h.byId('copy-operation-alert').hidden, false);
+  assert.match(h.text('copy-operation-alert'), /结果未知/); assert.match(h.text('copy-operation-alert'), /不要覆盖或重复创建/);
+  assert.equal(h.byId('create-test-copy').disabled, true);
+});
+
+
+test('ordinary composition is quiet but still blocks export; invalid input and prior failures stay visible', async () => {
+  const h=harness(),s=h.documents.get('A').state;
+  s.composing=true;h.render();assert.equal(h.byId('create-test-copy').disabled,true);assert.equal(h.byId('copy-operation-alert').hidden,true);
+  s.compositionInvalid=true;h.render();assert.equal(h.byId('copy-operation-alert').hidden,false);assert.match(h.text('copy-operation-alert'),/输入未能确认/);
+  s.composing=false;s.compositionInvalid=false;h.render();assert.equal(h.byId('copy-operation-alert').hidden,true);
+  await h.attempt(confirmed());s.composing=true;h.render();assert.equal(h.byId('copy-operation-alert').hidden,true);
+  assert.match(h.text('copy-summary-compact'),/A.md/);s.composing=false;h.render();
+  await h.attempt(refused('target-exists'));s.composing=true;h.render();assert.match(h.text('copy-operation-alert'),/同名目标已存在/);
+});
+
+test('detail cards separate last confirmed file from later failed or uncertain operations', async () => {
+  const h = harness(); assert.equal(h.byId('copy-empty').hidden, false);
+  assert.equal(h.byId('confirmed-copy-card').hidden, true); assert.equal(h.byId('latest-copy-card').hidden, true);
+  await h.attempt(confirmed()); assert.equal(h.byId('copy-empty').hidden, true);
+  assert.equal(h.byId('confirmed-copy-card').hidden, false); assert.equal(h.byId('latest-copy-card').dataset.tone, 'success');
+  const last = h.text('test-copy-result');
+  await h.attempt(refused('target-exists')); assert.equal(h.byId('latest-copy-card').dataset.tone, 'error');
+  assert.equal(h.byId('confirmed-copy-card').hidden, false); assert.equal(h.text('test-copy-result'), last);
+  await h.attempt(Error('Synthetic unknown outcome')); assert.equal(h.byId('latest-copy-card').dataset.tone, 'error');
+  assert.equal(h.text('test-copy-result'), last); assert.equal(h.byId('create-test-copy').disabled, true);
+  h.select('B'); assert.equal(h.byId('confirmed-copy-card').hidden, true); assert.equal(h.byId('latest-copy-card').hidden, true);
 });

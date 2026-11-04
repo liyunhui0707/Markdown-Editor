@@ -1,3 +1,4 @@
+import { mapFormatEdit } from '../lib/document-format-edit.mjs';
 import test from 'node:test';
 import { syncNativeBackspaceSelection } from '../lib/document-native-selection.mjs';
 import { pastePlainText } from '../lib/document-plain-paste.mjs';
@@ -26,7 +27,7 @@ function harness(input = null, mapper = mapTextEdit) {
   const win = new EventEmitter(), wc = new EventEmitter(), frame = { url: 'file:///synthetic/demo.html' };
   Object.assign(wc, { isDestroyed: () => false, mainFrame: frame, getURL: () => frame.url });
   Object.assign(win, { isDestroyed: () => false, webContents: wc });
-  const manager = createDocumentSessions({ service, projectSource, mapTextEdit: mapper, windowFor: () => win });
+  const manager = createDocumentSessions({ service, projectSource, mapTextEdit: mapper, mapFormatEdit, windowFor: () => win });
   manager.grant(win, frame.url); const id = manager.provision(win, document, 'A');
   const request = (operation, payload = {}) => manager.request({ sender: wc, senderFrame: frame }, { operation, sessionId: id, ...payload });
   let state = EditorState.create({ schema, doc: schema.nodeFromJSON(projectSource(document.text).doc) });
@@ -38,8 +39,8 @@ function harness(input = null, mapper = mapTextEdit) {
       if (operation === 'snapshot' && h.failSnapshot) throw Error('synthetic snapshot transport failure');
       if (operation === 'edit' && h.throwEdit) throw Error('synthetic edit transport failure');
       const result = request(operation, payload);
-      if (operation === 'edit' && h.dropReplyAfterCommit) throw Error('synthetic response loss after real main edit');
-      if (operation === 'edit' && h.wrongAck) return { ...result, snapshot: { ...result.snapshot, source: '# WRONG ACK\n' } };
+      if (['edit','format'].includes(operation) && h.dropReplyAfterCommit) throw Error('synthetic response loss after real main edit');
+      if (['edit','format'].includes(operation) && h.wrongAck) return { ...result, snapshot: { ...result.snapshot, source: '# WRONG ACK\n' } };
       if (operation === 'snapshot' && h.delaySnapshot) await new Promise(resolve => snapshotReplies.push(resolve));
       if (operation === 'edit' && h.delayed) await new Promise(resolve => replies.push(resolve));
       return result;
@@ -757,4 +758,49 @@ test('literal brackets: PM input and IPC history remain editable without changin
   assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, expected);
   assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, expected + ' next');
   assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+
+test('format commands use main-owned history, exact bytes and the same sender/revision fence', async()=>{
+  const h=harness('\ufeff---\r\nx: keep\r\n---\r\n\r\nPlain 中文😀.\r\n\r\n```\r\nopaque\r\n```\r\n');
+  const original=h.document.text;
+  const apply=async(action,text,offset=0,end=offset)=>{const s=h.span(text);assert.ok(s);return h.controller.format({action,from:s.from+offset,to:s.from+end});};
+  assert.equal(await apply('heading-2','Plain 中文😀.'),true);assert.equal(h.document.text,original.replace('Plain','## Plain'));
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,original.replace('Plain','## Plain'));
+  assert.equal(await apply('paragraph','Plain 中文😀.'),true);
+  assert.equal(await apply('bold','Plain 中文😀.',6,10),true);
+  assert.equal(await apply('bullet-list','Plain '),true);
+  let span=h.span('中文😀');assert.equal(h.edit(span.from,span.to,'新字'),true);await h.controller.idle();
+  assert.ok(h.document.text.includes('- Plain **新字**.'));
+  assert.equal(await h.controller.history('undo'),true);assert.ok(h.document.text.includes('- Plain **中文😀**.'));
+  assert.equal(await h.controller.history('undo'),true);assert.ok(h.document.text.includes('Plain **中文😀**.'));
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+  assert.equal(h.request('save',{expectedRevision:h.document.revision}).status,'unchanged');
+  assert.equal(await h.controller.history('redo'),true);
+  assert.equal(h.request('save',{expectedRevision:h.document.revision}).code,'coordination-required');
+  const before=h.document.text,revision=h.document.revision;
+  for(const payload of [{action:'heading-1',from:1,to:1,expectedRevision:revision-1},{action:'heading-1',from:1,to:1,expectedRevision:revision,source:'arbitrary'},{action:'heading-1',from:1,to:1,expectedRevision:revision,path:'/tmp/x'}])assert.equal(h.request('format',payload).ok,false);
+  assert.equal(h.document.text,before);assert.equal(h.document.revision,revision);
+});
+test('format command during composition is refused without retiring the native input context',async()=>{
+  const h=harness('First.\n\nSecond.');h.controller.beginComposition();
+  assert.equal(await h.controller.format({action:'heading-1',from:1,to:1}),false);
+  assert.equal(h.controller.state().composing,true);assert.equal(h.requests.length,0);assert.equal(h.document.text,'First.\n\nSecond.');
+  h.controller.endComposition();assert.equal(await h.controller.format({action:'heading-1',from:1,to:1}),true);
+});
+test('lost formatting acknowledgement reconciles without replay or false success',async()=>{
+  const h=harness('Keep.');h.dropReplyAfterCommit=true;
+  assert.equal(await h.controller.format({action:'heading-1',from:1,to:1}),false);
+  assert.equal(h.requests.filter(r=>r.operation==='format').length,1);
+  assert.equal(h.document.text,'# Keep.');assert.equal(h.controller.state().source,'# Keep.');
+  assert.equal(h.controller.state().code,'ipc-failed');assert.equal(h.controller.state().historyPending,false);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('list item typing and IME group remain editable and exactly undoable',async()=>{
+  const h=harness('- First.\r\n- 中文😀\r\n'),original=h.document.text;
+  const span=h.span('中文😀');h.controller.beginComposition();
+  assert.equal(h.edit(span.from,span.to,'组合'),true);h.controller.endComposition();await h.controller.idle();
+  assert.equal(h.document.text,'- First.\r\n- 组合\r\n');assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,'- First.\r\n- 组合\r\n');
 });

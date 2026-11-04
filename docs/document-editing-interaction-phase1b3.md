@@ -1553,3 +1553,448 @@ blocked, coordination-required stays effective, and the draft recovery, native
 IME, earlier manual FAIL, SEC-01, formal phase-1B3 FAIL, installer, hostile
 same-user concurrency and power-loss limits above remain. No push, merge, tag
 or release is part of this checkpoint.
+
+
+## Draft Management V1 (2026-11-03, uncommitted)
+
+User-approved next slice after the 0.34.0 checkpoint: identify drafts, explicitly
+remove unneeded items from the recovery list, and explain capacity. Implemented
+as reversible logical archive/return, not permanent deletion. The list shows
+backup time, revision and a short stable ID. An inline confirmation names the
+selected draft; Cancel has no storage effect. Archived content stays locally
+recoverable by returning it to the recovery list before restoring a fresh session.
+
+The existing store writes a new checksummed, exclusive snapshot with archive
+membership and the same Markdown bytes/revision/backup time. Existing V1 records
+without that field remain supported. Main checks sender/frame/window authority,
+action/ID/opaque group fingerprint, inactivity and verified record identities.
+Renderer cannot provide body, path or permissions. Active or partially unreadable
+groups cannot be archived/returned; stale confirmations refuse. Neither original
+files nor current model, revision, Undo history, export receipts or Not saved are
+changed. Failed/uncertain management remains a separate operation status. Unknown
+transport outcomes fence further management in that renderer, while independently
+validated export of unrelated writing remains usable; there is no automatic retry.
+
+Capacity is 32 non-archived drafts and 128 total snapshot records, including
+archive and unknown/partial records. Archiving frees a draft slot, not disk space;
+the 128-record ceiling can still stop backup/management. The UI explains both.
+No permanent-delete, renaming or bulk cleanup UI is added. Existing verified
+snapshot retention still applies; corrupt/partial records are retained. A legacy
+app version does not understand archive membership; this is not a downgrade or
+multiple-version profile compatibility guarantee.
+
+Validation: **94 Node PASS** across document-drafts, document-session-ipc and
+document-open-readonly tests. Covers archive/return with exact BOM/CRLF/Unicode,
+legacy records, malformed archive flags, stale/competing writers, active sessions,
+forged IPC, permission/partial/sync failures, both capacity limits, symlink/root
+changes, composition and lost/malformed responses. **One Pro Electron case PASS**
+with two fresh processes and clean exits verifies GUI cancel/confirm, same-name
+identification, persisted archive membership, return/restore, active/corrupt
+refusal, subsequent editing, retained Undo capability and original-file equality
+through a permission denial. Original synthetic SHA-256:
+`d767b1c023f9c8020644c3f2e15a06924f5aeaa468b24fd68a78853321ab224e`.
+Native open selection is stubbed, input controlled and windows hidden: native IME
+and user manual QA are not claimed. No actual user draft directory was accessed.
+
+Evidence: `/private/tmp/markdown-draft-management-node-final.log` (94 PASS),
+`markdown-draft-management-preload-final.log` (focused post-self-review rerun),
+`markdown-draft-management-e2e-final.log` and `markdown-draft-management-e2e-final/`
+(two screenshots), all under `/private/tmp`. Initial RED tests and prior runs
+remain beside them. The first test-append attempt used the wrong cwd and failed
+before changing files; it was corrected, not a product failure. A separate esbuild
+output byte-matches the tracked bundle. All new fixtures are in OS temporary
+directories, not Home; partial/error evidence is retained, no historical cleanup.
+
+Local self-review: accept within this bounded WIP scope; no unresolved new P0/P1
+found. The one corrected failure-path coupling is documented above and tested.
+No second-model review, native manual acceptance, performance/installer or release
+sign-off is implied. Existing original overwrite prohibition, coordination-required,
+SEC-01, formal phase-1B3 FAIL, native IME NOT VERIFIED/prior manual FAIL, plaintext
+local storage, unbacked-input and old-Undo limits, hostile same-user concurrency
+and power-loss exclusions remain. Version 0.34.0; no staging, commit or push.
+
+
+## Writing UI V2 — uncommitted candidate (2026-11-03)
+
+The Document-First window now has one compact Chinese action bar: 新建 / 打开,
+centered document title with the existing session switcher, 编辑副本 or 另存新文件,
+草稿 and 详情. The body follows a short readonly/unsaved and local-backup status
+line; reading width is capped at 800 CSS px, with a two-row header on narrow windows.
+Draft recovery/archive/return is in an on-demand modal side panel, refreshed on
+opening. Save limits, full receipts, revision/hash and backup details are in a
+separate panel. Essential failed/unknown creation and input/backup warnings remain
+on the writing surface. A later failure does not erase the last successful receipt.
+
+A small presentation-only shell reuses existing controllers and UI nodes. Opening
+panels/title disclosure is fenced while input is composing or operations are busy;
+no composition flag is force-cleared. Native dialog focus/Escape is used. Escape
+on export confirmation delegates to the existing Cancel handler only while enabled;
+it cannot dismiss an in-flight create request. Restore/switch closes panels and
+preserves the existing main-owned session/revision/history boundaries. No File
+Store, save policy, permission or storage format changes belong to this UI slice.
+The prior uncommitted Draft Management V1 implementation remains preserved.
+
+Validation: **100 focused Node PASS** (drafts, IPC, copy view and writing shell),
+**3 Pro Electron cases PASS**, 4 clean process exits, no watchdog/fault/remnants.
+Coverage: empty/read/edit layouts at 390/640/1050/1440 px, Chinese/English long
+names, panel keyboard close/focus, controlled composition blocking, independent
+original/copy switching and Undo/Redo, real exclusive creation through stubbed
+native selection, reopen and byte/hash equality, later failure retaining receipts,
+plus archive/cancel/return/restore and permission failure retention across restart.
+Export SHA-256: `968738615447c8b334727842d2e0c3686c97bf7b229600081a8983fa874d0129`.
+Evidence: `/private/tmp/markdown-writing-ui-node-final.log`,
+`/private/tmp/markdown-writing-ui-e2e-4.log` and `markdown-writing-ui-e2e-4/` screenshots.
+The generated bundle was independently rebuilt and byte-compared.
+
+Early runs exposed outdated UI selectors, a noncanonical test draft root, an Undo
+expectation that incorrectly assumed grouped typing, and resized hidden-window
+capture stalls. These test adaptations are retained in earlier logs. Screenshots
+now briefly show only the synthetic window without activating it, wait for painted
+frames and hide it again. The final tests take about 9 seconds. A stale draft list
+on panel opening was corrected by invoking the existing refresh operation.
+Successful Home export fixture was verified/reclaimed after exit. The first failed
+setup's empty fixture is recoverably retained at
+`/private/tmp/markdown-writing-ui-e2e-1/retained-fixture/` with `mapping.json`.
+Other failure/partial evidence stays in OS temporary directories. No user documents,
+actual draft library, prior archives or historical Home fixtures were touched.
+
+At the user's request Air was attempted: `air-mac` did not resolve; no Air entry
+was found in the current SSH aliases or named Tailscale peers. **Air NOT RUN**;
+this is not proof that the device is offline. No remote settings were changed.
+Pro evidence is controlled Electron interaction, not native macOS IME or native
+Save Dialog acceptance. New UI/manual acceptance remains pending. Prior user
+backup/restore and save successes are not invalidated, but native IME NOT VERIFIED,
+historical manual FAIL/formal 1B-3 FAIL, SEC-01 and release restrictions remain.
+Original overwrite remains prohibited; coordination-required, restricted new-file
+destinations, plaintext local drafts and backup/Undo limitations are unchanged.
+Local diff self-review: no new unresolved P0/P1 found in the UI slice; this is not
+an independent second-model review. No DeepSeek, version bump, staging or commit.
+The existing renderer entry and E2E spec exceed size guidelines; this stage adds a
+small shell module and reuses the single synthetic harness instead of splitting
+unrelated controller/test history. Version remains 0.34.0 on the same branch/HEAD.
+
+
+## Writing V3 — quiet input and basic formatting candidate (2026-11-04)
+
+Normal composition in the Document-First window now occupies only the fixed-height
+backup status line (`输入中…`). Export/format/switch guards remain active; invalid
+composition and actual backup/create failures remain visible. No input completion
+is invented and no safety timer was added. Main labels/default names are Chinese.
+The session badge is `本地草稿`, with separate `已备份` / `当前内容已导出` /
+`后续修改尚未导出` facts. This does not grant saved-file binding or overwrite rights.
+
+The format bar reuses the same source map, Document Model, session IPC/controller
+and main-owned Undo/Redo. It supports single-line headings 1–3, selected-text bold,
+and flat tight lists of up to 32 one-line items. Plain list items support Enter,
+last-empty-item exit and Backspace joins. Formatting on an empty paragraph,
+cross-line/cross-leaf selections, partial removal of bold, marked-item splitting,
+and nested/task/loose/complex lists remain refused. Unsupported blocks remain
+opaque and readonly. The renderer sends only an allowlisted command, PM range,
+session and revision; the main process independently maps and reparses the patch.
+It accepts no arbitrary Markdown, path or history patch through that operation.
+Main-owned format history verifies full-source hashes before and after replay.
+BOM/newlines and unrelated source slices remain exact; export still uses the
+existing exclusive-create flow and retains dirty/Undo state.
+
+Validation: **210 focused Node PASS**, **4 distinct Pro Electron cases PASS** with
+five clean successful app exits. Cases cover responsive empty/readonly layouts
+(390/640/1050/1440 CSS px), Chinese native Edit menu retaining the Paste role,
+existing panels/error receipts, and the new edit/format/Undo/Redo/switch/export/
+fresh-process-reopen chain. The new case checks compositionstart/end from CDP
+browser IME, stable editor position while composing, denied readonly format IPC,
+opaque blocks, exact BOM/CRLF export, hash and unchanged original bytes.
+Original SHA-256: `ea329bc430210f2d3fcaf03fcd37b323e0fc922784823bdad7df5cc26156d100`.
+Export SHA-256: `ce7ff10b6b89898be70a81bfdd8b59d14d4b460328bebece07c21b91b94d9f80`.
+Evidence: `/private/tmp/markdown-writing-v3-node-final.log`,
+`markdown-writing-v3-e2e-final.log`, `markdown-writing-v3-e2e-layout-final.log`,
+and the corresponding temporary screenshot directories. An early composition
+capture changed focus mid-input; the harness now shows the synthetic window before
+composition. A later layout test expected the old English cancel text; corrected
+Chinese assertions passed. These failed runs remain recorded, not acceptance.
+Successful Home export fixtures were verified and reclaimed by the existing helper;
+all other synthetic diagnostics remain under OS temporary storage. No user files,
+actual draft library or historical archives were touched.
+
+Air was attempted once: `air-mac` could not resolve. Air NOT RUN; no device changes
+or further environment investigation. Pro uses controlled browser input and stubbed
+native file selection: **native macOS Chinese IME NOT VERIFIED**, prior manual
+FAIL/formal 1B-3 FAIL and SEC-01 remain unresolved at their existing scope. New
+manual experience acceptance remains pending. This is Codex local self-review,
+not an independent model review; no new confirmed P0/P1 found in this slice.
+Existing save destinations, coordination-required, plaintext draft/backup limits
+and original-overwrite prohibition remain. Existing Draft Management/UI V2 work
+is preserved. Version stays 0.34.0, no staging/commit/publication. The renderer
+entry (377 lines) and shared E2E spec (1682 lines) exceed guidance; three bounded
+format helpers (114/56/38 lines) isolate new logic while the existing harness and
+ownership stay intact. Controller tests are 806 lines within the test guideline.
+
+
+## Approved prototype integration — first real-app batch (2026-11-04)
+
+The accepted visual prototype is connected to the existing Document-First window:
+real session sidebar and name filter, collapsible desktop/overlay narrow layout,
+document and formatting bars, welcome page, 680px body column, warm paper/green
+styling and compact footer. Draft/details/export controls remain real existing
+controls, moved rather than duplicated. No sample documents or inactive feature
+buttons are used to imply working capabilities. Outline, themes and settings are
+later batches; the standalone prototype itself is unchanged.
+
+The shell resolves IDs against existing approved select options and invokes the
+same load handler. It highlights only the controller's confirmed identity; pending,
+revoked, removed or composition-blocked sessions cannot navigate through the new
+rows. Failed snapshot IPC retains content/history/highlight and can recover through
+the existing switch path. Rows stay stable during frequent edit/status updates.
+No main/preload/service, source mapping, editor authority or save policy changes
+were made in this batch. CSS is local and CSP adds style-src self only; external
+scripts/network restrictions remain. Earlier uncommitted candidate work is retained.
+
+Evidence:
+
+- Node: 83 PASS in `/private/tmp/markdown-shell-integration-node.log` (shell,
+  edit-controller and copy-view tests). Three new sidebar unit cases and one
+  isolated Electron interaction case extend existing tests.
+- Pro: four distinct cases PASS across `markdown-shell-integration-e2e.log`
+  (three PASS plus one initial test-only Undo assertion failure) and
+  `markdown-shell-sidebar-final.log` (corrected one-character Undo case PASS),
+  under `/private/tmp/`. Corresponding screenshot directories are
+  `markdown-shell-integration-e2e/` and `markdown-shell-sidebar-final/`.
+  The initial failure remains retained, not counted as acceptance. Five successful
+  app exits were clean. Existing verified export fixtures were reclaimed by the
+  owned-fixture helper after successful tests and process quiescence.
+- Air: `ssh mac-panmiaomiao` resolves to the user-confirmed Air. Two cases PASS in
+  18.4 seconds, two clean exits, no watchdog/fault/process remainder. Tests cover
+  empty/Chinese/English layouts and sidebar switching/history/filter/collapse,
+  controlled composition and failed IPC. The source and artifacts are confined to
+  `/private/tmp/markdown-shell-v1.obnGTp/`; this run creates no Home fixture.
+  Existing dependencies/runtime from the prior multiline-paste fixture were reused
+  read-only. No installation, SSH, permission or system configuration was changed.
+- Air source: 33 files match the local candidate before and after execution.
+  Dependency lock entries match (root package version excluded); Node 24.20.0,
+  Electron 43.4.1, Playwright 1.63.0. Source archive SHA-256:
+  `e3575bb2dd42af5dca460203314ea8aafa691c79b94626d0efeabfbeab38c5df`.
+  Returned evidence archive SHA-256:
+  `c2ecd1788479d71a323a01dda37f89a7df3f6b585122c9f6e4c1d25127ab4610`.
+  Local verified logs/screenshots/manifest: `/private/tmp/markdown-shell-air-transfer/results/`.
+- Sidebar fixture original unchanged, SHA-256:
+  `53bb2c8e3f99a14a2b224c0530ba324d7f4998a1de3ab1c5e084504b4e288e3f`.
+  Independent renderer build matches the candidate bundle exactly. Git whitespace
+  checks pass. Baseline copies/hashes of 31 prior candidate files remain at
+  `/private/tmp/markdown-shell-integration-baseline/`.
+
+This is controlled automated evidence and Codex local diff self-review, not native
+system Pinyin, new user manual acceptance or independent second-model review.
+No new unresolved P0/P1 was identified in this bounded presentation slice. Original
+overwrite, coordination-required, restricted destinations, plaintext draft limits,
+historical IME NOT VERIFIED/manual FAIL, formal 1B-3 FAIL and SEC-01 remain.
+Version stays 0.34.0; no staging, commit, Reviewer call or publication. The entry
+(377 lines) and shared E2E (1750) retain their existing controller/harness structure;
+new shell/style remain separate (132/179 lines), unit tests 102 lines. No unrelated
+file split was introduced for this visual integration batch.
+
+
+## Approved prototype integration — second real-app batch (2026-11-04)
+
+The existing editor now has a right heading outline, scroll-only navigation and a
+reading/settings dialog with theme (light/dark/system), body font, size, width and
+line spacing. Settings survive document switches within this window, not restart.
+Only current top-level rendered heading nodes appear; code/opaque syntax is excluded.
+Positions are bound to both the confirmed session and immutable editor document.
+Pending/history/composition/invalid states refuse navigation; stale rows cannot
+jump into a new session. Display changes do not rebuild the editor or write source,
+revision, history, IPC or files. Existing main/preload/service/save protections are
+unchanged from the prior candidate. The standalone prototype is unchanged.
+
+Evidence and limits:
+
+- 11 Node PASS in `/private/tmp/markdown-reading-node-final.log`: six new reading
+  cases and five existing shell cases. An initial fixture incorrectly passed a BOM
+  directly to the projector instead of through the service's BOM split; corrected
+  test input passed. The first log remains, not counted as a product PASS.
+- Three Air Electron cases PASS in 21.9s, three clean exits, no remaining process,
+  watchdog or fault. Includes responsive layout/sidebar regression and a new real
+  outline/theme/settings/heading-edit/Undo/Redo case. Original bytes and SHA-256
+  unchanged: `99da66ae940c39c8bf3d6672c8445548079f104a4402297033694a839c1d3c94`.
+  The same editor DOM persists through display changes; revisions change only for
+  edits/Undo/Redo. Dark desktop/narrow screenshots were visually checked.
+- Air snapshot: `/private/tmp/markdown-reading-v1.JCsJSN/`, 35 files verified before
+  and after, matching dependency entries; existing Node 24.20.0 / Electron 43.4.1 /
+  Playwright 1.63.0 reused. Source archive SHA-256:
+  `531f9940be5d2765f1e04424f4e20a1ff024a092a1d2f97b10fdede6ce55f687`.
+  Returned evidence SHA-256:
+  `c958d0a5c82edd1dd8c8252aa282edda3df95b1376210e43bafb6f480201d899`.
+  Local logs/screenshots/manifest: `/private/tmp/markdown-reading-air-transfer/results/`.
+  All new synthetic profiles/documents remain under that Air run's `tmp/`; no Home
+  fixture, user file, archive or real draft library was touched. No installation or
+  system configuration changes. No Pro GUI run was needed for this batch.
+- Independent bundle rebuild matches; Git whitespace checks pass. Bounded Codex
+  self-review accepts this presentation slice with no blocking finding; it is not
+  an independent second-model review or acceptance of all earlier candidates.
+  Existing 32 candidate copies/hashes: `/private/tmp/markdown-reading-baseline/`.
+
+Follow-system automation uses emulated media, composition uses controlled events,
+and file selection is stubbed. Native IME NOT VERIFIED, historical manual/formal
+1B-3 FAIL and SEC-01 remain scoped. User visual acceptance is pending. Original
+overwrite remains prohibited; coordination-required and save/draft limits remain.
+Version 0.34.0 unchanged, no staging/commit/Reviewer/publication. New reading files
+are 153/77 lines, tests 87; entry/E2E are 379/1830 lines because the existing wiring
+and isolated harness are reused rather than split during a bounded UI change.
+
+
+## Approved prototype integration — third real-app batch (2026-11-04)
+
+Drafts now use titled cards with explicit active/recoverable/uncertain badges,
+separate actions, an honest empty state and collapsible capacity details. Document
+details group confirmed identity, local backup, last confirmed file and latest
+operation. Save confirmation follows the same styling; existing handlers still
+freeze edits and validate the approved revision. Closing a draft confirmation
+cancels the local selection; pending management cannot be dismissed or duplicated.
+No main/preload/service, filesystem policy, source/edit/history or prototype change.
+Prior 35 candidates were verified and copied to `/private/tmp/markdown-panels-baseline/`.
+
+- Node: **55 PASS**, `/private/tmp/markdown-panels-node.log` (draft view/store,
+  writing shell and copy view); six new presentation/guard regressions.
+- Air: **two distinct cases PASS**, three app processes in the successful runs
+  exited cleanly. Export/edit/switch/reopen and archive/restart/return/restore cover
+  the changed panels. Original bytes remain exact; draft fixture original SHA-256
+  `d767b1c023f9c8020644c3f2e15a06924f5aeaa468b24fd68a78853321ab224e`;
+  export SHA-256 `968738615447c8b334727842d2e0c3686c97bf7b229600081a8983fa874d0129`.
+  Light/dark, save confirmation, empty/cards and narrow details screenshots inspected.
+- Initial Air root `/private/tmp/markdown-panels-v1.a3WeIB/`: export case PASS,
+  archive case failed at its final screenshot because its callback omitted `app`.
+  Fixed only that callback and reran archive in `/private/tmp/markdown-panels-final.EHCVhB/`
+  (PASS, 2.7s); no product change or repeated export test. Initial failure retained.
+  Both snapshots contain 36 matching hashes before/after and matching dependencies,
+  reusing Node 24.20.0 / Electron 43.4.1 / Playwright 1.63.0 without installation.
+  Source archive hashes: `17ddbf52274cbbdd8542ca0c36c1303e2f78999a1e431ab590ed2ccfdcebbe1f`
+  and `a182c68a461bc451e83e66aee13ce43c43a64ae57be52562602ab8ad13b7110f`.
+  Returned evidence hashes: `b5f7a6c3ac9d0151b060677f27be622655ebcad52a3b4ee1fb8d6c909c72886b`
+  and `0228cf68c21111e32f35b4ff348aeb1c887360a7223bc7070d89e6b4673829f2`.
+  Local artifacts: `/private/tmp/markdown-panels-air-transfer/results/` and
+  `/private/tmp/markdown-panels-air-retry/results/`.
+- The one fresh Home export fixture `/Users/shier/Writing-synthetic-E2E-zYxx1c`
+  was verified/reclaimed by the existing owned-fixture helper after clean exit;
+  subsequent absence confirmed. All other synthetic/partial/failure evidence remains
+  under those Air roots' `tmp/`. No historical artifacts or user drafts were touched.
+- Independent bundle rebuild and Git diff checks PASS. Bounded Codex local review
+  found no new blocker in this presentation slice; not independent second-model
+  review or approval of all prior candidates. New CSS/view tests are 69/59 lines;
+  draft view/shell remain 141/149. E2E stays 1856 lines to reuse the established harness.
+
+Manual visual acceptance remains pending. Native file dialogs are stubbed and IME
+events controlled; native IME NOT VERIFIED, historical manual/formal 1B-3 FAIL and
+SEC-01 remain scoped. No original-file overwrite, destination expansion or draft
+durability claim was added. Version remains 0.34.0; no staging/commit, DeepSeek call
+or publication. Current candidates remain a WIP rather than release approval.
+
+
+## Integrated appearance acceptance (2026-11-04)
+
+The three integration batches now provide one coherent real-app surface: welcome,
+session sidebar, document/format controls, writing column, outline, appearance,
+draft management, details and save feedback. Prototype-only features are not
+represented as implemented. This pass closes one reproduced interaction gap:
+the title disclosure now dismisses with Escape/outside pointer, returns keyboard
+focus when appropriate and leaves composition, pending operations and modal-owned
+events untouched. No filesystem, editor, service, IPC or authorization change.
+
+- Baseline: all 37 candidate hashes matched `/private/tmp/markdown-panels-final.json`;
+  preserved in `/private/tmp/markdown-experience-baseline/`.
+- **36 Node PASS**, `/private/tmp/markdown-experience-node.log`; three new shell
+  regressions. Two dismissal tests reproduced the old failure before the fix.
+- **3 Air Electron PASS, 22.9s**, under `/private/tmp/markdown-experience-final.jTQc1J/`:
+  integrated appearance plus adjacent sidebar/reading cases. 36 runtime/test hashes
+  matched before/after, dependencies match, Node 24.20.0 / Electron 43.4.1 /
+  Playwright 1.63.0 reused. All three processes exited cleanly.
+- Actual captures inspected: welcome, light/dark full workspace, narrow layout.
+  Modal focus return, title dismissal at 390/760/1024px, 1440px outline, original/copy
+  switching, history, controlled composition/IPC failure and cancelled export are
+  covered. Original bytes unchanged; integrated fixture SHA-256
+  `4a240408bdf1ac1e34e4544d92f8b42719520a67612a5a41b4c80fc82847a120`.
+- Failed initial reproduction retained at `/private/tmp/markdown-experience-red.cvaKkP/`.
+  Besides the confirmed dismissal bug, its snapshot assertion raced normal backup
+  completion; corrected by awaiting `backed-up`, not by changing product behavior.
+- Returned evidence: `/private/tmp/markdown-experience-final-transfer/results/`;
+  archive SHA-256 `eca7e3e8d61a2eae28fa3fe4050b612fa181de8f0b6916160ca33ae25cc5ffed`.
+  Failed evidence archive SHA-256
+  `cd43696a0044363b098956d6e001741c55f73d3700ae86ebbb2ad9e7f3b250ba`.
+  Final source archive SHA-256
+  `818c19a106dd072576424110d3382580300eb1359681434fb79ea9acdb1202b4`.
+- No Home/Downloads directories/files created; all new fixtures/drafts remain in
+  those private Air temporary roots. No historical files or user documents touched.
+  Prior export/reopen/receipt and archive results are reused, not rerun as unrelated gates.
+
+Bounded local self-review and independent bundle reproduction found no new blocker
+in this small shell fix. This does not review/approve every prior candidate. Shell
+logic/test 160/160 lines; E2E 1921 lines because the existing isolated harness is
+reused rather than extracted in a visual acceptance pass. A short optional visual
+check is in `test-manual.md`; user acceptance remains pending. Native dialogs are
+stubbed, theme system changes emulated and composition controlled. Native IME NOT
+VERIFIED, historical manual/formal 1B-3 FAIL, SEC-01 and save/release restrictions
+remain. Version 0.34.0; no staging/commit or Reviewer call. The integrated appearance
+is a candidate baseline, not a complete daily-use editor or release sign-off.
+
+## Visual baseline closeout and document find V1 — uncommitted (2026-11-04)
+
+The user accepted the integrated visual baseline; future work keeps this layout.
+Before this batch, all 37 candidate hashes matched the prior experience manifest.
+Bounded Codex A self-review of their runtime changes and relevant tests found no
+new confirmed P0/P1. This is not an independent model review. The pre-find files,
+hashes and proposed checkpoint scope are preserved in
+`/private/tmp/markdown-pre-find-checkpoint/`; no Git commit was created.
+
+Find V1 adds a toolbar search button and Cmd/Ctrl+F, literal text highlights,
+current/total count, case sensitivity, Enter/Shift+Enter navigation and Escape
+return to the editor. It searches displayed text in the current document,
+including protected blocks, across inline marks but not across block/inline-node
+boundaries. Queries are limited to 256 UTF-16 units. Total counts remain exact;
+at most the first 1,000 matches are highlighted/navigable, with an explicit notice.
+No replacement, regex syntax, folder search or new IPC/filesystem authority.
+Search state is window-local. Edits, history and session switches recompute matches;
+unconfirmed/composing/locked states pause navigation and suppress stale highlights.
+Search-field composition and modal-owned keys keep their normal ownership.
+
+Validation:
+- **45 focused Node PASS**, including nine new find tests; log
+  `/private/tmp/markdown-find-node-final.log`.
+- **Two distinct Air find E2E PASS** on the final runtime: full readonly/copy/edit/
+  Undo/Redo/A-B-A chain in `final/` (17.4s), composition/modal case in `retest2/`.
+  Existing integrated appearance case passed in the initial run and was not
+  needlessly rerun. Each run verified 38 source/test/config hashes and the existing
+  dependency lock; Node 24.20.0, Electron 43.4.1, Playwright 1.63.0. All launched
+  processes exited cleanly, including failed test iterations.
+- Air root: `/private/tmp/markdown-find-v1.tF519s/`; returned logs/screenshots and
+  failure evidence: `/private/tmp/markdown-find-final-results/results/`.
+  Evidence archive SHA-256:
+  `3c43869cea74de8ebea53ddd3a6629e562befef6bab7be32995f22655f286ad0`.
+  Final source archive SHA-256:
+  `649c157e7a5b1cccfd5357336d95421e8390d3b29bf820454e7b3db1edd87fc2`.
+- Actual light/dark/390px captures inspected. Source fixture bytes unchanged,
+  SHA-256 `1e7118b4c088b963cc963e61e88b0f17fd50914309109ba9b6b593ae3b9889eb`.
+  Confirmed synthetic backup also retained the exact `Zulu Alpha` insertion after
+  redo. No Home/Downloads fixture or user file was created/modified.
+- Air exposed readonly focus/selection return failures; fixed using tabindex and
+  the current PM selection's DOM positions, without making the document editable.
+  A later test expected one Undo to remove five separately typed edits; the test
+  now uses one input transaction and checks actual source as well as match count.
+  Failures remain in the evidence; none are reported as passes.
+
+Find logic/test are 140/121 lines. Existing entry is 382 lines and shared E2E 2001
+lines: only integration hooks/cases added; their established lifecycle harness is
+retained rather than refactored in this slice. Runtime save policy, main/preload,
+source mapping and controller are unchanged by Find V1. Native dialogs are stubbed
+and composition events controlled in E2E. Native IME **NOT VERIFIED**, historical
+manual/formal 1B-3 FAIL, SEC-01, `coordination-required`, overwrite prohibition and
+release limits remain. Visual acceptance does not clear those restrictions.
+Version remains 0.34.0; proposed next local WIP checkpoint version is 0.35.0.
+No staging/commit, Reviewer call, push, tag or release in this batch.
+
+
+## 0.35.0 local WIP checkpoint (2026-11-04)
+
+The user approved the prepared checkpoint before the next file-workflow slice.
+All 40 candidate fingerprints and the 42-file scope matched; existing test and
+bundle evidence was reused. Only version metadata and these checkpoint notes
+changed during closeout. This protects the accepted visual baseline and current
+features; it is not a release or unrestricted daily-use approval. Native IME,
+historical manual/formal FAIL, SEC-01 and all save/overwrite restrictions above
+remain. No push, merge, tag or release.

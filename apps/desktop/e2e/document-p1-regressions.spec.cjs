@@ -14,6 +14,24 @@ function owned(pid) {
   }
   return [...ids];
 }
+async function captureTestWindow(app, file) {
+  const base64 = await app.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0], wasVisible = win.isVisible();
+    // macOS does not reliably render a resized hidden window. Show only this
+    // synthetic window without activating it, and hide again after capture.
+    if (!wasVisible) win.showInactive();
+    try {
+      await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      return (await win.webContents.capturePage()).toPNG().toString('base64');
+    }
+    finally { if (!wasVisible) win.hide(); }
+  });
+  await fs.writeFile(file, Buffer.from(base64, 'base64'));
+}
+async function selectDocument(page, id) {
+  if (!(await page.locator('#documents').isVisible())) await page.locator('#document-info > summary').click();
+  await page.locator('#documents').selectOption(id);
+}
 async function usingDemo(body, info, secondSource = null, readOnly = false, testCopy = false, persistentCopy = false, createdMetadataTarget = null, draftOptions = {}) {
   if (!process.env.E2E_ELECTRON_EXECUTABLE) throw Error('An explicit isolated Electron executable is required');
   const env = {}; for (const k of ['PATH', 'TMPDIR', 'TMP', 'TEMP', 'LANG']) if (process.env[k]) env[k] = process.env[k];
@@ -140,9 +158,9 @@ test('P1-1 repeated real stale IPC preserves all drafts across A/B/A', async ({}
   };
   for (const [i, marker] of ['FIRST-UNACCEPTED', 'SECOND-UNACCEPTED', 'THIRD-UNACCEPTED'].entries()) await fail(a, marker, String(i));
   for (const marker of ['FIRST-UNACCEPTED', 'SECOND-UNACCEPTED', 'THIRD-UNACCEPTED']) await expect(page.locator('#recovery')).toContainText(marker);
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
+  await selectDocument(page, b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
   await fail(b, 'B-UNACCEPTED', 'B'); await expect(page.locator('#recovery')).not.toContainText('FIRST-UNACCEPTED');
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   await expect(page.locator('#recovery')).toContainText('FIRST-UNACCEPTED'); await expect(page.locator('#recovery')).not.toContainText('B-UNACCEPTED');
   const before = (await snapshot(a)).snapshot;
   await page.locator('#recovery-panel > summary').click();
@@ -151,7 +169,7 @@ test('P1-1 repeated real stale IPC preserves all drafts across A/B/A', async ({}
   await expect(page.locator('#recovery')).not.toContainText('FIRST-UNACCEPTED');
   await expect(page.locator('#recovery')).toContainText('SECOND-UNACCEPTED');
   expect((await snapshot(a)).snapshot).toEqual(before);
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#recovery')).toContainText('B-UNACCEPTED');
+  await selectDocument(page, b); await expect(page.locator('#recovery')).toContainText('B-UNACCEPTED');
 }, info));
 
 async function delayLifecycle(h, delayNotices = false, closeFault = null) {
@@ -185,7 +203,7 @@ async function delayLifecycle(h, delayNotices = false, closeFault = null) {
   return {
     hold: async id => {
       await h.app.evaluate((_, id) => { globalThis.lifecycleGate.hold = id; }, id);
-      await h.page.locator('#documents').selectOption(id);
+      await selectDocument(h.page, id);
       await expect.poll(() => h.app.evaluate(() => globalThis.lifecycleGate.generated)).toBe(true);
     },
     release: () => h.app.evaluate(() => { const g = globalThis.lifecycleGate; g.hold = null; g.release(); }),
@@ -212,8 +230,8 @@ async function delayLifecycle(h, delayNotices = false, closeFault = null) {
 
 test('close-pending blocks old B snapshot before delayed close acknowledgement and notice', async ({}, info) => usingDemo(async h => {
   const { page, sessions, snapshot, select, settled } = h, a = sessions[0].sessionId, b = sessions[1].sessionId;
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
+  await selectDocument(page, a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   const gate = await delayLifecycle(h, true, 'hold'); await gate.hold(b);
   const actual = await gate.close(b, 0); expect(actual.result.ok).toBe(true); expect(actual.after.code).toBe('unknown-session');
   await gate.release(); // Main has closed B, but neither close reply nor notice has arrived.
@@ -232,7 +250,7 @@ test('close-pending blocks old B snapshot before delayed close acknowledgement a
 
 test('close-pending refused by real main stays locked without losing B; A remains usable', async ({}, info) => usingDemo(async h => {
   const { page, sessions, snapshot, select, settled } = h, a = sessions[0].sessionId, b = sessions[1].sessionId;
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor p')).toHaveText('Original second body.');
+  await selectDocument(page, b); await expect(page.locator('#editor p')).toHaveText('Original second body.');
   await select('#editor p', 2); await page.keyboard.insertText('B-DIRTY'); await settled();
   const before = (await snapshot(b)).snapshot, gate = await delayLifecycle(h, true, 'hold');
   const actual = await gate.close(b, before.revision);
@@ -245,10 +263,10 @@ test('close-pending refused by real main stays locked without losing B; A remain
   expect(await page.locator('#source').textContent()).toBe(before.source);
   expect((await snapshot(b)).code).toBe('close-outcome-unknown');
   expect((await page.evaluate(() => window.documentDemo.list())).sessions.map(s => s.sessionId)).toContain(b);
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   await select('#editor h1', 2); await page.keyboard.insertText('A-AFTER-REFUSAL'); await settled();
   expect((await snapshot(a)).snapshot.source).toContain('A-AFTER-REFUSAL');
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#documents')).toHaveValue(a);
+  await selectDocument(page, b); await expect(page.locator('#documents')).toHaveValue(a);
   const calls = await h.app.evaluate(() => globalThis.lifecycleGate.calls);
   expect(calls.filter(c => c.operation === 'edit').every(c => c.sessionId === a)).toBe(true);
   await gate.notices();
@@ -280,8 +298,8 @@ test('close-pending page reload cannot regain old sessions while replies are sti
 
 test('P1-3 generated B snapshot cannot outlive real close; A drafts and history survive', async ({}, info) => usingDemo(async h => {
   const { page, sessions, snapshot, select, settled, projectSource } = h, a = sessions[0].sessionId, b = sessions[1].sessionId;
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
+  await selectDocument(page, a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   const original = (await snapshot(a)).snapshot, span = projectSource(original.source).spans.find(s => s.bold);
   expect((await page.evaluate(data => window.documentDemo.edit(data), {
     sessionId: a, expectedRevision: original.revision, from: span.from, to: span.from + 1, insert: '外',
@@ -350,7 +368,7 @@ test('P1-3 closed B switch restores selector, keeps error and types only into A'
   await select('#editor h1', 2); await page.keyboard.insertText('A-edit'); await settled();
   const before = (await snapshot(a)).snapshot;
   expect((await page.evaluate(id => window.documentDemo.close({ sessionId: id, expectedRevision: 0 }), b)).ok).toBe(true);
-  await page.locator('#documents').selectOption(b);
+  await selectDocument(page, b);
   await expect(page.locator('#documents')).toHaveValue(a);
   await expect(page.locator('#status')).toContainText('switch-failed:unknown-session');
   expect((await snapshot(a)).snapshot).toEqual(before);
@@ -391,9 +409,9 @@ test('P1-3 real IPC delayed, out-of-order and failed snapshots cannot activate t
   await choose(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
   await app.evaluate((_, id) => { globalThis.p1SnapshotGate.reject.add(id); }, a);
   await release(a); await expect(page.locator('#documents')).toHaveValue(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, a); await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   await app.evaluate((_, id) => { globalThis.p1SnapshotGate.reject.add(id); }, b);
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#status')).toContainText('switch-failed:ipc-failed');
+  await selectDocument(page, b); await expect(page.locator('#status')).toContainText('switch-failed:ipc-failed');
   await expect(page.locator('#documents')).toHaveValue(a);
   await select('#editor h1', 2); await page.keyboard.insertText('A-ONLY'); await settled();
   expect((await snapshot(a)).snapshot.source).toContain('A-ONLY'); expect((await snapshot(b)).snapshot.source).not.toContain('A-ONLY');
@@ -446,9 +464,9 @@ test('1B-3R copy panel and cancel preserve unconfirmed Markdown, main state and 
   await expect.poll(async () => JSON.parse(await page.locator('#status').textContent()).composing).toBe(false);
   expect((await snapshot(a)).snapshot).toEqual(before);
   await expect(page.locator('#recovery')).toContainText('LOCAL-未确认😀');
-  await page.locator('#documents').selectOption(b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
+  await selectDocument(page, b); await expect(page.locator('#editor h1')).toHaveText('Second synthetic document');
   await expect(page.locator('#recovery')).not.toContainText('LOCAL-未确认😀');
-  await page.locator('#documents').selectOption(a); await expect(page.locator('#recovery')).toContainText('LOCAL-未确认😀');
+  await selectDocument(page, a); await expect(page.locator('#recovery')).toContainText('LOCAL-未确认😀');
   expect((await snapshot(a)).snapshot).toEqual(before);
 }, info));
 
@@ -482,7 +500,7 @@ test('1B-3R DOM-only partial copies and full-capacity refusal never overwrite ea
 test('writing V1 actual Enter, empty composition, middle split, Backspace and history write two paragraphs', async ({}, info) => usingDemo(async h => {
   const { page, sessions, snapshot, select, settled } = h, a=sessions[0].sessionId, b=sessions[1].sessionId;
   const originalA=(await snapshot(a)).snapshot;
-  await page.locator('#documents').selectOption(b);
+  await selectDocument(page, b);
   await expect(page.locator('#editor p')).toHaveText('Original second body.');
   const original=(await snapshot(b)).snapshot;
   await select('#editor p', 'Original second body.'.length);
@@ -526,10 +544,10 @@ test('writing V1 actual Enter, empty composition, middle split, Backspace and hi
   await page.keyboard.press('Enter');await expect(page.locator('#status')).toContainText('unsafe-source-range');
   expect((await snapshot(b)).snapshot).toEqual(empty);
   await page.keyboard.press('Backspace');await settled();expect((await snapshot(b)).snapshot.source).toBe(written);
-  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
+  await selectDocument(page, a);await expect(page.locator('#editor h1')).toHaveText('合成标题😀');
   await select('#editor h1',2);await page.keyboard.press('Enter');
   await expect(page.locator('#status')).toContainText('unsafe-source-range');expect((await snapshot(a)).snapshot).toEqual(originalA);
-  await page.locator('#documents').selectOption(b);await expect(page.locator('#editor p')).toHaveCount(2);
+  await selectDocument(page, b);await expect(page.locator('#editor p')).toHaveCount(2);
   expect((await snapshot(b)).snapshot.source).toBe(written);
   await page.getByRole('button',{name:'Request save (denied)'}).click();await expect(page.locator('#status')).toContainText('coordination-required');
 },info));
@@ -537,7 +555,7 @@ test('writing V1 actual Enter, empty composition, middle split, Backspace and hi
 
 for (const nl of ['\r\n','\n']) test(`CRLF P1 actual Backspace without final newline (${JSON.stringify(nl)})`, async ({},info)=>usingDemo(async h=>{
   const {page,sessions,snapshot,select,settled}=h,b=sessions[1].sessionId,original='first'+nl+nl+'second';
-  await page.locator('#documents').selectOption(b);await expect(page.locator('#editor p')).toHaveCount(2);
+  await selectDocument(page, b);await expect(page.locator('#editor p')).toHaveCount(2);
   const initial=(await snapshot(b)).snapshot;expect(initial.source).toBe(original);
   await select('#editor p:nth-of-type(2)',0);await page.keyboard.press('Backspace');await settled();
   await expect(page.locator('#editor p')).toHaveCount(1);await expect(page.locator('#editor p')).toHaveText('firstsecond');
@@ -568,7 +586,7 @@ test('document-first read-only opens two directories, keeps failures and renders
   });
   const choose=choice=>app.evaluate((_,choice)=>{globalThis.pickerQueue.push(choice);},choice);
   const identity=async()=>JSON.parse(await page.locator('#status').textContent()).activeSessionId;
-  await choose({canceled:false,filePaths:[a]});await page.getByRole('button',{name:'Open Markdown…',exact:true}).click();
+  await choose({canceled:false,filePaths:[a]});await page.locator('#open-file').click();
   await expect(page.locator('#document-name')).toHaveText('x.md');await expect(page.locator('#document-location')).toHaveText(path.dirname(a));
   await expect(page.locator('#editor h1')).toHaveText('File A');await expect(page.locator('#editor strong')).toHaveText('粗体');
   await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
@@ -582,9 +600,9 @@ test('document-first read-only opens two directories, keeps failures and renders
   }
   expect((await snapshot(first)).snapshot).toEqual(before);
   await choose({canceled:true,filePaths:[]});await page.keyboard.press('Meta+o');
-  await expect(page.locator('#viewer-status')).toContainText('cancelled');expect(await identity()).toBe(first);
+  await expect(page.locator('#viewer-status')).toContainText('已取消打开');expect(await identity()).toBe(first);
   await choose({canceled:false,filePaths:[path.join(root,'missing.md')]});await page.locator('#open-file').click();
-  await expect(page.locator('#viewer-status')).toContainText('no longer exists');expect(await identity()).toBe(first);
+  await expect(page.locator('#viewer-status')).toContainText('所选文件已不存在');expect(await identity()).toBe(first);
   await choose({canceled:false,filePaths:[denied]});await page.locator('#open-file').click();
   await expect(page.locator('#viewer-status')).toContainText('UTF-8');expect(await identity()).toBe(first);await expect(page.locator('#editor h1')).toHaveText('File A');
   await choose({canceled:false,filePaths:[b]});await page.keyboard.press('Meta+o');
@@ -598,7 +616,7 @@ test('document-first read-only opens two directories, keeps failures and renders
 },info,null,true));
 
 
-test('document UI V1 empty, Chinese and English layouts preserve readonly open flow', async ({},info)=>usingDemo(async h=>{
+test('document UI V2 empty, Chinese and English layouts preserve readonly open flow', async ({},info)=>usingDemo(async h=>{
   const {app,page,root,snapshot}=h;
   const cnName='关于写作与阅读的日常观察——一份保留完整文件名称的中文文档.md';
   const enName='Notes on a quieter writing experience and a deliberately long document filename for the reading window.md';
@@ -610,20 +628,20 @@ test('document UI V1 empty, Chinese and English layouts preserve readonly open f
   const choose=file=>app.evaluate((_,file)=>{globalThis.uiChoices.push(file?{canceled:false,filePaths:[file]}:{canceled:true,filePaths:[]});},file);
   const metrics=[];
   const size=async(width,height=780)=>{await app.evaluate(({BrowserWindow},{width,height})=>BrowserWindow.getAllWindows()[0].setContentSize(width,height),{width,height});await page.evaluate(async()=>{await document.fonts.ready;});};
-  const capture=async name=>{const file=info.outputPath(name+'.png');await page.screenshot({path:file,caret:'hide'});await info.attach(name,{path:file,contentType:'image/png'});};
+  const capture=async name=>{const file=info.outputPath(name+'.png');await captureTestWindow(app,file);await info.attach(name,{path:file,contentType:'image/png'});};
   const layout=async label=>{
     const m=await page.evaluate(()=>{
       const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height};};
       return {viewport:document.body.clientWidth,windowWidth:innerWidth,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,open:box('open-file'),badge:box('readonly-badge'),
-        name:box('document-name'),editor:box('editor'),type:getComputedStyle(document.querySelector('#editor .tiptap')||document.body).fontSize};
+        name:box('document-name'),editor:box('editor'),scroll:box('document-scroll'),scrollClient:document.getElementById('document-scroll').clientWidth,type:getComputedStyle(document.querySelector('#editor .tiptap')||document.body).fontSize};
     });metrics.push({label,...m});expect(m.overflow).toBeLessThanOrEqual(1);
-    expect(m.open.right).toBeLessThanOrEqual(m.name.left);expect(m.name.right).toBeLessThanOrEqual(m.badge.left);
+    expect(m.open.left).toBeGreaterThanOrEqual(0);expect(m.name.right).toBeLessThanOrEqual(m.viewport);
     expect(m.badge.right).toBeLessThanOrEqual(m.viewport);expect(m.name.height).toBeLessThan(30);
-    expect(m.editor.width).toBeLessThanOrEqual(781);expect(Math.abs(m.editor.left-(m.viewport-m.editor.right))).toBeLessThanOrEqual(1);
+    expect(m.editor.width).toBeLessThanOrEqual(680);expect(Math.abs(m.editor.left-m.scroll.left-(m.scrollClient-m.editor.width)/2)).toBeLessThanOrEqual(1);
   };
   await size(1050);await expect(page.locator('#empty-state')).toBeVisible();await expect(page.locator('#editor')).toBeHidden();
   await expect(page.locator('#document-info')).toBeHidden();await capture('ui-v1-empty-1050');
-  await choose(a);await page.getByRole('button',{name:'Open Markdown file',exact:true}).click();
+  await choose(a);await page.locator('#empty-open').click();
   await expect(page.locator('#empty-state')).toBeHidden();await expect(page.locator('#editor h1')).toHaveText('把文字放在中央');
   await expect(page.locator('#document-name')).toHaveText(cnName);await layout('Chinese 1050');await capture('ui-v1-chinese-1050');
   await page.locator('#document-info summary').click();await expect(page.locator('#document-location')).toBeVisible();
@@ -636,14 +654,14 @@ test('document UI V1 empty, Chinese and English layouts preserve readonly open f
   await expect(page.locator('#document-location')).toBeVisible();await capture('ui-v1-file-details-390');await page.locator('#document-info summary').click();
   await size(1440,900);await layout('English 1440');await capture('ui-v1-english-1440');
   const id=JSON.parse(await page.locator('#status').textContent()).activeSessionId,before=(await snapshot(id)).snapshot;
-  await choose(null);await page.keyboard.press('Meta+o');await expect(page.locator('#viewer-status')).toContainText('cancelled');
+  await choose(null);await page.keyboard.press('Meta+o');await expect(page.locator('#viewer-status')).toContainText('已取消打开');
   expect((await snapshot(id)).snapshot).toEqual(before);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
   await expect(page.locator('#editor script,#editor img,#editor a')).toHaveCount(0);expect(await page.evaluate(()=>window.__uiUnsafe)).toBeUndefined();
   await choose(a);await page.locator('#open-file').click();await expect(page.locator('#editor h1')).toHaveText('把文字放在中央');
   expect(await fs.readFile(a,'utf8')).toBe(cn);expect(await fs.readFile(b,'utf8')).toBe(en);
   await info.attach('ui-layout-metrics',{body:JSON.stringify(metrics),contentType:'application/json'});
   await info.attach('ui-synthetic-originals',{body:JSON.stringify({a,b,sha256A:require('node:crypto').createHash('sha256').update(cn).digest('hex'),sha256B:require('node:crypto').createHash('sha256').update(en).digest('hex')}),contentType:'application/json'});
-},info,null,true));
+},info,null,true,false,false,null,{root:path.join(await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'writing-ui-layout-'))),'drafts')}));
 
 
 test('document writing entry V1 keyboard paragraphs, temporary isolation and readonly safety', async ({},info)=>usingDemo(async h=>{
@@ -655,9 +673,9 @@ test('document writing entry V1 keyboard paragraphs, temporary isolation and rea
   }); // Decisions are controlled; main's actual close event/guard and IPC remain in use.
   const id=async()=>JSON.parse(await page.locator('#status').textContent()).activeSessionId;
   await expect(page.locator('#empty-state')).toBeVisible();
-  await page.getByRole('button',{name:'New temporary document',exact:true}).click();
+  await page.getByRole('button',{name:'新建',exact:true}).click();
   const a=await id();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','true');
-  await expect(page.locator('#temporary-notice')).toBeVisible();await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+  await expect(page.locator('#backup-summary')).toBeVisible();await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
   expect((await snapshot(a)).snapshot.source).toBe('');
   await page.keyboard.type('First ');await page.keyboard.insertText('中文😀');await settled();
   const first='First 中文😀';
@@ -672,11 +690,11 @@ test('document writing entry V1 keyboard paragraphs, temporary isolation and rea
   await page.keyboard.press('Meta+Shift+z');await settled();expect((await snapshot(a)).snapshot.source).toBe(first+'Second paragraph');
   await page.keyboard.press('Meta+z');await settled();
   const aBefore=(await snapshot(a)).snapshot;
-  await page.getByRole('button',{name:'New temporary document',exact:true}).click();const b=await id();expect(b).not.toBe(a);
+  await page.getByRole('button',{name:'新建',exact:true}).click();const b=await id();expect(b).not.toBe(a);
   await page.keyboard.insertText('Other temporary');await settled();
   await page.keyboard.press('Meta+z');await settled();expect((await snapshot(b)).snapshot.source).toBe('');
   expect((await snapshot(a)).snapshot).toEqual(aBefore);
-  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor p')).toHaveCount(2);
+  await selectDocument(page, a);await expect(page.locator('#editor p')).toHaveCount(2);
   expect(await page.locator('#document-name').textContent()).toBe(aBefore.label);
   const file=path.join(root,'opened-readonly.md'),bytes=Buffer.from('\ufeff# Read only\r\n\r\nOriginal body.');await fs.writeFile(file,bytes);
   await app.evaluate((_,file)=>globalThis.writingChoices.push({canceled:false,filePaths:[file]}),file);
@@ -689,18 +707,18 @@ test('document writing entry V1 keyboard paragraphs, temporary isolation and rea
     expect(result.code).toBe('read-only-document');
   }
   expect((await snapshot(real)).snapshot).toEqual(realBefore);expect((await snapshot(a)).snapshot).toEqual(aBefore);
-  await page.locator('#documents').selectOption(a);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','true');
+  await selectDocument(page, a);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','true');
   await select('#editor p:first-of-type',first.length);await page.keyboard.insertText('!');await settled();
   await page.keyboard.press('Meta+z');await settled();expect((await snapshot(a)).snapshot.source).toBe(written);
   await app.evaluate(()=>globalThis.writingChoices.push({canceled:true,filePaths:[]}));await page.keyboard.press('Meta+o');
-  await expect(page.locator('#viewer-status')).toContainText('cancelled');expect(await id()).toBe(a);
+  await expect(page.locator('#viewer-status')).toContainText('已取消打开');expect(await id()).toBe(a);
   // Genuine stale revision produces a protected local draft; switching never discards it.
   const current=(await snapshot(a)).snapshot;
   expect((await page.evaluate(data=>window.documentDemo.edit(data),{sessionId:a,expectedRevision:current.revision,from:1,to:2,insert:'X'})).ok).toBe(true);
   await select('#editor p:first-of-type',0,1);await page.keyboard.insertText('UNCONFIRMED');await settled();
   await expect(page.locator('#recovery-panel')).toBeVisible();await expect(page.locator('#recovery')).toContainText('UNCONFIRMED');
-  await page.locator('#documents').selectOption(b);await expect(page.locator('#recovery-panel')).toBeHidden();
-  await page.locator('#documents').selectOption(a);await expect(page.locator('#recovery')).toContainText('UNCONFIRMED');
+  await selectDocument(page, b);await expect(page.locator('#recovery-panel')).toBeHidden();
+  await selectDocument(page, a);await expect(page.locator('#recovery')).toContainText('UNCONFIRMED');
   const retained=(await snapshot(a)).snapshot;
   expect((await page.evaluate(data=>window.documentDemo.save(data),{sessionId:a,expectedRevision:retained.revision})).code).toBe('temporary-not-persistable');
   await app.evaluate(({BrowserWindow})=>{globalThis.closeChoice=0;BrowserWindow.getAllWindows()[0].close();});
@@ -724,7 +742,7 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
       dialog.showOpenDialog = async () => globalThis.copyChoices.shift();
     });
     const id = async () => JSON.parse(await page.locator('#status').textContent()).activeSessionId;
-    await page.getByRole('button', { name: 'New temporary document', exact: true }).click(); const temporary = await id();
+    await page.getByRole('button', { name: '新建', exact: true }).click(); const temporary = await id();
     await page.keyboard.type('First '); await page.keyboard.insertText('中文😀'); await settled();
     await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('Second paragraph'); await settled();
     const written = 'First 中文😀\n\nSecond paragraph';
@@ -751,19 +769,19 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
     expect(receipt.state).toBe('created-confirmed'); expect(path.dirname(receipt.filePath)).toBe(copyRoot);
     original = await fs.readFile(receipt.filePath); expect(original.toString()).toBe(written);
     expect(require('node:crypto').createHash('sha256').update(original).digest('hex')).toBe(receipt.sha256);
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await select('#editor p:nth-of-type(2)', 'Second paragraph'.length); await page.keyboard.insertText(' later'); await settled();
     expect((await fs.readFile(receipt.filePath)).equals(original)).toBe(true);
     await expect(page.locator('#test-copy-result')).toContainText('revision ' + receipt.revision);
     expect((await snapshot(temporary)).snapshot.revision).toBeGreaterThan(receipt.revision);
     await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(temporary)).snapshot.source).toBe(written);
     await app.evaluate((_, file) => globalThis.copyChoices.push({ canceled: false, filePaths: [file] }), receipt.filePath);
-    await page.keyboard.press('Meta+o'); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await page.keyboard.press('Meta+o'); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     const real = (await snapshot(await id())).snapshot;
     await expect(page.locator('#create-test-copy')).toBeHidden();
     expect((await page.evaluate(s => window.documentDemo.createTestCopy({ sessionId: s.sessionId, expectedRevision: s.revision, expectedSha256: '0'.repeat(64) }), real)).code).toBe('read-only-document');
     expect((await page.evaluate(s => window.documentDemo.save({ sessionId: s.sessionId, expectedRevision: s.revision }), real)).code).toBe('read-only-document');
-    await page.locator('#documents').selectOption(temporary); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
+    await selectDocument(page, temporary); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
     await app.evaluate(({ BrowserWindow }) => { globalThis.copyClose = 0; BrowserWindow.getAllWindows()[0].close(); });
     expect((await snapshot(temporary)).snapshot.source).toBe(written);
     await app.evaluate(() => { globalThis.copyClose = 1; });
@@ -772,7 +790,7 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
   // The creator's actual OS process has exited (shared helper verifies code/signal/watchdog).
   await usingDemo(async ({ app, page, snapshot }) => {
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, receipt.filePath);
-    await page.locator('#open-file').click(); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await page.locator('#open-file').click(); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     const id = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
     expect((await snapshot(id)).snapshot.source).toBe(original.toString());
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
@@ -840,7 +858,7 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
     await select('#editor p:last-child', 'Second paragraph.'.length);
     await page.keyboard.press('Enter'); await settled(); await page.keyboard.type('THIRD'); await settled();
     expect((await snapshot(temporary)).snapshot.source).toContain('THIRD'); expect((await fs.readFile(target)).equals(original)).toBe(true);
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await create(); await expect(page.locator('#test-copy-operation')).toContainText('target-exists');
     await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
     expect(lastConfirmed).toContain(receipt.filePath); expect(lastConfirmed).toContain(receipt.sha256);
@@ -896,7 +914,7 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
     const active = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
     const original = await active(), originalSnapshot = (await snapshot(original)).snapshot;
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
-    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     const copy = await active(); expect(copy).not.toBe(original);
     await expect(page.locator('#document-name')).toContainText('original.md');
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
@@ -912,15 +930,15 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
     await page.keyboard.press('Meta+z'); await settled();
     expect(split).toBe(raw.slice(1).replace('First 中文😀', 'First 中文😀 中文😃\r\n\r\nNew paragraph'));
     const before = (await snapshot(copy)).snapshot;
-    await page.locator('#documents').selectOption(original);
-    await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await selectDocument(page, original);
+    await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
     for (const operation of ['edit','save','createPersistentCopy']) {
       const r = await page.evaluate(({ operation, id }) => window.documentDemo[operation]({ sessionId: id, expectedRevision: 0 }), { operation, id: original });
       expect(r.code).toBe('read-only-document');
     }
     expect((await snapshot(original)).snapshot).toEqual(originalSnapshot);
-    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await selectDocument(page, copy); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await snapshot(copy)).snapshot).toEqual(before);
     const unsafe = await page.evaluate(q => window.documentDemo.edit(q), { sessionId: copy, expectedRevision: before.revision, from: 0, to: 1, insert: 'X' });
     expect(unsafe.code).toBe('unsafe-source-range'); expect(unsafe.snapshot.source).toBe(split);
@@ -947,12 +965,12 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
     await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
     expect(lastConfirmed).toContain(receipt.filePath); expect(lastConfirmed).toContain(receipt.sha256);
     expect(lastConfirmed).toContain('revision ' + receipt.revision);
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
     const current = (await snapshot(copy)).snapshot;
-    await page.locator('#documents').selectOption(original);
+    await selectDocument(page, original);
     await expect(page.locator('#test-copy-panel')).toBeHidden();
-    await page.locator('#documents').selectOption(copy);
+    await selectDocument(page, copy);
     await expect(page.locator('#test-copy-result')).toHaveText(lastConfirmed);
     await expect(page.locator('#test-copy-operation')).toContainText('target-exists');
     expect((await snapshot(copy)).snapshot).toEqual(current);
@@ -995,11 +1013,11 @@ test('existing document editing V1 lost copy response keeps original identity an
     });
   });
   await page.locator('#edit-copy').click(); await expect(page.locator('#viewer-status')).toContainText('outcome is unknown');
-  await expect(page.locator('#documents')).toHaveValue(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+  await expect(page.locator('#documents')).toHaveValue(original); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
   await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
   await page.locator('#editor p').click(); await page.keyboard.type('MUST NOT WRITE');
   expect((await snapshot(original)).snapshot).toEqual(originalState);
-  await page.locator('#documents').selectOption(temp); await expect(page.locator('#recovery')).toHaveText(savedDraft);
+  await selectDocument(page, temp); await expect(page.locator('#recovery')).toHaveText(savedDraft);
   expect((await fs.readFile(file, 'utf8'))).toBe('Original synthetic text.');
 }, info, null, true));
 
@@ -1017,7 +1035,7 @@ for (const complex of [false, true]) test(`existing editing QA browser compositi
   await page.locator('#open-file').click(); await expect(page.locator('#edit-copy')).toBeVisible();
   const active = () => page.evaluate(() => JSON.parse(document.querySelector('#status').textContent).activeSessionId);
   const originalId = await active(); await page.locator('#edit-copy').click();
-  await expect(page.locator('#readonly-badge')).toHaveText('Not saved'); const copy = await active();
+  await expect(page.locator('#readonly-badge')).toHaveText('本地草稿'); const copy = await active();
   await page.evaluate(() => {
     const rows = []; const add = (type, extra = {}) => {
       const s = JSON.parse(document.querySelector('#status').textContent), editor = document.querySelector('.tiptap').editor;
@@ -1067,8 +1085,8 @@ for (const complex of [false, true]) test(`existing editing QA browser compositi
     const after = (await snapshot(copy)).snapshot; expect(after.source).toContain('MORE');
     await page.keyboard.press('Meta+z'); await settled(); await page.keyboard.press('Meta+Shift+z'); await settled();
     expect((await snapshot(copy)).snapshot.source).toBe(after.source);
-    await page.locator('#documents').selectOption(originalId); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
-    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await selectDocument(page, originalId); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    await selectDocument(page, copy); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await snapshot(copy)).snapshot.source).toBe(after.source); expect((await fs.readFile(originalPath)).equals(bytes)).toBe(true);
   } finally {
     const trace = info.outputPath('composition-metadata.json'); await fs.writeFile(trace, JSON.stringify(await page.evaluate(() => window.editingInputTrace), null, 2));
@@ -1109,7 +1127,7 @@ test('soft paragraph V1 edits source lines, refuses crossing and saves exact new
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
     const active=()=>page.evaluate(()=>JSON.parse(document.querySelector('#status').textContent).activeSessionId);
     const original=await active(),originalSnapshot=(await snapshot(original)).snapshot;
-    await page.locator('#edit-copy').click();await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.locator('#edit-copy').click();await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     const copy=await active();expect(copy).not.toBe(original);
     await select('#editor p:first-of-type',1,2);await page.keyboard.type('X');await settled();
     expect(await page.evaluate(()=>window.getSelection().focusOffset)).toBe(2);
@@ -1122,20 +1140,20 @@ test('soft paragraph V1 edits source lines, refuses crossing and saves exact new
     await page.keyboard.press('Meta+Shift+z');await settled();expect((await snapshot(copy)).snapshot.source).toBe(changed);
     const beforeReject=(await snapshot(copy)).snapshot;
     await select('#editor p:first-of-type',second);await page.keyboard.press('Backspace');
-    await expect(page.locator('#viewer-status')).toContainText('Edit not applied');
+    await expect(page.locator('#viewer-status')).toContainText('此处暂不支持该修改');
     expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
     await select('#editor p:first-of-type',2);await page.keyboard.press('Enter');
-    await expect(page.locator('#viewer-status')).toContainText('Edit not applied');
+    await expect(page.locator('#viewer-status')).toContainText('此处暂不支持该修改');
     expect((await snapshot(copy)).snapshot).toEqual(beforeReject);
     await select('#editor p:first-of-type',second+3);await page.keyboard.type('Y');await settled();
-    await expect(page.locator('#viewer-status')).not.toContainText('Edit not applied');
+    await expect(page.locator('#viewer-status')).not.toContainText('此处暂不支持该修改');
     const expected=changed.replace('新😀econd','新😀Yecond');
     expect((await snapshot(copy)).snapshot.source).toBe(expected);
     await expect(page.locator('#editor pre').last()).toHaveAttribute('contenteditable','false');
-    await page.locator('#documents').selectOption(original);await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await selectDocument(page, original);await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     expect((await snapshot(original)).snapshot).toEqual(originalSnapshot);
     expect((await page.evaluate(id=>window.documentDemo.save({sessionId:id,expectedRevision:0}),original)).code).toBe('read-only-document');
-    await page.locator('#documents').selectOption(copy);await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await selectDocument(page, copy);await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await snapshot(copy)).snapshot.source).toBe(expected);
     await app.evaluate(({dialog},filePath)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath});},target);
     const before=(await snapshot(copy)).snapshot;
@@ -1173,7 +1191,7 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
     }, file);
     await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('paste-original.md');
     const original = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
-    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     const copy = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
     const paste = text => page.locator('#editor .tiptap').evaluate((node, value) => {
       const data = new DataTransfer(); data.setData('text/plain', value);
@@ -1194,12 +1212,12 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
     await page.keyboard.press('Enter'); await page.keyboard.type('Third.'); await settled();
     await page.keyboard.press('Meta+ArrowLeft'); await page.keyboard.press('Backspace'); await settled();
     await page.keyboard.press('Meta+z'); await settled(); await page.keyboard.press('Meta+Shift+z'); await settled();
-    await page.locator('#documents').selectOption(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await selectDocument(page, original); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     await select('#editor p:first-of-type', 2); await paste('NO');
     expect((await snapshot(original)).snapshot.source).toBe('First.\r\n\r\nSecond.');
     expect((await page.evaluate(id => window.documentDemo.save({ sessionId: id, expectedRevision: 0 }), original)).code).toBe('read-only-document');
     expect((await fs.readFile(file)).equals(bytes)).toBe(true);
-    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await selectDocument(page, copy); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await app.evaluate(({ dialog }, filePath) => {
       globalThis.pasteSaveTarget = filePath; globalThis.pasteSaveCancel = false;
       dialog.showMessageBox = async () => ({ response: 1 });
@@ -1227,7 +1245,7 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
     await expect(page.locator('#test-copy-result')).toHaveText(last);
     expect((await fs.readFile(target)).equals(written)).toBe(true); expect((await fs.readFile(file)).equals(bytes)).toBe(true);
     expect((await fs.readdir(root)).includes('not-supported.md')).toBe(false);
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await page.screenshot({ path: info.outputPath('paste-save-feedback.png') });
   }, info, null, true, true, true);
   await usingDemo(async ({ app, page, snapshot }) => {
@@ -1243,7 +1261,7 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
 });
 
 test('paste V1 native Edit menu provides the Paste role', async ({}, info) => usingDemo(async ({ app }) => {
-  const roles = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(i => i.label === 'Edit').submenu.items.map(i => i.role));
+  const roles = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(i => i.label === '编辑').submenu.items.map(i => i.role));
   expect(roles).toContain('paste');
 }, info, null, true));
 
@@ -1259,7 +1277,7 @@ test('multiline paste V1 writes paragraphs atomically and reopens a faithful new
     await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, originalFile);
     await page.keyboard.press('Meta+o'); await expect(page.locator('#document-name')).toHaveText('multiline-original.md');
     const original = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
-    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     const copy = JSON.parse(await page.locator('#status').textContent()).activeSessionId;
     const paste = text => page.locator('#editor .tiptap').evaluate((node, value) => {
       const data = new DataTransfer(); data.setData('text/plain', value); data.setData('text/html', '<script>BAD</script>');
@@ -1301,10 +1319,10 @@ test('multiline paste V1 writes paragraphs atomically and reopens a faithful new
     await page.keyboard.press('Backspace'); await settled();
     expect((await snapshot(copy)).snapshot.source).toBe(finalSource);
     expect(await page.locator('#editor .tiptap').evaluate(node => node.editor.state.selection.$from.parentOffset)).toBe(5);
-    await page.locator('#documents').selectOption(original); await expect(page.locator('#readonly-badge')).toHaveText('Read-only');
+    await selectDocument(page, original); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
     const denied = await page.evaluate(id => window.documentDemo.edit({ sessionId: id, expectedRevision: 0, from: 1, to: 1, insert: 'NO\n\nWRITE' }), original);
     expect(denied.code).toBe('read-only-document'); expect((await snapshot(original)).snapshot.source).toBe(source);
-    await page.locator('#documents').selectOption(copy); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await selectDocument(page, copy); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await snapshot(copy)).snapshot.source).toBe(finalSource);
     fixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(fixture.dir, 'multiline.md');
     console.log('home-fixture-created:' + fixture.dir);
@@ -1358,7 +1376,7 @@ test('local drafts V1 restores two confirmed documents after direct process exit
     await page.locator('#open-file').click(); await expect(page.locator('#document-name')).toHaveText('original.md');
     originalSession = await page.locator('#documents').inputValue();
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
-    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     const id = await page.locator('#documents').inputValue();
     await select('#editor p:first-of-type', 'First 中文😀'.length); await page.keyboard.insertText(' accepted 编辑'); await settled();
     expected = (await snapshot(id)).snapshot;
@@ -1374,7 +1392,7 @@ test('local drafts V1 restores two confirmed documents after direct process exit
   }, info, null, true, false, false, null, { root: draftRoot, directExit: true });
   // Only after the first process has exited: a new independent Electron instance.
   await usingDemo(async ({ app, page, snapshot, select, settled }) => {
-    await page.locator('#draft-recovery-panel > summary').click();
+    await page.locator('#show-drafts').click();
     await expect(page.locator('#draft-recovery-list > p')).toHaveCount(2);
     const firstRow = page.locator('#draft-recovery-list > p').filter({ hasText: 'original.md' });
     await firstRow.getByRole('button', { name: '恢复副本' }).click();
@@ -1382,11 +1400,12 @@ test('local drafts V1 restores two confirmed documents after direct process exit
     const firstId = await page.locator('#documents').inputValue(), recovered = (await snapshot(firstId)).snapshot;
     expect(recovered.source).toBe(expected.source); expect(recovered.bom).toBe(true); expect(recovered.revision).toBe(0);
     expect(recovered.canUndo).toBe(false); expect(recovered.canRedo).toBe(false); expect(recovered.temporary).toBe(true);
-    expect(firstId).not.toBe(originalSession); await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    expect(firstId).not.toBe(originalSession); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份（修订 0）');
+    await page.locator('#show-drafts').click();
     await page.locator('#draft-recovery-list > p').filter({ hasText: 'Temporary' }).getByRole('button', { name: '恢复副本' }).click();
     const secondId = await page.locator('#documents').inputValue(); expect((await snapshot(secondId)).snapshot.source).toBe(secondText);
-    await page.locator('#documents').selectOption(firstId); await select('#editor p:first-of-type', 0);
+    await selectDocument(page, firstId); await select('#editor p:first-of-type', 0);
     await page.keyboard.insertText('CONTINUED '); await settled();
     const continued = (await snapshot(firstId)).snapshot.source;
     expect(continued).toBe('CONTINUED ' + expected.source); expect((await snapshot(firstId)).snapshot.canUndo).toBe(true);
@@ -1407,7 +1426,7 @@ test('local drafts V1 restores two confirmed documents after direct process exit
     expect((await snapshot(firstId)).snapshot.source).toBe('CONTINUED LATER ' + expected.source);
     await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份');
     await expect(page.locator('#test-copy-summary')).toContainText('后续修改尚未导出');
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect((await fs.readFile(target)).equals(exported)).toBe(true); expect(hash(await fs.readFile(originalPath))).toBe(hash(raw));
     await page.screenshot({ path: info.outputPath('draft-restored-and-exported.png') });
   }, info, null, true, true, true, null, { root: draftRoot });
@@ -1432,7 +1451,7 @@ test('local drafts V1 shows corrupted-newest fallback and honest backup failure 
   expect(store.save({ id, label: 'Corrupt synthetic', revision: 9, bytes: Buffer.from('Recover this confirmed content.') }).ok).toBe(true);
   const partial = path.join(draftRoot, id + '.2.json'); await fs.writeFile(partial, '{partial', { flag: 'wx', mode: 0o600 });
   await usingDemo(async ({ page, snapshot, select, settled }) => {
-    await page.locator('#draft-recovery-panel > summary').click();
+    await page.locator('#show-drafts').click();
     await expect(page.locator('#draft-recovery-list')).toContainText('较新记录损坏');
     await page.getByRole('button', { name: '恢复副本', exact: true }).click();
     await expect(page.locator('#viewer-status')).toContainText('已恢复较早的可验证草稿');
@@ -1445,8 +1464,538 @@ test('local drafts V1 shows corrupted-newest fallback and honest backup failure 
     await expect(page.locator('#draft-backup-status')).toContainText('草稿备份未确认');
     await expect(page.locator('#draft-backup-status')).toContainText('最后已备份修订 0');
     expect((await snapshot(restoredId)).snapshot.source).toBe('KEEP Recover this confirmed content.');
-    await expect(page.locator('#readonly-badge')).toHaveText('Not saved');
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     expect(await fs.readFile(partial, 'utf8')).toBe('{partial');
     await page.screenshot({ path: info.outputPath('draft-backup-failure-retains-content.png') });
   }, info, null, true, false, false, null, { root: draftRoot });
+});
+
+
+test('draft management V1 confirms reversible archive, survives restart and protects active writing', async ({}, info) => {
+  const os = require('node:os'), { createDraftStore } = require('../lib/document-draft-store');
+  const area = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'document-draft-management-e2e-'))), draftRoot = path.join(area, 'drafts');
+  const store = createDraftStore(draftRoot), originalPath = path.join(area, 'original.md'), raw = '\ufeffFirst paragraph.\r\n\r\nSecond paragraph.\r\n';
+  await fs.writeFile(originalPath, raw, { flag: 'wx', mode: 0o600 });
+  const first = store.save({ id: store.newId(), label: 'Same synthetic name', revision: 7, bytes: Buffer.from(raw) });
+  const second = store.save({ id: store.newId(), label: 'Same synthetic name', revision: 3, bytes: Buffer.from('Other independent draft.') });
+  const corrupt = store.save({ id: store.newId(), label: 'Partial synthetic', revision: 1, bytes: Buffer.from('Older content.') });
+  const partial = path.join(draftRoot, corrupt.id + '.2.json'); await fs.writeFile(partial, '{partial', { flag: 'wx', mode: 0o600 });
+  expect(first.ok && second.ok && corrupt.ok).toBe(true);
+  await usingDemo(async ({ app, page }) => {
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, originalPath);
+    await page.locator('#open-file').click(); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await page.locator('#show-drafts').click();
+    await expect(page.locator('#draft-recovery-status')).toContainText('待恢复 3 / 32');
+    const row = page.locator(`[data-draft-id="${first.id}"]`);
+    await expect(row).toContainText(first.id.slice(0, 8)); await expect(row).toContainText('修订 7');
+    await expect(page.locator(`[data-draft-id="${corrupt.id}"]`).getByRole('button', { name: '归档', exact: true })).toBeDisabled();
+    const before = await fs.readdir(draftRoot);
+    await row.getByRole('button', { name: '归档', exact: true }).click(); await page.locator('#cancel-draft-management').click();
+    await expect(page.locator('#draft-management-confirmation')).toBeHidden(); expect(await fs.readdir(draftRoot)).toEqual(before);
+    await row.getByRole('button', { name: '归档', exact: true }).click(); await page.locator('#confirm-draft-management').click();
+    await expect(page.locator('#draft-operation-status')).toContainText('已归档');
+    await expect(page.locator('#draft-recovery-status')).toContainText('待恢复 2 / 32');
+    await page.locator('#draft-archive-panel > summary').click();
+    await expect(page.locator(`#draft-archive-list [data-draft-id="${first.id}"]`)).toContainText('修订 7');
+    expect((await fs.readFile(originalPath)).equals(Buffer.from(raw))).toBe(true);
+    await captureTestWindow(app, info.outputPath('draft-management-archived.png'));
+  }, info, null, true, false, false, null, { root: draftRoot, directExit: true });
+  await usingDemo(async ({ app, page, snapshot, select, settled }) => {
+    await page.locator('#show-drafts').click(); await page.locator('#draft-archive-panel > summary').click();
+    await page.locator(`#draft-archive-list [data-draft-id="${first.id}"]`).getByRole('button', { name: '放回待恢复列表' }).click();
+    await page.locator('#confirm-draft-management').click(); await expect(page.locator('#draft-operation-status')).toContainText('已放回');
+    await page.locator(`#draft-recovery-list [data-draft-id="${first.id}"]`).getByRole('button', { name: '恢复副本' }).click();
+    const id = await page.locator('#documents').inputValue(), restored = (await snapshot(id)).snapshot;
+    expect(restored.source).toBe(raw.slice(1)); expect(restored.bom).toBe(true); expect(restored.revision).toBe(0);
+    await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
+    await page.locator('#show-drafts').click();
+    await expect(page.locator(`#draft-recovery-list [data-draft-id="${first.id}"]`).getByRole('button', { name: '归档', exact: true })).toBeDisabled();
+    await page.locator('#close-draft-dialog').click();
+    await select('#editor p:first-of-type', 0); await page.keyboard.type('EDIT '); await settled();
+    await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份');
+    const before = (await snapshot(id)).snapshot; expect(before.source).toBe('EDIT ' + raw.slice(1)); expect(before.canUndo).toBe(true);
+    await page.locator('#show-drafts').click();
+    await page.locator(`[data-draft-id="${second.id}"]`).getByRole('button', { name: '归档', exact: true }).click();
+    await fs.chmod(draftRoot, 0o750); await page.locator('#confirm-draft-management').click();
+    await expect(page.locator('#draft-operation-status')).toContainText('草稿整理未确认');
+    expect((await snapshot(id)).snapshot.source).toBe(before.source); expect((await snapshot(id)).snapshot.canUndo).toBe(true);
+    await fs.chmod(draftRoot, 0o700); await page.locator('#refresh-drafts').click();
+    await expect(page.locator('#draft-operation-status')).toContainText('草稿整理未确认');
+    await expect(page.locator(`[data-draft-id="${second.id}"]`)).toBeVisible();
+    expect(await fs.readFile(partial, 'utf8')).toBe('{partial'); expect((await fs.readFile(originalPath)).equals(Buffer.from(raw))).toBe(true);
+    await captureTestWindow(app, info.outputPath('draft-management-returned-failure-retained.png'));
+    console.log('draft-management-evidence:' + JSON.stringify({ area, originalUnchanged: true, originalSha256: require('node:crypto').createHash('sha256').update(raw).digest('hex'), archiveReopenExact: true, partialRetained: true, nativeIme: 'NOT VERIFIED' }));
+  }, info, null, true, false, false, null, { root: draftRoot });
+});
+
+
+test('writing UI V2 panels, composition gate, copy feedback and document switching', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'writing-ui-flow-')));
+  let ownedFixture, target, exported;
+  await usingDemo(async ({ app, page, root, snapshot, select, settled }) => {
+    const original = path.join(root, '写作练习.md');
+    const raw = '# 把文字放在中央\n\n这是第一段普通文字。在安静的页面里，专注于正在写下的内容。\n\n第二段文字，也可以继续编辑。\n\n```js\nprotected();\n```\n';
+    await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, paths) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [paths.original] });
+      dialog.showMessageBox = async () => ({ response: 1 });
+      dialog.showSaveDialog = async () => { globalThis.uiSaveCalls = (globalThis.uiSaveCalls || 0) + 1; return { canceled: false, filePath: paths.target }; };
+    }, { original });
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1200, 820));
+    await page.locator('#show-drafts').click(); await expect(page.locator('#draft-empty')).toBeVisible();
+    await captureTestWindow(app, info.outputPath('panels-empty-drafts.png')); await page.keyboard.press('Escape');
+    await page.locator('#open-file').click(); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    await page.locator('#show-details').click();
+    await expect(page.locator('#details-document-name')).toHaveText('写作练习.md');
+    await expect(page.locator('#details-document-kind')).toHaveText('原文件 · 只读');
+    await expect(page.locator('#details-backup-card')).toBeHidden();
+    await captureTestWindow(app, info.outputPath('panels-original-details.png')); await page.keyboard.press('Escape');
+    const sourceId = await page.locator('#documents').inputValue();
+    await page.locator('#edit-copy').click(); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
+    const copyId = await page.locator('#documents').inputValue();
+    await expect(page.locator('#draft-recovery-panel')).toBeHidden(); await expect(page.locator('#temporary-notice')).toBeHidden();
+    expect(await page.locator('#editor').evaluate(n => n.getBoundingClientRect().top)).toBeLessThan(160);
+    await expect(page.locator('#backup-summary')).toContainText('已备份');
+    await captureTestWindow(app, info.outputPath('writing-v2-editor.png'));
+    await page.locator('#show-drafts').click(); await expect(page.locator('#draft-dialog')).toBeVisible();
+    await expect(page.locator('#close-draft-dialog')).toBeFocused();
+    await expect(page.locator('#draft-recovery-list > p')).toHaveCount(1);
+    await captureTestWindow(app, info.outputPath('writing-v2-drafts.png'));
+    await page.keyboard.press('Escape'); await expect(page.locator('#draft-dialog')).toBeHidden();
+    await expect(page.locator('#show-drafts')).toBeFocused();
+    await page.locator('#show-details').click(); await expect(page.locator('#temporary-notice')).toBeHidden();
+    await expect(page.locator('#details-document-kind')).toHaveText('独立草稿 · 未存为文件');
+    await expect(page.locator('#copy-empty')).toBeVisible();
+    await page.locator('#details-writing-help > summary').click(); await expect(page.locator('#temporary-notice')).toBeVisible();
+    await page.keyboard.press('Escape'); await expect(page.locator('#document-details-dialog')).toBeHidden();
+    await select('#editor p:first-of-type', 0); await page.keyboard.type('X'); await settled();
+    await page.keyboard.press('Meta+z'); await settled(); expect((await snapshot(copyId)).snapshot.source).toBe(raw);
+    await page.keyboard.press('Meta+Shift+z'); await settled();
+    const edited = (await snapshot(copyId)).snapshot;
+    await selectDocument(page, sourceId); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await selectDocument(page, copyId); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source); expect((await snapshot(copyId)).snapshot.canUndo).toBe(true);
+    // Controlled composition tests UI gating only; not native macOS IME acceptance.
+    await page.locator('#editor .tiptap').dispatchEvent('compositionstart', { data: '' });
+    await expect(page.locator('#show-drafts')).toBeDisabled(); await expect(page.locator('#show-details')).toBeDisabled();
+    await expect(page.locator('#create-test-copy')).toBeDisabled();
+    await page.locator('#editor .tiptap').dispatchEvent('compositionend', { data: '' }); await settled();
+    await expect(page.locator('#show-drafts')).toBeEnabled();
+    await page.locator('#create-test-copy').click(); await expect(page.locator('#copy-confirm-dialog')).toBeVisible();
+    await captureTestWindow(app, info.outputPath('panels-save-confirmation.png'));
+    await page.keyboard.press('Escape'); await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
+    expect(await app.evaluate(() => globalThis.uiSaveCalls || 0)).toBe(0);
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    ownedFixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(ownedFixture.dir, 'writing-ui.md');
+    console.log('writing-ui-export-fixture:' + target);
+    await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, target);
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#copy-summary-compact')).toBeVisible(); await expect(page.locator('#copy-summary-compact')).toContainText('当前内容已导出');
+    await expect(page.locator('#copy-confirm-dialog')).toBeHidden(); await expect(page.locator('#editor .tiptap')).toBeFocused();
+    exported = await fs.readFile(target); expect(exported.toString()).toBe(edited.source); ownedFixture.recordFile('writing-ui.md', exported);
+    const receipt = (await snapshot(copyId)).snapshot.copyState;
+    expect(require('node:crypto').createHash('sha256').update(exported).digest('hex')).toBe(receipt.sha256);
+    await select('#editor p:nth-of-type(2)', 0); await page.keyboard.type('LATER '); await settled();
+    await expect(page.locator('#copy-summary-compact')).toContainText('后续修改尚未导出');
+    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#copy-operation-alert')).toBeVisible(); await expect(page.locator('#copy-operation-alert')).toContainText('同名目标已存在');
+    await expect(page.locator('#copy-summary-compact')).toContainText('writing-ui.md');
+    expect((await fs.readFile(target)).equals(exported)).toBe(true); expect(await fs.readFile(original, 'utf8')).toBe(raw);
+    await captureTestWindow(app, info.outputPath('writing-v2-export-failure-preserves-receipt.png'));
+    await page.locator('#show-reading-settings').click(); await page.locator('#reading-theme-dark').click();
+    await page.locator('#close-reading-settings').click();
+    await page.locator('#show-details').click(); await expect(page.locator('#test-copy-summary')).toContainText(target);
+    await expect(page.locator('#confirmed-copy-card')).toBeVisible();
+    await expect(page.locator('#latest-copy-card')).toHaveAttribute('data-tone','error');
+    await expect(page.locator('#latest-copy-card')).toContainText('target-exists');
+    await page.locator('#test-copy-receipt > summary').click(); await expect(page.locator('#test-copy-result')).toContainText(receipt.sha256);
+    await captureTestWindow(app, info.outputPath('writing-v2-details.png'));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(390,800));
+    await captureTestWindow(app, info.outputPath('panels-details-dark-narrow.png'));
+    expect(await page.locator('#document-details-dialog').evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+    await page.keyboard.press('Escape');
+    await page.locator('#toggle-session-sidebar').click(); await page.locator('#show-drafts').click();
+    await expect(page.locator('#draft-recovery-list .state-pill').first()).toHaveText('正在使用');
+    await captureTestWindow(app, info.outputPath('panels-drafts-dark-narrow.png'));
+    expect(await page.locator('#draft-dialog').evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+    await page.keyboard.press('Escape');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1200,820));
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, target);
+    await page.locator('#open-file').click(); await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    expect((await snapshot(await page.locator('#documents').inputValue())).snapshot.source).toBe(exported.toString());
+    await expect(page.locator('#copy-operation-alert')).toBeHidden(); await expect(page.locator('#copy-summary-compact')).toBeHidden();
+    expect(await fs.readFile(original, 'utf8')).toBe(raw);
+    console.log('writing-ui-evidence:' + JSON.stringify({ originalUnchanged: true, exportedSha256: receipt.sha256, nativeIme: 'NOT VERIFIED', dialog: 'stubbed selection', windowMode: 'hidden except inactive screenshot capture', area }));
+  }, info, null, true, true, true, null, { root: path.join(area, 'drafts') });
+  const cleanup = ownedFixture.cleanup({ passed: true, quiescent: true });
+  console.log('home-fixture-cleanup:' + JSON.stringify(cleanup)); expect(cleanup.state, JSON.stringify(cleanup)).toBe('removed');
+});
+
+test('writing V3 quiet composition and safe formatting export reopen', async ({}, info) => {
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'writing-v3-')));
+  const draftRoot=path.join(area,'drafts'),original=path.join(area,'original.md');
+  const raw='\ufeff---\r\nkeep: synthetic\r\n---\r\n\r\n第一段中文。\r\n\r\nSecond paragraph.\r\n\r\n```md\r\nuntouched [syntax]\r\n```\r\n';
+  const bytes=Buffer.from(raw),hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
+  await fs.writeFile(original,bytes,{flag:'wx',mode:0o600});let fixture,target,exported;
+  await usingDemo(async({app,page,snapshot,select,settled})=>{
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});},original);
+    await page.locator('#open-file').click();await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    const originalId=await page.locator('#documents').inputValue();await expect(page.locator('#format-toolbar')).toBeHidden();
+    const refusal=await page.evaluate(sessionId=>window.documentDemo.format({sessionId,expectedRevision:0,action:'heading-1',from:1,to:1}),originalId);expect(refusal.code).toBe('read-only-document');
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    await expect(page.locator('#format-toolbar')).toBeVisible();await expect(page.locator('#document-name')).toContainText('编辑副本');
+    await expect(page.locator('#backup-summary')).toHaveText('已备份');
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].showInactive());
+    await page.evaluate(()=>{window.v3Trace=[];for(const type of ['compositionstart','compositionend'])document.addEventListener(type,()=>window.v3Trace.push({type}),true);});
+    await select('#editor p:first-of-type',6);const top=await page.locator('#editor').evaluate(n=>n.getBoundingClientRect().top);
+    const cdp=await page.context().newCDPSession(page);
+    try {
+      await cdp.send('Input.imeSetComposition',{text:'wo',selectionStart:2,selectionEnd:2});
+      await expect(page.locator('#backup-summary')).toHaveText('输入中…');
+      await expect(page.locator('#composition-status')).toBeHidden();await expect(page.locator('#copy-operation-alert')).toBeHidden();
+      await expect(page.locator('#create-test-copy')).toBeDisabled();await expect(page.locator('#format-block')).toBeDisabled();
+      expect(await page.locator('#editor').evaluate(n=>n.getBoundingClientRect().top)).toBe(top);
+      await captureTestWindow(app,info.outputPath('quiet-composition.png'));
+      await cdp.send('Input.insertText',{text:'我'});await settled();
+      console.log('v3-composition-state:'+await page.evaluate(()=>JSON.stringify({events:window.v3Trace,state:JSON.parse(document.querySelector('#status').textContent)})));
+      await expect(page.locator('#create-test-copy')).toBeEnabled();await expect(page.locator('#format-block')).toBeEnabled();
+      expect((await snapshot(id)).snapshot.source).toContain('第一段中文。我');
+    } finally {await cdp.detach();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].hide());}
+    await page.keyboard.press('Meta+z');await settled();expect((await snapshot(id)).snapshot.source).toBe(raw.slice(1));
+    await select('#editor p:first-of-type',0);await page.locator('#format-block').selectOption('heading-2');await settled();
+    await expect(page.locator('#editor h2')).toHaveText('第一段中文。');
+    await page.locator('#format-undo').click();await settled();await expect(page.locator('#editor h2')).toHaveCount(0);
+    await page.locator('#format-redo').click();await settled();await expect(page.locator('#editor h2')).toHaveCount(1);
+    await select('#editor h2',6);await page.keyboard.press('Enter');await settled();await page.keyboard.type('New body');await settled();
+    await expect(page.locator('#editor > .tiptap > p').first()).toHaveText('New body');
+    await select('#editor > .tiptap > p:first-of-type',0,3);await page.locator('#format-bold').click();await settled();
+    await expect(page.locator('#editor strong')).toHaveText('New');
+    // Remove the whole selected mark with the same keyboard command; original bytes return.
+    await page.keyboard.press('Meta+b');await settled();await expect(page.locator('#editor strong')).toHaveCount(0);
+    await select('#editor > .tiptap > p:first-of-type',0);await page.locator('#format-block').selectOption('bullet-list');await settled();
+    await expect(page.locator('#editor ul li p')).toHaveText('New body');
+    await select('#editor ul li p',8);await page.keyboard.press('Enter');await settled();await page.keyboard.type('Next item');await settled();
+    await expect(page.locator('#editor ul li')).toHaveCount(2);
+    await page.keyboard.press('Enter');await settled();await expect(page.locator('#editor ul li')).toHaveCount(3);
+    await page.keyboard.press('Enter');await settled();await expect(page.locator('#editor ul li')).toHaveCount(2);
+    await page.keyboard.type('After list');await settled();
+    await select('#editor ul li:first-child p',0);await page.locator('#format-block').selectOption('ordered-list');await settled();
+    await expect(page.locator('#editor ol li')).toHaveCount(2);
+    const beforeUnsupported=(await snapshot(id)).snapshot;
+    await page.locator('#editor pre').last().click();await page.keyboard.type('MUST NOT MODIFY');await settled();
+    expect((await snapshot(id)).snapshot.source).toBe(beforeUnsupported.source);expect((await snapshot(id)).snapshot.revision).toBe(beforeUnsupported.revision);
+    await selectDocument(page,originalId);await expect(page.locator('#format-toolbar')).toBeHidden();
+    await selectDocument(page,id);expect((await snapshot(id)).snapshot.source).toBe(beforeUnsupported.source);
+    await captureTestWindow(app,info.outputPath('formatted-writing.png'));
+    fixture=createHomeFixture('Writing-synthetic-E2E-');target=path.join(fixture.dir,'formatted.md');
+    await app.evaluate(({dialog},filePath)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath});},target);
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect(page.locator('#copy-summary-compact')).toContainText('当前内容已导出');
+    exported=await fs.readFile(target);expect(exported.equals(Buffer.from('\ufeff'+beforeUnsupported.source))).toBe(true);
+    fixture.recordFile('formatted.md',exported);const after=(await snapshot(id)).snapshot;
+    expect(after.copyState.sha256).toBe(hash(exported));expect(after.canUndo).toBe(true);expect(after.dirty).toBe(true);
+    expect((await fs.readFile(original)).equals(bytes)).toBe(true);
+    console.log('writing-v3-evidence:'+JSON.stringify({originalSha256:hash(bytes),exportedSha256:hash(exported),nativeIme:'NOT VERIFIED',composition:'CDP browser IME',layoutStable:true,source:original,target}));
+  },info,null,true,true,true,null,{root:draftRoot});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});},target);
+    await page.locator('#open-file').click();await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    const s=(await snapshot(await page.locator('#documents').inputValue())).snapshot;
+    expect(Buffer.from('\ufeff'+s.source).equals(exported)).toBe(true);await expect(page.locator('#editor h2')).toHaveText('第一段中文。');await expect(page.locator('#editor ol li')).toHaveCount(2);
+    expect((await fs.readFile(original)).equals(bytes)).toBe(true);
+  },info,null,true,false,false,null,{root:draftRoot});
+  const cleanup=fixture.cleanup({passed:true,quiescent:true});console.log('home-fixture-cleanup:'+JSON.stringify(cleanup));expect(cleanup.state).toBe('removed');
+});
+
+
+test('approved shell V1 real sidebar keeps identity through switching, composition and failed IPC', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'approved-shell-')));
+  await usingDemo(async ({app,page,root,snapshot,select,settled}) => {
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+    const original = path.join(root, '日常写作.md');
+    const raw = '# 让文字，回到中心\n\n第一段中文，保留原始文字。\n\n## 一个安静的开始\n\nSecond paragraph for writing.\n\n```md\nprotected [syntax]\n```\n';
+    await fs.writeFile(original, raw, {flag:'wx', mode:0o600});
+    await app.evaluate(({dialog},filePath) => {dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});}, original);
+    await expect(page.locator('#writing-app')).toBeVisible();
+    await expect(page.locator('#session-list button')).toHaveCount(0);
+    await page.locator('#empty-open').click(); const sourceId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#session-list button')).toHaveCount(1);
+    await page.locator('#edit-copy').click(); const copyId=await page.locator('#documents').inputValue();
+    const row = id => page.locator('#session-list button').filter({has:page.locator('strong')}).and(page.locator(`[data-session-id="${id}"]`));
+    await expect(row(copyId)).toHaveAttribute('aria-current','true');
+    await expect(page.locator('#session-count')).toHaveText('2');
+    await select('#editor p:first-of-type',0);await page.keyboard.type('X');await settled();
+    const edited=(await snapshot(copyId)).snapshot;
+    await row(sourceId).click();await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    await expect(row(sourceId)).toHaveAttribute('aria-current','true');
+    await row(copyId).click();await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    await page.locator('#format-undo').click();await settled();expect((await snapshot(copyId)).snapshot.source).toBe(raw);
+    await page.locator('#format-redo').click();await settled();expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    await page.locator('#session-filter').fill('不存在');await expect(page.locator('#session-empty')).toHaveText('没有匹配的已打开文档。');
+    expect(await page.locator('#documents').inputValue()).toBe(copyId);await page.locator('#session-filter').fill('');
+    await page.locator('#editor .tiptap').dispatchEvent('compositionstart',{data:''});
+    await expect(row(sourceId)).toBeDisabled();await expect(page.locator('#toggle-session-sidebar')).toBeDisabled();
+    await expect(page.locator('#backup-summary')).toHaveText('输入中…');
+    await expect(page.locator('#copy-operation-alert')).toBeHidden();
+    await page.locator('#editor .tiptap').dispatchEvent('compositionend',{data:''});await settled();
+    await expect(row(sourceId)).toBeEnabled();
+    // Intercept only the next synthetic target snapshot, leaving normal sender checks intact.
+    await app.evaluate(({ipcMain},id)=>{
+      const channel='document-demo:request',original=ipcMain._invokeHandlers.get(channel);
+      globalThis.shellSnapshotRestore=()=>{ipcMain.removeHandler(channel);ipcMain.handle(channel,original);};
+      ipcMain.removeHandler(channel);ipcMain.handle(channel,(event,payload)=>{
+        if(payload.operation==='snapshot'&&payload.sessionId===id)return new Promise(resolve=>{globalThis.shellReject=()=>resolve({ok:false,code:'read-failed'});});
+        return original(event,payload);
+      });
+    },sourceId);
+    await row(sourceId).click();await expect(row(sourceId)).toBeDisabled();
+    await expect(row(copyId)).toHaveAttribute('aria-current','true');
+    await app.evaluate(()=>globalThis.shellReject());
+    await expect(page.locator('#viewer-status')).toContainText('switch-failed');
+    await expect(row(copyId)).toHaveAttribute('aria-current','true');expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    await app.evaluate(()=>globalThis.shellSnapshotRestore());
+    await row(sourceId).click();await expect(row(sourceId)).toHaveAttribute('aria-current','true');
+    await row(copyId).click();await expect(row(copyId)).toHaveAttribute('aria-current','true');
+    await captureTestWindow(app,info.outputPath('approved-shell-writing.png'));
+    await page.locator('#toggle-session-sidebar').click();await expect(page.locator('#document-sidebar')).toBeHidden();
+    expect(await page.locator('#document-sidebar').evaluate(n=>n.inert)).toBe(true);
+    await page.locator('#toggle-session-sidebar').click();await expect(row(copyId)).toBeVisible();
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(390,800));
+    await expect(page.locator('#document-sidebar')).toBeHidden();
+    await expect(page.locator('#toggle-session-sidebar')).toBeVisible();
+    await page.locator('#toggle-session-sidebar').click();await expect(row(copyId)).toBeVisible();
+    await row(sourceId).click();await expect(page.locator('#document-sidebar')).toBeHidden();
+    await expect(page.locator('#readonly-badge')).toHaveText('原文只读');
+    await captureTestWindow(app,info.outputPath('approved-shell-narrow.png'));
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect(await fs.readFile(original,'utf8')).toBe(raw);expect(errors).toEqual([]);
+    console.log('approved-shell-evidence:'+JSON.stringify({originalUnchanged:true,originalSha256:require('node:crypto').createHash('sha256').update(raw).digest('hex'),nativeIme:'NOT VERIFIED',area}));
+  }, info, null, true, true, true, null, {root:path.join(area,'drafts')});
+});
+
+test('reading V1 outline navigation and appearance preserve real document state', async ({}, info) => {
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'reading-v1-')));
+  await usingDemo(async({app,page,root,snapshot,select,settled})=>{
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    const raw='# 写作与阅读\n\n第一段中文，留给安静的思考。\n\n## 重复标题\n\n'+
+      Array(9).fill('这是一段合成的长文。A quiet page keeps attention on the words.').join('\n\n')+
+      '\n\n## 重复标题\n\nSecond section.\n\n### 更细的层次\n\nA paragraph.\n\n```md\n# Not a real heading\n```\n\n## 文章最后\n\nEnd of synthetic document.\n';
+    const original=path.join(root,'reading.md');await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});},original);
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1440,900));
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    const before=(await snapshot(originalId)).snapshot;
+    await page.locator('#toggle-document-outline').click();
+    await expect(page.locator('#document-outline')).toBeVisible();
+    await expect(page.locator('#outline-list button')).toHaveText(['写作与阅读','重复标题','重复标题','更细的层次','文章最后']);
+    await page.evaluate(()=>{window.staleReadingJump=document.querySelector('#outline-list button:last-child').onclick;window.readingEditorNode=document.querySelector('#editor .tiptap');});
+    await page.locator('#outline-list button').last().click();
+    expect(await page.locator('#document-scroll').evaluate(n=>n.scrollTop)).toBeGreaterThan(300);
+    expect((await snapshot(originalId)).snapshot).toEqual(before);
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    await page.locator('#show-reading-settings').click();
+    await page.locator('#reading-theme-dark').click();
+    await page.locator('#reading-font').selectOption('serif');await page.locator('#reading-size').selectOption('21');
+    await page.locator('#reading-width').selectOption('800');await page.locator('#reading-spacing').selectOption('2.2');
+    await expect(page.locator('body')).toHaveAttribute('data-reading-theme','dark');
+    await captureTestWindow(app,info.outputPath('reading-settings-dark.png'));
+    await page.locator('#close-reading-settings').click();
+    expect(await page.locator('#editor').evaluate(n=>getComputedStyle(n).fontSize)).toBe('21px');
+    expect(await page.locator('#editor').evaluate(n=>getComputedStyle(n).maxWidth)).toBe('800px');
+    expect(await page.evaluate(()=>window.readingEditorNode===document.querySelector('#editor .tiptap'))).toBe(true);
+    expect((await snapshot(originalId)).snapshot).toEqual(before);
+    await page.locator('#outline-list button').first().click();
+    await captureTestWindow(app,info.outputPath('reading-outline-dark.png'));
+    await page.keyboard.press('Meta+,');await expect(page.locator('#reading-settings-dialog')).toBeVisible();
+    await page.emulateMedia({colorScheme:'dark'});await page.locator('#reading-theme-system').click();
+    await expect(page.locator('body')).toHaveAttribute('data-reading-theme','dark');
+    await page.emulateMedia({colorScheme:'light'});await expect(page.locator('body')).toHaveAttribute('data-reading-theme','light');
+    await page.keyboard.press('Escape');await expect(page.locator('#reading-settings-dialog')).toBeHidden();
+    await page.locator('#edit-copy').click();const copyId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#outline-list button')).toHaveCount(5);
+    await page.evaluate(()=>window.staleReadingJump());
+    expect(await page.locator('#document-scroll').evaluate(n=>n.scrollTop)).toBe(0);
+    expect(await page.locator('#editor').evaluate(n=>getComputedStyle(n).fontSize)).toBe('21px');
+    await select('#editor h1',0);await page.keyboard.type('X');await settled();
+    await expect(page.locator('#outline-list button').first()).toHaveText('X写作与阅读');
+    const edited=(await snapshot(copyId)).snapshot;
+    await page.locator('#format-undo').click();await settled();await expect(page.locator('#outline-list button').first()).toHaveText('写作与阅读');
+    expect((await snapshot(copyId)).snapshot.source).toBe(raw);
+    await page.locator('#format-redo').click();await settled();await expect(page.locator('#outline-list button').first()).toHaveText('X写作与阅读');
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    await page.locator('#editor .tiptap').dispatchEvent('compositionstart',{data:''});
+    await expect(page.locator('#show-reading-settings')).toBeDisabled();
+    await expect(page.locator('#toggle-document-outline')).toBeDisabled();
+    await expect(page.locator('#outline-list button').last()).toBeDisabled();
+    const top=await page.locator('#document-scroll').evaluate(n=>n.scrollTop);
+    await page.evaluate(()=>document.querySelector('#outline-list button:last-child').onclick());
+    expect(await page.locator('#document-scroll').evaluate(n=>n.scrollTop)).toBe(top);
+    await page.locator('#editor .tiptap').dispatchEvent('compositionend',{data:''});await settled();
+    await expect(page.locator('#show-reading-settings')).toBeEnabled();
+    await page.locator('#show-reading-settings').click();await page.locator('#reading-theme-dark').click();
+    await page.locator('#close-reading-settings').click();
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(390,800));
+    await expect(page.locator('#document-outline')).toBeHidden();
+    await page.locator('#toggle-document-outline').click();await expect(page.locator('#document-outline')).toBeVisible();
+    await captureTestWindow(app,info.outputPath('reading-outline-narrow.png'));
+    await page.locator('#outline-list button').last().click();await expect(page.locator('#document-outline')).toBeHidden();
+    await page.locator('#show-reading-settings').click();
+    await captureTestWindow(app,info.outputPath('reading-settings-narrow.png'));
+    expect(await page.locator('#reading-settings-dialog').evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+    await page.locator('#reset-reading-settings').click();
+    await expect(page.locator('body')).toHaveAttribute('data-reading-theme','light');
+    await expect(page.locator('#reading-size')).toHaveValue('17');await page.locator('#close-reading-settings').click();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    expect((await snapshot(copyId)).snapshot.revision).toBe(edited.revision+2); // Undo and Redo only.
+    expect(await fs.readFile(original,'utf8')).toBe(raw);expect(errors).toEqual([]);
+    console.log('reading-v1-evidence:'+JSON.stringify({originalUnchanged:true,originalSha256:require('node:crypto').createHash('sha256').update(raw).digest('hex'),nativeIme:'NOT VERIFIED',themeDetection:'emulated media',area}));
+  },info,null,true,true,true,null,{root:path.join(area,'drafts')});
+});
+
+test('integrated appearance acceptance preserves writing across panels and responsive navigation', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'appearance-acceptance-')));
+  await usingDemo(async ({ app, page, root, snapshot, settled }) => {
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const resize = (width, height) => app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), [width, height]);
+    await resize(1280, 850);
+    await captureTestWindow(app, info.outputPath('acceptance-welcome.png'));
+    await page.locator('#empty-new').click();
+    await page.locator('#editor .tiptap').click(); await page.keyboard.type('A quiet page for everyday writing.'); await settled();
+    const draftId = await page.locator('#documents').inputValue();
+    await expect.poll(async () => (await snapshot(draftId)).snapshot.draftBackup.state).toBe('backed-up');
+    const before = (await snapshot(draftId)).snapshot;
+    for (const [button, panel] of [['show-reading-settings', 'reading-settings-dialog'], ['show-drafts', 'draft-dialog'], ['show-details', 'document-details-dialog']]) {
+      await page.locator('#' + button).click(); await expect(page.locator('#' + panel)).toBeVisible();
+      expect(await page.locator('#' + panel).evaluate(n => n.contains(document.activeElement))).toBe(true);
+      await page.keyboard.press('Escape'); await expect(page.locator('#' + panel)).toBeHidden();
+      await expect(page.locator('#' + button)).toBeFocused();
+    }
+    await page.locator('#create-test-copy').click(); await expect(page.locator('#copy-confirm-dialog')).toBeVisible();
+    await page.keyboard.press('Escape'); await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
+    expect((await snapshot(draftId)).snapshot).toEqual(before);
+    const raw = '# 给文字留一点空间\n\n把零散的想法写下来，再慢慢整理成自己的语言。\n\n## 今天的笔记\n\n一个安静的界面，让注意力回到正在写下的内容。\n\n- 记录观察\n- 整理思路\n- 留下明天的起点\n\n## 关于写作\n\nGood writing begins with a clear thought.\n\n```js\nconst thought = "Keep it simple.";\n```\n';
+    const original = path.join(root, '给文字留一点空间 — 一份用于整体界面验收的合成文档.md');
+    await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, original);
+    await page.locator('#open-file').click(); const originalId = await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
+    await page.locator('#edit-copy').click(); const copyId = await page.locator('#documents').inputValue();
+    await expect.poll(async () => (await snapshot(copyId)).snapshot.draftBackup.state).toBe('backed-up');
+    const copyBefore = (await snapshot(copyId)).snapshot;
+    const title = page.locator('#document-info > summary'), popup = page.locator('#document-info');
+    await title.click(); await page.keyboard.press('Escape');
+    await expect.soft(popup, 'Escape dismisses the document title popup').not.toHaveAttribute('open', '', { timeout: 500 });
+    if (await popup.evaluate(n => n.open)) await title.click();
+    await title.click(); await page.locator('#document-statistics').click();
+    await expect.soft(popup, 'Clicking outside dismisses the document title popup').not.toHaveAttribute('open', '', { timeout: 500 });
+    if (await popup.evaluate(n => n.open)) await title.click();
+    await resize(1440, 900); await page.locator('#toggle-document-outline').click();
+    await expect(page.locator('#document-outline')).toBeVisible();
+    await captureTestWindow(app, info.outputPath('acceptance-writing-light.png'));
+    await page.locator('#show-reading-settings').click(); await page.locator('#reading-theme-dark').click();
+    await page.keyboard.press('Escape'); await captureTestWindow(app, info.outputPath('acceptance-writing-dark.png'));
+    for (const width of [1024, 760, 390]) {
+      await resize(width, 800); await title.click();
+      const box = await page.locator('.document-info-panel').boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+      await expect(page.locator('#documents')).toHaveValue(copyId);
+      await page.locator('#documents').focus(); await page.keyboard.press('Escape');
+      await expect.soft(popup, 'Keyboard exit works at width ' + width).not.toHaveAttribute('open', '', { timeout: 500 });
+      await expect.soft(title).toBeFocused();
+      if (await popup.evaluate(n => n.open)) await title.click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await captureTestWindow(app, info.outputPath('acceptance-writing-narrow.png'));
+    await page.locator('#toggle-session-sidebar').click();
+    await page.locator('#session-list button').filter({ has: page.locator('strong') }).and(page.locator(`[data-session-id="${draftId}"]`)).click();
+    await expect(page.locator('#document-sidebar')).toBeHidden();
+    expect((await snapshot(draftId)).snapshot).toEqual(before);
+    expect((await snapshot(copyId)).snapshot).toEqual(copyBefore);
+    expect((await snapshot(originalId)).snapshot.source).toBe(raw);
+    expect(await fs.readFile(original, 'utf8')).toBe(raw); expect(errors).toEqual([]);
+    console.log('appearance-acceptance-evidence:' + JSON.stringify({ originalUnchanged: true, originalSha256: require('node:crypto').createHash('sha256').update(raw).digest('hex'), nativeIme: 'NOT VERIFIED', exportedFiles: 0, area }));
+  }, info, null, true, true, true, null, { root: path.join(area, 'drafts') });
+});
+
+test('find V1 searches readonly and editable documents without changing content or history', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'find-v1-')));
+  await usingDemo(async ({ app, page, root, snapshot, select, settled }) => {
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const raw = '# 在文字中查找\n\nAlpha 中文 alpha 😀\n\nA **bold** word.\n\n```md\nAlpha read-only\n```\n';
+    const file = path.join(root, 'find-synthetic.md'); await fs.writeFile(file, raw, { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, file);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+    await page.locator('#empty-open').click(); const sourceId = await page.locator('#documents').inputValue();
+    const before = (await snapshot(sourceId)).snapshot;
+    await select('#editor p:first-of-type', 0, 5);
+    await page.keyboard.press('Meta+f'); await expect(page.locator('#find-query')).toBeFocused();
+    await page.locator('#find-query').fill('alpha'); await expect(page.locator('#find-count')).toHaveText('1 / 3');
+    await page.keyboard.press('Enter'); await expect(page.locator('#find-count')).toHaveText('2 / 3');
+    await page.keyboard.press('Shift+Enter'); await expect(page.locator('#find-count')).toHaveText('1 / 3');
+    await page.locator('#find-case').check(); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    await page.locator('#find-case').uncheck();
+    await page.locator('#find-query').fill('A bold'); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    expect((await page.locator('.document-find-hit').allTextContents()).join('')).toBe('A bold');
+    await page.locator('#find-query').fill('😀'); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    await page.keyboard.press('Escape'); await expect(page.locator('#document-find')).toBeHidden();
+    await expect(page.locator('#editor .tiptap')).toBeFocused();
+    expect(await page.evaluate(() => getSelection().toString())).toBe('Alpha');
+    expect((await snapshot(sourceId)).snapshot).toEqual(before);
+    await page.locator('#edit-copy').click(); const copyId = await page.locator('#documents').inputValue();
+    await page.locator('#show-document-find').click(); await page.locator('#find-query').fill('Zulu');
+    await expect(page.locator('#find-count')).toHaveText('无匹配');
+    // One input transaction: the existing controller records per-edit Undo steps.
+    await select('#editor p:first-of-type', 0); await page.keyboard.insertText('Zulu '); await settled();
+    await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    const edited = (await snapshot(copyId)).snapshot;
+    await page.locator('#format-undo').click(); await settled();
+    expect((await snapshot(copyId)).snapshot.source).toBe(raw);
+    await expect(page.locator('#find-count')).toHaveText('无匹配');
+    await page.locator('#format-redo').click(); await settled(); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
+    await page.locator(`#session-list button[data-session-id="${sourceId}"]`).click(); await expect(page.locator('#find-count')).toHaveText('无匹配');
+    await page.locator(`#session-list button[data-session-id="${copyId}"]`).click(); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    await page.locator('#find-query').fill('Alpha'); await expect(page.locator('#find-count')).toHaveText('1 / 3');
+    await captureTestWindow(app, info.outputPath('find-light.png'));
+    await page.locator('#show-reading-settings').click(); await page.locator('#reading-theme-dark').click(); await page.locator('#close-reading-settings').click();
+    await captureTestWindow(app, info.outputPath('find-dark.png'));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(390, 800));
+    await captureTestWindow(app, info.outputPath('find-narrow.png'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator('#find-query').fill(''); await expect(page.locator('.document-find-hit')).toHaveCount(0);
+    await page.locator('#find-close').click(); await expect(page.locator('#editor .tiptap')).toBeFocused();
+    expect(await fs.readFile(file, 'utf8')).toBe(raw); expect(errors).toEqual([]);
+    console.log('find-v1-evidence:' + JSON.stringify({ originalSha256: require('node:crypto').createHash('sha256').update(await fs.readFile(file)).digest('hex'), originalUnchanged: true, area, nativeIme: 'NOT VERIFIED' }));
+  }, info, null, true, true, false, null, { root: path.join(area, 'drafts') });
+});
+
+test('find V1 pauses for editor composition and respects search input composition and modal focus', async ({}, info) => {
+  const area = await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'find-ime-v1-')));
+  await usingDemo(async ({ page, root, app, settled }) => {
+    const file = path.join(root, 'find-guard.md'); await fs.writeFile(file, 'Alpha 中文\n', { flag: 'wx', mode: 0o600 });
+    await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, file);
+    await page.locator('#empty-open').click(); await page.locator('#edit-copy').click();
+    await page.locator('#show-document-find').click(); await page.locator('#find-query').fill('Alpha');
+    await page.locator('#editor .tiptap').focus();
+    await page.locator('#editor .tiptap').dispatchEvent('compositionstart', { data: '' });
+    await expect(page.locator('#find-query')).toBeDisabled(); await expect(page.locator('#find-next')).toBeDisabled();
+    await page.keyboard.press('Meta+f'); await expect(page.locator('#editor .tiptap')).toBeFocused();
+    await page.locator('#editor .tiptap').dispatchEvent('compositionend', { data: '' }); await settled();
+    await expect(page.locator('#find-query')).toBeEnabled();
+    await page.locator('#find-query').focus();
+    await page.locator('#find-query').dispatchEvent('compositionstart');
+    await page.locator('#find-query').evaluate(input => { input.value = '中文'; input.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true })); });
+    await expect(page.locator('#find-count')).toHaveText('等待输入完成');
+    await page.locator('#find-query').dispatchEvent('keydown', { key: 'Escape', isComposing: true });
+    await expect(page.locator('#document-find')).toBeVisible();
+    await page.locator('#find-query').dispatchEvent('compositionend'); await expect(page.locator('#find-count')).toHaveText('1 / 1');
+    await page.locator('#show-details').click(); await expect(page.locator('#document-details-dialog')).toBeVisible();
+    await page.keyboard.press('Meta+f'); await expect(page.locator('#find-query')).not.toBeFocused();
+    await page.keyboard.press('Escape'); await expect(page.locator('#document-details-dialog')).toBeHidden(); await expect(page.locator('#document-find')).toBeVisible();
+    await page.locator('#find-query').focus(); await page.keyboard.press('Escape'); await expect(page.locator('#document-find')).toBeHidden();
+    expect(await fs.readFile(file, 'utf8')).toBe('Alpha 中文\n');
+  }, info, null, true, false, false, null, { root: path.join(area, 'drafts') });
 });
