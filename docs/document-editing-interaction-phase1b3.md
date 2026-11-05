@@ -2699,3 +2699,265 @@ blocker or unrelated files; this is not independent review. Native IME, full
 physical QA, SEC-01, prior formal/manual failures and release acceptance remain
 open/scoped. Existing-file overwrite remains coordination-required. Full CI and
 Air are NOT RUN; no push, merge, tag or release is authorized by this checkpoint.
+
+
+### Selected italic editing V1 (2026-11-05, 0.44.0 uncommitted)
+
+User authorized the local 0.43.0 checkpoint followed by italic editing. Commit
+`01a4d7a` contains the prior 21 verified files; worktree was clean afterward.
+This candidate reuses source projection, bounded format/range/boundary mappers,
+the existing toolbar and main-owned revision/history. Add `I` / Cmd+I; preserve
+existing `*` or `_` delimiters, BOM, line endings and unmodified bytes. One plain
+leaf may become italic; cancellation requires its entire italic leaf. Nested
+bold/italic, partial unformatting, links, soft-wrapped emphasis and complex blocks
+remain protected. No session/IPC authority or File Store/save path change.
+
+A controlled PM test reproduced a cleared paragraph retaining deleted italic
+stored marks, rejecting subsequent plain input. Extend the existing verified
+empty-list-item reset to empty paragraphs; source is already empty when marks
+are cleared. No composition state bypass, timeout or forced editable change.
+
+RED/GREEN evidence: new format/projection tests fail on baseline; 323 focused
+Node tests pass after implementation, including PM comparison, Unicode, newline
+variants, inverse bytes, stale/lost formatting acknowledgments and guards.
+Four controlled source Electron cases pass: new italic workflow and existing
+mixed ranges, list ranges and writing boundaries. Eight clean child exits, no
+watchdog/fault/remaining process. Toolbar/shortcut, typing, deletion/retyping,
+paste, split/join, original/copy switching, export and fresh-process readonly
+reopen pass. Original SHA-256 stays
+`15b5e7dd41a589e9ae2a184fe65505d780f3278bbd6742b74eb6e332180f27cf`;
+export SHA-256 is
+`227aef70b7d47e64e11213ab8cc346f43fdd44a166b592a7311bbfb4434e5a28`.
+
+Evidence: original checkout `.local/verification/italic-editing-fle6dgai/`.
+Dialogs and clipboard are controlled; Chinese test strings are NOT native IME.
+Codex bounded diff self-review found no new unresolved blocker; not independent
+review. Native IME, full physical acceptance, native close Cancel, SEC-01 and
+historical formal/manual failures remain open/scoped. Full CI, Air and external
+Reviewer NOT RUN. Original readonly, exclusive new-file export, Not saved and
+coordination-required stay unchanged. Source fixtures/evidence stay isolated;
+no historical archive or user document cleanup. No new feature commit or remote
+action beyond the explicitly authorized preceding 0.43.0 local checkpoint.
+
+
+Packaged follow-up: one actual 0.44.0 ASAR workflow PASS, including italic
+button/Cmd+I, Undo, exclusive export, target-exists refusal, read-only reopen,
+restart/draft recovery and single-instance behavior. Installed welcome startup
+PASS with clean exit. 439 app source files, 39 packaged runtime files and all 528
+installed entries match. Installed ASAR SHA-256:
+`aa40c47f08ce40b03a56c914f1dca108b7630f37b4f47200b6d3c612c57a7c47`.
+0.43.0 rollback and recovery instructions are in this run's `installation/`.
+The successful Home fixture `Writing-synthetic-E2E-oSjl5M` (one known file) was
+verified and removed by the existing helper; synthetic draft archived through
+the existing API. User documents/drafts and historical fixtures were not cleaned.
+
+### Inline code editing V1 (2026-11-05, 0.45.0 uncommitted)
+
+Add `</>` / Cmd+E using the existing format command and main-owned history. Exact
+single-backtick code is projected in ordinary paragraphs, headings and flat list
+items; code content stays literal. Multi-backtick, padding-normalized, multiline,
+nested marks and fenced blocks remain protected. Full-span unformatting only;
+operations that would change Markdown structure are refused atomically. Plain,
+bold, italic and code marks remain distinct across range edits and split/join.
+A small shared exact-leaf projector removes duplicate paragraph/list logic.
+Original bytes, BOM/newlines and untouched regions are retained; inverse patches
+restore exact bytes. No session authorization, File Store, overwrite or export
+policy change. Not saved and coordination-required remain in effect.
+
+RED/GREEN: 15 new cases fail before implementation. 340 targeted Node tests PASS,
+including real PM selection comparisons, Unicode, newline styles, exact inverses,
+code delimiters, protected structures, toolbar/composition/readonly guards and
+lost format acknowledgements. Two source Electron workflows PASS (italic and
+inline code); four clean exits, no watchdog/fault/residual. Actual 0.45.0 packaged
+workflow PASS: code button/Cmd+E, Undo, export, existing-target refusal, readonly
+reopen, restart/draft recovery and single-instance behavior. Only synthetic data;
+dialog choices/clipboard are controlled. NOT native IME acceptance.
+Original source SHA-256: 06413d186bfac95466d75ef56e1b7502f825a47350a5b9e5b335c7d9322004e7.
+Export SHA-256: eaf4816e062b725a160ac4ef73064e0b2067fd2aff6f92262b44142f893fba2c.
+Evidence: original checkout `.local/verification/inline-code-wdharfpn/`.
+The successful Home fixture Writing-synthetic-E2E-t42w49 was identity-checked and
+removed by the existing helper; only its synthetic draft was archived via app API.
+Temporary source fixtures and evidence retained; no historical cleanup.
+
+Air SSH identity and Node 24.20.0 match, but CGSSessionScreenIsLocked=Yes was
+observed: GUI BLOCKED; no package sent or GUI launched there. First sandboxed Pro
+launch was blocked; the scoped approved Pro launch passed. Codex limited diff
+self-review finds no new unresolved blocker; this is not independent review.
+DeepSeek was not invoked (no changed file-writing/authority path); full CI,
+native IME/full physical QA remain NOT RUN/NOT VERIFIED. Historical manual and
+formal failures, SEC-01, native close Cancel and release restrictions remain.
+No commit, push, merge, tag or release. Prior 0.44.0 uncommitted work preserved.
+Core helpers remain below 300 lines; controller tests 1148 and shared E2E 2554
+reuse the established harness without an unrelated test-framework refactor.
+
+
+Air follow-up after the user's explicit unlock: two source Electron workflows
+PASS in 3.8s with Node 24.20.0 / Electron 43.8.7, macOS 26.6.2 arm64. Four exits 0,
+no watchdog/fault/residual. Original/export hashes equal the Pro evidence above.
+47 exact project files plus private dependency/runtime copies; 19,957 manifest
+entries verified before and after. No installs, system settings or real documents.
+Runtime/profile/synthetic files stay in the private run directory, not Home top
+level. Input tar SHA-256:
+4c9c660374e3ba0f27f2039b6f627011c26af9308ff1e678aded3710763eef11.
+Retrieved evidence archive SHA-256:
+050d09dff68e271b6b07733575db0f9f955f0f65ea0242785a9648c38727b16b.
+Screenshots from both hosts inspected; toolbar/layout remains the visual baseline.
+Remote run: ~/Library/Application Support/personal-device-ops/air-testing/runs/markdown-inline-code-wdharfpn/.
+
+Installed 0.45.0 welcome startup PASS, clean exit; 441 source files, 40 packaged
+runtime files and 528 installed bundle entries match. ASAR SHA-256:
+e468e5ff0802b95dc2b4c1a9b1ea741261daead527279b1898de2cae25a36715.
+Exact 0.44.0 rollback is in this run's installation/rollback with RESTORE.md.
+No user drafts moved or changed during installation. Controlled dialogs and
+Chinese strings remain distinct from native IME/manual acceptance.
+
+
+### Existing link text V1 (2026-11-05, 0.46.0 uncommitted)
+
+Edit the display text of existing single-line inline links in ordinary paragraphs,
+ATX headings and simple flat list items. Exact source-leaf splices preserve target,
+title, delimiters, BOM/newlines and untouched regions. Full-label nonempty
+replacement and single-line paste are supported; exact main-owned history and
+session/readonly protections are reused. No File Store, writer, IPC payload or
+save authorization change; overwrite remains coordination-required.
+
+A small shared Tiptap configuration replaces the default active link extension
+with an inert span mark. URLs are data attributes, never href/event handlers;
+no automatic linking, URL navigation or remote content loading. Even an existing
+javascript/data target stays inert. No new URL insertion or address editing UI.
+Empty/full-label deletion, cross-span operations in a link-containing paragraph
+or item, link+format nesting, references/autolinks/normalized labels and
+split/join of link-containing paragraphs/items remain refused. Safe text input
+in other leaves/paragraphs continues after refusal. Existing block conversions
+retain link syntax, with exact inverse validation.
+
+Evidence under original checkout `.local/verification/link-text-ic_ubf51/`:
+- RED: 14 new projection/source tests fail on the previous candidate.
+- GREEN: 360 focused Node PASS, including actual PM-schema comparison, LF/CRLF/CR,
+  Unicode boundaries, target/title byte preservation, exact inverses, controlled
+  composition, IPC response loss/recovery, session and close regressions.
+- Two Pro source Electron workflows PASS (existing code, new link labels), four
+  clean successful exits; no watchdog/fault/residual. Initial link E2E expected
+  one Undo to undo five individually typed characters; corrected the test to
+  use one explicit insertion. The failed synthetic run is retained as evidence.
+- Packaged Electron PASS: label editing, Undo/Redo, exclusive export, existing
+  target refusal, readonly reopening, restart/draft recovery, single instance.
+- Original synthetic SHA-256:
+  01308780293a346d96e648e548da883b73da46ac1feb9c4f83390d411c8d0904.
+  Export SHA-256:
+  1d25699c0cdf82ed34229d59a0e60d12a3c0207549566e375473963b9ce03886.
+  Original mode 0400 and bytes verified unchanged. Screenshot visually checked.
+- Successful Home fixture Writing-synthetic-E2E-AWkrtt was identity-checked and
+  removed by the existing helper; only its synthetic draft was archived by the
+  application API. Temporary fixtures retained; no historical cleanup.
+
+Codex bounded diff self-review: no new unresolved blocker found; this is not
+independent model review. No DeepSeek/Air/full CI this slice. Native IME/manual
+acceptance remains NOT VERIFIED; historical formal/manual FAIL, SEC-01 and release
+limits are not globally cleared. No commit/push/merge/tag/release. The preceding
+0.44/0.45 work is retained. Entry 432, controller test 1168, shared E2E 2610 lines
+reuse current ownership/harness; the new configuration is 20 lines and source
+mapping helpers remain below 300. No unrelated framework refactor.
+
+Installed 0.46.0 welcome startup PASS with a clean exit and no user document
+opened. 443 app source files, 41 packaged project runtime files and 528 installed
+bundle entries match; independently rebuilt renderer bundle is byte-identical.
+ASAR SHA-256:
+f977c27757010de7fa9dff0b3c6c9da6d8dd9d17c2229648004fa5a542a9b106.
+Exact 0.45.0 rollback and restore instructions are retained in this run's
+installation/rollback and installation/RESTORE.md. Installation moved no drafts.
+
+
+### Heading/list typing workflow (2026-11-05, 0.47.0 uncommitted)
+
+User feedback exposed a core authoring gap: a bare `#` in a new draft was refused.
+Deliver a coherent typing workflow instead of a separate mini-stage per format.
+Bare `#`…`######`, bullet markers and numeric markers remain visible until Space.
+Space uses a main-validated format command and synchronous optimistic PM update,
+queued with subsequent text edits under the existing session/revision/history
+owner. Exact source patch, expected projection and inverse checks remain in force;
+no whole-document Markdown serializer, file-write policy or IPC payload expansion.
+Heading levels 4–6 are enabled in the existing menu. Empty headings accept text,
+Enter returns to a paragraph and Backspace at a heading start removes the format.
+A bare marker on read-only open is displayed literally without rewriting bytes.
+
+Evidence: original checkout `.local/verification/block-input-lrhucw93/`.
+- RED: new cases reproduce prior prefix/shortcut/empty-heading failures.
+- GREEN: 378 targeted Node cases pass together; final focused run passes 19
+  shortcut cases including 3 added numeric boundaries (381 unique total).
+- Two Pro source Electron workflows PASS: new blank-draft heading/list/continuous
+  typing/Undo/Redo/export/exit/reopen, and existing link-text protection regression.
+  Controlled dialogs/Chinese insertions do not establish native IME acceptance.
+- Export bytes and SHA-256 match; reopened documents are read-only. Existing
+  link regression verifies original bytes and mode 0400 remain unchanged.
+- Package content, source hashes, version and Electron runtime checked. The
+  current installed 0.46.0 process remains running; no replacement, packaged
+  product GUI launch or installed-app acceptance is claimed for this candidate.
+- All new GUI fixtures are isolated temporary synthetic data. No new Home
+  fixture, historical cleanup, remote transfer or user-document access.
+
+Bounded Codex self-review found no unresolved blocking finding in this slice;
+not an independent model review. Native IME NOT VERIFIED; historical formal QA
+FAIL, SEC-01, unrestricted saving and public-release gates remain open. Task
+lists, nested lists/marks, quotes/fences and automatic inline syntax are not added.
+No commit/push/merge/tag/release. Existing 0.43–0.46 candidate work is preserved.
+
+### Link creation and address editing workflow (2026-11-05, 0.48.0 uncommitted)
+
+The link toolbar / Cmd+K opens one panel for a plain selection/caret or an
+existing simple inline link. Insert, edit label/address, Cancel/Escape and remove
+link while retaining text are implemented together with main-owned Undo/Redo.
+Supported hosts are plain paragraphs, headings and simple flat list items.
+Cross-leaf/cross-block ranges, nested marks, references and title editing remain
+outside scope. Labels are bounded to 512 UTF-16 units and addresses to 2048;
+only plain single-line labels and validated http(s), mailto, relative/fragment
+targets are accepted. No automatic linking, URL navigation or resource loading.
+
+`set-link` / `remove-link` reuse the existing format command, source range,
+expected projection and exact inverse. Main accepts only the additional
+label/href fields for format requests and rechecks sender, session, readonly
+status and revision. Source coordinates, paths and authority cannot be supplied
+by this panel. Unchanged addresses, existing titles, BOM/newlines and surrounding
+source retain their bytes. Explicit address edits replace only that target.
+File Store/save authorization and coordination-required are unchanged.
+
+The panel captures the current session/revision and keeps form input on refusal.
+Pending/composing/recovery states block application; Escape returns focus and the
+original selection when still valid. A stale main revision reconciles through
+the existing controller without retrying the edit. A lost successful response is
+also reconciled without replay; Undo remains owned by main.
+
+Evidence: original checkout `.local/verification/link-panel-owz9kpw6/`.
+- RED: new source tests reproduce missing create/address/remove behavior on
+  the preceding candidate. GREEN: 399 focused Node cases PASS, including source
+  inverses across LF/CRLF/CR, payload rejection, readonly/session/revision gates,
+  dropped-response recovery and existing heading/list/inline/close regressions.
+- Three Pro source Electron workflows PASS: new complete link panel plus link
+  text and heading/list typing regressions. Six clean successful exits, no
+  watchdog/fault/residual. Screenshot inspected against the visual baseline.
+- New link workflow covers reversed selection, invalid URL refusal, controlled
+  input composition, Escape, address/title preservation, remove/Undo/Redo,
+  stale revision with retained form input, continued plain editing, inert links,
+  exclusive export and a fresh-process readonly reopen.
+- Original synthetic SHA-256:
+  224525817f2f9029e153343a3e2f57852daf7858a9141e12c4c964cfd94a843a.
+  Export SHA-256:
+  2b7c00e6385a4d75ce7c04edafed2aee80f127a8fa4d26d031786443864994c1.
+  Original bytes and mode 0400 remain unchanged.
+- Fixtures are isolated temporary synthetic data; no new Home directory, user
+  document access, remote transfer or historical cleanup. Logs retain paths.
+
+Bounded Codex diff self-review found no new unresolved blocker in this slice;
+this is not independent review. No DeepSeek/Air/full CI this batch. Native IME
+remains NOT VERIFIED; historical manual FAIL and SEC-01/release gates remain
+open. Current installed 0.46.0 is running and is not stopped/replaced; installed
+and packaged-product GUI acceptance of this candidate remain pending. No Git
+commit/push/merge/tag/release. The next coherent authoring package is quotes and
+basic fenced code, with create/edit/exit/Undo/export/reopen as one workflow.
+
+Unsigned candidate package verification PASS: 448 app source fingerprints,
+44 packaged project runtime files and 10,357 ASAR entries checked; no private or
+unexpected project entries. Renderer rebuild is byte-identical. Package/plist
+version 0.48.0 and bundled arm64 Electron 43.8.7 match. ASAR SHA-256:
+ddb5243a7b8116e9e5c5cbd2bdc353a15efc5baed594af980644b3a6c93d263e.
+The existing installed 0.46.0 bundle and its active process were left untouched.

@@ -217,7 +217,7 @@ for (const nl of ['\n', '\r\n']) test(`literal brackets: exact text editing and 
   for (const { leaf, ...change } of changes.reverse()) current = mapTextEdit(current, change, leaf).source;
   assert.equal(current, original);
   for (const text of ['[ ]', '[label]', 'before ] after', '# [title]']) assert.ok(projectSource(text).spans.length, text);
-  for (const text of ['[label](https://example.invalid)', '[label]\n\n[label]: /target', '![x](file.png)', '- [ ] task']) {
+  for (const text of ['[**label**](https://example.invalid)', '[label]\n\n[label]: /target', '![x](file.png)', '- [ ] task']) {
     assert.equal(projectSource(text).spans.length, 0, text);
   }
   assert.equal(mapTextEdit('[label]', { from: 8, to: 8, insert: '(target)' }).ok, false);

@@ -3,7 +3,7 @@ import { createFindPlugin, createFindView } from './document-find-view.mjs';
 import { createReadingView } from './document-reading-view.mjs';
 import { createFormatView } from './document-format-view.mjs';
 import { Editor, Extension, getSchema } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
+import { documentEditorExtensions } from './document-editor-extensions.mjs';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
@@ -16,11 +16,15 @@ import { createWritingShell } from './document-writing-shell.mjs';
 import { createDraftView } from './document-draft-view.mjs';
 import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
 
+import { applyBlockShortcut } from './document-block-input.mjs';
+import { createLinkView } from './document-link-view.mjs';
+
 const api = window.documentDemo, byId = id => document.getElementById(id);
 let controller = null, editor = null, resetting = false, loading = false, selected = null;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
 const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
+const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
@@ -147,7 +151,7 @@ function render(s) {
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); closeView.sync(); show();
+  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); linkView.sync(); findView.sync(); closeView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -212,12 +216,14 @@ function install(snapshot) {
         'Mod-Shift-z': () => { void history('redo'); return true; } };
     } });
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
-      extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
+      extensions: [...documentEditorExtensions(), gate],
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
+          if (applyBlockShortcut(view,event,{controller,loading,invalid:activeInvalid()})) return true;
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
           if (replaceParagraphRangeInput(view, event, { state: controller?.state(),
             blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus })) return true;
+          if (linkView.key(view,event)) return true;
           if (formatView.key(view, event)) return true;
           return false; // Existing Tiptap Backspace command and source gate perform the edit.
         },
@@ -245,7 +251,7 @@ function install(snapshot) {
         },
       } }, // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
       onTransaction: () => queueMicrotask(() => findView.sync()),
-      onSelectionUpdate: () => formatView.sync(),
+      onSelectionUpdate: () => {formatView.sync();linkView.sync();},
       onUpdate: ({ transaction }) => { if (!resetting) controller.accept(transaction); } });
   } else resetSource(snapshot.source, { from: 1, to: 1 });
   render(controller.state());
@@ -333,7 +339,7 @@ async function finishDocumentClose(id) {
   for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
   document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
   for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
-  loading = false; formatView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync();
+  loading = false; formatView.sync(); linkView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync();
   if (next) {
     byId('documents').value = next.value; await load();
     if (controller) { byId('document-info').hidden = false; byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; }
@@ -380,7 +386,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom
         || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error('Invalid copy snapshot');
     const projection = projectSource(candidate.source);
-    const schema = editor?.schema || getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
+    const schema = editor?.schema || getSchema([...documentEditorExtensions()]);
     schema.nodeFromJSON(projection.doc).check(); // Validate before changing active identity/content.
     const previous = controller?.state().confirmed;
     navigationError = '';
@@ -407,7 +413,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => openDocument(false);
+const openReadOnly = () => { if (!linkView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;

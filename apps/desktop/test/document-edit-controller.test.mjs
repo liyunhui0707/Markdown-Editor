@@ -1,3 +1,4 @@
+import { applyBlockShortcut } from '../lib/document-block-input.mjs';
 import { mapFormatEdit } from '../lib/document-format-edit.mjs';
 import test from 'node:test';
 import { syncNativeBackspaceSelection } from '../lib/document-native-selection.mjs';
@@ -10,7 +11,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 import { getSchema } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
+import { documentEditorExtensions } from '../lib/document-editor-extensions.mjs';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { splitBlock, joinBackward } from '@tiptap/pm/commands';
 import { projectSource, mapTextEdit } from '../lib/document-source-map.mjs';
@@ -18,7 +19,7 @@ import { createEditController } from '../lib/document-edit-controller.mjs';
 const require = createRequire(import.meta.url);
 const { createDocumentService } = require('../lib/document-service');
 const { createDocumentSessions } = require('../lib/document-session-ipc');
-const schema = getSchema([StarterKit.configure({ undoRedo: false, trailingNode: false })]);
+const schema = getSchema([...documentEditorExtensions()]);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function harness(input = null, mapper = mapTextEdit) {
@@ -43,7 +44,7 @@ function harness(input = null, mapper = mapTextEdit) {
       if (['edit','format'].includes(operation) && h.dropReplyAfterCommit) throw Error('synthetic response loss after real main edit');
       if (['edit','format'].includes(operation) && h.wrongAck) return { ...result, snapshot: { ...result.snapshot, source: '# WRONG ACK\n' } };
       if (operation === 'snapshot' && h.delaySnapshot) await new Promise(resolve => snapshotReplies.push(resolve));
-      if (operation === 'edit' && h.delayed) await new Promise(resolve => replies.push(resolve));
+      if (['edit','format'].includes(operation) && h.delayed) await new Promise(resolve => replies.push(resolve));
       return result;
     },
     onReset: (source, selection) => {
@@ -1100,4 +1101,107 @@ test('native shortened or unreadable target range is refused atomically with fee
   assert.equal(messages.length,3);assert(messages.every(m=>m.includes('输入范围与当前选区不一致')));
   assert.deepEqual(rangeInput(h),{handled:true,prevented:true});await h.controller.idle();
   assert.equal(h.document.text,'- F新😀\n\n```md\nProtected\n```');assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+for(const prefix of ['', '- '])test(`italic controller format/type/history and full deletion ${prefix}`,async()=>{
+  const raw='\ufeff'+prefix+'A 中文😀 Z\r\n\r\nTail.\r\n',h=harness(raw),before=h.document.text;
+  const at=h.span('A 中文😀 Z').from+2;
+  assert.equal(await h.controller.format({action:'italic',from:at,to:at+4}),true);
+  const formatted=before.replace('中文😀','*中文😀*');assert.equal(h.document.text,formatted);
+  assert.equal(h.edit(at+1,at+1,'新'),true);await h.controller.idle();assert.equal(h.document.text,formatted.replace('中文','中新文'));
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,formatted);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,formatted);
+  h.controller.beginComposition();assert.equal(await h.controller.format({action:'italic',from:at,to:at+4}),false);
+  await h.controller.endComposition();assert.equal(h.document.text,formatted);
+  assert.equal(await h.controller.format({action:'italic',from:at,to:at+4}),true);assert.equal(h.document.text,before);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+  const all=harness(prefix+'*All*'),b=all.span('All');all.select(b.to,b.from);
+  const tr=all.state().tr.insertText('');assert.equal(all.controller.prepare(tr),true);all.apply(tr);await all.controller.idle();
+  assert.equal(all.document.text,prefix);assert.equal(all.edit(all.state().selection.from,all.state().selection.to,'Again'),true);
+  await all.controller.idle();assert.equal(all.document.text,prefix+'Again');
+  assert.equal(await all.controller.history('undo'),true);assert.equal(await all.controller.history('undo'),true);assert.equal(all.document.text,prefix+'*All*');
+});
+for(const lost of [false,true])test(`italic IPC failure reconciles without replay or false success ${lost}`,async()=>{
+  const h=harness('A word Z'),s=h.span('A word Z'),before=h.document.text;
+  if(lost)h.dropReplyAfterCommit=true;else h.request('edit',{expectedRevision:0,from:s.from,to:s.from,insert:'External '});
+  assert.equal(await h.controller.format({action:'italic',from:s.from+2,to:s.from+6}),false);
+  assert.equal(h.requests.filter(r=>r.operation==='format').length,1);
+  assert.equal(h.controller.state().source,h.document.text);
+  assert.equal(h.controller.state().code,lost?'ipc-failed':'stale-revision');
+  assert.equal(h.document.text,lost?'A *word* Z':'External '+before);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('inline code uses main history and preserves drafts after lost format acknowledgement',async()=>{
+  const h=harness('A word tail.\n\n- A `code` Z\n- B end.\n'),before=h.document.text,p=h.span('A word tail.');
+  assert.equal(await h.controller.format({action:'code',from:p.from+2,to:p.from+6}),true);
+  const formatted=before.replace('word','`word`');assert.equal(h.document.text,formatted);
+  const c=h.span('word');assert.equal(h.edit(c.from+2,c.from+2,'新'),true);await h.controller.idle();
+  const typed=formatted.replace('word','wo新rd');assert.equal(h.document.text,typed);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,formatted);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,typed);
+  const current=h.span('wo新rd');h.dropReplyAfterCommit=true;
+  assert.equal(await h.controller.format({action:'code',from:current.from,to:current.to}),false);
+  await h.controller.idle();assert.equal(h.document.text,typed.replace('`wo新rd`','wo新rd'));
+  assert.equal(h.controller.state().source,h.document.text);assert.equal(h.controller.state().locked,false);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+for(const prefix of ['', '## ', '- '])test(`link label history, controlled composition and rejected ranges ${prefix}`,async()=>{
+ const h=harness(prefix+'A [label](<https://example.test/a> "Title") Z\r\n\r\nTail.'),before=h.document.text,p=h.span('label');
+ assert.equal(h.edit(p.from,p.to,'中文😀'),true);await h.controller.idle();const typed=before.replace('[label]','[中文😀]');
+ assert.equal(h.document.text,typed);assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before);
+ assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,typed);
+ const q=h.span('中文😀');h.controller.beginComposition();assert.equal(h.edit(q.from+1,q.from+1,'ni'),true);assert.equal(h.edit(q.from+1,q.from+3,'你'),true);
+ h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,typed.replace('中文','中你文'));
+ const r=h.span('中你文😀');assert.equal(h.edit(r.from,r.to,''),false);assert.equal(h.controller.state().locked,false);
+ const t=h.span('Tail.');assert.equal(h.edit(t.to,t.to,' End'),true);await h.controller.idle();assert.equal(h.document.text.endsWith('Tail. End'),true);
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('lost link edit acknowledgement preserves draft and reconciles without replay',async()=>{
+ const h=harness('[label](target)'),p=h.span('label');h.dropReplyAfterCommit=true;
+ assert.equal(h.edit(p.from+1,p.from+1,'新'),true);await h.controller.idle();
+ assert.equal(h.document.text,'[l新abel](target)');assert.equal(h.controller.state().source,h.document.text);
+ assert.equal(h.controller.state().locked,false);assert.equal(h.controller.state().code,'ipc-failed');
+ assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);assert.equal(h.controller.state().recoveryRecords.length,1);
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+
+test('block input queues prefix, conversion and fast typing; main owns history and source bytes', async()=>{
+  const h=harness('');h.delayed=true;
+  const view={editable:true,composing:false,get state(){return h.state();},dispatch(tr){assert.equal(h.controller.prepare(tr),true);h.apply(tr);}};
+  assert.equal(h.edit(1,1,'#'),true);h.select(2);
+  let prevented=false;
+  assert.equal(applyBlockShortcut(view,{key:' ',preventDefault(){prevented=true;}},{controller:h.controller}),true);
+  assert.equal(prevented,true);assert.equal(h.edit(1,1,'Title'),true);
+  assert.equal(h.controller.state().source,'# Title');assert.equal(h.controller.state().pending,3);
+  h.delayed=false;h.replies.shift()();await h.controller.idle();
+  assert.equal(h.document.text,'# Title');assert.equal(h.resets.length,0);
+  assert.deepEqual(h.requests.map(r=>[r.operation,r.expectedRevision]),[['edit',0],['format',1],['edit',2]]);
+  for(const expected of ['# ','#','']) {assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,expected);}
+  for(const expected of ['#','# ','# Title']) {assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,expected);}
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('block input respects composition and readonly; lost format acknowledgement retains draft without replay',async()=>{
+  const h=harness('#');h.select(2);
+  const view={editable:true,composing:false,get state(){return h.state();},dispatch(tr){assert.equal(h.controller.prepare(tr),true);h.apply(tr);}};
+  const event={key:' ',preventDefault(){}};
+  h.controller.beginComposition();assert.equal(applyBlockShortcut(view,event,{controller:h.controller}),false);h.controller.endComposition();
+  assert.equal(applyBlockShortcut({...view,editable:false},event,{controller:h.controller}),false);
+  assert.equal(applyBlockShortcut(view,{...event,isComposing:true},{controller:h.controller}),false);
+  h.dropReplyAfterCommit=true;assert.equal(applyBlockShortcut(view,event,{controller:h.controller}),true);await h.controller.idle();
+  assert.equal(h.document.text,'# ');assert.equal(h.controller.state().recoveryRecords.length,1);
+  assert.equal(h.requests.filter(r=>r.operation==='format').length,1);assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('link panel format lost acknowledgement reconciles without replay or file writes',async()=>{
+ const h=harness('Plain text.');h.dropReplyAfterCommit=true;
+ const q={action:'set-link',from:1,to:6,label:'Label',href:'https://example.test'};
+ assert.equal(await h.controller.format(q),false);
+ assert.equal(h.document.text,'[Label](<https://example.test>) text.');
+ assert.equal(h.controller.state().confirmed.source,h.document.text);assert.equal(h.requests.filter(r=>r.operation==='format').length,1);
+ h.dropReplyAfterCommit=false;assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,'Plain text.');
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

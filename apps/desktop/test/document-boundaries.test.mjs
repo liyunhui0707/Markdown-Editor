@@ -51,7 +51,7 @@ test('boundaries enter a list from an empty paragraph and exit first/last empty 
   ]) check(command(source,action,text),source,expected);
 });
 test('boundaries refuse ambiguous/unsupported structure, selections, surrogate cuts and injected fields',()=>{
-  for(const source of ['A *italic* Z','A [link](x) Z','A\nsoft','- A\n  - nested','- [x] task']) {
+  for(const source of ['A ***nested*** Z','A [link](x) Z','A\nsoft','- A\n  - nested','- [x] task']) {
     assert.equal(mapFormatEdit(source,{action:'split-paragraph',from:2,to:2}).ok,false,source);
   }
   assert.equal(command('- A\n- \n- B','split-list','').ok,false); // A blank paragraph cannot separate same-kind lists in Markdown.

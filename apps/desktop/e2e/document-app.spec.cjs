@@ -11,7 +11,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
   const fixture = createHomeFixture('Writing-synthetic-E2E-');
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'document-installed-qa-'));
   const original = path.join(root, 'Installed synthetic.md'), target = path.join(fixture.dir, 'export.md');
-  const raw = Buffer.from('\ufeff# Installed synthetic\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.\r\n\r\nAlpha **bold** omega.\r\n');
+  const raw = Buffer.from('\ufeff# Installed synthetic\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.\r\n\r\nAlpha **bold** omega.\r\n\r\nA [label](<https://example.test/path> "title") tail.\r\n');
   await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
   const env = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
   for (const key of ['TMPDIR', 'TMP', 'TEMP']) if (process.env[key]) env[key] = process.env[key];
@@ -128,6 +128,26 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await caret('#editor li p', 0); await boundaryKey('Backspace', inlineReplaced);
     await page.keyboard.press('End'); await page.keyboard.insertText('Packaged ');
     await expect.poll(async () => (await snapshot(page, id)).source.includes('Packaged ')).toBe(true);
+    const beforeItalic=(await snapshot(page,id)).source;
+    const italicRange=await page.locator('#editor .tiptap').evaluate(n=>{
+      const text=n.querySelector('p').firstChild;n.focus();window.getSelection().setBaseAndExtent(text,5,text,0);document.dispatchEvent(new Event('selectionchange'));
+      return[n.editor.view.posAtDOM(text,0),n.editor.view.posAtDOM(text,5)];
+    });
+    await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(italicRange);
+    await page.locator('#format-italic').click();const italicSource=beforeItalic.replace('First','*First*');
+    await expect.poll(async()=>(await snapshot(page,id)).source).toBe(italicSource);
+    await expect(page.locator('#editor em').first()).toHaveText('First');
+    await boundaryKey('Meta+i',beforeItalic);await boundaryKey('Meta+z',italicSource);
+    await boundaryKey('Meta+i',beforeItalic);await page.locator('#format-code').click();
+    const codeSource=beforeItalic.replace('First','`First`');await expect.poll(async()=>(await snapshot(page,id)).source).toBe(codeSource);
+    await expect(page.locator('#editor code').first()).toHaveText('First');
+    await boundaryKey('Meta+e',beforeItalic);await boundaryKey('Meta+z',codeSource);
+    const beforeLink=(await snapshot(page,id)).source;
+    await caret('#editor [data-document-link]',2);await page.keyboard.insertText('新');
+    const linkSource=beforeLink.replace('[label]','[la新bel]');
+    await expect.poll(async()=>(await snapshot(page,id)).source).toBe(linkSource);
+    await expect(page.locator('#editor a')).toHaveCount(0);
+    await boundaryKey('Meta+z',beforeLink);await boundaryKey('Meta+Shift+z',linkSource);
     await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
     await expect(page.locator('#open-confirmed-copy')).toBeVisible();
     exported = await snapshot(page, id); expect(exported.confirmedCopy.state).toBe('created-confirmed'); expect(exported.dirty).toBe(true);
@@ -165,7 +185,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     expect(result.ok).toBe(true); await close(); passed = true;
     const record = { version: launches[0].identity.version, originalSha256: hash(raw), exportSha256: exported.confirmedCopy.sha256,
       syntheticDraftId: draftId, syntheticDraft: 'archived in private app store', originalUnchanged: true,
-      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true, listItemRangePasteUndoRedo: true, crossListRangeUndoRedo: true,
+      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true, listItemRangePasteUndoRedo: true, crossListRangeUndoRedo: true, italicToolbarShortcut: true, codeToolbarShortcut: true,
       processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
     await fs.writeFile(info.outputPath('evidence.json'), JSON.stringify(record, null, 2));
   } finally {

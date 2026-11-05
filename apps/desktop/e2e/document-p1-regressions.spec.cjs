@@ -2448,3 +2448,267 @@ test('list ranges V2 replacement deletion paste and continuous editing export re
     console.log('list-cross-range-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
   },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
 });
+
+// Production source/history/export path; only dialog choices and clipboard are controlled.
+test('italic V1 toolbar shortcut continuous editing export and readonly reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'italic-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let original,raw,receipt,bytes;
+  await usingDemo(async({app,page,root,snapshot,settled})=>{
+    original=path.join(root,'italic-original.md');raw=Buffer.from('\ufeff# Title\r\n\r\nAlpha word tail.\r\n\r\n- First *italic* tail.\r\n- Second **bold** end.\r\n\r\n*All*\r\n\r\n```md\r\nKeep []\r\n```\r\n');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');await expect(page.locator('#format-italic')).toBeHidden();
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+    const range=async(selector,from,to=from,reverse=false)=>{
+      const positions=await page.locator(selector).evaluate((p,r)=>{
+        const root=p.closest('.tiptap');function at(n){const w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let node;
+          while(node=w.nextNode()){if(n<=node.length)return[node,n];n-=node.length;}return[p,0];}
+        const a=at(r.from),b=at(r.to);root.focus();window.getSelection().setBaseAndExtent(...(r.reverse?b:a),...(r.reverse?a:b));document.dispatchEvent(new Event('selectionchange'));
+        return[root.editor.view.posAtDOM(...a),root.editor.view.posAtDOM(...b)];
+      },{from,to,reverse});
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+    };
+    const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+    await range('#editor .tiptap > p:first-of-type',6,10,true);await page.locator('#format-italic').click();
+    const formatted=before.replace('Alpha word','Alpha *word*');await expect.poll(source).toBe(formatted);
+    await expect(page.locator('#format-italic')).toHaveAttribute('aria-pressed','true');
+    await key('Meta+i',before);await key('Meta+z',formatted);
+    await range('#editor .tiptap > p:first-of-type em',2);await page.keyboard.insertText('新');
+    const typed=formatted.replace('*word*','*wo新rd*');await expect.poll(source).toBe(typed);await key('Meta+z',formatted);await key('Meta+Shift+z',typed);
+    await range('#editor .tiptap > p:first-of-type em',2);const split=typed.replace('*wo新rd*','*wo*\r\n\r\n*新rd*');await key('Enter',split);await key('Backspace',typed);
+    await range('#editor .tiptap > p:nth-of-type(2) em',0,3);await key('Backspace',typed.replace('*All*',''));await page.keyboard.insertText('Again');
+    await expect.poll(source).toBe(typed.replace('*All*','Again'));await key('Meta+z',typed.replace('*All*',''));await key('Meta+z',typed);
+    await range('#editor li:first-child em',2);const listSplit=typed.replace('*italic*','*it*\r\n- *alic*');await key('Enter',listSplit);await key('Backspace',typed);
+    await range('#editor li:first-child p',3,9,true);
+    await page.locator('#editor .tiptap').evaluate(n=>{const data=new DataTransfer();data.setData('text/plain','单行');n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));});
+    const pasted=typed.replace('st *ita','单行*');await expect.poll(source).toBe(pasted);await key('Meta+z',typed);
+    await range('#editor li:nth-child(2) strong',0,4);await page.locator('#format-italic').click();await settled();expect(await source()).toBe(typed);await expect(page.locator('#viewer-status')).toContainText('暂不支持叠加');
+    await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
+    expect(await source()).toBe(typed);await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes).toEqual(Buffer.from('\ufeff'+typed));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);
+    await captureTestWindow(app,info.outputPath('italic.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const reopened=(await snapshot(await page.locator('#documents').inputValue())).snapshot;expect(Buffer.from('\ufeff'+reopened.source)).toEqual(bytes);
+    expect(await fs.readFile(original)).toEqual(raw);await expect(page.locator('#editor em').first()).toHaveText('wo新rd');
+    console.log('italic-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+// Production source/history/export path; only dialog choices and clipboard are controlled.
+test('code V1 toolbar shortcut continuous editing export and readonly reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'code-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let original,raw,receipt,bytes;
+  await usingDemo(async({app,page,root,snapshot,settled})=>{
+    original=path.join(root,'code-original.md');raw=Buffer.from('\ufeff# Title\r\n\r\nAlpha word tail.\r\n\r\n- First `code` tail.\r\n- Second **bold** end.\r\n\r\n`All`\r\n\r\n```md\r\nKeep []\r\n```\r\n');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');await expect(page.locator('#format-code')).toBeHidden();
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+    const range=async(selector,from,to=from,reverse=false)=>{
+      const positions=await page.locator(selector).evaluate((p,r)=>{
+        const root=p.closest('.tiptap');function at(n){const w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let node;
+          while(node=w.nextNode()){if(n<=node.length)return[node,n];n-=node.length;}return[p,0];}
+        const a=at(r.from),b=at(r.to);root.focus();window.getSelection().setBaseAndExtent(...(r.reverse?b:a),...(r.reverse?a:b));document.dispatchEvent(new Event('selectionchange'));
+        return[root.editor.view.posAtDOM(...a),root.editor.view.posAtDOM(...b)];
+      },{from,to,reverse});
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+    };
+    const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+    await range('#editor .tiptap > p:first-of-type',6,10,true);await page.locator('#format-code').click();
+    const formatted=before.replace('Alpha word','Alpha `word`');await expect.poll(source).toBe(formatted);
+    await expect(page.locator('#format-code')).toHaveAttribute('aria-pressed','true');
+    await key('Meta+e',before);await key('Meta+z',formatted);
+    await range('#editor .tiptap > p:first-of-type code',2);await page.keyboard.insertText('新');
+    const typed=formatted.replace('`word`','`wo新rd`');await expect.poll(source).toBe(typed);await key('Meta+z',formatted);await key('Meta+Shift+z',typed);
+    await range('#editor .tiptap > p:first-of-type code',2);const split=typed.replace('`wo新rd`','`wo`\r\n\r\n`新rd`');await key('Enter',split);await key('Backspace',typed);
+    await range('#editor .tiptap > p:nth-of-type(2) code',0,3);await key('Backspace',typed.replace('`All`',''));await page.keyboard.insertText('Again');
+    await expect.poll(source).toBe(typed.replace('`All`','Again'));await key('Meta+z',typed.replace('`All`',''));await key('Meta+z',typed);
+    await range('#editor li:first-child code',2);const listSplit=typed.replace('`code`','`co`\r\n- `de`');await key('Enter',listSplit);await key('Backspace',typed);
+    await range('#editor li:first-child p',3,9,true);
+    await page.locator('#editor .tiptap').evaluate(n=>{const data=new DataTransfer();data.setData('text/plain','单行');n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));});
+    const pasted=typed.replace('st `cod','单行`');await expect.poll(source).toBe(pasted);await key('Meta+z',typed);
+    await range('#editor li:nth-child(2) strong',0,4);await page.locator('#format-code').click();await settled();expect(await source()).toBe(typed);await expect(page.locator('#viewer-status')).toContainText('暂不支持叠加');
+    await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
+    expect(await source()).toBe(typed);await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes).toEqual(Buffer.from('\ufeff'+typed));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);
+    await captureTestWindow(app,info.outputPath('code.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const reopened=(await snapshot(await page.locator('#documents').inputValue())).snapshot;expect(Buffer.from('\ufeff'+reopened.source)).toEqual(bytes);
+    expect(await fs.readFile(original)).toEqual(raw);await expect(page.locator('#editor code').first()).toHaveText('wo新rd');
+    console.log('code-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+
+test('link text V1 inert clicks editing history export and readonly reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'link-label-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let original,raw,receipt,bytes;
+  await usingDemo(async({app,page,root,snapshot,settled})=>{
+    original=path.join(root,'link-original.md');raw=Buffer.from('\ufeff# Link text\r\n\r\nA [label](<https://example.test/a?q=1> "Keep title") tail.\r\n\r\n- [list label](../other.md#section) end.\r\n- Next item.\r\n\r\n[danger](javascript:alert(1))\r\n\r\n[**nested**](target)\r\n\r\nOrdinary paragraph.\r\n');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o400});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue(),url=page.url();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    await expect(page.locator('#editor a')).toHaveCount(0);await expect(page.locator('#editor [data-document-link]')).toHaveCount(3);
+    await page.locator('#editor [data-document-link]').first().click();await page.keyboard.press('Meta+Enter');
+    expect(page.url()).toBe(url);expect((await snapshot(originalId)).ok).toBe(true);expect(app.windows()).toHaveLength(1);
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+    const range=async(selector,from,to=from,reverse=false)=>{
+      const positions=await page.locator(selector).evaluate((p,r)=>{
+        const root=p.closest('.tiptap');function at(n){const w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let node;
+          while(node=w.nextNode()){if(n<=node.length)return[node,n];n-=node.length;}return[p,0];}
+        const a=at(r.from),b=at(r.to);root.focus();window.getSelection().setBaseAndExtent(...(r.reverse?b:a),...(r.reverse?a:b));document.dispatchEvent(new Event('selectionchange'));
+        return[root.editor.view.posAtDOM(...a),root.editor.view.posAtDOM(...b)];
+      },{from,to,reverse});
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+    };
+    const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+    const label='#editor .tiptap > p:first-of-type [data-document-link]';
+    await range(label,2);await page.keyboard.type('X');const typed=before.replace('[label]','[laXbel]');await expect.poll(source).toBe(typed);
+    await key('Backspace',before);await key('Meta+z',typed);await key('Meta+Shift+z',before);
+    await range(label,0,5,true);await page.keyboard.insertText('中文😀');const replaced=before.replace('[label]','[中文😀]');await expect.poll(source).toBe(replaced);
+    await key('Meta+z',before);await key('Meta+Shift+z',replaced);
+    // Failed whole-label deletion/cross-link replacement/split never poisons later input.
+    await range(label,0,4);await key('Backspace',replaced);await range('#editor .tiptap > p:first-of-type',1,4);await page.keyboard.insertText('No');await settled();expect(await source()).toBe(replaced);
+    await range(label,1);await key('Enter',replaced);await page.keyboard.insertText('新');const continued=replaced.replace('中文','中新文');await expect.poll(source).toBe(continued);
+    await range('#editor li:first-child [data-document-link]',2);await page.locator('#editor .tiptap').evaluate(n=>{const data=new DataTransfer();data.setData('text/plain','字');n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));});
+    const pasted=continued.replace('[list label]','[li字st label]');await expect.poll(source).toBe(pasted);
+    await range('#editor .tiptap > p:last-of-type',9);await page.keyboard.insertText('more ');const final=pasted.replace('Ordinary paragraph.','Ordinary more paragraph.');await expect.poll(source).toBe(final);
+    await page.locator('#editor .tiptap > p:nth-of-type(2) [data-document-link]').click({modifiers:['Meta']});expect(page.url()).toBe(url);expect(app.windows()).toHaveLength(1);expect((await snapshot(id)).ok).toBe(true);
+    await page.locator('#editor pre').click();await page.keyboard.type('Blocked');await settled();expect(await source()).toBe(final);
+    await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
+    await key('Meta+z',pasted);await key('Meta+Shift+z',final);
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes).toEqual(Buffer.from('\ufeff'+final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);expect((await fs.stat(original)).mode&0o777).toBe(0o400);
+    await captureTestWindow(app,info.outputPath('link-text.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const id=await page.locator('#documents').inputValue(),reopened=(await snapshot(id)).snapshot;expect(Buffer.from('\ufeff'+reopened.source)).toEqual(bytes);
+    await expect(page.locator('#editor [data-document-link]').first()).toHaveText('中新文😀');await expect(page.locator('#editor a')).toHaveCount(0);
+    await page.locator('#editor [data-document-link]').first().click();expect((await snapshot(id)).ok).toBe(true);expect(await fs.readFile(original)).toEqual(raw);
+    console.log('link-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,mode:'0400',reopenedAfterExit:true,nativeIME:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+test('block input V1 blank draft heading list typing history export and reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'block-input-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let receipt,bytes;
+  await usingDemo(async({app,page,snapshot,settled})=>{
+    await page.locator('#empty-new').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source;
+    await page.locator('#editor .tiptap > p').click();
+    // No IPC waits between the marker, Space and subsequent ordinary keystrokes.
+    await page.keyboard.type('# Title');await expect.poll(source).toBe('# Title');
+    await expect(page.locator('#editor h1')).toHaveText('Title');
+    await page.keyboard.press('Enter');await expect.poll(source).toBe('# Title\n\n');
+    await page.keyboard.type('- First');await expect.poll(source).toBe('# Title\n\n- First');
+    await page.keyboard.press('Enter');await expect.poll(source).toBe('# Title\n\n- First\n- ');
+    await page.keyboard.type('Second');await expect.poll(source).toBe('# Title\n\n- First\n- Second');
+    await page.keyboard.press('Enter');await settled();await page.keyboard.press('Enter');await settled();
+    await page.keyboard.type('3) Numbered');const numbered='# Title\n\n- First\n- Second\n\n3) Numbered';
+    await expect.poll(source).toBe(numbered);await expect(page.locator('#editor ol')).toHaveAttribute('start','3');
+    await page.keyboard.press('Enter');await settled();await page.keyboard.press('Enter');await settled();
+    const base=await source();await page.keyboard.type('###### ');await expect.poll(source).toBe(base+'###### ');
+    await expect(page.locator('#editor h6')).toHaveText('');
+    await page.keyboard.press('Meta+z');await expect.poll(source).toBe(base+'######');
+    await page.keyboard.press('Meta+Shift+z');await expect.poll(source).toBe(base+'###### ');
+    await page.keyboard.press('Enter');await expect.poll(source).toBe(base);
+    await page.keyboard.press('Meta+z');await expect.poll(source).toBe(base+'###### ');
+    await page.keyboard.insertText('末尾');await expect.poll(source).toBe(base+'###### 末尾');
+    await page.locator('#editor h6').evaluate(p=>{p.closest('.tiptap').focus();const s=getSelection();s.collapse(p.firstChild,0);document.dispatchEvent(new Event('selectionchange'));});
+    await page.keyboard.press('Backspace');await expect.poll(source).toBe(base+'末尾');
+    await page.locator('#format-block').selectOption('heading-4');await expect.poll(source).toBe(base+'#### 末尾');
+    const final=await source();await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes).toEqual(Buffer.from(final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
+    await captureTestWindow(app,info.outputPath('block-input.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    expect(Buffer.from((await snapshot(await page.locator('#documents').inputValue())).snapshot.source)).toEqual(bytes);
+    await expect(page.locator('#editor h1')).toHaveText('Title');await expect(page.locator('#editor h4')).toHaveText('末尾');
+    await expect(page.locator('#editor li')).toHaveCount(3);
+    console.log('block-input-evidence:'+JSON.stringify({exported:receipt.filePath,sha256:receipt.sha256,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+test('link panel V1 insert edit cancel remove stale guard export and reopen',async({},info)=>{
+ const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'link-panel-e2e-')));
+ const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let original,raw,receipt,bytes;
+ await usingDemo(async({app,page,root,snapshot,settled})=>{
+  original=path.join(root,'link-panel-original.md');raw=Buffer.from('\ufeff# Title\r\n\r\nFirst word tail.\r\n\r\nA [label](a(b) "Keep title") Z\r\n\r\n- List item\r\n');
+  await fs.writeFile(original,raw,{flag:'wx',mode:0o400});
+  await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+  await page.locator('#empty-open').click();await expect(page.locator('#format-link')).toBeHidden();
+  await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue(),url=page.url();
+  const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+  const range=async(selector,from,to=from)=>{
+   const positions=await page.locator(selector).evaluate((p,r)=>{const root=p.closest('.tiptap'),node=p.firstChild;root.focus();
+    getSelection().setBaseAndExtent(node,r.to,node,r.from);document.dispatchEvent(new Event('selectionchange'));
+    return[root.editor.view.posAtDOM(node,r.from),root.editor.view.posAtDOM(node,r.to)];},{from,to});
+   await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+  };
+  const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+  await range('#editor .tiptap > p:first-of-type',6,10);await page.keyboard.press('Meta+k');
+  await expect(page.locator('#link-dialog')).toBeVisible();await expect(page.locator('#link-label')).toHaveValue('word');
+  await page.locator('#link-href').fill('javascript:alert(1)');await page.locator('#link-apply').click();
+  await expect(page.locator('#link-error')).toContainText('有效');expect(await source()).toBe(before);
+  await page.locator('#link-href').fill('https://example.test/created');
+  // Input-method guard is controlled here; this is not a native IME acceptance.
+  await page.locator('#link-label').dispatchEvent('compositionstart');await expect(page.locator('#link-apply')).toBeDisabled();
+  await page.keyboard.press('Enter');expect(await source()).toBe(before);await page.locator('#link-label').dispatchEvent('compositionend');
+  await page.locator('#link-apply').click();const created=before.replace('word','[word](<https://example.test/created>)');
+  await expect(page.locator('#link-dialog')).not.toBeVisible();await expect.poll(source).toBe(created);
+  await key('Meta+z',before);await key('Meta+Shift+z',created);
+  await range('#editor .tiptap > p:first-of-type [data-document-link]',2);await page.locator('#format-link').click();
+  await page.locator('#link-href').fill('#cancelled');await page.keyboard.press('Escape');await expect(page.locator('#link-dialog')).not.toBeVisible();expect(await source()).toBe(created);
+  // Existing title bytes are retained when the address is changed.
+  await range('#editor .tiptap > p:nth-of-type(2) [data-document-link]',2);await page.keyboard.press('Meta+k');
+  await expect(page.locator('#link-href')).toHaveValue('a(b)');await page.locator('#link-label').fill('新文字');await page.locator('#link-href').fill('../other.md#section');
+  await page.screenshot({path:info.outputPath('link-panel.png')});
+  await page.locator('#link-apply').click();const changed=created.replace('[label](a(b) "Keep title")','[新文字](<../other.md#section> "Keep title")');await expect.poll(source).toBe(changed);
+  await range('#editor .tiptap > p:nth-of-type(2) [data-document-link]',1);await page.keyboard.press('Meta+k');await page.locator('#link-remove').click();
+  const removed=changed.replace('[新文字](<../other.md#section> "Keep title")','新文字');await expect.poll(source).toBe(removed);
+  await key('Meta+z',changed);await key('Meta+Shift+z',removed);await key('Meta+z',changed);
+  // A real revision change after opening the form cannot be overwritten by its captured selection.
+  await range('#editor .tiptap > p:first-of-type [data-document-link]',2);await page.keyboard.press('Meta+k');await page.locator('#link-label').fill('Retained form');
+  const s=(await snapshot(id)).snapshot;
+  const result=await page.evaluate(q=>window.documentDemo.edit(q),{sessionId:id,expectedRevision:s.revision,from:2,to:2,insert:'X'});expect(result.ok).toBe(true);
+  await page.locator('#link-apply').click();await expect(page.locator('#link-error')).toContainText('未确认');await expect(page.locator('#link-label')).toHaveValue('Retained form');
+  expect(await source()).toBe(result.snapshot.source);await page.locator('#link-cancel').click();
+  // Ordinary editing remains possible after a declined form operation.
+  await range('#editor li p',4);await page.keyboard.insertText('more ');const final=result.snapshot.source.replace('List item','Listmore  item');await expect.poll(source).toBe(final);
+  await page.locator('#editor [data-document-link]').first().click();expect(page.url()).toBe(url);expect(app.windows()).toHaveLength(1);await expect(page.locator('#editor a')).toHaveCount(0);
+  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+  await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');receipt=(await snapshot(id)).snapshot.copyState;bytes=await fs.readFile(receipt.filePath);
+  expect(bytes).toEqual(Buffer.from('\ufeff'+final));expect(hash(bytes)).toBe(receipt.sha256);expect(await fs.readFile(original)).toEqual(raw);expect((await fs.stat(original)).mode&0o777).toBe(0o400);
+ },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+ await usingDemo(async({app,page,snapshot})=>{
+  await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+  await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+  expect(Buffer.from('\ufeff'+(await snapshot(await page.locator('#documents').inputValue())).snapshot.source)).toEqual(bytes);
+  await expect(page.locator('#editor [data-document-link]')).toHaveCount(2);await expect(page.locator('#editor a')).toHaveCount(0);expect(await fs.readFile(original)).toEqual(raw);
+  console.log('link-panel-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
+ },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});

@@ -1,6 +1,6 @@
-// Bounded edits to one plain/bold paragraph or adjacent projected simple-list items.
+// Bounded edits to one plain/bold/italic paragraph or adjacent projected simple-list items.
 // Existing source tokens are retained;
-// only touched text/strong delimiters are patched. This is not a file serializer.
+// only touched text/emphasis delimiters are patched. This is not a file serializer.
 export function mapInlineRange(source, projection, change, project) {
   const {from,to,insert}=change, reject=()=>({ok:false,code:'unsafe-source-range'});
   const index=projection.blocks.findIndex(b=>b && from>b.from && to<b.to);
@@ -12,11 +12,13 @@ export function mapInlineRange(source, projection, change, project) {
   if(list && (itemIndex<0||endItem<itemIndex))return reject();
   const cross=list&&endItem>itemIndex;
   const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:s.itemIndex===undefined));
-  if((!list&&!spans.some(s=>s.bold))||spans.some(s=>s.textOffset!==undefined)) return null;
+  // V1 edits one link label at a time. Never reconstruct its destination.
+  if(spans.some(s=>s.link))return reject();
+  if((!list&&!spans.some(s=>s.bold||s.italic||s.code))||spans.some(s=>s.textOffset!==undefined)) return null;
   const cut=(s,n)=>n>0 && n<s.length && /[\uD800-\uDBFF]/.test(s[n-1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-  const tokens=spans.map(s=>({...s,a:s.sourceFrom-(s.bold?2:0),b:s.sourceTo+(s.bold?2:0),
-    marker:s.bold?source.slice(s.sourceFrom-2,s.sourceFrom):''}));
-  if(tokens.some((s,i)=>s.bold && (!['**','__'].includes(s.marker)||source.slice(s.sourceTo,s.b)!==s.marker)
+  const tokens=spans.map(s=>({...s,a:s.sourceFrom-(s.bold?2:s.italic||s.code?1:0),b:s.sourceTo+(s.bold?2:s.italic||s.code?1:0),
+    marker:s.bold||s.italic||s.code?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
+  if(tokens.some((s,i)=>(s.bold||s.italic||s.code) && (!(s.bold?['**','__']:s.code?['`']:['*','_']).includes(s.marker)||source.slice(s.sourceTo,s.b)!==s.marker)
       || i && tokens[i-1].itemIndex===s.itemIndex && tokens[i-1].b!==s.a)) return reject();
   // Removing item boundaries must not discard unprojected margins or syntax.
   if(cross && block.items.slice(itemIndex,endItem+1).some((row,i)=>{
@@ -33,14 +35,14 @@ export function mapInlineRange(source, projection, change, project) {
   const append=(text,token)=>{
     if(!text)return;
     const previous=pieces.at(-1);
-    if(previous && previous.bold===token.bold)previous.text+=text;
-    else pieces.push({text,bold:token.bold,marker:token.marker});
+    if(previous && previous.bold===token.bold && !!previous.italic===!!token.italic && !!previous.code===!!token.code)previous.text+=text;
+    else pieces.push({text,bold:token.bold,italic:token.italic,code:token.code,marker:token.marker});
   };
   append(first.text.slice(0,from-first.from),first);
   // marksAcross has no start marks at the end of a textblock, unlike collapsed typing.
   append(insert,cross&&from===block.items[itemIndex].to?{bold:false,marker:''}:first);
   append(last.text.slice(to-last.from),last);
-  const replacement=pieces.map(s=>s.bold?s.marker+s.text+s.marker:s.text).join('');
+  const replacement=pieces.map(s=>s.marker+s.text+s.marker).join('');
   const original=source.slice(first.a,last.b);
   let start=0,end=original.length,nextEnd=replacement.length;
   while(start<end && start<nextEnd && original[start]===replacement[start])start++;
@@ -54,7 +56,7 @@ export function mapInlineRange(source, projection, change, project) {
   const expected=structuredClone(projection.doc),nodes=[];
   const add=s=>{
     if(!s.text)return;
-    const node={type:'text',text:s.text,...(s.bold?{marks:[{type:'bold'}]}:{})},prev=nodes.at(-1);
+    const node={type:'text',text:s.text,...(s.bold||s.italic||s.code?{marks:[{type:s.bold?'bold':s.italic?'italic':'code'}]}:{})},prev=nodes.at(-1);
     if(prev && JSON.stringify(prev.marks)===JSON.stringify(node.marks))prev.text+=node.text;
     else nodes.push(node);
   };

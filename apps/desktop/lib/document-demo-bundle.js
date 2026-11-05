@@ -773,9 +773,9 @@
       let type = schema.marks[json.type];
       if (!type)
         throw new RangeError(`There is no mark type ${json.type} in this schema`);
-      let mark = type.create(json.attrs);
-      type.checkAttrs(mark.attrs);
-      return mark;
+      let mark2 = type.create(json.attrs);
+      type.checkAttrs(mark2.attrs);
+      return mark2;
     }
     /**
     Test whether two sets of marks are identical.
@@ -1695,9 +1695,9 @@
       this.type.checkAttrs(this.attrs);
       let copy2 = Mark.none;
       for (let i = 0; i < this.marks.length; i++) {
-        let mark = this.marks[i];
-        mark.type.checkAttrs(mark.attrs);
-        copy2 = mark.addToSet(copy2);
+        let mark2 = this.marks[i];
+        mark2.type.checkAttrs(mark2.attrs);
+        copy2 = mark2.addToSet(copy2);
       }
       if (!Mark.sameSet(copy2, this.marks))
         throw new RangeError(`Invalid collection of marks for node ${this.type.name}: ${this.marks.map((m) => m.type.name)}`);
@@ -2606,14 +2606,14 @@
   function gatherMarks(schema, marks) {
     let found2 = [];
     for (let i = 0; i < marks.length; i++) {
-      let name = marks[i], mark = schema.marks[name], ok3 = mark;
-      if (mark) {
-        found2.push(mark);
+      let name = marks[i], mark2 = schema.marks[name], ok3 = mark2;
+      if (mark2) {
+        found2.push(mark2);
       } else {
         for (let prop in schema.marks) {
-          let mark2 = schema.marks[prop];
-          if (name == "_" || mark2.spec.group && mark2.spec.group.split(" ").indexOf(name) > -1)
-            found2.push(ok3 = mark2);
+          let mark3 = schema.marks[prop];
+          if (name == "_" || mark3.spec.group && mark3.spec.group.split(" ").indexOf(name) > -1)
+            found2.push(ok3 = mark3);
         }
       }
       if (!ok3)
@@ -3201,11 +3201,11 @@
           }
         }
     }
-    findInText(textNode) {
+    findInText(textNode2) {
       if (this.find)
         for (let i = 0; i < this.find.length; i++) {
-          if (this.find[i].node == textNode)
-            this.find[i].pos = this.currentPos - (textNode.nodeValue.length - this.find[i].offset);
+          if (this.find[i].node == textNode2)
+            this.find[i].pos = this.currentPos - (textNode2.nodeValue.length - this.find[i].offset);
         }
     }
     // Determines whether the given context string matches this context.
@@ -3383,9 +3383,9 @@
     /**
     @internal
     */
-    serializeMark(mark, inline2, options = {}) {
-      let toDOM = this.marks[mark.type.name];
-      return toDOM && renderSpec(doc(options), toDOM(mark, inline2), null, mark.attrs);
+    serializeMark(mark2, inline2, options = {}) {
+      let toDOM = this.marks[mark2.type.name];
+      return toDOM && renderSpec(doc(options), toDOM(mark2, inline2), null, mark2.attrs);
     }
     static renderSpec(doc3, structure, xmlNS = null, blockArraysIn) {
       if (typeof structure == "string")
@@ -3887,11 +3887,11 @@
     /**
     Create a mark step.
     */
-    constructor(from2, to, mark) {
+    constructor(from2, to, mark2) {
       super();
       this.from = from2;
       this.to = to;
-      this.mark = mark;
+      this.mark = mark2;
     }
     apply(doc3) {
       let oldSlice = doc3.slice(this.from, this.to), $from = doc3.resolve(this.from);
@@ -3939,11 +3939,11 @@
     /**
     Create a mark-removing step.
     */
-    constructor(from2, to, mark) {
+    constructor(from2, to, mark2) {
       super();
       this.from = from2;
       this.to = to;
-      this.mark = mark;
+      this.mark = mark2;
     }
     apply(doc3) {
       let oldSlice = doc3.slice(this.from, this.to);
@@ -3988,10 +3988,10 @@
     /**
     Create a node mark step.
     */
-    constructor(pos, mark) {
+    constructor(pos, mark2) {
       super();
       this.pos = pos;
-      this.mark = mark;
+      this.mark = mark2;
     }
     apply(doc3) {
       let node2 = doc3.nodeAt(this.pos);
@@ -4034,10 +4034,10 @@
     /**
     Create a mark-removing step.
     */
-    constructor(pos, mark) {
+    constructor(pos, mark2) {
       super();
       this.pos = pos;
-      this.mark = mark;
+      this.mark = mark2;
     }
     apply(doc3) {
       let node2 = doc3.nodeAt(this.pos);
@@ -4228,16 +4228,16 @@
     }
     return false;
   }
-  function addMark(tr2, from2, to, mark) {
+  function addMark(tr2, from2, to, mark2) {
     let removed = [], added = [];
     let removing, adding;
     tr2.doc.nodesBetween(from2, to, (node2, pos, parent) => {
       if (!node2.isInline)
         return;
       let marks = node2.marks;
-      if (!mark.isInSet(marks) && parent.type.allowsMarkType(mark.type)) {
+      if (!mark2.isInSet(marks) && parent.type.allowsMarkType(mark2.type)) {
         let start = Math.max(pos, from2), end = Math.min(pos + node2.nodeSize, to);
-        let newSet = mark.addToSet(marks);
+        let newSet = mark2.addToSet(marks);
         for (let i = 0; i < marks.length; i++) {
           if (!marks[i].isInSet(newSet)) {
             if (removing && removing.to == start && removing.mark.eq(marks[i]))
@@ -4249,28 +4249,28 @@
         if (adding && adding.to == start)
           adding.to = end;
         else
-          added.push(adding = new AddMarkStep(start, end, mark));
+          added.push(adding = new AddMarkStep(start, end, mark2));
       }
     });
     removed.forEach((s) => tr2.step(s));
     added.forEach((s) => tr2.step(s));
   }
-  function removeMark(tr2, from2, to, mark) {
+  function removeMark(tr2, from2, to, mark2) {
     let matched = [], step = 0;
     tr2.doc.nodesBetween(from2, to, (node2, pos) => {
       if (!node2.isInline)
         return;
       step++;
       let toRemove = null;
-      if (mark instanceof MarkType) {
+      if (mark2 instanceof MarkType) {
         let set = node2.marks, found2;
-        while (found2 = mark.isInSet(set)) {
+        while (found2 = mark2.isInSet(set)) {
           (toRemove || (toRemove = [])).push(found2);
           set = found2.removeFromSet(set);
         }
-      } else if (mark) {
-        if (mark.isInSet(node2.marks))
-          toRemove = [mark];
+      } else if (mark2) {
+        if (mark2.isInSet(node2.marks))
+          toRemove = [mark2];
       } else {
         toRemove = node2.marks;
       }
@@ -5302,24 +5302,24 @@
     /**
     Add a mark to the node at position `pos`.
     */
-    addNodeMark(pos, mark) {
-      this.step(new AddNodeMarkStep(pos, mark));
+    addNodeMark(pos, mark2) {
+      this.step(new AddNodeMarkStep(pos, mark2));
       return this;
     }
     /**
     Remove a mark (or all marks of the given type) from the node at
     position `pos`.
     */
-    removeNodeMark(pos, mark) {
+    removeNodeMark(pos, mark2) {
       let node2 = this.doc.nodeAt(pos);
       if (!node2)
         throw new RangeError("No node at position " + pos);
-      if (mark instanceof Mark) {
-        if (mark.isInSet(node2.marks))
-          this.step(new RemoveNodeMarkStep(pos, mark));
+      if (mark2 instanceof Mark) {
+        if (mark2.isInSet(node2.marks))
+          this.step(new RemoveNodeMarkStep(pos, mark2));
       } else {
         let set = node2.marks, found2, steps = [];
-        while (found2 = mark.isInSet(set)) {
+        while (found2 = mark2.isInSet(set)) {
           steps.push(new RemoveNodeMarkStep(pos, found2));
           set = found2.removeFromSet(set);
         }
@@ -5342,8 +5342,8 @@
     /**
     Add the given mark to the inline content between `from` and `to`.
     */
-    addMark(from2, to, mark) {
-      addMark(this, from2, to, mark);
+    addMark(from2, to, mark2) {
+      addMark(this, from2, to, mark2);
       return this;
     }
     /**
@@ -5352,8 +5352,8 @@
     a mark type, remove all marks of that type. When it is null,
     remove all marks of any type.
     */
-    removeMark(from2, to, mark) {
-      removeMark(this, from2, to, mark);
+    removeMark(from2, to, mark2) {
+      removeMark(this, from2, to, mark2);
       return this;
     }
     /**
@@ -5877,14 +5877,14 @@
     /**
     Add a mark to the set of stored marks.
     */
-    addStoredMark(mark) {
-      return this.ensureMarks(mark.addToSet(this.storedMarks || this.selection.$head.marks()));
+    addStoredMark(mark2) {
+      return this.ensureMarks(mark2.addToSet(this.storedMarks || this.selection.$head.marks()));
     }
     /**
     Remove a mark or mark type from the set of stored marks.
     */
-    removeStoredMark(mark) {
-      return this.ensureMarks(mark.removeFromSet(this.storedMarks || this.selection.$head.marks()));
+    removeStoredMark(mark2) {
+      return this.ensureMarks(mark2.removeFromSet(this.storedMarks || this.selection.$head.marks()));
     }
     /**
     Whether the stored marks were explicitly set for this transaction.
@@ -6944,7 +6944,7 @@
     matchesWidget(widget) {
       return false;
     }
-    matchesMark(mark) {
+    matchesMark(mark2) {
       return false;
     }
     matchesNode(node2, outerDeco, innerDeco) {
@@ -7389,25 +7389,25 @@
     }
   };
   var MarkViewDesc = class _MarkViewDesc extends ViewDesc {
-    constructor(parent, mark, dom, contentDOM, spec) {
+    constructor(parent, mark2, dom, contentDOM, spec) {
       super(parent, [], dom, contentDOM);
-      this.mark = mark;
+      this.mark = mark2;
       this.spec = spec;
     }
-    static create(parent, mark, inline2, view) {
-      let custom = view.nodeViews[mark.type.name];
-      let spec = custom && custom(mark, view, inline2);
+    static create(parent, mark2, inline2, view) {
+      let custom = view.nodeViews[mark2.type.name];
+      let spec = custom && custom(mark2, view, inline2);
       if (!spec || !spec.dom)
-        spec = DOMSerializer.renderSpec(document, mark.type.spec.toDOM(mark, inline2), null, mark.attrs);
-      return new _MarkViewDesc(parent, mark, spec.dom, spec.contentDOM || spec.dom, spec);
+        spec = DOMSerializer.renderSpec(document, mark2.type.spec.toDOM(mark2, inline2), null, mark2.attrs);
+      return new _MarkViewDesc(parent, mark2, spec.dom, spec.contentDOM || spec.dom, spec);
     }
     parseRule() {
       if (this.dirty & NODE_DIRTY || this.mark.type.spec.reparseInView)
         return null;
       return { mark: this.mark.type.name, attrs: this.mark.attrs, contentElement: this.contentDOM };
     }
-    matchesMark(mark) {
-      return this.dirty != NODE_DIRTY && this.mark.eq(mark);
+    matchesMark(mark2) {
+      return this.dirty != NODE_DIRTY && this.mark.eq(mark2);
     }
     markDirty(from2, to) {
       super.markDirty(from2, to);
@@ -7571,15 +7571,15 @@
       let { from: from2, to } = view.state.selection;
       if (!(view.state.selection instanceof TextSelection) || from2 < pos || to > pos + this.node.content.size)
         return null;
-      let textNode = view.input.compositionNode;
-      if (!textNode || !this.dom.contains(textNode.parentNode))
+      let textNode2 = view.input.compositionNode;
+      if (!textNode2 || !this.dom.contains(textNode2.parentNode))
         return null;
       if (this.node.inlineContent) {
-        let text5 = textNode.nodeValue;
+        let text5 = textNode2.nodeValue;
         let textPos = findTextInFragment(this.node.content, text5, from2 - pos, to - pos);
-        return textPos < 0 ? null : { node: textNode, pos: textPos, text: text5 };
+        return textPos < 0 ? null : { node: textNode2, pos: textPos, text: text5 };
       } else {
-        return { node: textNode, pos: -1, text: "" };
+        return { node: textNode2, pos: -1, text: "" };
       }
     }
     protectLocalComposition(view, { node: node2, pos, text: text5 }) {
@@ -9635,15 +9635,15 @@
       target.contentEditable = "true";
     target.style.cssText = "position: fixed; left: -10000px; top: 10px";
     target.focus();
-    let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+    let plain2 = view.input.shiftKey && view.input.lastKeyCode != 45;
     setTimeout(() => {
       view.focus();
       if (target.parentNode)
         target.parentNode.removeChild(target);
       if (plainText)
-        doPaste(view, target.value, null, plain, event);
+        doPaste(view, target.value, null, plain2, event);
       else
-        doPaste(view, target.textContent, target.innerHTML, plain, event);
+        doPaste(view, target.textContent, target.innerHTML, plain2, event);
     }, 50);
   }
   function doPaste(view, text5, html2, preferPlain, event) {
@@ -9669,8 +9669,8 @@
     if (view.composing && !android)
       return;
     let data = brokenClipboardAPI ? null : event.clipboardData;
-    let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
-    if (data && doPaste(view, getText(data), data.getData("text/html"), plain, event))
+    let plain2 = view.input.shiftKey && view.input.lastKeyCode != 45;
+    if (data && doPaste(view, getText(data), data.getData("text/html"), plain2, event))
       event.preventDefault();
     else
       capturePaste(view, event);
@@ -11008,19 +11008,19 @@
   }
   function isMarkChange(cur, prev) {
     let curMarks = cur.firstChild.marks, prevMarks = prev.firstChild.marks;
-    let added = curMarks, removed = prevMarks, type, mark, update;
+    let added = curMarks, removed = prevMarks, type, mark2, update;
     for (let i = 0; i < prevMarks.length; i++)
       added = prevMarks[i].removeFromSet(added);
     for (let i = 0; i < curMarks.length; i++)
       removed = curMarks[i].removeFromSet(removed);
     if (added.length == 1 && removed.length == 0) {
-      mark = added[0];
+      mark2 = added[0];
       type = "add";
-      update = (node2) => node2.mark(mark.addToSet(node2.marks));
+      update = (node2) => node2.mark(mark2.addToSet(node2.marks));
     } else if (added.length == 0 && removed.length == 1) {
-      mark = removed[0];
+      mark2 = removed[0];
       type = "remove";
-      update = (node2) => node2.mark(mark.removeFromSet(node2.marks));
+      update = (node2) => node2.mark(mark2.removeFromSet(node2.marks));
     } else {
       return null;
     }
@@ -11028,7 +11028,7 @@
     for (let i = 0; i < prev.childCount; i++)
       updated.push(update(prev.child(i)));
     if (Fragment.from(updated).eq(cur))
-      return { mark, type };
+      return { mark: mark2, type };
   }
   function looksLikeBackspace(old, start, end, $newStart, $newEnd) {
     if (
@@ -11984,7 +11984,7 @@
 
   // lib/document-format-view.mjs
   function createFormatView({ byId: byId2, context, report }) {
-    const actions2 = ["paragraph", "heading-1", "heading-2", "heading-3", "bullet-list", "ordered-list"];
+    const actions2 = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "bullet-list", "ordered-list"];
     const blocked = () => {
       const { state: s, loading: loading2, invalid } = context();
       return !s || s.confirmed.readOnly || s.locked || invalid || loading2 || s.composing || s.compositionInvalid || s.pending || s.historyPending || s.recoveryRecords.length;
@@ -11995,7 +11995,7 @@
       const { from: from2, to } = c.editor.state.selection;
       const ok3 = await c.controller.format({ action, from: from2, to });
       if (context().controller !== c.controller) return false;
-      if (!ok3) report(c.controller.state().code === "unsafe-format-range" ? "\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u683C\u5F0F\u64CD\u4F5C\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002\u6807\u9898\u9650\u5355\u884C\uFF1B\u52A0\u7C97\u9700\u9009\u4E2D\u540C\u4E00\u6BB5\u6587\u5B57\uFF08\u53D6\u6D88\u65F6\u9009\u4E2D\u5B8C\u6574\u7C97\u4F53\uFF09\uFF1B\u5217\u8868\u9650\u5355\u5C42\uFF0C\u7A7A\u9879\u9000\u51FA\u4EC5\u652F\u6301\u9996\u9879\u6216\u672B\u9879\u3002" : "\u683C\u5F0F\u4FEE\u6539\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u72B6\u6001\u3002", true);
+      if (!ok3) report(c.controller.state().code === "unsafe-format-range" ? "\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u683C\u5F0F\u64CD\u4F5C\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002\u6807\u9898\u9650\u5355\u884C\uFF1B\u7C97\u4F53/\u659C\u4F53/\u884C\u5185\u4EE3\u7801\u9700\u9009\u4E2D\u540C\u4E00\u6587\u5B57\u7247\u6BB5\uFF08\u53D6\u6D88\u65F6\u9009\u4E2D\u5B8C\u6574\u683C\u5F0F\u6587\u5B57\uFF09\uFF0C\u6682\u4E0D\u652F\u6301\u53E0\u52A0\uFF1B\u94FE\u63A5\u4EC5\u652F\u6301\u4FEE\u6539\u6587\u5B57\uFF0C\u542B\u94FE\u63A5\u7684\u6BB5\u843D\u6682\u4E0D\u62C6\u5206\u6216\u5408\u5E76\uFF1B\u5217\u8868\u9650\u5355\u5C42\uFF0C\u7A7A\u9879\u9000\u51FA\u4EC5\u652F\u6301\u9996\u9879\u6216\u672B\u9879\u3002" : "\u683C\u5F0F\u4FEE\u6539\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u72B6\u6001\u3002", true);
       else report("\u683C\u5F0F\u5DF2\u5E94\u7528\uFF1B\u539F\u6587\u4EF6\u672A\u6539\u5199\u3002");
       if (!context().invalid && !c.controller.state().locked) c.editor.view.focus();
       sync();
@@ -12005,8 +12005,10 @@
     selector.onchange = () => {
       if (actions2.includes(selector.value)) void run3(selector.value);
     };
-    byId2("format-bold").onpointerdown = (e) => e.preventDefault();
-    byId2("format-bold").onclick = () => void run3("bold");
+    for (const mark2 of ["bold", "italic", "code"]) {
+      byId2("format-" + mark2).onpointerdown = (e) => e.preventDefault();
+      byId2("format-" + mark2).onclick = () => void run3(mark2);
+    }
     for (const id of ["format-undo", "format-redo"]) {
       byId2(id).onpointerdown = (e) => e.preventDefault();
       byId2(id).onclick = async () => {
@@ -12021,7 +12023,7 @@
       byId2("format-toolbar").hidden = !s || s.confirmed.readOnly || s.confirmed.temporary !== true;
       const busy = !!blocked();
       selector.disabled = busy;
-      byId2("format-bold").disabled = busy || !editor2 || editor2.state.selection.empty;
+      for (const mark2 of ["bold", "italic", "code"]) byId2("format-" + mark2).disabled = busy || !editor2 || editor2.state.selection.empty;
       byId2("format-undo").disabled = busy || !s?.confirmed.canUndo;
       byId2("format-redo").disabled = busy || !s?.confirmed.canRedo;
       let value = "paragraph";
@@ -12042,19 +12044,24 @@
         }
       }
       selector.value = value;
-      byId2("format-bold").setAttribute("aria-pressed", String(!!editor2?.isActive("bold")));
+      for (const mark2 of ["bold", "italic", "code"]) byId2("format-" + mark2).setAttribute("aria-pressed", String(!!editor2?.isActive(mark2)));
     }
     function key2(view, event) {
       if (event.isComposing || event.keyCode === 229 || view.composing || context().state?.composing) return false;
-      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "b") {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && ["b", "i", "e"].includes(event.key.toLowerCase())) {
         event.preventDefault();
-        void run3("bold");
+        void run3({ b: "bold", i: "italic", e: "code" }[event.key.toLowerCase()]);
         return true;
       }
       const pos = view.state.selection.$from, inList = Array.from({ length: pos.depth }, (_, i) => pos.node(i + 1).type.name).some((n) => n === "bulletList" || n === "orderedList");
       if (pos.parent.type.name === "heading" && event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
-        void run3("split-heading");
+        void run3(pos.parent.content.size ? "split-heading" : "paragraph");
+        return true;
+      }
+      if (pos.parent.type.name === "heading" && event.key === "Backspace" && pos.parentOffset === 0 && view.state.selection.empty && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        void run3("paragraph");
         return true;
       }
       if (inList && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && (event.key === "Enter" || event.key === "Backspace" && pos.parentOffset === 0 && view.state.selection.empty)) {
@@ -13238,10 +13245,10 @@
   function getMarkRange($pos, type, attributes) {
     if (!$pos || !type) return;
     let start = $pos.parent.childAfter($pos.parentOffset);
-    if (!start.node || !start.node.marks.some((mark) => mark.type === type)) start = $pos.parent.childBefore($pos.parentOffset);
-    if (!start.node || !start.node.marks.some((mark) => mark.type === type)) return;
+    if (!start.node || !start.node.marks.some((mark2) => mark2.type === type)) start = $pos.parent.childBefore($pos.parentOffset);
+    if (!start.node || !start.node.marks.some((mark2) => mark2.type === type)) return;
     if (!attributes) {
-      const firstMark = start.node.marks.find((mark) => mark.type === type);
+      const firstMark = start.node.marks.find((mark2) => mark2.type === type);
       if (firstMark) attributes = firstMark.attrs;
     }
     if (!findMarkInSet([...start.node.marks], type, attributes)) return;
@@ -13727,10 +13734,10 @@
           canReset = true;
           if (dispatch) tr2.setNodeMarkup(pos, void 0, deleteProps(node2.attrs, attributes));
         }
-        if (markType && node2.marks.length) node2.marks.forEach((mark) => {
-          if (markType === mark.type) {
+        if (markType && node2.marks.length) node2.marks.forEach((mark2) => {
+          if (markType === mark2.type) {
             canReset = true;
-            if (dispatch) tr2.addMark(pos, pos + node2.nodeSize, markType.create(deleteProps(mark.attrs, attributes)));
+            if (dispatch) tr2.addMark(pos, pos + node2.nodeSize, markType.create(deleteProps(mark2.attrs, attributes)));
           }
         });
       });
@@ -13799,9 +13806,9 @@
     } else state.doc.nodesBetween(from2, to, (node2) => {
       marks.push(...node2.marks);
     });
-    const mark = marks.find((markItem) => markItem.type.name === type.name);
-    if (!mark) return {};
-    return { ...mark.attrs };
+    const mark2 = marks.find((markItem) => markItem.type.name === type.name);
+    if (!mark2) return {};
+    return { ...mark2.attrs };
   }
   function combineTransactionSteps(oldDoc, transactions) {
     const transform = new Transform(oldDoc);
@@ -14155,9 +14162,9 @@
       const parseHTML = callOrReturn(getExtensionField(extension2, "parseHTML", context));
       if (parseHTML) schema.parseDOM = parseHTML.map((parseRule) => injectExtensionAttributesToParseRule(parseRule, extensionAttributes));
       const renderHTML = getExtensionField(extension2, "renderHTML", context);
-      if (renderHTML) schema.toDOM = (mark) => renderHTML({
-        mark,
-        HTMLAttributes: getRenderedAttributes(mark, extensionAttributes)
+      if (renderHTML) schema.toDOM = (mark2) => renderHTML({
+        mark: mark2,
+        HTMLAttributes: getRenderedAttributes(mark2, extensionAttributes)
       });
       return [extension2.name, schema];
     }));
@@ -14294,20 +14301,20 @@
   }
   function getMarksBetween(from2, to, doc3) {
     const marks = [];
-    if (from2 === to) doc3.resolve(from2).marks().forEach((mark) => {
-      const range = getMarkRange(doc3.resolve(from2), mark.type);
+    if (from2 === to) doc3.resolve(from2).marks().forEach((mark2) => {
+      const range = getMarkRange(doc3.resolve(from2), mark2.type);
       if (!range) return;
       marks.push({
-        mark,
+        mark: mark2,
         ...range
       });
     });
     else doc3.nodesBetween(from2, to, (node2, pos) => {
       if (!node2 || (node2 === null || node2 === void 0 ? void 0 : node2.nodeSize) === void 0) return;
-      marks.push(...node2.marks.map((mark) => ({
+      marks.push(...node2.marks.map((mark2) => ({
         from: pos,
         to: pos + node2.nodeSize,
-        mark
+        mark: mark2
       })));
     });
     return marks;
@@ -14360,10 +14367,10 @@
   function isMarkActive(state, typeOrName, attributes = {}) {
     const { empty: empty3, ranges } = state.selection;
     const type = typeOrName ? getMarkType(typeOrName, state.schema) : null;
-    if (empty3) return !!(state.storedMarks || state.selection.$from.marks()).filter((mark) => {
+    if (empty3) return !!(state.storedMarks || state.selection.$from.marks()).filter((mark2) => {
       if (!type) return true;
-      return type.name === mark.type.name;
-    }).find((mark) => objectIncludes(mark.attrs, attributes, { strict: false }));
+      return type.name === mark2.type.name;
+    }).find((mark2) => objectIncludes(mark2.attrs, attributes, { strict: false }));
     let selectionRange = 0;
     const markRanges = [];
     ranges.forEach(({ $from, $to }) => {
@@ -14376,8 +14383,8 @@
         const relativeTo = Math.min(to, pos + node2.nodeSize);
         const range = relativeTo - relativeFrom;
         selectionRange += range;
-        markRanges.push(...node2.marks.map((mark) => ({
-          mark,
+        markRanges.push(...node2.marks.map((mark2) => ({
+          mark: mark2,
           from: relativeFrom,
           to: relativeTo
         })));
@@ -14497,7 +14504,7 @@
     if (cursor) {
       var _state$storedMarks;
       const currentMarks = (_state$storedMarks = state.storedMarks) !== null && _state$storedMarks !== void 0 ? _state$storedMarks : cursor.marks();
-      return cursor.parent.type.allowsMarkType(newMarkType) && (!!newMarkType.isInSet(currentMarks) || !currentMarks.some((mark) => mark.type.excludes(newMarkType)));
+      return cursor.parent.type.allowsMarkType(newMarkType) && (!!newMarkType.isInSet(currentMarks) || !currentMarks.some((mark2) => mark2.type.excludes(newMarkType)));
     }
     const { ranges } = selection;
     return ranges.some(({ $from, $to }) => {
@@ -14531,9 +14538,9 @@
         state.doc.nodesBetween(from2, to, (node2, pos) => {
           const trimmedFrom = Math.max(pos, from2);
           const trimmedTo = Math.min(pos + node2.nodeSize, to);
-          if (node2.marks.find((mark) => mark.type === type)) node2.marks.forEach((mark) => {
-            if (type === mark.type) tr2.addMark(trimmedFrom, trimmedTo, type.create({
-              ...mark.attrs,
+          if (node2.marks.find((mark2) => mark2.type === type)) node2.marks.forEach((mark2) => {
+            if (type === mark2.type) tr2.addMark(trimmedFrom, trimmedTo, type.create({
+              ...mark2.attrs,
               ...attributes
             }));
           });
@@ -14623,7 +14630,7 @@
   function ensureMarks(state, splittableMarks) {
     const marks = state.storedMarks || state.selection.$to.parentOffset && state.selection.$from.marks();
     if (marks) {
-      const filteredMarks = marks.filter((mark) => splittableMarks === null || splittableMarks === void 0 ? void 0 : splittableMarks.includes(mark.type.name));
+      const filteredMarks = marks.filter((mark2) => splittableMarks === null || splittableMarks === void 0 ? void 0 : splittableMarks.includes(mark2.type.name));
       state.tr.ensureMarks(filteredMarks);
     }
   }
@@ -14731,7 +14738,7 @@
       const marks = storedMarks || selection.$to.parentOffset && selection.$from.marks();
       tr2.split($from.pos, 2, types).scrollIntoView();
       if (!marks || !dispatch) return true;
-      const filteredMarks = marks.filter((mark) => splittableMarks.includes(mark.type.name));
+      const filteredMarks = marks.filter((mark2) => splittableMarks.includes(mark2.type.name));
       tr2.ensureMarks(filteredMarks);
     }
     return true;
@@ -14815,7 +14822,7 @@
     }).wrapInList(listType, attributes).command(() => joinListBackwards(tr2, listType)).command(() => joinListForwards(tr2, listType)).run();
     return chain().command(() => {
       const canWrapInList = can().wrapInList(listType, attributes);
-      const filteredMarks = marks.filter((mark) => splittableMarks.includes(mark.type.name));
+      const filteredMarks = marks.filter((mark2) => splittableMarks.includes(mark2.type.name));
       tr2.ensureMarks(filteredMarks);
       if (canWrapInList) return true;
       return commands.clearNodes();
@@ -14887,7 +14894,7 @@
     if (empty3 && extendEmptyMarkRange) {
       var _$from$marks$find;
       let { from: from2, to } = selection;
-      const range = getMarkRange($from, type, (_$from$marks$find = $from.marks().find((mark) => mark.type === type)) === null || _$from$marks$find === void 0 ? void 0 : _$from$marks$find.attrs);
+      const range = getMarkRange($from, type, (_$from$marks$find = $from.marks().find((mark2) => mark2.type === type)) === null || _$from$marks$find === void 0 ? void 0 : _$from$marks$find.attrs);
       if (range) {
         from2 = range.from;
         to = range.to;
@@ -14961,14 +14968,14 @@
               ...attributes
             });
           }
-          if (markType && node2.marks.length) node2.marks.forEach((mark) => {
-            if (markType === mark.type) {
+          if (markType && node2.marks.length) node2.marks.forEach((mark2) => {
+            if (markType === mark2.type) {
               canUpdate = true;
               if (dispatch) {
                 const trimmedFrom2 = Math.max(pos, from2);
                 const trimmedTo2 = Math.min(pos + node2.nodeSize, to);
                 tr2.addMark(trimmedFrom2, trimmedTo2, markType.create({
-                  ...mark.attrs,
+                  ...mark2.attrs,
                   ...attributes
                 }));
               }
@@ -14981,9 +14988,9 @@
           ...lastNode.attrs,
           ...attributes
         });
-        if (markType && lastNode.marks.length) lastNode.marks.forEach((mark) => {
-          if (markType === mark.type && dispatch) tr2.addMark(trimmedFrom, trimmedTo, markType.create({
-            ...mark.attrs,
+        if (markType && lastNode.marks.length) lastNode.marks.forEach((mark2) => {
+          if (markType === mark2.type && dispatch) tr2.addMark(trimmedFrom, trimmedTo, markType.create({
+            ...mark2.attrs,
             ...attributes
           }));
         });
@@ -15693,9 +15700,9 @@ ${indentedChild}`;
       const from2 = tr2.mapping.map(pos);
       const to = tr2.mapping.map(pos) + node2.nodeSize;
       let foundMark = null;
-      node2.marks.forEach((mark) => {
-        if (mark !== thisMark) return false;
-        foundMark = mark;
+      node2.marks.forEach((mark2) => {
+        if (mark2 !== thisMark) return false;
+        foundMark = mark2;
       });
       if (!foundMark) return;
       let needsUpdate = false;
@@ -15741,7 +15748,7 @@ ${indentedChild}`;
     const { view } = editor2;
     if (view.composing) return false;
     const $from = view.state.doc.resolve(from2);
-    if ($from.parent.type.spec.code || !!((_ref = $from.nodeBefore || $from.nodeAfter) === null || _ref === void 0 ? void 0 : _ref.marks.find((mark) => mark.type.spec.code))) return false;
+    if ($from.parent.type.spec.code || !!((_ref = $from.nodeBefore || $from.nodeAfter) === null || _ref === void 0 ? void 0 : _ref.marks.find((mark2) => mark2.type.spec.code))) return false;
     let matched = false;
     const textBefore = getTextContentFromNodes($from) + text5;
     rules.forEach((rule) => {
@@ -15915,13 +15922,13 @@ ${indentedChild}`;
       const resolvedConfig = typeof config === "function" ? config() : config;
       return new Mark3(resolvedConfig);
     }
-    static handleExit({ editor: editor2, mark }) {
+    static handleExit({ editor: editor2, mark: mark2 }) {
       const { tr: tr2 } = editor2.state;
       const currentPos = editor2.state.selection.$from;
       if (currentPos.pos === currentPos.end()) {
         const currentMarks = currentPos.marks();
-        if (!!!currentMarks.find((m) => (m === null || m === void 0 ? void 0 : m.type.name) === mark.name)) return false;
-        const removeMark2 = currentMarks.find((m) => (m === null || m === void 0 ? void 0 : m.type.name) === mark.name);
+        if (!!!currentMarks.find((m) => (m === null || m === void 0 ? void 0 : m.type.name) === mark2.name)) return false;
+        const removeMark2 = currentMarks.find((m) => (m === null || m === void 0 ? void 0 : m.type.name) === mark2.name);
         if (removeMark2) tr2.removeStoredMark(removeMark2);
         tr2.insertText(" ", currentPos.pos);
         editor2.view.dispatch(tr2);
@@ -16349,17 +16356,17 @@ ${indentedChild}`;
           type: getMarkType(extension2.name, this.schema)
         });
         if (!addMarkView) return [];
-        const markView = (mark, view, inline2) => {
-          const HTMLAttributes = getRenderedAttributes(mark, extensionAttributes);
+        const markView = (mark2, view, inline2) => {
+          const HTMLAttributes = getRenderedAttributes(mark2, extensionAttributes);
           return addMarkView()({
-            mark,
+            mark: mark2,
             view,
             inline: inline2,
             editor: editor2,
             extension: extension2,
             HTMLAttributes,
             updateAttributes: (attrs) => {
-              updateMarkViewAttributes(mark, editor2, attrs);
+              updateMarkViewAttributes(mark2, editor2, attrs);
             }
           });
         };
@@ -16528,8 +16535,8 @@ ${indentedChild}`;
             const newEnd = mapping.slice(index2).map(step.to);
             const oldStart = mapping.invert().map(newStart, -1);
             const oldEnd = mapping.invert().map(newEnd);
-            const foundBeforeMark = newStart > 0 ? (_nextTransaction$doc$ = nextTransaction.doc.nodeAt(newStart - 1)) === null || _nextTransaction$doc$ === void 0 ? void 0 : _nextTransaction$doc$.marks.some((mark) => mark.eq(step.mark)) : false;
-            const foundAfterMark = (_nextTransaction$doc$2 = nextTransaction.doc.nodeAt(newEnd)) === null || _nextTransaction$doc$2 === void 0 ? void 0 : _nextTransaction$doc$2.marks.some((mark) => mark.eq(step.mark));
+            const foundBeforeMark = newStart > 0 ? (_nextTransaction$doc$ = nextTransaction.doc.nodeAt(newStart - 1)) === null || _nextTransaction$doc$ === void 0 ? void 0 : _nextTransaction$doc$.marks.some((mark2) => mark2.eq(step.mark)) : false;
+            const foundAfterMark = (_nextTransaction$doc$2 = nextTransaction.doc.nodeAt(newEnd)) === null || _nextTransaction$doc$2 === void 0 ? void 0 : _nextTransaction$doc$2.marks.some((mark2) => mark2.eq(step.mark));
             this.editor.emit("delete", {
               type: "mark",
               mark: step.mark,
@@ -17580,7 +17587,7 @@ img.ProseMirror-separator {
           const { splittableMarks } = config.editor.extensionManager;
           const marks = storedMarks || selection.$to.parentOffset && selection.$from.marks();
           if (marks) {
-            const filteredMarks = marks.filter((mark) => splittableMarks.includes(mark.type.name));
+            const filteredMarks = marks.filter((mark2) => splittableMarks.includes(mark2.type.name));
             tr2.ensureMarks(filteredMarks);
           }
         }
@@ -17806,7 +17813,7 @@ ${prefix}
         },
         {
           style: "font-weight=400",
-          clearMark: (mark) => mark.type.name === this.name
+          clearMark: (mark2) => mark2.type.name === this.name
         },
         {
           style: "font-weight",
@@ -18175,8 +18182,8 @@ ${prefix}
           const language = vscodeData === null || vscodeData === void 0 ? void 0 : vscodeData.mode;
           if (!text5 || !language) return false;
           const { tr: tr2, schema } = view.state;
-          const textNode = schema.text(text5.replace(/\r\n?/g, "\n"));
-          tr2.replaceSelectionWith(this.type.create({ language }, textNode));
+          const textNode2 = schema.text(text5.replace(/\r\n?/g, "\n"));
+          tr2.replaceSelectionWith(this.type.create({ language }, textNode2));
           if (tr2.selection.$from.parent.type !== this.type) tr2.setSelection(TextSelection.near(tr2.doc.resolve(Math.max(0, tr2.selection.from - 2))));
           tr2.setMeta("paste", true);
           view.dispatch(tr2);
@@ -18235,7 +18242,7 @@ ${prefix}
           const marks = storedMarks || selection.$to.parentOffset && selection.$from.marks();
           return chain().insertContent({ type: this.name }).command(({ tr: tr2, dispatch }) => {
             if (dispatch && marks && keepMarks) {
-              const filteredMarks = marks.filter((mark) => splittableMarks.includes(mark.type.name));
+              const filteredMarks = marks.filter((mark2) => splittableMarks.includes(mark2.type.name));
               tr2.ensureMarks(filteredMarks);
             }
             return true;
@@ -18408,7 +18415,7 @@ ${prefix}
         },
         {
           style: "font-style=normal",
-          clearMark: (mark) => mark.type.name === this.name
+          clearMark: (mark2) => mark2.type.name === this.name
         },
         { style: "font-style=italic" }
       ];
@@ -22910,46 +22917,111 @@ ${prefix}
   });
   var src_default = StarterKit;
 
+  // lib/document-editor-extensions.mjs
+  var SourceLink = Mark2.create({
+    name: "link",
+    priority: 1e3,
+    inclusive: true,
+    addAttributes() {
+      return {
+        href: { default: null, parseHTML: (element2) => element2.getAttribute("data-source-href") },
+        title: { default: null, parseHTML: (element2) => element2.getAttribute("data-source-title") }
+      };
+    },
+    parseHTML() {
+      return [{ tag: "span[data-document-link]" }];
+    },
+    renderHTML({ mark: mark2 }) {
+      return ["span", {
+        "data-document-link": "",
+        class: "document-source-link",
+        "data-source-href": mark2.attrs.href,
+        "data-source-title": mark2.attrs.title
+      }, 0];
+    }
+  });
+  function documentEditorExtensions() {
+    return [src_default.configure({ undoRedo: false, trailingNode: false, link: false }), SourceLink];
+  }
+
+  // lib/document-inline-leaf.mjs
+  function projectInlineLeaf(child, source) {
+    const bold = child.type === "strong", italic = child.type === "emphasis", code3 = child.type === "inlineCode", link2 = child.type === "link";
+    const leaf = (bold || italic || link2) && child.children?.length === 1 ? child.children[0] : child;
+    let a = leaf.position?.start.offset, b = leaf.position?.end.offset;
+    if (code3) {
+      a++;
+      b--;
+    }
+    const value = leaf.value;
+    if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value) || source.slice(a, b) !== value) return null;
+    if (code3) {
+      if (value.includes("`") || source[a - 1] !== "`" || source[b] !== "`") return null;
+    } else if (/[<>{}\\`$|]/.test(value)) return null;
+    if (bold || italic) {
+      const marker = source.slice(child.position.start.offset, a);
+      if (!(bold ? ["**", "__"] : ["*", "_"]).includes(marker) || source.slice(b, child.position.end.offset) !== marker) return null;
+    }
+    if (link2 && (child.position.start.line !== child.position.end.line || source.slice(child.position.start.offset, a) !== "[" || source.slice(b, b + 2) !== "](" || source[child.position.end.offset - 1] !== ")")) return null;
+    let linkSource;
+    if (link2) {
+      const tail = source.slice(b + 2, child.position.end.offset - 1);
+      const match = tail.match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
+      if (match) linkSource = {
+        from: child.position.start.offset,
+        to: child.position.end.offset,
+        destinationFrom: b + 2 + match[1].length,
+        destinationTo: b + 2 + match[1].length + match[2].length
+      };
+    }
+    return { ...linkSource ? { linkSource } : {}, text: value, sourceFrom: a, sourceTo: b, bold, ...italic ? { italic: true } : {}, ...code3 ? { code: true } : {}, ...link2 ? { link: { href: child.url, title: child.title ?? null } } : {} };
+  }
+  function inlineTextNode(part) {
+    const mark2 = part.link ? { type: "link", attrs: part.link } : part.bold || part.italic || part.code ? { type: part.bold ? "bold" : part.italic ? "italic" : "code" } : null;
+    return { type: "text", text: part.text, ...mark2 ? { marks: [mark2] } : {} };
+  }
+
   // lib/document-inline-source.mjs
   function mapInlineRange(source, projection, change, project) {
-    const { from: from2, to, insert } = change, reject3 = () => ({ ok: false, code: "unsafe-source-range" });
+    const { from: from2, to, insert } = change, reject4 = () => ({ ok: false, code: "unsafe-source-range" });
     const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
     if (index2 < 0) return null;
     const block = projection.blocks[index2], list3 = !!block.items;
     if (!list3 && projection.doc.content[index2].type !== "paragraph") return null;
     const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
     const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
-    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject3();
+    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject4();
     const cross = list3 && endItem > itemIndex;
     const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : s.itemIndex === void 0));
-    if (!list3 && !spans.some((s) => s.bold) || spans.some((s) => s.textOffset !== void 0)) return null;
+    if (spans.some((s) => s.link)) return reject4();
+    if (!list3 && !spans.some((s) => s.bold || s.italic || s.code) || spans.some((s) => s.textOffset !== void 0)) return null;
     const cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
     const tokens = spans.map((s) => ({
       ...s,
-      a: s.sourceFrom - (s.bold ? 2 : 0),
-      b: s.sourceTo + (s.bold ? 2 : 0),
-      marker: s.bold ? source.slice(s.sourceFrom - 2, s.sourceFrom) : ""
+      a: s.sourceFrom - (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      b: s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : ""
     }));
-    if (tokens.some((s, i) => s.bold && (!["**", "__"].includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject3();
+    if (tokens.some((s, i) => (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject4();
     if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
       const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
       return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
-    })) return reject3();
+    })) return reject4();
     const left = cross ? tokens.filter((s) => s.itemIndex === itemIndex) : null, right = cross ? tokens.filter((s) => s.itemIndex === endItem) : null;
     const touched = cross ? [left.find((s) => from2 >= s.from && from2 < s.to) || left.at(-1), right.find((s) => to > s.from && to <= s.to) || right[0]] : from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
     const first2 = touched[0], last = touched.at(-1);
-    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject3();
+    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject4();
     const pieces = [];
     const append2 = (text6, token) => {
       if (!text6) return;
       const previous3 = pieces.at(-1);
-      if (previous3 && previous3.bold === token.bold) previous3.text += text6;
-      else pieces.push({ text: text6, bold: token.bold, marker: token.marker });
+      if (previous3 && previous3.bold === token.bold && !!previous3.italic === !!token.italic && !!previous3.code === !!token.code) previous3.text += text6;
+      else pieces.push({ text: text6, bold: token.bold, italic: token.italic, code: token.code, marker: token.marker });
     };
     append2(first2.text.slice(0, from2 - first2.from), first2);
     append2(insert, cross && from2 === block.items[itemIndex].to ? { bold: false, marker: "" } : first2);
     append2(last.text.slice(to - last.from), last);
-    const replacement = pieces.map((s) => s.bold ? s.marker + s.text + s.marker : s.text).join("");
+    const replacement = pieces.map((s) => s.marker + s.text + s.marker).join("");
     const original = source.slice(first2.a, last.b);
     let start = 0, end = original.length, nextEnd = replacement.length;
     while (start < end && start < nextEnd && original[start] === replacement[start]) start++;
@@ -22963,13 +23035,13 @@ ${prefix}
       nextEnd++;
     }
     const a = first2.a + start, b = first2.a + end, text5 = replacement.slice(start, nextEnd);
-    if (b - a > 4096 || text5.length > 4096) return reject3();
+    if (b - a > 4096 || text5.length > 4096) return reject4();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > 131072) return reject3();
+    if (next.length > 131072) return reject4();
     const expected = structuredClone(projection.doc), nodes = [];
     const add = (s) => {
       if (!s.text) return;
-      const node2 = { type: "text", text: s.text, ...s.bold ? { marks: [{ type: "bold" }] } : {} }, prev = nodes.at(-1);
+      const node2 = { type: "text", text: s.text, ...s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes.at(-1);
       if (prev && JSON.stringify(prev.marks) === JSON.stringify(node2.marks)) prev.text += node2.text;
       else nodes.push(node2);
     };
@@ -22980,7 +23052,7 @@ ${prefix}
     target.content = nodes;
     if (cross) expected.content[index2].content.splice(itemIndex + 1, endItem - itemIndex);
     const nextProjection = project(next);
-    if (JSON.stringify(nextProjection.doc) !== JSON.stringify(expected)) return reject3();
+    if (JSON.stringify(nextProjection.doc) !== JSON.stringify(expected)) return reject4();
     return {
       ok: true,
       source: next,
@@ -24245,7 +24317,7 @@ ${prefix}
       assertParser("process", this.parser || this.Parser);
       assertCompiler("process", this.compiler || this.Compiler);
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject3) {
+      function executor(resolve, reject4) {
         const realFile = vfile(file);
         const parseTree = (
           /** @type {HeadTree extends undefined ? Node : HeadTree} */
@@ -24275,7 +24347,7 @@ ${prefix}
         });
         function realDone(error, file2) {
           if (error || !file2) {
-            reject3(error);
+            reject4(error);
           } else if (resolve) {
             resolve(file2);
           } else {
@@ -24379,7 +24451,7 @@ ${prefix}
         file = void 0;
       }
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject3) {
+      function executor(resolve, reject4) {
         ok(
           typeof file !== "function",
           "`file` can\u2019t be a `done` anymore, we checked"
@@ -24392,7 +24464,7 @@ ${prefix}
             outputTree || tree
           );
           if (error) {
-            reject3(error);
+            reject4(error);
           } else if (resolve) {
             resolve(resultingTree);
           } else {
@@ -32714,29 +32786,25 @@ ${prefix}
     for (const [itemIndex, item3] of node2.children.entries()) {
       const a = item3.position.start.offset, b = item3.position.end.offset, raw = source.slice(a, b);
       const marker = raw.match(node2.ordered ? /^(\d{1,9}[.)] )/ : /^([-+*] )/);
-      if (!marker || item3.checked !== null || item3.spread || item3.position.start.line !== item3.position.end.line || item3.children.length > 1 || item3.children.length && item3.children[0].type !== "paragraph" || /[<>{}\\`$|]/.test(raw) || previousEnd !== null && !/^(\r\n|\n|\r)$/.test(source.slice(previousEnd, a))) return null;
+      if (!marker || item3.checked !== null || item3.spread || item3.position.start.line !== item3.position.end.line || item3.children.length > 1 || item3.children.length && item3.children[0].type !== "paragraph" || previousEnd !== null && !/^(\r\n|\n|\r)$/.test(source.slice(previousEnd, a))) return null;
       const inline2 = [], itemSpans = [], bodyFrom = a + marker[0].length;
       let textOffset = 0;
       for (const child of item3.children[0]?.children || []) {
-        const bold = child.type === "strong", leaf = bold && child.children?.length === 1 ? child.children[0] : child;
-        const start = leaf.position?.start.offset, end = leaf.position?.end.offset;
-        if (leaf.type !== "text" || !leaf.value || /[\r\n\0]/.test(leaf.value) || source.slice(start, end) !== leaf.value || bold && !["**", "__"].includes(source.slice(child.position.start.offset, start))) return null;
-        inline2.push({ type: "text", text: leaf.value, ...bold ? { marks: [{ type: "bold" }] } : {} });
+        const part = projectInlineLeaf(child, source);
+        if (!part) return null;
+        inline2.push(inlineTextNode(part));
         itemSpans.push({
-          text: leaf.value,
-          sourceFrom: start,
-          sourceTo: end,
-          bold,
+          ...part,
           from: offset + 2 + textOffset,
-          to: offset + 2 + textOffset + leaf.value.length,
+          to: offset + 2 + textOffset + part.text.length,
           blockIndex,
           childIndex: childIndex++,
           itemIndex,
           inlineIndex: inline2.length - 1
         });
-        textOffset += leaf.value.length;
+        textOffset += part.text.length;
       }
-      if (inline2.length === 1 && !itemSpans[0].bold) {
+      if (inline2.length === 1 && !itemSpans[0].bold && !itemSpans[0].italic && !itemSpans[0].code && !itemSpans[0].link) {
         const text5 = source.slice(bodyFrom, b);
         if (text5.trimStart() !== text5) return null;
         inline2[0].text = text5;
@@ -32748,7 +32816,7 @@ ${prefix}
       } else if (!inline2.length) {
         if (b !== bodyFrom) return null;
         itemSpans.push({ text: "", sourceFrom: b, sourceTo: b, bold: false, from: offset + 2, to: offset + 2, blockIndex, childIndex: childIndex++, itemIndex, inlineIndex: 0 });
-      } else if (source.slice(bodyFrom, itemSpans[0].sourceFrom) !== (itemSpans[0].bold ? source.slice(itemSpans[0].sourceFrom - 2, itemSpans[0].sourceFrom) : "")) return null;
+      } else if (source.slice(bodyFrom, itemSpans[0].sourceFrom) !== (itemSpans[0].link ? "[" : itemSpans[0].bold || itemSpans[0].italic || itemSpans[0].code ? source.slice(itemSpans[0].sourceFrom - (itemSpans[0].bold ? 2 : 1), itemSpans[0].sourceFrom) : "")) return null;
       items.push({ sourceFrom: a, sourceTo: b, bodyFrom, marker: marker[0], from: offset + 2, to: offset + 2 + textOffset });
       content4.push({ type: "listItem", content: [{ type: "paragraph", content: inline2 }] });
       spans.push(...itemSpans);
@@ -32795,7 +32863,7 @@ ${prefix}
       position2 += text5.length + 2;
     }
     if (fm) opaque(source.slice(0, fm));
-    for (const node2 of tree.children) {
+    for (let node2 of tree.children) {
       let start = node2.position.start.offset, end = node2.position.end.offset;
       if (start < fm) {
         if (end > fm) {
@@ -32804,6 +32872,12 @@ ${prefix}
         }
         continue;
       }
+      const pending = source.slice(start, end);
+      if (/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(pending)) node2 = {
+        type: "paragraph",
+        position: node2.position,
+        children: [{ type: "text", value: pending, position: node2.position }]
+      };
       const list3 = projectSimpleList(node2, source, position2, content4.length);
       if (list3) {
         const gap2 = lines(source.slice(previousEnd, start));
@@ -32827,7 +32901,7 @@ ${prefix}
         continue;
       }
       const raw = source.slice(start, end), parts = [];
-      let supported = ["paragraph", "heading"].includes(node2.type) && node2.position.start.line === node2.position.end.line && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\\`$|]/.test(raw);
+      let supported = ["paragraph", "heading"].includes(node2.type) && node2.position.start.line === node2.position.end.line && !/^(?:[:!]| {4}|\t)/.test(raw);
       if (node2.type === "heading" && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
       const soft = node2.type === "paragraph" && node2.position.start.line !== node2.position.end.line && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === raw && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
       if (soft) {
@@ -32845,16 +32919,17 @@ ${prefix}
         }
         supported = parts.length >= 2 && parts.map((p) => p.text).join(" ") === raw.replace(/\r\n|\n|\r/g, " ");
       } else for (const child of node2.children || []) {
-        const bold = child.type === "strong";
-        const leaf = bold && child.children?.length === 1 ? child.children[0] : child;
-        const a = leaf.position?.start.offset, b = leaf.position?.end.offset;
-        if (leaf.type !== "text" || !leaf.value || !validText(leaf.value) || source.slice(a, b) !== leaf.value || bold && !["**", "__"].includes(source.slice(child.position.start.offset, a))) {
+        const part = projectInlineLeaf(child, source);
+        if (!part) {
           supported = false;
           break;
         }
-        parts.push({ text: leaf.value, sourceFrom: a, sourceTo: b, bold });
+        parts.push(part);
       }
-      if (supported && node2.type === "paragraph" && parts.length === 1 && !parts[0].bold) {
+      if (supported && node2.type === "heading" && !parts.length && /^#{1,6} $/.test(raw)) {
+        parts.push({ text: "", sourceFrom: end, sourceTo: end, bold: false });
+      }
+      if (supported && node2.type === "paragraph" && parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
         const a = Math.max(source.lastIndexOf("\n", start - 1), source.lastIndexOf("\r", start - 1)) + 1;
         const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
         if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
@@ -32887,7 +32962,7 @@ ${prefix}
         offset = block.content[0].text.length;
       } else for (const [childIndex, part] of parts.entries()) {
         spans.push({ ...part, from: position2 + 1 + offset, to: position2 + 1 + offset + part.text.length, blockIndex, childIndex });
-        block.content.push({ type: "text", text: part.text, ...part.bold ? { marks: [{ type: "bold" }] } : {} });
+        if (part.text) block.content.push(inlineTextNode(part));
         offset += part.text.length;
       }
       blocks.push({ from: position2, to: position2 + offset + 2, sourceFrom: start, sourceTo: end });
@@ -32903,11 +32978,11 @@ ${prefix}
     return { doc: { type: "doc", content: content4 }, spans, blocks };
   }
   function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
-    const { from: from2, to, insert } = change, plain = (span) => {
+    const { from: from2, to, insert } = change, plain2 = (span) => {
       const block = projection.doc.content[span.blockIndex];
-      return block.type === "paragraph" && span.textOffset === void 0 && !span.bold && (block.content || []).length <= 1;
+      return block.type === "paragraph" && span.textOffset === void 0 && !span.bold && !span.italic && !span.code && !span.link && (block.content || []).length <= 1;
     };
-    const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
+    const spans = projection.spans.filter(plain2), expected = structuredClone(projection.doc);
     const delimiter = paragraphSeparator ?? (source.match(/\r\n|\n|\r/)?.[0] || "\n").repeat(2);
     let a, b, text5, inverse, selection;
     if (insert === "\n\n" && from2 === to) {
@@ -32958,7 +33033,7 @@ ${prefix}
     if (!multiline && from2 === to && separator === null) return null;
     const parts = insert.split("\n\n");
     if (parts.length > 32 || parts.some((p) => !validText(p)) || multiline && (parts.length < 2 || separator === null && parts.some((p) => !p.trim()))) return null;
-    const spans = projection.spans.filter((s) => projection.doc.content[s.blockIndex].type === "paragraph" && s.textOffset === void 0 && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
+    const spans = projection.spans.filter((s) => projection.doc.content[s.blockIndex].type === "paragraph" && s.textOffset === void 0 && !s.bold && !s.italic && !s.code && !s.link && (projection.doc.content[s.blockIndex].content || []).length <= 1);
     const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
     if (!left || !right || left.blockIndex > right.blockIndex || !multiline && left === right || splits(left.text, from2 - left.from) || splits(right.text, to - right.from)) return null;
     const range = spans.filter((s) => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
@@ -33018,7 +33093,7 @@ ${prefix}
     const span = matches2[0], a = from2 - span.from, b = to - span.from;
     if (splits(span.text, a) || splits(span.text, b)) return unsafe();
     const text5 = span.text.slice(0, a) + insert + span.text.slice(b);
-    if (!text5 && (span.textOffset !== void 0 || spanBlock(projection, span).type !== "paragraph" || span.bold || spanBlock(projection, span).content.length > 1)) return unsafe();
+    if (!text5 && (span.textOffset !== void 0 || !["paragraph", "heading"].includes(spanBlock(projection, span).type) || span.bold || span.italic || span.code || span.link || spanBlock(projection, span).content.length > 1)) return unsafe();
     const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
     const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
     if (next.length > 131072) return unsafe();
@@ -33218,21 +33293,95 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     return { render: render4 };
   }
 
+  // lib/document-link-edit.mjs
+  var reject = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
+  var splits2 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
+  var textNode = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
+  var plain = (s) => !s.bold && !s.italic && !s.code && !s.link && s.textOffset === void 0;
+  var validString = (s) => typeof s === "string" && !/[\u0000-\u001f\u007f]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
+  function validLinkTarget(href) {
+    if (!validString(href) || !href || href.length > 2048 || /[\s<>"'\\]/u.test(href) || /%(?:00|0a|0d)/i.test(href)) return false;
+    if (/^(?:https?|mailto):/i.test(href)) {
+      try {
+        const u = new URL(href);
+        return !u.username && !u.password && (u.protocol === "mailto:" ? !!u.pathname.includes("@") : !!u.hostname);
+      } catch {
+        return false;
+      }
+    }
+    return !href.startsWith("/") && !href.includes(":");
+  }
+  function linkSelection(source, { from: from2, to }) {
+    if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return null;
+    const p = projectSource(source), candidates = p.spans.filter((s2) => from2 >= s2.from && to <= s2.to);
+    const links = candidates.filter((s2) => s2.link && s2.linkSource);
+    const s = links.length === 1 ? links[0] : candidates.length === 1 && plain(candidates[0]) ? candidates[0] : null;
+    if (!s || s.textOffset !== void 0 || splits2(s.text, from2 - s.from) || splits2(s.text, to - s.from)) return null;
+    return { projection: p, span: s, label: s.link ? s.text : s.text.slice(from2 - s.from, to - s.from), href: s.link?.href || "", existing: !!s.link };
+  }
+  function mapLinkEdit(source, command2) {
+    const setting = command2.action === "set-link", keys2 = setting ? ["action", "from", "to", "label", "href"] : ["action", "from", "to"];
+    if (!["set-link", "remove-link"].includes(command2.action) || Object.keys(command2).length !== keys2.length || Object.keys(command2).some((k) => !keys2.includes(k))) return reject();
+    const c = linkSelection(source, command2);
+    if (!c || !setting && !c.existing) return reject();
+    const { span: s, projection: p } = c, { from: from2, to } = command2;
+    const label = setting ? command2.label : s.text;
+    if (!validString(label) || !label.trim() || label.length > 512) return reject("invalid-link-label");
+    if (setting && !validLinkTarget(command2.href)) return reject("invalid-link-target");
+    const expected = structuredClone(p.doc), parent = spanBlock({ doc: expected }, s), child = s.inlineIndex ?? s.childIndex;
+    let a, b, insert, selectionFrom;
+    const attrs = { href: command2.href, title: s.link?.title ?? null };
+    if (c.existing) {
+      const raw = s.linkSource;
+      a = raw.from;
+      b = raw.to;
+      selectionFrom = s.from;
+      if (setting) {
+        const suffix = command2.href === s.link.href ? source.slice(s.sourceTo, b) : source.slice(s.sourceTo, raw.destinationFrom) + "<" + command2.href + ">" + source.slice(raw.destinationTo, b);
+        insert = "[" + label + suffix;
+        parent.content.splice(child, 1, { type: "text", text: label, marks: [{ type: "link", attrs }] });
+      } else {
+        insert = label;
+        parent.content.splice(child, 1, { type: "text", text: label });
+      }
+    } else {
+      a = s.sourceFrom + from2 - s.from;
+      b = s.sourceFrom + to - s.from;
+      selectionFrom = from2;
+      insert = "[" + label + "](<" + command2.href + ">)";
+      parent.content.splice(child, s.text ? 1 : 0, ...textNode(s.text.slice(0, from2 - s.from)), { type: "text", text: label, marks: [{ type: "link", attrs }] }, ...textNode(s.text.slice(to - s.from)));
+    }
+    const merged = [];
+    for (const n of parent.content) {
+      const last = merged.at(-1);
+      if (last && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
+      else merged.push(n);
+    }
+    parent.content = merged;
+    if (insert.length > 4096 || b - a > 4096) return reject();
+    const next = source.slice(0, a) + insert + source.slice(b);
+    if (next.length > 131072) return reject();
+    const projection = projectSource(next);
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject("unsafe-link-content");
+    return { ok: true, source: next, projection, change: { from: a, to: b, insert }, inverseSource: { from: a, to: a + insert.length, insert: source.slice(a, b) }, selection: { from: selectionFrom, to: selectionFrom + label.length } };
+  }
+
   // lib/document-boundary-edit.mjs
-  var reject = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject2 = () => ({ ok: false, code: "unsafe-format-range" });
   var paragraph2 = (content4) => ({ type: "paragraph", content: content4 });
   var item = (content4) => ({ type: "listItem", content: [paragraph2(content4)] });
   var cutsPair = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
+  var mark = (marker) => marker === "`" ? "code" : marker.length === 2 ? "bold" : marker ? "italic" : null;
   var render2 = (pieces) => pieces.map((p) => p.marker + p.text + p.marker).join("");
   function merge(pieces) {
     const result = [];
     for (const p of pieces.filter((p2) => p2.text)) {
-      if (result.length && !!result.at(-1).marker === !!p.marker) result.at(-1).text += p.text;
+      if (result.length && mark(result.at(-1).marker) === mark(p.marker)) result.at(-1).text += p.text;
       else result.push({ ...p });
     }
     return result;
   }
-  var content3 = (pieces) => merge(pieces).map((p) => ({ type: "text", text: p.text, ...p.marker ? { marks: [{ type: "bold" }] } : {} }));
+  var content3 = (pieces) => merge(pieces).map((p) => ({ type: "text", text: p.text, ...p.marker ? { marks: [{ type: mark(p.marker) }] } : {} }));
   function split2(pieces, at) {
     const left = [], right = [];
     for (const p of pieces) {
@@ -33244,9 +33393,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     return [left, right];
   }
   function mapBoundaryEdit(source, p, { action, from: from2, to }, project) {
-    if (from2 !== to) return reject();
+    if (from2 !== to) return reject2();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
-    if (index2 < 0) return reject();
+    if (index2 < 0) return reject2();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     function body(i, rowIndex = null) {
@@ -33255,20 +33404,20 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const row = rowIndex === null ? null : b2.items?.[rowIndex];
       if (rowIndex !== null && !row) return null;
       const spans = p.spans.filter((s) => s.blockIndex === i && (rowIndex === null ? s.itemIndex === void 0 : s.itemIndex === rowIndex));
-      if (!spans.length || spans.some((s) => s.textOffset !== void 0)) return null;
-      const pieces = spans.map((s) => ({ text: s.text, marker: s.bold ? source.slice(s.sourceFrom - 2, s.sourceFrom) : "" }));
+      if (!spans.length || spans.some((s) => s.textOffset !== void 0 || s.link)) return null;
+      const pieces = spans.map((s) => ({ text: s.text, marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : "" }));
       const a2 = row ? row.bodyFrom : b2.sourceFrom, end2 = row ? row.sourceTo : b2.sourceTo;
-      if (pieces.some((s) => s.marker && !["**", "__"].includes(s.marker)) || render2(pieces) !== source.slice(a2, end2)) return null;
+      if (pieces.some((s) => s.marker && !["**", "__", "*", "_", "`"].includes(s.marker)) || render2(pieces) !== source.slice(a2, end2)) return null;
       return { pieces, text: pieces.map((s) => s.text).join(""), a: a2, b: end2, from: row ? row.from : b2.from + 1 };
     }
     let a, b, text5, targetIndex = index2, targetItem = null, offset = 0;
     if (action === "split-paragraph" || action === "join-paragraph") {
       const current = body(index2);
-      if (!current) return reject();
+      if (!current) return reject2();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject();
+      if (cutsPair(current.text, at)) return reject2();
       if (action === "split-paragraph") {
-        if (!current.text) return reject();
+        if (!current.text) return reject2();
         const [left, right] = split2(current.pieces, at);
         a = current.a;
         b = current.b;
@@ -33277,7 +33426,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         targetIndex++;
       } else {
         const previous3 = body(index2 - 1);
-        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject();
+        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject2();
         const pieces = merge([...previous3.pieces, ...current.pieces]);
         a = previous3.a;
         b = current.b;
@@ -33287,11 +33436,11 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         offset = previous3.text.length;
       }
     } else {
-      if (!block.items) return reject();
+      if (!block.items) return reject2();
       const rows = block.items, i = rows.findIndex((r) => from2 >= r.from && from2 <= r.to), current = body(index2, i);
-      if (!current) return reject();
+      if (!current) return reject2();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject();
+      if (cutsPair(current.text, at)) return reject2();
       const items = expected.content[index2].content;
       const remainder = (start2) => ({
         ...structuredClone(node2),
@@ -33299,7 +33448,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         content: items.slice(start2)
       });
       if (action === "split-list" && !current.text) {
-        if (i !== 0 && i !== rows.length - 1) return reject();
+        if (i !== 0 && i !== rows.length - 1) return reject2();
         if (i === 0) {
           a = block.sourceFrom;
           b = rows[1]?.sourceFrom ?? block.sourceTo;
@@ -33329,7 +33478,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
           expected.content.splice(index2, 1, paragraph2(content3(current.pieces)), ...rows.length > 1 ? [remainder(1)] : []);
         } else {
           const previous3 = body(index2, i - 1);
-          if (!previous3) return reject();
+          if (!previous3) return reject2();
           const pieces = merge([...previous3.pieces, ...current.pieces]);
           a = previous3.a;
           b = current.b;
@@ -33338,7 +33487,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
           targetItem = i - 1;
           offset = previous3.text.length;
         }
-      } else return reject();
+      } else return reject2();
     }
     const old = source.slice(a, b);
     let start = 0, end = old.length, nextEnd = text5.length;
@@ -33355,14 +33504,14 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     b = a + end;
     a += start;
     text5 = text5.slice(start, nextEnd);
-    if (text5.length > 4096 || b - a > 4096) return reject();
+    if (text5.length > 4096 || b - a > 4096) return reject2();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > 131072) return reject();
+    if (next.length > 131072) return reject2();
     const projection = project(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject2();
     const target = projection.blocks[targetIndex];
     const position2 = (targetItem === null ? target?.from + 1 : target?.items?.[targetItem]?.from) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject2();
     return {
       ok: true,
       source: next,
@@ -33374,12 +33523,12 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   }
 
   // lib/document-format-edit.mjs
-  var reject2 = () => ({ ok: false, code: "unsafe-format-range" });
-  var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "bold", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph"];
+  var reject3 = () => ({ ok: false, code: "unsafe-format-range" });
+  var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "block-shortcut", "bold", "italic", "code", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph"];
   var paragraph3 = (content4) => ({ type: "paragraph", content: content4 });
   var item2 = (content4) => ({ type: "listItem", content: [paragraph3(content4)] });
   var inline = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
-  var splits2 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
+  var splits3 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   function merge2(nodes) {
     const result = [];
     for (const node2 of nodes.filter((n) => n.text)) {
@@ -33390,41 +33539,57 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     return result;
   }
   function mapFormatEdit(source, command2) {
-    if (!command2 || Object.getPrototypeOf(command2) !== Object.prototype || Object.keys(command2).length !== 3 || Object.keys(command2).some((k) => !["action", "from", "to"].includes(k))) return reject2();
+    if (!command2 || Object.getPrototypeOf(command2) !== Object.prototype) return reject3();
+    if (["set-link", "remove-link"].includes(command2.action)) return mapLinkEdit(source, command2);
+    if (Object.keys(command2).length !== 3 || Object.keys(command2).some((k) => !["action", "from", "to"].includes(k))) return reject3();
     const { action, from: from2, to } = command2;
-    if (!actions.includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject2();
+    if (!actions.includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject3();
     const p = projectSource(source);
     if (["split-list", "join-list", "split-paragraph", "join-paragraph"].includes(action)) return mapBoundaryEdit(source, p, command2, projectSource);
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return reject2();
+    if (index2 < 0) return reject3();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
     const list3 = !!block.items, selected2 = p.spans.find((s) => s.blockIndex === index2 && from2 >= s.from && to <= s.to);
     let a = block.sourceFrom, b = block.sourceTo, text5, offset = from2 - block.from - 1, targetIndex = index2, targetItem = null;
     const nl = source.slice(a, b).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
-    if (action === "bold") {
-      if (!selected2 || from2 === to || selected2.textOffset !== void 0) return reject2();
+    if (action === "block-shortcut") {
+      if (node2.type !== "paragraph" || !selected2 || from2 !== to || selected2.textOffset !== void 0 || node2.content.length !== 1 || selected2.bold || selected2.italic || selected2.code || selected2.link) return reject3();
+      const prefix = selected2.text.slice(0, from2 - selected2.from), body = selected2.text.slice(from2 - selected2.from);
+      if (!/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(prefix) || source.slice(a, b) !== selected2.text) return reject3();
+      a = b = selected2.sourceFrom + prefix.length;
+      text5 = " ";
+      offset = 0;
+      if (prefix[0] === "#") expected.content[index2] = { type: "heading", attrs: { level: prefix.length }, content: inline(body) };
+      else {
+        const ordered = /^\d/.test(prefix);
+        expected.content[index2] = { type: ordered ? "orderedList" : "bulletList", ...ordered ? { attrs: { start: parseInt(prefix, 10) } } : {}, content: [item2(inline(body))] };
+        targetItem = 0;
+      }
+    } else if (["bold", "italic", "code"].includes(action)) {
+      if (!selected2 || selected2.link || from2 === to || selected2.textOffset !== void 0 || ["bold", "italic", "code"].some((mark2) => mark2 !== action && selected2[mark2])) return reject3();
       const start = from2 - selected2.from, end = to - selected2.from, value = selected2.text.slice(start, end);
-      if (splits2(selected2.text, start) || splits2(selected2.text, end) || !value.trim() || value.trim() !== value) return reject2();
+      if (splits3(selected2.text, start) || splits3(selected2.text, end) || !value.trim() || value.trim() !== value) return reject3();
       const parent = spanBlock({ doc: expected }, selected2), child = selected2.inlineIndex ?? selected2.childIndex;
       a = selected2.sourceFrom + start;
       b = selected2.sourceFrom + end;
-      if (selected2.bold) {
-        if (start !== 0 || end !== selected2.text.length) return reject2();
-        a -= 2;
-        b += 2;
+      const marker = action === "bold" ? "**" : action === "italic" ? "*" : "`";
+      if (selected2[action]) {
+        if (start !== 0 || end !== selected2.text.length) return reject3();
+        a -= marker.length;
+        b += marker.length;
         text5 = value;
         parent.content.splice(child, 1, { type: "text", text: value });
       } else {
-        text5 = "**" + value + "**";
-        parent.content.splice(child, 1, ...inline(selected2.text.slice(0, start)), { type: "text", text: value, marks: [{ type: "bold" }] }, ...inline(selected2.text.slice(end)));
+        text5 = marker + value + marker;
+        parent.content.splice(child, 1, ...inline(selected2.text.slice(0, start)), { type: "text", text: value, marks: [{ type: action }] }, ...inline(selected2.text.slice(end)));
       }
       parent.content = merge2(parent.content);
       targetItem = selected2.itemIndex ?? null;
       offset = to - (list3 ? block.items[targetItem].from : block.from + 1);
     } else if (action === "split-heading") {
-      if (node2.type !== "heading" || !selected2 || selected2.bold || node2.content.length !== 1 || from2 !== to) return reject2();
+      if (node2.type !== "heading" || !selected2 || selected2.bold || selected2.italic || selected2.code || selected2.link || node2.content.length !== 1 || from2 !== to) return reject3();
       const at = from2 - selected2.from;
-      if (at === 0 || splits2(selected2.text, at)) return reject2();
+      if (at === 0 || splits3(selected2.text, at)) return reject3();
       a = b = selected2.sourceFrom + at;
       text5 = nl + nl;
       expected.content[index2].content = inline(selected2.text.slice(0, at));
@@ -33432,7 +33597,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       targetIndex = index2 + 1;
       offset = 0;
     } else if (list3) {
-      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject2();
+      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject3();
       const rows = block.items.map((row) => source.slice(row.bodyFrom, row.sourceTo));
       if (action === "paragraph" || action === "bullet-list" && node2.type === "bulletList" || action === "ordered-list" && node2.type === "orderedList") {
         text5 = rows.join(nl + nl);
@@ -33446,11 +33611,11 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         offset = selected2 ? from2 - block.items[targetItem].from : 0;
       }
     } else {
-      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject2();
+      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject3();
       const raw = source.slice(a, b), prefix = node2.type === "heading" ? raw.match(/^#{1,6}[ \t]+/)?.[0] : "";
-      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject2();
+      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject3();
       const body = raw.slice(prefix.length);
-      if (!body && !["bullet-list", "ordered-list"].includes(action) || body.trim() !== body) return reject2();
+      if (body.trim() !== body) return reject3();
       if (action === "paragraph") {
         text5 = body;
         expected.content[index2] = paragraph3(node2.content);
@@ -33463,28 +33628,35 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         targetItem = 0;
       }
     }
-    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject2();
+    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject3();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > 131072) return reject2();
+    if (next.length > 131072) return reject3();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject2();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject3();
     const target = projection.blocks[targetIndex];
-    if (!target) return reject2();
+    if (!target) return reject3();
     const position2 = (targetItem === null ? target.from + 1 : target.items?.[targetItem]?.from) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject2();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject3();
     return {
       ok: true,
       source: next,
       projection,
       change: { from: a, to: b, insert: text5 },
       inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) },
-      selection: { from: action === "bold" ? position2 - (to - from2) : position2, to: position2 }
+      selection: { from: ["bold", "italic", "code"].includes(action) ? position2 - (to - from2) : position2, to: position2 }
     };
   }
 
   // lib/document-edit-controller.mjs
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
+    const shortcut = tr2.getMeta("document-block-shortcut");
+    if (shortcut) {
+      if (shortcut.action !== "block-shortcut") return null;
+      const mapped2 = mapFormatEdit(source, shortcut), schema2 = tr2.doc.type.schema;
+      if (!mapped2.ok || !tr2.before.eq(schema2.nodeFromJSON(projectSource(source).doc)) || !tr2.doc.eq(schema2.nodeFromJSON(mapped2.projection.doc))) return null;
+      return { operation: "format", edit: shortcut, source: mapped2.source, structural: true };
+    }
     const step = tr2.steps[0];
     const json = step.toJSON();
     if (json.stepType !== "replace" || !step.slice) return null;
@@ -33509,9 +33681,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       to--;
       end--;
     }
-    const splits3 = (text5, n) => /[\uD800-\uDBFF]/.test(text5[n - 1] || "") && /[\uDC00-\uDFFF]/.test(text5[n] || "");
-    if (splits3(before.text, from2) || splits3(after.text, from2)) from2--;
-    if (splits3(before.text, to) || splits3(after.text, end)) {
+    const splits4 = (text5, n) => /[\uD800-\uDBFF]/.test(text5[n - 1] || "") && /[\uDC00-\uDFFF]/.test(text5[n] || "");
+    if (splits4(before.text, from2) || splits4(after.text, from2)) from2--;
+    if (splits4(before.text, to) || splits4(after.text, end)) {
       to++;
       end++;
     }
@@ -33613,7 +33785,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
           const item3 = queue[0], revision = confirmed.revision;
           let reply;
           try {
-            reply = await send("edit", { sessionId: initial.sessionId, expectedRevision: revision, ...item3.edit });
+            reply = await send(item3.operation || "edit", { sessionId: initial.sessionId, expectedRevision: revision, ...item3.edit });
           } catch {
             await reconcile(null, "ipc-failed");
             break;
@@ -33654,7 +33826,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         return false;
       }
       const at = tr2.selection.$from;
-      if (mapped.edit.insert === "" && tr2.selection.empty && at.parent.type.name === "paragraph" && !at.parent.content.size && at.depth > 1 && at.node(at.depth - 1).type.name === "listItem") tr2.setStoredMarks(null);
+      if (mapped.edit.insert === "" && tr2.selection.empty && at.parent.type.name === "paragraph" && !at.parent.content.size) tr2.setStoredMarks(null);
       prepared.set(tr2, mapped);
       return true;
     }
@@ -33883,28 +34055,28 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   // lib/document-plain-paste.mjs
   function pastePlainText(view, event, { state, blocked = false, report }) {
     event.preventDefault();
-    const reject3 = (message) => {
+    const reject4 = (message) => {
       report(message, true);
       return true;
     };
     if (!state || blocked || !view.editable || state.confirmed.readOnly || state.locked || state.historyPending || state.pending || state.source !== state.confirmed.source) {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject4("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (view.composing || state.composing || state.compositionInvalid) {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject4("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     let text5;
     try {
       const data = event.clipboardData;
       if (!data || data.files?.length || !Array.from(data.types || []).includes("text/plain")) {
-        return reject3("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u3002\u56FE\u7247\u548C\u6587\u4EF6\u6682\u4E0D\u652F\u6301\u3002");
+        return reject4("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u3002\u56FE\u7247\u548C\u6587\u4EF6\u6682\u4E0D\u652F\u6301\u3002");
       }
       text5 = data.getData("text/plain");
     } catch {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject4("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x09\x0b\x0c\x0e-\x1f\x7f\u2028\u2029]/u.test(text5)) {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      return reject4("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u5236\u8868\u7B26\u548C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
     }
     if (!text5) return true;
     let tr2;
@@ -33913,7 +34085,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const lines = normalized.split(/\n\n?/);
       const canonical = lines.join("\n\n");
       if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical.length > 4096) {
-        return reject3("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+        return reject4("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
       }
       const schema = view.state.schema;
       const slice2 = new Slice(Fragment.fromArray(lines.map((line) => schema.nodes.paragraph.create(null, schema.text(line)))), 1, 1);
@@ -33921,7 +34093,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u540C\u4E00\u666E\u901A\u6BB5\u843D\u6216\u540C\u4E00\u7B80\u5355\u5217\u8868\u5185\uFF0C\u666E\u901A\u6587\u5B57\u4E0E\u7C97\u4F53\u4E4B\u95F4\u652F\u6301\u5355\u884C\u7C98\u8D34\uFF1B\u591A\u884C\u8BF7\u7C98\u8D34\u5230\u666E\u901A\u6BB5\u843D\u3002\u8DE8\u4E0D\u540C\u5217\u8868\u3001\u6807\u9898\u6216\u4EE3\u7801\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject4("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u540C\u4E00\u666E\u901A\u6BB5\u843D\u6216\u540C\u4E00\u7B80\u5355\u5217\u8868\u5185\uFF0C\u666E\u901A\u6587\u5B57\u3001\u7C97\u4F53\u4E0E\u659C\u4F53\u4E4B\u95F4\u652F\u6301\u5355\u884C\u7C98\u8D34\uFF1B\u591A\u884C\u8BF7\u7C98\u8D34\u5230\u666E\u901A\u6BB5\u843D\u3002\u8DE8\u4E0D\u540C\u5217\u8868\u3001\u6807\u9898\u6216\u4EE3\u7801\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     return true;
   }
@@ -33936,7 +34108,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === "listItem";
     const crossItems = inItem && selection.$from.depth === 3 && selection.$to.depth === 3 && selection.$from.node(1) === selection.$to.node(1) && selection.$from.node(2) !== selection.$to.node(2) && selection.$to.parent.type.name === "paragraph";
     if (keyDelete && !crossItems) return false;
-    if (selection.$from.sameParent(selection.$to) && (selection.$from.parent.type.name !== "paragraph" || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => m.type.name === "bold")))) return false;
+    if (selection.$from.sameParent(selection.$to) && (selection.$from.parent.type.name !== "paragraph" || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => ["bold", "italic", "code"].includes(m.type.name))))) return false;
     if (event.inputType === "insertText" && (typeof event.data !== "string" || !event.data)) return false;
     const rejectTarget = () => {
       event.preventDefault();
@@ -34347,6 +34519,147 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     return true;
   }
 
+  // lib/document-block-input.mjs
+  function applyBlockShortcut(view, event, context) {
+    const { controller: controller2, loading: loading2, invalid } = context, s = controller2?.state();
+    if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing || event.keyCode === 229 || view.composing || !view.editable || !s || s.confirmed.readOnly || s.composing || s.compositionInvalid || s.locked || s.historyPending || s.recoveryRecords.length || loading2 || invalid) return false;
+    const { from: from2, to, $from, empty: empty3 } = view.state.selection;
+    if (!empty3 || $from.depth !== 1 || $from.parent.type.name !== "paragraph") return false;
+    const command2 = { action: "block-shortcut", from: from2, to }, mapped = mapFormatEdit(s.source, command2);
+    if (!mapped.ok) return false;
+    const doc3 = view.state.schema.nodeFromJSON(mapped.projection.doc);
+    const tr2 = view.state.tr.replaceWith(0, view.state.doc.content.size, doc3.content);
+    tr2.setSelection(TextSelection.create(tr2.doc, mapped.selection.from, mapped.selection.to));
+    tr2.setStoredMarks(null).setMeta("document-block-shortcut", command2);
+    event.preventDefault();
+    view.dispatch(tr2.scrollIntoView());
+    return true;
+  }
+
+  // lib/document-link-view.mjs
+  function createLinkView({ byId: byId2, context, report }) {
+    const button = byId2("format-link"), dialog = byId2("link-dialog"), form = byId2("link-form");
+    const label = byId2("link-label"), href = byId2("link-href"), error = byId2("link-error"), apply2 = byId2("link-apply"), remove = byId2("link-remove");
+    let captured = null, busy = false, composing = false;
+    const blocked = (c) => !c.controller || !c.editor || c.loading || c.invalid || c.state.confirmed.readOnly || c.state.locked || c.state.pending || c.state.historyPending || c.state.composing || c.state.compositionInvalid || c.state.recoveryRecords.length;
+    const current = () => {
+      const c = context();
+      return captured && c.controller === captured.controller && c.state.confirmed.revision === captured.revision && c.state.source === captured.source && !blocked(c);
+    };
+    const message = (s) => {
+      error.textContent = s;
+    };
+    function open() {
+      const c = context();
+      if (blocked(c) || dialog.open) return false;
+      const selection = { from: c.editor.state.selection.from, to: c.editor.state.selection.to }, range = linkSelection(c.state.source, selection);
+      if (!range) {
+        report("\u8BF7\u5728\u666E\u901A\u6587\u5B57\u4E2D\u9009\u62E9\u94FE\u63A5\u6587\u5B57\uFF0C\u6216\u628A\u5149\u6807\u653E\u5165\u4E00\u4E2A\u5DF2\u6709\u7684\u7B80\u5355\u94FE\u63A5\u3002\u6682\u4E0D\u652F\u6301\u8DE8\u6BB5\u843D\u3001\u8DE8\u683C\u5F0F\u6216\u5D4C\u5957\u94FE\u63A5\u3002", true);
+        return false;
+      }
+      captured = { controller: c.controller, editor: c.editor, revision: c.state.confirmed.revision, source: c.state.source, selection };
+      label.value = range.label;
+      href.value = range.href;
+      remove.hidden = !range.existing;
+      message("");
+      byId2("link-dialog-title").textContent = range.existing ? "\u7F16\u8F91\u94FE\u63A5" : "\u63D2\u5165\u94FE\u63A5";
+      apply2.textContent = range.existing ? "\u5E94\u7528\u4FEE\u6539" : "\u63D2\u5165\u94FE\u63A5";
+      dialog.showModal();
+      (range.label ? href : label).focus();
+      sync();
+      return true;
+    }
+    function close2(restore = true) {
+      if (busy) return;
+      const c = captured, valid = current();
+      dialog.close();
+      captured = null;
+      composing = false;
+      if (valid && c) {
+        if (restore) c.editor.view.dispatch(c.editor.state.tr.setSelection(TextSelection.create(c.editor.state.doc, c.selection.from, c.selection.to)));
+        c.editor.view.focus();
+      }
+    }
+    async function commit(removing = false) {
+      if (busy) return;
+      if (composing) {
+        message("\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u3002");
+        return;
+      }
+      if (!current()) {
+        message("\u6587\u6863\u6216\u9009\u533A\u72B6\u6001\u5DF2\u53D8\u5316\u3002\u8F93\u5165\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u53D6\u6D88\u540E\u91CD\u65B0\u9009\u62E9\u6587\u5B57\u3002");
+        return;
+      }
+      if (!removing && (!label.value.trim() || label.value.length > 512)) {
+        message("\u8BF7\u8F93\u5165 1\u2013512 \u4E2A\u5B57\u7B26\u7684\u94FE\u63A5\u6587\u5B57\u3002");
+        label.focus();
+        return;
+      }
+      if (!removing && !validLinkTarget(href.value)) {
+        message("\u8BF7\u8F93\u5165\u6709\u6548\u7684 http(s)\u3001mailto\u3001\u76F8\u5BF9\u8DEF\u5F84\u6216 #\u6BB5\u843D\u5730\u5740\uFF1B\u5730\u5740\u4E0D\u80FD\u542B\u7A7A\u683C\u3001\u51ED\u636E\u6216\u811A\u672C\u534F\u8BAE\u3002");
+        href.focus();
+        return;
+      }
+      const c = captured, command2 = { action: removing ? "remove-link" : "set-link", ...c.selection, ...removing ? {} : { label: label.value, href: href.value } };
+      busy = true;
+      sync();
+      let ok3 = false;
+      try {
+        ok3 = await c.controller.format(command2);
+      } catch {
+        message("\u64CD\u4F5C\u672A\u786E\u8BA4\uFF0C\u8F93\u5165\u4ECD\u4FDD\u7559\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6587\u6863\u72B6\u6001\u3002");
+      } finally {
+        busy = false;
+        sync();
+      }
+      if (ok3 && context().controller === c.controller) {
+        dialog.close();
+        captured = null;
+        c.editor.view.focus();
+        report(removing ? "\u5DF2\u53D6\u6D88\u94FE\u63A5\uFF0C\u6587\u5B57\u5DF2\u4FDD\u7559\u3002" : "\u94FE\u63A5\u5DF2\u66F4\u65B0\u3002");
+      } else message(["invalid-link-label", "unsafe-link-content", "unsafe-link-range"].includes(c.controller.state().code) ? "\u6B64\u6587\u5B57\u6216\u9009\u533A\u6682\u4E0D\u652F\u6301\u94FE\u63A5\u64CD\u4F5C\u3002\u8BF7\u4F7F\u7528\u5355\u884C\u666E\u901A\u6587\u5B57\uFF0C\u907F\u514D\u5D4C\u5957\u683C\u5F0F\uFF1B\u5F53\u524D\u6B63\u6587\u672A\u88AB\u6B64\u64CD\u4F5C\u6539\u5199\u3002" : "\u64CD\u4F5C\u672A\u786E\u8BA4\u3002\u8F93\u5165\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u68C0\u67E5\u6587\u6863\u72B6\u6001\u540E\u518D\u64CD\u4F5C\u3002");
+    }
+    function sync() {
+      const c = context();
+      button.disabled = blocked(c);
+      button.setAttribute("aria-pressed", String(!!c.editor?.isActive("link")));
+      if (dialog.open) {
+        apply2.disabled = remove.disabled = busy || composing;
+        byId2("link-cancel").disabled = busy;
+        label.disabled = href.disabled = busy;
+      }
+    }
+    button.onpointerdown = (e) => e.preventDefault();
+    button.onclick = open;
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void commit();
+    });
+    remove.onclick = () => void commit(true);
+    byId2("link-cancel").onclick = () => close2();
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      close2();
+    });
+    dialog.addEventListener("keydown", (e) => e.stopPropagation());
+    form.addEventListener("compositionstart", () => {
+      composing = true;
+      sync();
+    });
+    form.addEventListener("compositionend", () => {
+      composing = false;
+      sync();
+    });
+    return { open, sync, isOpen: () => dialog.open, key(view, event) {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (!event.isComposing && event.keyCode !== 229 && !view.composing) open();
+        return true;
+      }
+      return false;
+    } };
+  }
+
   // lib/document-demo-entry.js
   var api = window.documentDemo;
   var byId = (id) => document.getElementById(id);
@@ -34363,6 +34676,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
   var formatView = createFormatView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
+  var linkView = createLinkView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
   var readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id) => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
@@ -34547,6 +34861,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     renderCompositionCopies(s);
     writingShell.sync();
     formatView.sync();
+    linkView.sync();
     findView.sync();
     closeView.sync();
     show();
@@ -34634,15 +34949,17 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         content: projectSource(snapshot.source).doc,
         enableInputRules: false,
         enablePasteRules: false,
-        extensions: [src_default.configure({ undoRedo: false, trailingNode: false }), gate],
+        extensions: [...documentEditorExtensions(), gate],
         editorProps: { attributes: { tabindex: "0" }, handleDOMEvents: {
           keydown: (view, event) => {
+            if (applyBlockShortcut(view, event, { controller, loading, invalid: activeInvalid() })) return true;
             syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
             if (replaceParagraphRangeInput(view, event, {
               state: controller?.state(),
               blocked: activeInvalid() || loading || readOnlyDocument(),
               report: viewerStatus
             })) return true;
+            if (linkView.key(view, event)) return true;
             if (formatView.key(view, event)) return true;
             return false;
           },
@@ -34687,7 +35004,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         } },
         // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
         onTransaction: () => queueMicrotask(() => findView.sync()),
-        onSelectionUpdate: () => formatView.sync(),
+        onSelectionUpdate: () => {
+          formatView.sync();
+          linkView.sync();
+        },
         onUpdate: ({ transaction }) => {
           if (!resetting) controller.accept(transaction);
         }
@@ -34857,6 +35177,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     for (const name of ["open-file", "empty-open", "new-temporary", "documents"]) byId(name).disabled = false;
     loading = false;
     formatView.sync();
+    linkView.sync();
     findView.sync();
     copyActionsView.render();
     writingShell.sync();
@@ -34923,7 +35244,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       if (!candidate || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
       if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error("Invalid copy snapshot");
       const projection = projectSource(candidate.source);
-      const schema = editor?.schema || getSchema([src_default.configure({ undoRedo: false, trailingNode: false })]);
+      const schema = editor?.schema || getSchema([...documentEditorExtensions()]);
       schema.nodeFromJSON(projection.doc).check();
       const previous3 = controller?.state().confirmed;
       navigationError = "";
@@ -34961,7 +35282,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
     }
   }
-  var openReadOnly = () => openDocument(false);
+  var openReadOnly = () => {
+    if (!linkView.isOpen()) return openDocument(false);
+  };
   byId("new-temporary").onclick = () => openDocument(true);
   byId("edit-copy").onclick = () => openDocument(true, true);
   byId("open-file").onclick = openReadOnly;

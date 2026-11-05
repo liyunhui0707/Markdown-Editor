@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.43.0 local WIP checkpoint:** this is not a signed/notarized release or a
+**0.48.0 local WIP candidate:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,14 +15,29 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The installed 0.43.0 candidate extends selection replacement, deletion and single-line paste
-to adjacent items in the same simple list, alongside paragraph/list keys and close.
-The packaged list-item/paragraph editing, exclusive export, read-only reopen and
-restart/draft-recovery workflow passes, as does installed welcome startup.
-All installation bytes are verified; 0.42.0 is retained for rollback.
-Native dialog choices were stubbed in this regression. Native close Cancel and
-complete physical-input acceptance remain unverified; prior native observations
-and failures stay scoped. This is not release acceptance.
+The source candidate includes line-start shortcuts: type `#` through `######`
+then Space for headings, or `-`, `+`, `*`, `1.` / `3)` then Space for flat lists.
+Bare prefixes stay visible until Space; an empty heading accepts text, Enter
+returns it to a paragraph, and Backspace at a heading start removes its format.
+Undo/Redo uses the existing document history. Heading levels 1–6 are also in
+the format menu. This is not general Markdown autoformatting: quotes, fences,
+tasks, nested lists and nested inline marks remain outside this batch.
+The link button or **Cmd+K** opens an insert/edit panel. Select plain text or place
+the caret to insert; place the caret in a simple link to edit its text/address or
+remove the link while retaining its text. Cancel/Escape preserves the document;
+Undo/Redo covers the complete change. Unchanged addresses and existing titles
+retain their source spelling. Links stay inert; cross-link selection/splitting,
+nested marks and title editing remain unsupported. The panel accepts http(s),
+mailto, relative and fragment targets, rejecting script/file protocols, credentials,
+whitespace and control characters. No URL is opened or fetched.
+The installed app is still 0.46.0: it was running, so this batch did not replace
+or close it. A separate unsigned 0.48.0 candidate package is prepared.
+The 0.43.0 checkpoint remains `01a4d7a`; the accumulated formatting work is
+retained in the local 0.48.0 WIP checkpoint.
+399 targeted Node cases and three Pro source Electron workflows pass.
+Packaged source/version checks pass; installed GUI acceptance is pending.
+Air, independent review and full CI were not run for this batch. Native IME and
+historical manual failures are not globally cleared by controlled tests.
 
 With existing development dependencies, start the same UI from source:
 
@@ -94,20 +109,20 @@ write in an independent session. Confirmed writing receives a separate local dra
 backup; the original file stays read-only.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
 source-line boundaries and unsupported structures remain protected. Literal `[`
-and `]` can be typed when they remain ordinary text; edits that create links or
-reference syntax are still refused. Plain-text
+and `]` can be typed when they remain ordinary text; typing that creates links or
+reference syntax is still refused. Use the link panel for explicit link creation. Plain-text
 paste accepts a single line in one supported text range, or up to 32 nonempty
 paragraphs within one plain top-level paragraph (including an empty input slot).
 The installed WIP also replaces or deletes a selection across up to
 32 adjacent plain paragraphs and supports multiline paste over that selection.
 It preserves exact untouched source bytes and one Undo/Redo operation per
 replacement; typing, Enter and Backspace can continue afterward.
-Within a single-source-line paragraph containing plain and bold text, selections
+Within a single-source-line paragraph containing plain, bold, italic and inline-code text, selections
 can also be replaced/deleted or pasted over with a single line. Replacement text
 inherits the format at the start of the selected text (regardless of drag
-direction); at a collapsed bold boundary, typing inherits the left-hand format.
-Undo restores exact original bytes, including `**` versus `__` delimiters.
-With a collapsed caret, Enter also splits a plain/bold paragraph, and Backspace
+direction); at a collapsed marked boundary, typing inherits the left-hand format.
+Undo restores exact original bytes, including `**` versus `__` and `*` versus `_` delimiters.
+With a collapsed caret, Enter also splits a plain/bold/italic/code paragraph, and Backspace
 at the following paragraph's start joins it to a supported previous paragraph.
 Existing source delimiter style and marks are retained; Undo restores exact bytes.
 Cross-format IME replacement remains unsupported; finish composition first.
@@ -121,13 +136,14 @@ are refused as a whole. The native Edit menu includes Paste for system dialogs. 
 replacement and Enter over an existing cross-paragraph selection are not enabled;
 finish input first, and collapse the selection before splitting a paragraph.
 
-The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列表**, selection
-**加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
-reparse it; they do not normalize the whole file. Headings require a nonempty
-single source line. Bold applies within one text leaf; removing it requires the
-whole bold leaf. Lists support up to 32 flat, tight, one-line items containing
-plain/bold text. Select within one item or across adjacent items in that same
-list to replace/delete or paste one line, including plain/bold text. A cross-item
+The compact format bar offers **正文 / 标题 1–6 / 无序列表 / 有序列表**, selection
+**加粗** (Cmd+B), **斜体** (Cmd+I), **行内代码** (Cmd+E), **链接** (Cmd+K), and Undo/Redo. Commands patch a verified source range, then
+reparse it; they do not normalize the whole file. Headings use a supported single
+source line and may start empty. Bold/italic/code applies within one unmarked text leaf; removing it requires the
+whole corresponding marked leaf. Combining marks, partial removal and
+formatting a selection across leaves remain refused. Lists support up to 32 flat, tight, one-line items containing
+plain/bold/italic/code text. Select within one item or across adjacent items in that same
+list to replace/delete or paste one line, including plain/bold/italic/code text. A cross-item
 replacement merges the selected items, retaining their unselected text and marks.
 Replacement inherits the selection's start format (plain when starting at an item's
 end); Undo restores exact bytes, markers and original numbering. Deleting all
@@ -215,8 +231,8 @@ sessions while viewing real files. The eight-session limit is a development
 constraint. Native macOS IME remains unaccepted; this is not daily-writing or
 release sign-off.
 
-This restricted preview formats headings, paragraphs, bold and simple flat lists. Other syntax,
-including HTML, images, links and tables, is displayed as literal text; it does
+This restricted preview formats headings, paragraphs, bold, italic, single-backtick code, simple inline links and flat lists. Other syntax,
+including HTML, images, reference/nested links and tables, is displayed as literal text; it does
 not load external resources. Only UTF-8 regular, non-linked `.md` files up to
 512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,
 not Finder integration or release acceptance. See the

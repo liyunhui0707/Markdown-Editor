@@ -1,5 +1,81 @@
 # Stage History
 
+## 0.48.0 WIP — link creation and address editing workflow (2026-11-05, local checkpoint)
+
+A shared link panel (toolbar / Cmd+K) inserts at a plain selection or caret,
+edits a simple link's label/address and removes the link while keeping text.
+Cancel, Undo/Redo, stale-revision refusal and retained form input are covered.
+Main validates the additional label/href format fields; file authority is unchanged.
+Untouched source and existing titles are preserved, with no URL navigation.
+399 targeted Node and three Pro source Electron workflows PASS. This remains a
+local candidate, not installed acceptance or full CI. Native IME, historical QA
+failures, SEC-01 and release limits remain separate. Next authoring package is
+quotes/basic code blocks, not a new framework or save-policy expansion.
+
+New mapper/view helpers are 54/52 lines. Existing main IPC 309, renderer entry
+438, controller tests 1207 and shared E2E 2714 retain their ownership/harness;
+this bounded addition does not justify an unrelated split. Exact evidence and
+package/installation status are in the phase record.
+
+## 0.47.0 WIP — heading/list typing workflow (2026-11-05, uncommitted)
+
+Line-start markers remain visible, then Space converts headings 1–6 or simple
+flat lists. Empty headings accept typing and can return to paragraphs. Fast
+following text, main-owned Undo/Redo, exact source inverses and export/reopen are
+verified. No serializer, save-policy or file-authority expansion. The roadmap
+now groups delivery by complete writing tasks instead of individual formats.
+381 unique Node cases and two Pro source Electron workflows PASS; package
+source/version checks PASS. Installed app remains running at 0.46.0 and is not
+replaced. Native IME/independent review/full CI/installed GUI remain unverified
+for this candidate. Core helpers stay <300 lines; entry 435/controller tests
+1197/shared E2E 2655 reuse the existing harness, with no unrelated refactor.
+Exact evidence and boundaries are in the phase record.
+
+
+## 0.46.0 WIP — existing link text editing (2026-11-05, uncommitted)
+
+Simple inline-link display text supports typing, selected replacement, single-line
+paste and main-owned Undo/Redo. Address/title bytes stay unchanged. A 20-line
+shared Tiptap configuration uses an inert link mark, without URL navigation or
+automatic linking. Existing projection/mapping/service/save paths are reused.
+360 targeted Node, two Pro source workflows and one packaged workflow PASS.
+Original synthetic bytes/hash and mode 0400 remain intact. Controlled tests do
+not clear native IME/history/release limitations; no Air or independent review.
+Entry 432/controller-test 1168/shared-E2E 2610 lines reuse existing harness and
+ownership; mapping helpers stay below 300. No unrelated refactor or Git action.
+Exact evidence and remaining restrictions are in the phase record.
+
+## 0.45.0 WIP — inline code editing (2026-11-05, uncommitted)
+
+Single-backtick source projection and `</>` / Cmd+E reuse bounded source patches,
+range/boundary edits and main history. No save/IPC authority change. 340 Node, two
+Pro source Electron, two Air source Electron and one packaged workflow PASS;
+installed welcome startup and byte identity PASS;
+controlled tests are not native IME or release acceptance. Code helpers <300
+lines; existing controller tests (1148) and E2E (2554) retain their shared harness.
+Exact scope, limitations and evidence are in the phase record.
+
+## 0.44.0 WIP candidate — selected italic editing (2026-11-05, uncommitted)
+
+Add italic toolbar/Cmd+I and source-preserving simple emphasis projection in
+paragraphs, headings and flat list items. Existing `*`/`_` style, untouched source
+and main-owned Undo/Redo survive typing, single-line range edits and supported
+paragraph/list splits/joins. Applying/removing a format stays within one leaf;
+nested marks and partial removal remain refused. No IPC/File Store/save changes.
+
+A focused test reproduced stale PM marks after deleting a whole italic paragraph;
+extend the existing empty-item stored-mark reset to verified empty paragraphs.
+323 Node, four source Electron, one packaged workflow and installed welcome
+startup PASS; source/package/installation hashes match. Exact 0.43.0 rollback
+retained. Evidence is in the phase record. Native IME/full human acceptance remains NOT VERIFIED.
+Core mapping helpers remain below 300 lines. Existing controller tests (1133),
+shared E2E (2502) and bundled entry are extended with their existing harness,
+without an unrelated split or new test framework.
+
+0.43.0 was checkpointed locally as `01a4d7a` before this work; 21 matching files,
+previous test evidence reused, no remote action. Historical candidate records below
+retain their original context. No 0.44.0 commit/push/merge/tag/release in this task.
+
 ## 0.43.0 WIP candidate — adjacent list-item selection editing (2026-11-05, uncommitted)
 
 Plain/bold selections can replace/delete across adjacent items in one projected

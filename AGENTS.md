@@ -17,15 +17,23 @@ the recovery baseline; do not create a long-lived `develop` branch.
 Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
 Supported edits patch verified source-map ranges and reparse; **do not serialize
 or normalize the whole file**. Originals stay read-only; independently authorized
-copies support paragraphs, headings, bold and simple flat lists. Other structures
+copies support paragraphs, headings, bold, italic, single-backtick inline code, simple inline links and flat lists. Other structures
 remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.43.0 is a local development WIP checkpoint**, not public-release acceptance.
-The preceding 0.41.0 checkpoint is `ca5d927`. Adjacent items within the same simple list support
-plain/bold selection replacement, deletion and single-line paste. Different lists,
-other block boundaries and complex lists remain protected. Native IME and
+Version **0.48.0 is a local development WIP checkpoint**, not public-release acceptance.
+The preceding list-editing checkpoint is `01a4d7a` (0.43.0). Selected italic and inline-code
+formatting reuse existing source-map patches, format toolbar and main-owned history.
+Line-start heading (1–6) and flat-list shortcuts convert on Space through the
+existing queued format/revision path. Bare prefixes stay literal until Space;
+empty headings remain editable. Do not enable unrestricted Tiptap input rules.
+Simple italic, inline-code text and existing simple link labels are editable.
+The link toolbar/Cmd+K panel inserts links, updates label/address or removes the
+link while keeping text. Main revalidates the bounded format command, session,
+revision and projected source; unchanged addresses/titles retain exact bytes.
+Links render inertly, without navigation. Nested
+marks, reference links and complex blocks remain protected. No file overwrite or save-authority change. Native IME and
 historical formal/manual failures are not globally cleared by controlled E2E.
 Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
 is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).

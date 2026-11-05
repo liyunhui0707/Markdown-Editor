@@ -47,20 +47,23 @@
   <details id="document-info" hidden>
     <summary title="文档信息与切换"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
     <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
-      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。暂不支持的 Markdown 格式按原文显示。</p></div>
+      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。已有简单链接可在编辑副本中修改文字，地址不变；暂不支持跨链接替换、删除整个链接或点击打开网页。其他未支持的 Markdown 格式按原文显示。</p></div>
   </details>
 <div id="header-end"><button id="close-current-document" class="icon-button" hidden aria-label="关闭当前文档" title="关闭当前文档（⌘W）">×</button><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
 </header>
 <div id="writing-actions" hidden><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <div id="writing-status" hidden><span id="readonly-badge"></span><output id="backup-summary" role="status" hidden></output></div>
 <div id="format-toolbar" hidden role="toolbar" aria-label="正文格式">
-<select id="format-block" aria-label="段落格式" title="对当前单行段落或整个单层列表应用格式"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="heading-4" disabled>标题 4</option><option value="heading-5" disabled>标题 5</option><option value="heading-6" disabled>标题 6</option><option value="unsupported" disabled>只读结构</option></select>
+<select id="format-block" aria-label="段落格式" title="对当前单行段落或整个单层列表应用格式"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="heading-4">标题 4</option><option value="heading-5">标题 5</option><option value="heading-6">标题 6</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="unsupported" disabled>只读结构</option></select>
 <button id="format-bold" aria-label="加粗" aria-pressed="false" title="选中文字加粗（⌘B）；取消时选中完整粗体">B</button>
+<button id="format-italic" aria-label="斜体" aria-pressed="false" title="选中文字设为斜体（⌘I）；取消时选中完整斜体"><em>I</em></button>
+<button id="format-code" aria-label="行内代码" aria-pressed="false" title="选中文字设为行内代码（⌘E）；取消时选中完整代码">&lt;/&gt;</button>
+<button id="format-link" aria-label="插入或编辑链接" aria-pressed="false" title="插入或编辑链接（⌘K）"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m10 13 4-4M8 15l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M13 9l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/></svg></button>
 <span class="format-divider"></span><button id="format-undo" aria-label="撤销" title="撤销（⌘Z）">↶</button><button id="format-redo" aria-label="重做" title="重做（⌘⇧Z）">↷</button>
 </div>
 <output id="copy-summary-compact" role="status" hidden></output><output id="copy-operation-alert" role="status" hidden></output>
 <div id="confirmed-copy-actions" hidden><div class="copy-action-buttons"><button id="open-confirmed-copy" title="只读打开最近确认的新文件，保留当前草稿">打开已导出文件</button><button id="reveal-confirmed-copy">在 Finder 中显示</button></div><output id="copy-action-status" role="status"></output></div>
-<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：普通段落最多 32 段；单个普通段落或简单列表项内，普通文字与粗体之间支持单行替换，新文字沿用选区起点的格式。连续空段落及其他复杂格式暂不支持。</p>
+<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：普通段落最多 32 段；单个普通段落或简单列表项内，普通文字、粗体与斜体之间支持单行替换，新文字沿用选区起点的格式。连续空段落及其他复杂格式暂不支持。</p>
 <output id="draft-backup-status" role="status" hidden></output>
 <details id="draft-recovery-panel" hidden><summary>本地草稿：恢复与管理</summary>
 <p class="panel-intro">继续上次的写作。恢复时会打开独立副本，原文件不变。</p>
@@ -112,6 +115,14 @@
 <output id="recovery-status"></output><select id="recovery-record" aria-label="Recovery record"></select>
 <button id="discard-recovery" title="Only removes the selected in-memory record; does not change confirmed Markdown.">Discard selected recovery record</button>
 <pre id="recovery"></pre></details>
+<dialog id="link-dialog" class="writing-dialog" aria-labelledby="link-dialog-title">
+<form id="link-form"><h2 id="link-dialog-title">插入链接</h2>
+<label for="link-label">文字</label><input id="link-label" maxlength="512" autocomplete="off" spellcheck="false" placeholder="链接显示的文字">
+<label for="link-href">地址</label><input id="link-href" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://example.com 或 ../文档.md">
+<p class="link-help">点击正文中的链接可继续编辑；不会自动打开网页。</p>
+<p id="link-error" role="status" aria-live="polite"></p>
+<div class="link-dialog-actions"><button type="button" id="link-remove" hidden>取消链接</button><span></span><button type="button" id="link-cancel">取消</button><button type="submit" id="link-apply">插入链接</button></div>
+</form></dialog>
 <dialog id="draft-dialog" class="writing-dialog side-panel" aria-labelledby="draft-dialog-title"><div class="panel-heading"><h2 id="draft-dialog-title">本地草稿</h2><button id="close-draft-dialog" autofocus aria-label="关闭草稿面板">关闭</button></div><div id="draft-dialog-content" class="panel-content"></div></dialog>
 <dialog id="document-details-dialog" class="writing-dialog side-panel" aria-labelledby="document-details-title"><div class="panel-heading"><h2 id="document-details-title">文档与保存详情</h2><button id="close-document-details-dialog" autofocus aria-label="关闭详情面板">关闭</button></div><div id="document-details-content" class="panel-content"><section class="detail-card document-identity"><span class="section-label">当前文档</span><h3 id="details-document-name"></h3><span id="details-document-kind" class="state-pill"></span><p id="details-document-location"></p><dl class="document-facts"><div><dt>已确认修订</dt><dd id="details-document-revision"></dd></div><div><dt>原文字符</dt><dd id="details-document-count"></dd></div></dl></section><section id="details-backup-card" class="detail-card"><h3>本地备份</h3><div id="details-backup-content"></div><details class="panel-help" id="details-writing-help"><summary>备份与编辑范围</summary></details></section></div></dialog>
 <dialog id="copy-confirm-dialog" class="writing-dialog" aria-labelledby="copy-confirm-title"><div class="save-dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 14h8M8 17h5"/></svg></div><p class="section-label">保留一份 Markdown</p><h2 id="copy-confirm-title">另存为新文件</h2><p>选择一个新文件名，保留此刻已确认的内容。已有文件不会被覆盖。</p><p class="save-dialog-note">另存后仍可继续编辑草稿；后续修改不会自动写回新文件。</p></dialog>

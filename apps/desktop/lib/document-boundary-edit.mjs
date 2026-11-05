@@ -2,16 +2,17 @@ const reject = () => ({ok:false,code:'unsafe-format-range'});
 const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
 const cutsPair = (s,n) => /[\uD800-\uDBFF]/.test(s[n-1]||'') && /[\uDC00-\uDFFF]/.test(s[n]||'');
+const mark = marker => marker==='`'?'code':marker.length===2?'bold':marker?'italic':null;
 const render = pieces => pieces.map(p=>p.marker+p.text+p.marker).join('');
 function merge(pieces) {
   const result=[];
   for(const p of pieces.filter(p=>p.text)) {
-    if(result.length && !!result.at(-1).marker===!!p.marker) result.at(-1).text+=p.text;
+    if(result.length && mark(result.at(-1).marker)===mark(p.marker)) result.at(-1).text+=p.text;
     else result.push({...p});
   }
   return result;
 }
-const content = pieces => merge(pieces).map(p=>({type:'text',text:p.text,...(p.marker?{marks:[{type:'bold'}]}:{})}));
+const content = pieces => merge(pieces).map(p=>({type:'text',text:p.text,...(p.marker?{marks:[{type:mark(p.marker)}]}:{})}));
 function split(pieces,at) {
   const left=[],right=[];
   for(const p of pieces) {
@@ -37,10 +38,10 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
     const row=rowIndex===null?null:b.items?.[rowIndex];
     if(rowIndex!==null&&!row)return null;
     const spans=p.spans.filter(s=>s.blockIndex===i&&(rowIndex===null?s.itemIndex===undefined:s.itemIndex===rowIndex));
-    if(!spans.length||spans.some(s=>s.textOffset!==undefined))return null;
-    const pieces=spans.map(s=>({text:s.text,marker:s.bold?source.slice(s.sourceFrom-2,s.sourceFrom):''}));
+    if(!spans.length||spans.some(s=>s.textOffset!==undefined||s.link))return null;
+    const pieces=spans.map(s=>({text:s.text,marker:s.bold||s.italic||s.code?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
     const a=row?row.bodyFrom:b.sourceFrom,end=row?row.sourceTo:b.sourceTo;
-    if(pieces.some(s=>s.marker&&!['**','__'].includes(s.marker))||render(pieces)!==source.slice(a,end))return null;
+    if(pieces.some(s=>s.marker&&!['**','__','*','_','`'].includes(s.marker))||render(pieces)!==source.slice(a,end))return null;
     return {pieces,text:pieces.map(s=>s.text).join(''),a,b:end,from:row?row.from:b.from+1};
   }
   let a,b,text,targetIndex=index,targetItem=null,offset=0;

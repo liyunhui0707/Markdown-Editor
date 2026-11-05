@@ -2,6 +2,38 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Link workflow — 0.48.0 WIP candidate (2026-11-05)
+
+Automated: 399 targeted Node cases and three controlled source Electron workflows
+PASS. The source candidate is not yet the running installed app (0.46.0).
+No human/native-IME pass is claimed. Optional experience after a safe installation:
+
+- Select ordinary text, press Cmd+K, enter an address and apply. With a caret in
+  a simple link, edit its text/address or cancel; cancellation retains the document.
+- Use **取消链接** to keep text without the link; Undo/Redo restores each operation.
+  Clicking a link edits it without opening a browser.
+- Export a new file and reopen: link text/address match, original stays unchanged.
+
+Nested formatting, cross-link ranges and reference links remain protected.
+Controlled composition events do not replace native IME acceptance; historical
+manual failures and existing release limitations are not globally cleared.
+
+## Italic editing — 0.44.0 WIP candidate (2026-11-05)
+
+Automated: 323 focused Node, four controlled source Electron workflows, one
+packaged workflow and installed welcome startup PASS. No human or
+native-IME pass is claimed. Optional short experience on a synthetic document:
+
+- Select plain text, click **I** or press Cmd+I; select the entire italic phrase
+  and repeat to remove it. Reverse selection and Undo/Redo should preserve text.
+- Type in italic text; Enter splits and Backspace rejoins a supported paragraph
+  or simple list item. Delete a whole italic paragraph, then type again.
+- Select text already bold and request italic: explicitly refuse nested marks,
+  keep content and continue with a plain selection.
+- Export a new file and reopen it: italic appears correctly, original unchanged.
+
+Native IME, full physical QA and historical acceptance limits remain separate.
+
 ## Adjacent list-item selections — installed 0.43.0 WIP candidate (2026-11-05)
 
 301 focused Node, four controlled source Electron workflows and one packaged
@@ -2098,3 +2130,47 @@ highlighted/navigable with an explicit limit notice and an accurate total.
 Normal composition pauses navigation. Air composition checks used controlled
 events, **not native macOS IME**. Native IME remains NOT VERIFIED and earlier
 manual/formal FAIL is not cleared. File save/overwrite policies are unchanged.
+
+
+## 0.45.0 inline code V1 — manual acceptance pending
+
+Open a disposable Markdown file and edit its independent copy. Select plain text
+and use `</>` / Cmd+E; type inside the code, Undo/Redo, remove format by selecting
+the entire code span, and switch original/copy. Test simple list code with Enter
+and Backspace. Export to a new file and reopen read-only; original stays unchanged.
+Multi-backtick/nested/multiline code and fenced blocks remain protected. Check
+Chinese IME separately: controlled strings/events do not establish native PASS.
+Automated evidence (340 Node, two source E2E, one packaged workflow) is in the
+phase record. Two Air source workflows subsequently pass after user unlock;
+no native manual acceptance is claimed.
+
+
+## 0.46.0 existing link labels — manual acceptance pending
+
+In a disposable file containing `A [label](https://example.test "title") tail.`,
+open an editing copy, click inside the underlined label, type/replace/paste one
+line, Undo/Redo and switch original/copy. Export a new file and reopen; URL/title
+and original bytes must stay intact. Clicking a link does not navigate. Whole
+label deletion, cross-link edits, nested/reference links and splitting/joining
+link-containing paragraphs/items are refused; later ordinary input still works.
+360 Node, two Pro source workflows and one packaged workflow PASS. Native Chinese
+IME and full physical/manual acceptance are NOT VERIFIED. Air NOT RUN this slice.
+
+
+### Heading/list typing workflow — 0.47.0 candidate (2026-11-05)
+
+Automated source checks passed; physical/native IME and installed-app QA have
+not been performed for this candidate. These are optional acceptance checks,
+not claims of user approval:
+
+1. New draft: type `#` then Space, write a heading, Enter to a paragraph.
+   Repeat with `######`; Undo/Redo the conversion, and Backspace at the heading
+   start to return to body text. An empty heading exits with Enter.
+2. Type `- ` or `1. `; continue typing, Enter for another item, Enter on the
+   empty final item to exit. Existing complex/nested/task blocks stay protected.
+3. Continue Chinese text only after completing system IME selection; shortcuts
+   must not force composition completion. Save as a new file and reopen it.
+   Original files remain unchanged and export does not become in-place saving.
+
+The running 0.46.0 installed app was deliberately left intact. Test the rebuilt
+0.47.0 candidate after safely closing the old app, not the previous installation.

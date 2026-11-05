@@ -9,28 +9,41 @@ complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
 Use short feature branches in the existing Worktree; no long-lived develop
 branch or release/tag is implied.
 
-Local checkpoint `ca5d927` (0.41.0) preserves close, paragraph selection editing
-and paragraph/list boundary keys. The **0.43.0 local WIP checkpoint** on
-`feat/document-close` retains the 0.42.0 single-item slice and adds selection
-replacement, deletion and single-line paste across adjacent items of one simple
-list. Unselected text/marks survive the merge; Undo restores exact source bytes.
-A shortened native input target is refused rather than applied only in part.
+Local checkpoint `01a4d7a` (0.43.0) preserves the two list-selection slices.
+The **0.48.0 local WIP checkpoint** on `feat/document-close` adds a complete
+link insert/edit/remove panel, following heading/list shortcuts, italic and
+inline-code editing. 399 targeted Node cases and three Pro source workflows pass;
+package identity is checked, but the running installed 0.46.0 app is untouched.
+Native IME, full CI, installed GUI and independent review are not established by
+this batch. General overwrite remains blocked by `coordination-required`.
 
-301 focused Node tests, four controlled source Electron workflows and one
-packaged workflow plus installed welcome startup pass. All 528 installed entries
-are verified; 0.42.0 is retained for rollback. Native IME/dialog
-acceptance remains separately incomplete; no new release or remote authority.
+### Delivery goals (updated after user feedback, 2026-11-05)
 
-These two list-editing slices are retained together in a bounded local WIP
-checkpoint. Next add selected italic formatting through the existing source map,
-format toolbar and history; keep complex/nested inline syntax protected.
-Nested/task lists remain deferred. Preserve the accepted appearance, existing
-editor/file-safety architecture and source-patching approach.
+The goal is a local-first Mac Markdown app: write continuously in one WYSIWYG
+surface, retain standard `.md` files and recover work reliably. Preserve the
+accepted visual baseline. Do not return to a Vault/AI/plugin platform or rewrite
+the editor framework. The direction remains correct; delivery has been too
+fragmented into individual marks, with natural Markdown typing lagging behind.
+Group related implementation slices into user-complete writing workflows; test
+small changes internally without asking for a separate user approval per button.
 
-Subsequent work should improve continuous writing and supported Markdown ranges
-in small slices. General overwrite remains blocked until its coordination
-requirements can actually be met. Native IME acceptance, SEC-01 and release gates
-remain separate from packaging/controlled-test passes.
+| Major stage | User outcome / exit criteria | Position |
+| --- | --- | --- |
+| Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
+| Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Current focus; heading/list shortcuts and link panel completed in this candidate, not full-stage acceptance |
+| Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | Next major usability goal; cannot remove overwrite protection to claim completion |
+| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | After core writing; prioritize real document needs |
+| Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
+
+The link package now covers creation, text/address editing, cancellation, removal,
+Undo/Redo and export/reopen. Next, group quotes and basic fenced code into one
+document-writing package: create, edit, exit back to prose, undo and export/reopen.
+Nested structures, code execution and advanced highlighting are outside that package.
+Keep URL navigation/security scope separate from link editing. Use
+workflow-level checkpoints rather than independent mini-stages for each button.
+Native IME, file integrity, SEC-01 and release checks remain continuous gates,
+not issues deferred until the last stage. The accumulated formatting work is retained in a user-authorized local WIP
+checkpoint; no merge or publication is implied.
 
 ## Historical assessment — project recovery audit (2026-10-22)
 

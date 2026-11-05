@@ -605,3 +605,20 @@ test('main invalidation wins over a matched cancellation; a confirmed close cann
     assert.equal((await f.api.snapshot(data)).code, 'unknown-session');
   }
 });
+
+test('link format payloads are revision bound, readonly isolated and exactly reversible',()=>{
+ const f=fixture(),disk=fs.readFileSync(f.file),before=f.document.text,p=projectSource(before).spans[0];
+ const q={operation:'format',sessionId:f.id,expectedRevision:0,action:'set-link',from:p.from,to:p.to,label:'新链接😀',href:'https://example.test/path'};
+ const readonly=f.manager.provision(f.win,f.service.open(f.file).document,'Readonly',{readOnly:true});
+ assert.equal(f.call({...q,sessionId:readonly}).code,'read-only-document');
+ assert.equal(f.manager.request({sender:f.wc,senderFrame:{url:f.frame.url}},q).code,'unauthorized-sender');
+ for(const extra of [{source:'bad'},{path:'/tmp/no'},{inverseSource:{}},{capability:true}])assert.equal(f.call({...q,...extra}).code,'invalid-request');
+ assert.equal(f.call({...q,href:'javascript:alert(1)'}).ok,false);assert.equal(f.document.text,before);
+ assert.equal(f.call({...q,action:'bold'}).ok,false);assert.equal(f.document.revision,0);
+ const r=f.call(q);assert.equal(r.ok,true);assert.equal(r.snapshot.source,before.replace('标题😀','[新链接😀](<https://example.test/path>)'));
+ assert.equal(f.call(q).code,'stale-revision');
+ const undo=f.call({operation:'undo',sessionId:f.id,expectedRevision:1});assert.equal(undo.snapshot.source,before);
+ const redo=f.call({operation:'redo',sessionId:f.id,expectedRevision:2});assert.equal(redo.snapshot.source,r.snapshot.source);
+ assert.equal(f.call({operation:'save',sessionId:f.id,expectedRevision:3}).code,'coordination-required');
+ assert.equal(f.call({operation:'snapshot',sessionId:readonly}).snapshot.source,before);assert.deepEqual(fs.readFileSync(f.file),disk);
+});

@@ -1,3 +1,4 @@
+import { projectInlineLeaf, inlineTextNode } from './document-inline-leaf.mjs';
 import { mapInlineRange } from './document-inline-source.mjs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -35,9 +36,16 @@ export function projectSource(source) {
     position += text.length + 2;
   }
   if (fm) opaque(source.slice(0, fm));
-  for (const node of tree.children) {
+  for (let node of tree.children) {
     let start = node.position.start.offset, end = node.position.end.offset;
     if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
+    // A bare shortcut prefix stays visible until Space. This is a projection
+    // choice only: source bytes are unchanged, including on read-only opens.
+    const pending = source.slice(start, end);
+    if (/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(pending)) node = {
+      type: 'paragraph', position: node.position,
+      children: [{type:'text',value:pending,position:node.position}],
+    };
     const list = projectSimpleList(node, source, position, content.length);
     if (list) {
       const gap = lines(source.slice(previousEnd, start));
@@ -51,10 +59,10 @@ export function projectSource(source) {
       content.push(list.doc); spans.push(...list.spans); position += list.size; previousEnd=end; continue;
     }
     const raw = source.slice(start, end), parts = [];
-    // Literal brackets are safe only when remark keeps exact text leaves. Links,
-    // references and other structural changes still fail the projection check.
+    // Literal brackets and simple inline link labels require exact source leaves.
+    // References and nested/normalized labels remain protected.
     let supported = ['paragraph', 'heading'].includes(node.type) && node.position.start.line === node.position.end.line
-      && !/^(?:[:!]| {4}|\t)/.test(raw) && !/[<>{}\\`$|]/.test(raw);
+      && !/^(?:[:!]| {4}|\t)/.test(raw);
     if (node.type === 'heading' && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
     // Plain soft-wrapped paragraphs share one PM text node. Source line breaks
     // render as spaces with NO editable span; each source line keeps its own range.
@@ -71,14 +79,14 @@ export function projectSource(source) {
       }
       supported = parts.length >= 2 && parts.map(p => p.text).join(' ') === raw.replace(/\r\n|\n|\r/g, ' ');
     } else for (const child of node.children || []) {
-      const bold = child.type === 'strong';
-      const leaf = bold && child.children?.length === 1 ? child.children[0] : child;
-      const a = leaf.position?.start.offset, b = leaf.position?.end.offset;
-      if (leaf.type !== 'text' || !leaf.value || !validText(leaf.value) || source.slice(a, b) !== leaf.value
-          || (bold && !['**', '__'].includes(source.slice(child.position.start.offset, a)))) { supported = false; break; }
-      parts.push({ text: leaf.value, sourceFrom: a, sourceTo: b, bold });
+      const part=projectInlineLeaf(child,source);
+      if(!part){supported=false;break;}
+      parts.push(part);
     }
-    if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold) {
+    if (supported && node.type === 'heading' && !parts.length && /^#{1,6} $/.test(raw)) {
+      parts.push({text:'',sourceFrom:end,sourceTo:end,bold:false});
+    }
+    if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
       // Keep plain-line margin spaces: remark omits them, but a split must not.
       const a = Math.max(source.lastIndexOf('\n', start - 1), source.lastIndexOf('\r', start - 1)) + 1;
       const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
@@ -102,7 +110,7 @@ export function projectSource(source) {
       offset = block.content[0].text.length;
     } else for (const [childIndex, part] of parts.entries()) {
       spans.push({ ...part, from: position + 1 + offset, to: position + 1 + offset + part.text.length, blockIndex, childIndex });
-      block.content.push({ type: 'text', text: part.text, ...(part.bold ? { marks: [{ type: 'bold' }] } : {}) });
+      if (part.text) block.content.push(inlineTextNode(part));
       offset += part.text.length;
     }
     blocks.push({from:position,to:position+offset+2,sourceFrom:start,sourceTo:end});
@@ -120,7 +128,7 @@ export function projectSource(source) {
 function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
   const { from, to, insert } = change, plain = span => {
     const block = projection.doc.content[span.blockIndex];
-    return block.type === 'paragraph' && span.textOffset === undefined && !span.bold && (block.content || []).length <= 1;
+    return block.type === 'paragraph' && span.textOffset === undefined && !span.bold && !span.italic && !span.code && !span.link && (block.content || []).length <= 1;
   };
   const spans = projection.spans.filter(plain), expected = structuredClone(projection.doc);
   // A trusted history separator survives even when a join removes every newline.
@@ -168,7 +176,7 @@ function paragraphReplace(source, projection, change, separator, verify = true) 
       // multiline input still requires nonempty paragraphs.
       || (multiline && (parts.length < 2 || (separator === null && parts.some(p => !p.trim()))))) return null;
   const spans = projection.spans.filter(s => projection.doc.content[s.blockIndex].type === 'paragraph'
-    && s.textOffset === undefined && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
+    && s.textOffset === undefined && !s.bold && !s.italic && !s.code && !s.link && (projection.doc.content[s.blockIndex].content || []).length <= 1);
   const left = spans.find(s => from >= s.from && from <= s.to), right = spans.find(s => to >= s.from && to <= s.to);
   if (!left || !right || left.blockIndex > right.blockIndex
       || (!multiline && left === right)
@@ -230,8 +238,8 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();
   const text = span.text.slice(0, a) + insert + span.text.slice(b);
-  if (!text && (span.textOffset !== undefined || spanBlock(projection, span).type !== 'paragraph'
-      || span.bold || spanBlock(projection, span).content.length > 1)) return unsafe();
+  if (!text && (span.textOffset !== undefined || !['paragraph','heading'].includes(spanBlock(projection, span).type)
+      || span.bold || span.italic || span.code || span.link || spanBlock(projection, span).content.length > 1)) return unsafe();
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > 131072) return unsafe();

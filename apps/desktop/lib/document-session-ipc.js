@@ -162,11 +162,11 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
     const fields = { 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
-      format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action'],
+      format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action', 'label', 'href'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
-    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId', 'action', 'expectedToken', 'copyId'])
+    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId', 'action', 'expectedToken', 'copyId', 'label', 'href'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
     if (['list-drafts', 'restore-draft', 'manage-draft'].includes(payload.operation)) {
@@ -245,7 +245,9 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
           if (s.document.blocked) return reply(failure('conversion-blocked'));
           if (typeof mapFormatEdit !== 'function') return reply(failure('format-unavailable'));
           const before = s.document.text;
-          const mapped = mapFormatEdit(before, { action: payload.action, from: payload.from, to: payload.to });
+          const command={action:payload.action,from:payload.from,to:payload.to};
+          for(const key of ['label','href'])if(Object.hasOwn(payload,key))command[key]=payload[key];
+          const mapped = mapFormatEdit(before, command);
           if (!mapped.ok) return reply(failure(mapped.code));
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok && s.document.text !== before) {

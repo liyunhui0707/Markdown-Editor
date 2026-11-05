@@ -3,6 +3,14 @@ import { projectSource, mapTextEdit } from './document-source-map.mjs';
 
 function transactionEdit(source, tr) {
   if (!tr.docChanged || tr.steps.length !== 1) return null;
+  const shortcut=tr.getMeta('document-block-shortcut');
+  if(shortcut) {
+    if(shortcut.action!=='block-shortcut') return null;
+    const mapped=mapFormatEdit(source,shortcut),schema=tr.doc.type.schema;
+    if(!mapped.ok || !tr.before.eq(schema.nodeFromJSON(projectSource(source).doc))
+        || !tr.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
+    return {operation:'format',edit:shortcut,source:mapped.source,structural:true};
+  }
   const step = tr.steps[0];
   const json = step.toJSON();
   if (json.stepType !== 'replace' || !step.slice) return null;
@@ -90,7 +98,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       while (queue.length && !disposed) {
         const item = queue[0], revision = confirmed.revision;
         let reply;
-        try { reply = await send('edit', { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit }); }
+        try { reply = await send(item.operation || 'edit', { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit }); }
         catch { await reconcile(null, 'ipc-failed'); break; }
         if (disposed) break;
         const next = reply?.snapshot, expected = revision + Number(item.source !== confirmed.source);
@@ -114,11 +122,11 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       if (composition) composition.invalid = true;
       notify(); return false;
     }
-    // A cleared list item has no source mark to inherit. Do not leave PM's
-    // deleted bold mark behind and reject the user's next ordinary keystroke.
+    // A cleared paragraph has no source mark to inherit. Do not leave PM's
+    // deleted format behind and reject the user's next ordinary keystroke.
     const at = tr.selection.$from;
     if (mapped.edit.insert === '' && tr.selection.empty && at.parent.type.name === 'paragraph'
-        && !at.parent.content.size && at.depth > 1 && at.node(at.depth - 1).type.name === 'listItem') tr.setStoredMarks(null);
+        && !at.parent.content.size) tr.setStoredMarks(null);
     prepared.set(tr, mapped); return true;
   }
   function accept(tr) {
