@@ -120,6 +120,59 @@
     }
   });
 
+  // lib/document-close-view.mjs
+  function createCloseView({ api: api2, byId: byId2, context, busy, rerender, closed, report }) {
+    let enabled = false, inFlight = false;
+    const button = byId2("close-current-document");
+    function blocked() {
+      const c = context(), s = c.controller?.state();
+      return !enabled || inFlight || !s || c.loading || c.invalid || c.nativeComposing || s.pending || s.composing || s.compositionInvalid || s.historyPending || s.locked || s.recoveryRecords.length || s.source !== s.confirmed.source;
+    }
+    function sync() {
+      button.hidden = !enabled || !context().controller;
+      button.disabled = !!blocked();
+    }
+    async function close2() {
+      if (blocked() || button.ownerDocument.querySelector("dialog[open]")) return;
+      const c = context(), expected = c.controller.state().confirmed;
+      inFlight = true;
+      busy(true);
+      rerender();
+      try {
+        const result = await api2.closeDocument({ sessionId: expected.sessionId, expectedRevision: expected.revision });
+        if (context().controller !== c.controller || context().selected !== expected.sessionId) return;
+        if (result?.ok === true && result.closed === true && result.sessionId === expected.sessionId && result.requestRevision === expected.revision) await closed(expected.sessionId);
+        else {
+          if (result?.closed === false && result.sessionId === expected.sessionId && result.requestRevision === expected.revision && result.snapshot && !context().invalid) c.controller.refresh(result);
+          const messages = {
+            "close-cancelled": "\u5DF2\u53D6\u6D88\u5173\u95ED\uFF0C\u7EE7\u7EED\u7F16\u8F91\u3002",
+            "close-backup-unverified": "\u672C\u5730\u8349\u7A3F\u5C1A\u672A\u901A\u8FC7\u5B8C\u6574\u6027\u9A8C\u8BC1\uFF0C\u6587\u6863\u672A\u5173\u95ED\u3002\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u4FDD\u7559\u5185\u5BB9\u3002",
+            "unresolved-save-state": "\u6587\u4EF6\u521B\u5EFA\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u6587\u6863\u4FDD\u6301\u6253\u5F00\uFF0C\u8BF7\u5148\u68C0\u67E5\u73B0\u6709\u6587\u4EF6\u3002",
+            "composition-active": "\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u5F53\u524D\u8F93\u5165\uFF0C\u518D\u5173\u95ED\u6587\u6863\u3002"
+          };
+          report(messages[result?.code] || "\u672A\u80FD\u786E\u8BA4\u5173\u95ED\u7ED3\u679C\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF1B\u8BF7\u52FF\u5237\u65B0\u7A97\u53E3\u3002", result?.code !== "close-cancelled");
+        }
+      } catch {
+        report("\u672A\u80FD\u786E\u8BA4\u5173\u95ED\u7ED3\u679C\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF1B\u8BF7\u52FF\u5237\u65B0\u7A97\u53E3\u3002", true);
+      } finally {
+        inFlight = false;
+        busy(false);
+        rerender();
+      }
+    }
+    button.onpointerdown = (event) => {
+      if (blocked()) event.preventDefault();
+    };
+    button.onclick = close2;
+    api2.onCloseRequest(() => {
+      void close2();
+    });
+    return { sync, configure() {
+      enabled = true;
+      sync();
+    } };
+  }
+
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content3) {
     this.content = content3;
@@ -11723,7 +11776,16 @@
         move(event.shiftKey ? -1 : 1);
       }
     }, true);
-    return { sync, configure() {
+    return { sync, reset() {
+      opened = false;
+      bar.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      input.value = "";
+      matches2 = [];
+      total = 0;
+      active = -1;
+      mapped = null;
+    }, configure() {
       enabled = true;
       sync();
     } };
@@ -11877,6 +11939,12 @@
       byId2("show-reading-settings").disabled = !!busy();
       byId2("toggle-document-outline").disabled = !!busy() || !s?.confirmed;
       byId2("close-document-outline").disabled = !!busy();
+      if (!s?.confirmed) {
+        rows = [];
+        mappedDoc = null;
+        mappedSession = null;
+        byId2("outline-list").replaceChildren();
+      }
       const ready = navigable();
       if (ready && (mappedDoc !== editor2.state.doc || mappedSession !== s.confirmed.sessionId)) {
         mappedDoc = editor2.state.doc;
@@ -32789,17 +32857,17 @@ ${prefix}
       selection: { from: selection, to: selection }
     };
   }
-  function paragraphPaste(source, projection, change, separator, verify = true) {
+  function paragraphReplace(source, projection, change, separator, verify = true) {
     const { from: from2, to, insert } = change, multiline = insert.includes("\n");
-    if (!multiline && separator === null) return null;
+    if (!multiline && from2 === to && separator === null) return null;
     const parts = insert.split("\n\n");
-    if (parts.length > 32 || parts.some((p) => !validText(p)) || multiline && (parts.length < 2 || parts.some((p) => !p.trim()))) return null;
+    if (parts.length > 32 || parts.some((p) => !validText(p)) || multiline && (parts.length < 2 || separator === null && parts.some((p) => !p.trim()))) return null;
     const spans = projection.spans.filter((s) => projection.doc.content[s.blockIndex].type === "paragraph" && s.textOffset === void 0 && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
     const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
-    if (!left || !right || left.blockIndex > right.blockIndex || left !== right && separator === null || !multiline && left === right || splits(left.text, from2 - left.from) || splits(right.text, to - right.from)) return null;
+    if (!left || !right || left.blockIndex > right.blockIndex || !multiline && left === right || splits(left.text, from2 - left.from) || splits(right.text, to - right.from)) return null;
     const range = spans.filter((s) => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
     const delimiter = separator ?? (source.match(/\r\n|\n|\r/)?.[0] || "\n").repeat(2);
-    if (range.length !== right.blockIndex - left.blockIndex + 1 || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
+    if (range.length > 32 || range.length !== right.blockIndex - left.blockIndex + 1 || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
     const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from;
     const removed = source.slice(a, b), oldParts = range.map((s, i) => s.text.slice(i ? 0 : from2 - s.from, i === range.length - 1 ? to - s.from : void 0));
     const inverseInsert = oldParts.join("\n\n");
@@ -32815,7 +32883,7 @@ ${prefix}
     if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
     const inverse = { from: from2, to: from2 + insert.length, insert: inverseInsert };
     if (verify) {
-      const back = paragraphPaste(next, nextProjection, inverse, delimiter, false);
+      const back = paragraphReplace(next, nextProjection, inverse, delimiter, false);
       if (!back?.ok || back.source !== source) return unsafe();
     }
     return {
@@ -32840,7 +32908,7 @@ ${prefix}
     if (leaf === null) {
       const paragraph3 = paragraphEdit(source, projection, change, true, paragraphSeparator);
       if (paragraph3) return paragraph3;
-      const paste = paragraphPaste(source, projection, change, paragraphSeparator);
+      const paste = paragraphReplace(source, projection, change, paragraphSeparator);
       if (paste) return paste;
       if (paragraphSeparator !== null) return unsafe();
     }
@@ -33631,8 +33699,30 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject2("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u5355\u884C\u53EF\u5728\u5B89\u5168\u6587\u672C\u8303\u56F4\u5185\u7C98\u8D34\uFF0C\u591A\u6BB5\u8BF7\u5728\u5355\u4E2A\u666E\u901A\u6BB5\u843D\u5185\u7C98\u8D34\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject2("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u53EF\u5728\u5B89\u5168\u6587\u672C\u8303\u56F4\u6216\u76F8\u90BB\u666E\u901A\u6BB5\u843D\u4E4B\u95F4\u7C98\u8D34\uFF1B\u8DE8\u6807\u9898\u3001\u5217\u8868\u3001\u683C\u5F0F\u6216\u4EE3\u7801\u7684\u9009\u533A\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
+    return true;
+  }
+
+  // lib/document-paragraph-input.mjs
+  function replaceParagraphRangeInput(view, event, { state, blocked = false }) {
+    if (!["insertText", "deleteContentBackward", "deleteContentForward"].includes(event.inputType) || event.defaultPrevented || !event.cancelable || event.isComposing || view.composing || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly || state.locked || state.historyPending || state.composing || state.compositionInvalid) return false;
+    const selection = view.state.selection;
+    if (!(selection instanceof TextSelection) || selection.empty || selection.$from.sameParent(selection.$to)) return false;
+    if (event.inputType === "insertText" && (typeof event.data !== "string" || !event.data)) return false;
+    try {
+      const dom = view.dom.ownerDocument.getSelection();
+      if (!dom || dom.rangeCount !== 1 || dom.isCollapsed || !view.dom.contains(dom.anchorNode) || !view.dom.contains(dom.focusNode)) return false;
+      const a = view.posAtDOM(dom.anchorNode, dom.anchorOffset), b = view.posAtDOM(dom.focusNode, dom.focusOffset);
+      if (Math.min(a, b) !== selection.from || Math.max(a, b) !== selection.to) return false;
+      const targets = event.getTargetRanges?.() || [];
+      if (targets.length > 1 || targets.length === 1 && (view.posAtDOM(targets[0].startContainer, targets[0].startOffset) !== selection.from || view.posAtDOM(targets[0].endContainer, targets[0].endOffset) !== selection.to)) return false;
+    } catch {
+      return false;
+    }
+    event.preventDefault();
+    const tr2 = view.state.tr.insertText(event.inputType === "insertText" ? event.data : "").scrollIntoView();
+    view.dispatch(tr2);
     return true;
   }
 
@@ -33889,7 +33979,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         badge.textContent = d.warning ? "\u9700\u8981\u68C0\u67E5" : d.active ? "\u6B63\u5728\u4F7F\u7528" : archived ? "\u5DF2\u5F52\u6863" : d.recoverable ? "\u53EF\u6062\u590D" : "\u65E0\u6CD5\u6062\u590D";
         actions2.className = "draft-actions";
         meta.className = "draft-detail";
-        meta.textContent = `${d.time ? new Date(d.time).toLocaleString() : "\u5907\u4EFD\u65F6\u95F4\u672A\u77E5"} \xB7 ${d.id.slice(0, 8)}` + (Number.isSafeInteger(d.revision) ? ` \xB7 \u4FEE\u8BA2 ${d.revision}` : "") + (d.warning ? " \xB7 \u8F83\u65B0\u8BB0\u5F55\u635F\u574F\u6216\u672A\u786E\u8BA4\uFF0C\u6216\u5B58\u5728\u5F02\u5E38\u65E7\u8BB0\u5F55\uFF1B\u4FDD\u7559\u539F\u8BB0\u5F55\uFF0C\u6682\u505C\u6574\u7406" : "") + (d.active ? " \xB7 \u4F7F\u7528\u4E2D\uFF0C\u5173\u95ED\u7A97\u53E3\u540E\u53EF\u5F52\u6863" : "");
+        meta.textContent = `${d.time ? new Date(d.time).toLocaleString() : "\u5907\u4EFD\u65F6\u95F4\u672A\u77E5"} \xB7 ${d.id.slice(0, 8)}` + (Number.isSafeInteger(d.revision) ? ` \xB7 \u4FEE\u8BA2 ${d.revision}` : "") + (d.warning ? " \xB7 \u8F83\u65B0\u8BB0\u5F55\u635F\u574F\u6216\u672A\u786E\u8BA4\uFF0C\u6216\u5B58\u5728\u5F02\u5E38\u65E7\u8BB0\u5F55\uFF1B\u4FDD\u7559\u539F\u8BB0\u5F55\uFF0C\u6682\u505C\u6574\u7406" : "") + (d.active ? " \xB7 \u4F7F\u7528\u4E2D\uFF0C\u5173\u95ED\u6587\u6863\u540E\u53EF\u5F52\u6863" : "");
         row.append(label, badge, meta);
         if (!archived) {
           const restoreButton = document.createElement("button");
@@ -34128,6 +34218,24 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (editor?.isEditable) editor.view.focus();
     }
   });
+  var closeView = createCloseView({
+    api,
+    byId,
+    context: () => ({ controller, selected, loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
+    busy: (value) => {
+      loading = value;
+    },
+    report: viewerStatus,
+    closed: finishDocumentClose,
+    rerender: () => {
+      if (controller) render2(controller.state());
+      else {
+        writingShell.sync();
+        closeView.sync();
+        show();
+      }
+    }
+  });
   var lifecycleCode = (id) => lifecycles.get(id) === "invalidated" ? "unknown-session" : lifecycles.get(id);
   function show(code3) {
     const s = controller?.state(), current = s?.confirmed;
@@ -34205,6 +34313,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     writingShell.sync();
     formatView.sync();
     findView.sync();
+    closeView.sync();
     show();
   }
   function resetSource(source, selection) {
@@ -34325,6 +34434,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
               event.preventDefault();
               return true;
             }
+            if (replaceParagraphRangeInput(_view, event, {
+              state: controller?.state(),
+              blocked: activeInvalid() || loading || readOnlyDocument()
+            })) return true;
             if (!["historyUndo", "historyRedo"].includes(event.inputType)) return false;
             event.preventDefault();
             void history2(event.inputType === "historyUndo" ? "undo" : "redo");
@@ -34440,6 +34553,12 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     }
   };
   api.onLifecycle(({ sessionId, state }) => {
+    if (state === "open") {
+      lifecycles.delete(sessionId);
+      if (selected === sessionId) navigationError = "";
+      if (controller) render2(controller.state());
+      return;
+    }
     lifecycles.set(sessionId, state);
     if (pendingSession === sessionId) {
       ++switchEpoch;
@@ -34456,6 +34575,61 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       show();
     }
   });
+  async function finishDocumentClose(id) {
+    const options = [...byId("documents").options], index2 = options.findIndex((o) => o.value === id);
+    const next = options[index2 + 1] || options[index2 - 1];
+    options[index2]?.remove();
+    drafts.delete(id);
+    controller?.dispose();
+    controller = null;
+    selected = null;
+    editor?.destroy();
+    editor = null;
+    byId("editor").replaceChildren();
+    findView.reset();
+    writingShell.closePanels();
+    compositionView = null;
+    copyPanelOpen = false;
+    copyMessage = "";
+    ++copyEpoch;
+    navigationError = "";
+    failedSession = null;
+    pendingSession = null;
+    for (const name of [
+      "document-info",
+      "edit-copy",
+      "create-test-copy",
+      "temporary-notice",
+      "writing-status",
+      "copy-summary-compact",
+      "copy-operation-alert",
+      "confirmed-copy-actions",
+      "composition-warning",
+      "composition-status",
+      "composition-copy-panel",
+      "recovery-panel"
+    ]) byId(name).hidden = true;
+    for (const name of ["source", "recovery", "viewer-status"]) byId(name).textContent = "";
+    document.body.dataset.documentState = "empty";
+    document.title = "Markdown";
+    byId("empty-state").hidden = false;
+    for (const name of ["open-file", "empty-open", "new-temporary", "documents"]) byId(name).disabled = false;
+    loading = false;
+    formatView.sync();
+    findView.sync();
+    copyActionsView.render();
+    writingShell.sync();
+    if (next) {
+      byId("documents").value = next.value;
+      await load();
+      if (controller) {
+        byId("document-info").hidden = false;
+        byId("empty-state").hidden = true;
+        document.body.dataset.documentState = "open";
+      }
+    } else byId("empty-new").focus();
+    void draftView.refresh();
+  }
   function viewerStatus(message, notice = false) {
     byId("viewer-status").textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
@@ -34573,6 +34747,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("documents").setAttribute("aria-label", "\u5207\u6362\u5DF2\u6253\u5F00\u6587\u6863");
       writingShell.configure();
       findView.configure();
+      closeView.configure();
       byId("open-file").disabled = false;
       document.title = "Markdown";
     } else byId("connect").disabled = false;

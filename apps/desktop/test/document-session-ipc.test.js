@@ -570,3 +570,38 @@ test('confirmed-copy preload accepts only new readonly snapshots and retains an 
   assert.equal((await next).code, 'copy-action-unknown');
   assert.equal((await f.api.createPersistentCopy(q)).code, 'copy-action-unknown');
 });
+
+
+test('user close blocks composition and pending edits before establishing a fence', async () => {
+  const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 };
+  f.dom.emit('compositionstart'); assert.equal((await f.api.closeDocument(data)).code, 'composition-active');
+  assert.equal(f.pending.length, 0); f.dom.emit('compositionend');
+  const edit = f.api.edit(data); assert.equal((await f.api.closeDocument(data)).code, 'document-busy');
+  assert.equal(f.pending.length, 1); f.pending[0].resolve({ ok: true }); await edit;
+});
+for (const code of ['close-cancelled', 'close-backup-unverified', 'unresolved-save-state']) test(`matched user close refusal resumes only the still-live session: ${code}`, async () => {
+  const f = preloadFixture(), states = [], data = { sessionId: 'a', expectedRevision: 2 };
+  f.api.onLifecycle(s => states.push(s.state)); const closing = f.api.closeDocument(data);
+  assert.equal((await f.api.edit(data)).code, 'close-pending');
+  f.pending[0].resolve({ ...data, requestRevision: 2, ok: false, closed: false, code });
+  assert.equal((await closing).code, code); assert.deepEqual(states, ['close-pending', 'open']);
+  const snapshot = f.api.snapshot({ sessionId: 'a' }); f.pending[1].resolve({ ok: true, snapshot: { sessionId: 'a' } });
+  assert.equal((await snapshot).ok, true);
+});
+for (const fault of ['transport', 'identity', 'revision', 'missing-state']) test(`uncertain user close remains fenced: ${fault}`, async () => {
+  const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 }, closing = f.api.closeDocument(data);
+  if (fault === 'transport') f.pending[0].reject(Error('Synthetic transport failure'));
+  else f.pending[0].resolve({ ok: false, code: 'close-cancelled', sessionId: fault === 'identity' ? 'b' : 'a',
+    requestRevision: fault === 'revision' ? 1 : 2, ...(fault === 'missing-state' ? {} : { closed: false }) });
+  assert.equal((await closing).code, 'close-outcome-unknown');
+  assert.equal((await f.api.edit(data)).code, 'close-outcome-unknown');
+});
+test('main invalidation wins over a matched cancellation; a confirmed close cannot be reused', async () => {
+  for (const ok of [false, true]) {
+    const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 }, closing = f.api.closeDocument(data);
+    f.events.emit('document-demo:invalidated', {}, { sessionId: 'a' });
+    f.pending[0].resolve({ ...data, requestRevision: 2, ok, closed: ok, code: ok ? undefined : 'close-cancelled' });
+    const result = await closing; assert.equal(result.ok, ok);
+    assert.equal((await f.api.snapshot(data)).code, 'unknown-session');
+  }
+});

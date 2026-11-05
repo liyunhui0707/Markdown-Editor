@@ -29,8 +29,22 @@ function createDraftBackups(store, notify = () => {}) {
       token: recovery && !recovery.warning ? recovery.token : null, fingerprint: recovery && !recovery.warning ? recovery.identity : null, label, sequence: 0, pending: false, timer: null };
     entries.set(document, e); if (document.text.length || recovery) changed(document);
   }
+  function verifyForClose(document) {
+    const e = entries.get(document); if (!e) return false;
+    flush(document);
+    if (e.pending || !e.result?.ok || e.confirmed?.revision !== document.revision) return false;
+    try {
+      const recovered = store.recover(e.id);
+      if (recovered.ok && !recovered.warning && recovered.token === e.token
+        && recovered.identity === e.fingerprint && recovered.revision === document.revision
+        && recovered.bytes.equals(document.bytesForSave())) return true;
+    } catch { /* Preserve the live document and every uncertain disk record. */ }
+    e.result = { ok: false, state: 'draft-unverified', code: 'draft-verification-failed' };
+    e.stopped = true; e.sequence++; notify(document, status(document));
+    return false;
+  }
   function release(document) { flush(document); entries.delete(document); }
-  return { attach, changed, status, release, flush,
+  return { attach, changed, status, release, flush, verifyForClose,
     flushAll: () => { for (const doc of entries.keys()) flush(doc); },
     active: id => [...entries.values()].some(e => e.id === id) };
 }

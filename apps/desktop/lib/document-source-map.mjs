@@ -156,23 +156,25 @@ function paragraphEdit(source, projection, change, verify = true, paragraphSepar
     leaf: null, structural: true, inverse, paragraphSeparator, selection: { from: selection, to: selection } };
 }
 
-// Atomic plain paragraph paste. Only main-owned history may replace a range
-// across paragraphs; renderer edits must start and end inside one plain block.
-function paragraphPaste(source, projection, change, separator, verify = true) {
+// Atomic replacement across adjacent plain paragraphs (including multiline paste).
+// Exact source gaps, full projection equality and a byte-exact inverse are required.
+function paragraphReplace(source, projection, change, separator, verify = true) {
   const { from, to, insert } = change, multiline = insert.includes('\n');
-  if (!multiline && separator === null) return null;
+  if (!multiline && from === to && separator === null) return null;
   const parts = insert.split('\n\n');
   if (parts.length > 32 || parts.some(p => !validText(p))
-      || (multiline && (parts.length < 2 || parts.some(p => !p.trim())))) return null;
+      // Only main-owned inverses may reinsert empty selection edges. Renderer
+      // multiline input still requires nonempty paragraphs.
+      || (multiline && (parts.length < 2 || (separator === null && parts.some(p => !p.trim()))))) return null;
   const spans = projection.spans.filter(s => projection.doc.content[s.blockIndex].type === 'paragraph'
     && s.textOffset === undefined && !s.bold && (projection.doc.content[s.blockIndex].content || []).length <= 1);
   const left = spans.find(s => from >= s.from && from <= s.to), right = spans.find(s => to >= s.from && to <= s.to);
   if (!left || !right || left.blockIndex > right.blockIndex
-      || (left !== right && separator === null) || (!multiline && left === right)
+      || (!multiline && left === right)
       || splits(left.text, from - left.from) || splits(right.text, to - right.from)) return null;
   const range = spans.filter(s => s.blockIndex >= left.blockIndex && s.blockIndex <= right.blockIndex);
   const delimiter = separator ?? (source.match(/\r\n|\n|\r/)?.[0] || '\n').repeat(2);
-  if (range.length !== right.blockIndex - left.blockIndex + 1
+  if (range.length > 32 || range.length !== right.blockIndex - left.blockIndex + 1
       || range.some((s, i) => i && source.slice(range[i - 1].sourceTo, s.sourceFrom) !== delimiter)) return null;
   const a = left.sourceFrom + from - left.from, b = right.sourceFrom + to - right.from;
   const removed = source.slice(a, b), oldParts = range.map((s, i) => s.text.slice(i ? 0 : from - s.from, i === range.length - 1 ? to - s.from : undefined));
@@ -188,7 +190,7 @@ function paragraphPaste(source, projection, change, separator, verify = true) {
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   const inverse = { from, to: from + insert.length, insert: inverseInsert };
   if (verify) {
-    const back = paragraphPaste(next, nextProjection, inverse, delimiter, false);
+    const back = paragraphReplace(next, nextProjection, inverse, delimiter, false);
     if (!back?.ok || back.source !== source) return unsafe();
   }
   return { ok: true, source: next, change: { from: a, to: b, insert: text }, projection: nextProjection,
@@ -212,7 +214,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if (leaf === null) {
     const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
     if (paragraph) return paragraph;
-    const paste = paragraphPaste(source, projection, change, paragraphSeparator);
+    const paste = paragraphReplace(source, projection, change, paragraphSeparator);
     if (paste) return paste;
     if (paragraphSeparator !== null) return unsafe();
   }

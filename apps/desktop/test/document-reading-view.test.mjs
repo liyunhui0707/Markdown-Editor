@@ -85,3 +85,11 @@ test('opening settings during composition is refused; display choices leave cont
   byId('reset-reading-settings').onclick();assert.equal(byId('reading-size').value,'17');
   assert.equal(c.editor.state.doc,original);assert.deepEqual({...c.state,composing:undefined},{...before,composing:undefined});
 });
+
+
+test('closing the last document clears outline rows and stale navigation', t => {
+  const {c,byId,view,scroll}=fixture(t), stale=byId('outline-list').children[0];
+  c.state=undefined; c.editor=null; view.sync();
+  assert.equal(byId('outline-list').children.length,0); stale.onclick();
+  assert.equal(scroll.calls,undefined);
+});

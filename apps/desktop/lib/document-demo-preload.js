@@ -8,7 +8,7 @@ document.addEventListener('compositionstart', () => { composing = true; }, true)
 document.addEventListener('compositionend', () => { composing = false; }, true);
 function lifecycle(sessionId, state) {
   if (typeof sessionId !== 'string' || states.get(sessionId) === 'invalidated' || states.get(sessionId) === state) return;
-  states.set(sessionId, state);
+  if (state === 'open') states.delete(sessionId); else states.set(sessionId, state);
   for (const listener of lifecycleListeners) listener({ sessionId, state });
   if (state === 'invalidated') for (const listener of listeners) listener({ sessionId });
 }
@@ -17,6 +17,13 @@ ipcRenderer.on('document-demo:invalidated', (_event, data) => lifecycle(data?.se
 const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
+  const userClosing = operation === 'close-document';
+  if (userClosing) {
+    if (typeof sessionId !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) return { ok: false, code: 'invalid-request' };
+    if (composing) return { ok: false, code: 'composition-active' };
+    if (pending) return { ok: false, code: 'document-busy' };
+    if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: 'ipc-outcome-unknown' };
+  }
   const forking = operation === 'edit-copy' || operation === 'restore-draft';
   const following = operation === 'open-confirmed-copy' || operation === 'reveal-confirmed-copy';
   const managing = operation === 'manage-draft';
@@ -31,7 +38,7 @@ const request = async (operation, data = {}) => {
     if (pending) return { ok: false, code: 'document-busy' };
     copies.add(sessionId);
   } else if (copies.has(sessionId)) return { ok: false, code: 'copy-in-progress' };
-  const closing = operation === 'close' && typeof sessionId === 'string';
+  const closing = (operation === 'close' || userClosing) && typeof sessionId === 'string';
   // Establish the fence synchronously, before IPC can close main's session.
   if (closing) lifecycle(sessionId, 'close-pending');
   let result;
@@ -66,6 +73,15 @@ const request = async (operation, data = {}) => {
   }
   if (following && result.ok && states.has(result.snapshot?.sessionId)) return blocked(result.snapshot.sessionId);
   if (!result || typeof result.ok !== 'boolean') unknown.set(sessionId, 'ipc-outcome-unknown');
+  if (userClosing) {
+    const matched = result && typeof result.ok === 'boolean' && result.sessionId === sessionId
+      && result.requestRevision === data.expectedRevision && result.closed === result.ok;
+    if (!matched) { lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId); }
+    if (result.ok) lifecycle(sessionId, 'invalidated');
+    else if (states.get(sessionId) === 'close-pending' && typeof result.code === 'string') lifecycle(sessionId, 'open');
+    else return blocked(sessionId);
+    return result;
+  }
   if (closing) {
     if (result?.ok === true) lifecycle(sessionId, 'invalidated');
     else {
@@ -101,6 +117,8 @@ contextBridge.exposeInMainWorld('documentDemo', {
   check: data => request('check', data),
   save: data => request('save', data),
   close: data => request('close', data),
+  closeDocument: data => request('close-document', data),
+  onCloseRequest: handler => ipcRenderer.on('document-demo:close-request', () => handler()),
   onInvalidated: handler => {
     if (typeof handler !== 'function') throw TypeError('Invalid lifecycle listener');
     listeners.add(handler);

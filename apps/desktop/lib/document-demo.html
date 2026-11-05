@@ -49,7 +49,7 @@
     <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
       <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。暂不支持的 Markdown 格式按原文显示。</p></div>
   </details>
-<div id="header-end"><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
+<div id="header-end"><button id="close-current-document" class="icon-button" hidden aria-label="关闭当前文档" title="关闭当前文档（⌘W）">×</button><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
 </header>
 <div id="writing-actions" hidden><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <div id="writing-status" hidden><span id="readonly-badge"></span><output id="backup-summary" role="status" hidden></output></div>
@@ -60,7 +60,7 @@
 </div>
 <output id="copy-summary-compact" role="status" hidden></output><output id="copy-operation-alert" role="status" hidden></output>
 <div id="confirmed-copy-actions" hidden><div class="copy-action-buttons"><button id="open-confirmed-copy" title="只读打开最近确认的新文件，保留当前草稿">打开已导出文件</button><button id="reveal-confirmed-copy">在 Finder 中显示</button></div><output id="copy-action-status" role="status"></output></div>
-<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；多段请粘贴到一个普通段落内。连续空段落及复杂格式暂不支持。</p>
+<p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：换行分段，最多 32 段；可替换相邻普通段落的选区。连续空段落及复杂格式暂不支持。</p>
 <output id="draft-backup-status" role="status" hidden></output>
 <details id="draft-recovery-panel" hidden><summary>本地草稿：恢复与管理</summary>
 <p class="panel-intro">继续上次的写作。恢复时会打开独立副本，原文件不变。</p>

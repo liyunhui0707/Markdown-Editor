@@ -47,7 +47,23 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
     expect((await page.evaluate(id => window.documentDemo.save({ sessionId: id, expectedRevision: 0 }), originalId)).ok).toBe(false);
     await page.locator('#edit-copy').click(); const id = await page.locator('#documents').inputValue();
-    await page.locator('#editor p').first().click(); await page.keyboard.press('Home'); await page.keyboard.insertText('Packaged ');
+    // Verify the new range adapter in the actual ASAR/product entry, not source.
+    const rangeBefore = await snapshot(page, id);
+    const selected = await page.locator('#editor .tiptap').evaluate(node => {
+      const paragraphs = node.querySelectorAll('p'), a = paragraphs[0].firstChild, b = paragraphs[1].firstChild;
+      node.focus(); window.getSelection().setBaseAndExtent(b, 7, a, 6);
+      document.dispatchEvent(new Event('selectionchange'));
+      return [node.editor.view.posAtDOM(a, 6), node.editor.view.posAtDOM(b, 7)];
+    });
+    await expect.poll(() => page.locator('#editor .tiptap').evaluate(node => [node.editor.state.selection.from, node.editor.state.selection.to])).toEqual(selected);
+    await page.keyboard.insertText('合并😀 ');
+    const replaced = rangeBefore.source.replace('paragraph.\r\n\r\nSecond ', '合并😀 ');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(replaced);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(rangeBefore.source);
+    await page.keyboard.press('Meta+Shift+z');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(replaced);
+    await page.keyboard.press('End'); await page.keyboard.insertText('Packaged ');
     await expect.poll(async () => (await snapshot(page, id)).source.includes('Packaged ')).toBe(true);
     await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
     await expect(page.locator('#open-confirmed-copy')).toBeVisible();
@@ -86,7 +102,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     expect(result.ok).toBe(true); await close(); passed = true;
     const record = { version: launches[0].identity.version, originalSha256: hash(raw), exportSha256: exported.confirmedCopy.sha256,
       syntheticDraftId: draftId, syntheticDraft: 'archived in private app store', originalUnchanged: true,
-      packaged: true, processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
+      packaged: true, rangeReplacementUndoRedo: true, processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
     await fs.writeFile(info.outputPath('evidence.json'), JSON.stringify(record, null, 2));
   } finally {
     await close();

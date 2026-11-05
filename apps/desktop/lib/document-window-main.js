@@ -60,7 +60,13 @@ app.whenReady().then(async () => {
     } catch { draftError = 'draft-directory-unavailable'; }
   }
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, draftStore, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
+  const manager = createDocumentSessions({ service, draftStore,
+    confirmClose: readOnlyWindow ? async (win, label) => {
+      const result = await dialog.showMessageBox(win, { type: 'question',
+        message: `关闭“${label}”？`, detail: '关闭前会验证本地草稿。正文可从“草稿”恢复；撤销历史与文件导出回执不会随草稿恢复。原文件和已导出的文件保持不变。',
+        buttons: ['取消', '保留草稿并关闭'], defaultId: 0, cancelId: 0, noLink: true });
+      return result.response === 1;
+    } : null, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async win => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: '另存为新的 Markdown 文件？',
         detail: '请选择主文件夹直属的普通本地文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md，已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
         buttons: ['取消', '选择本地文件夹…'], defaultId: 0, cancelId: 0, noLink: true });
@@ -96,7 +102,9 @@ app.whenReady().then(async () => {
     { role: 'appMenu' }, { label: '文件', submenu: [
       { label: '打开 Markdown…', accelerator: 'CmdOrCtrl+O', click: () => {
         if (!win.isDestroyed()) win.webContents.send('document-demo:open-request');
-      } }, { role: 'close' } ] },
+      } }, { label: '关闭当前文档', accelerator: 'CmdOrCtrl+W', click: () => {
+        if (!win.isDestroyed()) win.webContents.send('document-demo:close-request');
+      } }, { role: 'close', label: '关闭窗口', accelerator: 'CmdOrCtrl+Shift+W' } ] },
     { label: '编辑', submenu: [{ role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
   ]));
   win.on('close', event => {

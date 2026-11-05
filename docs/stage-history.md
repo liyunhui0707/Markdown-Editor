@@ -1,5 +1,74 @@
 # Stage History
 
+## 0.39.0 WIP delivery — paragraph range editing (2026-11-05, local checkpoint)
+
+The new user-visible range slice advances package/lock versions to 0.39.0;
+implementation and existing Node tests are unchanged. Reuse 205 Node / three
+Electron passes by fingerprint. Extend the existing packaged test with backward
+cross-paragraph replacement and exact Undo/Redo: one packaged workflow PASS,
+including exclusive export, duplicate-target refusal, read-only reopen, restart
+and own synthetic draft recovery. Installed welcome startup also passes.
+432 source files and 37 packaged project files match; all 528 installed bundle
+entries match. Preserve 0.38.0 and recovery mapping in ignored `.local/`.
+Native dialog choices are stubbed; native IME/close Cancel and full physical-input
+acceptance remain unverified. No commit, remote action or release acceptance.
+The dated source-only status below predates this delivery.
+
+
+## Candidate — ordinary paragraph range editing V1 (2026-11-05, uncommitted)
+
+Adjacent plain paragraph selections can be replaced, deleted or pasted over in
+one source splice/Undo item, followed by continuous typing/split/join. The
+existing source mapper verifies exact gaps, whole projection and inverse bytes;
+headings, marks, lists, opaque blocks and soft-break crossings stay protected.
+A 30-line beforeinput adapter prevents Chromium's observed cross-block DOM
+reparse from touching neighboring code; it retains all controller/IPC guards.
+
+205 focused Node and three final Electron 43.8.7 cases PASS. The latter cover
+range editing/export/reopen and both close regressions; all four app processes
+exit cleanly. Original BOM/CRLF/hash is unchanged. Controlled input/dialogs do
+not clear native IME or historical formal/manual FAIL. Source version remains
+0.38.0; the installed 0.38.0 close build does not contain this new range feature.
+No commit/push/merge/tag. Code size: mapper 244 lines, input adapter 30, renderer
+430, controller tests 904, range tests 51, shared E2E 2232. The existing large
+renderer/E2E retain their lifecycle/harness; only the input adapter is extracted,
+without an unrelated framework split. Detailed evidence is in the phase record.
+
+### Individual close — installed follow-up (2026-11-05)
+
+After the user quit normally, the exact 0.38.0 candidate replaced the installed
+bundle, preserving 0.37.0 and a restore mapping in ignored `.local/`. All 528
+bundle entries match. Installed startup, synthetic typing, Cmd+W's native prompt
+and a restore action were observed. Cancel outcome and exact restored-body/native
+end-to-end verification remain NOT VERIFIED after stale-window/GUI-control
+errors. Do not infer a product defect or full native acceptance. The earlier
+automated close passes remain valid; no unrelated user draft was modified.
+
+## Candidate — individual document close V1 (2026-11-04, uncommitted)
+
+On `feat/document-close`, based on merged main `0ccd941`: header × / Cmd+W
+closes one session. Main verifies owner, revision, resolved file state and latest
+recoverable draft before revoking authority. Cancel keeps history; backup failure
+keeps the document editable and marks backup uncertainty. Unknown IPC outcomes
+remain fenced. Other sessions survive; the last close returns to welcome and
+clears find/outline. No file deletion/overwrite or automatic draft archival.
+
+146 targeted Node passes are reused with unchanged runtime/test fingerprints.
+The 0.38.0 delivery candidate now passes five affected workflows on locked
+Electron 43.8.7, including both close cases, readonly opening, verified export
+shortcuts and dependency rendering. An unsigned arm64 package builds; all 36
+project runtime files match the candidate. Real native close confirmation
+remains NOT VERIFIED: the native GUI control pipe could not start and the
+isolated interaction harness timed out waiting for an action. This is a
+tooling/acceptance gap, not a reproduced close defect. Native IME, current
+feature CI and installed-build acceptance remain separate. No commit or
+installation; installed app remains 0.37.0.
+Existing main/renderer files remain 303/427 lines and shared E2E 2154 lines:
+new close policy/view are separate small modules; retain existing lifecycle and
+fixture mechanisms without an unrelated split. Details and evidence follow in
+the phase record.
+
+
 ## 0.37.1 — bounded dependency gate repair (2026-11-04)
 
 Update DOMPurify to 3.4.17, KaTeX to 0.19.1 (including Mermaid/remark-math

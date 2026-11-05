@@ -124,6 +124,10 @@ export function createReadingView({ byId, context }) {
     byId('show-reading-settings').disabled = !!busy();
     byId('toggle-document-outline').disabled = !!busy() || !s?.confirmed;
     byId('close-document-outline').disabled = !!busy();
+    if (!s?.confirmed) {
+      rows = []; mappedDoc = null; mappedSession = null;
+      byId('outline-list').replaceChildren();
+    }
     const ready = navigable();
     if (ready && (mappedDoc !== editor.state.doc || mappedSession !== s.confirmed.sessionId)) {
       mappedDoc = editor.state.doc; mappedSession = s.confirmed.sessionId;

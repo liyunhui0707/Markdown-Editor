@@ -1,17 +1,28 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-04)
+## Current direction (2026-11-05)
 
 The Document writing workspace is now the default and available as a local
 `Markdown.app`. Preserve the accepted visual baseline and existing file-safety
-boundaries. The short closeout packages current work, corrects stale entry/docs,
-and retires obsolete build artifacts recoverably; it is not a feature expansion
-or release. Git integration first: publish the reviewed development history on
-`feat/document-editor`, integrate through a checked PR to `main`, then use short
-feature branches in the existing Worktree. No release/tag is implied.
-Next product slice: explicit close of an individual open document,
-with current-draft/export status and cancellation, preserving other sessions and
-recoverable backups. Do not implement it as part of packaging.
+boundaries. The default-entry/installation closeout and Git integration are
+complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
+Use short feature branches in the existing Worktree; no long-lived develop
+branch or release/tag is implied.
+
+The 0.39.0 WIP is installed with byte verification and a retained 0.38.0 rollback.
+It includes individual close and selection/replacement/deletion/multiline paste
+across adjacent ordinary paragraphs, with exact source/history preservation.
+205 targeted Node and three isolated Electron passes are reused with matching
+runtime/test fingerprints. One additional packaged range/export/reopen/recovery
+regression and installed welcome startup pass. Native choices were stubbed;
+native close Cancel and complete physical-input acceptance remain incomplete.
+This bounded gap is recorded rather than extending device investigation.
+
+The delivered slice is retained as a 0.39.0 local WIP checkpoint on
+`feat/document-close`; native acceptance gaps remain. Preserve the pre-range
+25-file snapshot for review separation. Next: continuous selection/replacement
+within a paragraph containing plain and bold text, preserving untouched source
+and exact Undo/Redo. No remote action is implied.
 
 Subsequent work should improve continuous writing and supported Markdown ranges
 in small slices. General overwrite remains blocked until its coordination

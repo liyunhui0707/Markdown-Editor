@@ -2,6 +2,7 @@ import { mapFormatEdit } from '../lib/document-format-edit.mjs';
 import test from 'node:test';
 import { syncNativeBackspaceSelection } from '../lib/document-native-selection.mjs';
 import { pastePlainText } from '../lib/document-plain-paste.mjs';
+import { replaceParagraphRangeInput } from '../lib/document-paragraph-input.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -681,7 +682,7 @@ test('multiline paste V1: renderer cannot supply trusted cross-paragraph history
   const h = harness('First.'); h.select(2); paste(h, 'One\nTwo'); await h.controller.idle();
   const before = h.request('snapshot').snapshot, spans = projectSource(before.source).spans;
   const change = { from: spans[0].from + 1, to: spans[1].from + 3, insert: '' };
-  for (const extra of [{}, { paragraphSeparator: '\n\n' }, { leaf: null }]) {
+  for (const extra of [{ paragraphSeparator: '\n\n' }, { leaf: null }]) {
     const result = h.request('edit', { expectedRevision: before.revision, ...change, ...extra });
     assert.equal(result.ok, false); assert.deepEqual(h.request('snapshot').snapshot, before);
   }
@@ -803,4 +804,101 @@ test('list item typing and IME group remain editable and exactly undoable',async
   assert.equal(h.edit(span.from,span.to,'组合'),true);h.controller.endComposition();await h.controller.idle();
   assert.equal(h.document.text,'- First.\r\n- 组合\r\n');assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
   assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,'- First.\r\n- 组合\r\n');
+});
+
+
+for (const insert of ['中文😀', '', '一\n二😀']) test(`paragraph range: real PM replacement, history and continuous writing ${JSON.stringify(insert)}`, async () => {
+  const h = harness('\ufeff---\r\nx: keep\r\n---\r\n\r\nFirst.\r\n\r\nMiddle.\r\n\r\nLast.\r\n\r\n```md\r\nkeep()\r\n```\r\n');
+  const before = h.document.text, other = harness('Independent.');
+  const from = h.span('First.').from + 1, to = h.span('Last.').from + 1;
+  h.select(from, to);
+  if (insert.includes('\n')) assert.deepEqual(paste(h, insert).messages, []);
+  else assert.equal(h.edit(from, to, insert), true);
+  await h.controller.idle();
+  const expected = before.replace('irst.\r\n\r\nMiddle.\r\n\r\nL', insert.replaceAll('\n', '\r\n\r\n'));
+  assert.equal(h.document.text, expected); assert.equal(h.requests.filter(r => r.operation === 'edit').length, 1);
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, before);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, expected);
+  let at = h.state().selection.from; assert.equal(h.edit(at, at, ' next'), true); await h.controller.idle();
+  const typed = h.document.text;
+  at = h.state().selection.from; paragraphCommand(h, splitBlock, at); await h.controller.idle();
+  assert.notEqual(h.document.text, typed);
+  paragraphCommand(h, joinBackward, h.state().selection.from); await h.controller.idle(); assert.equal(h.document.text, typed);
+  assert.equal(other.document.text, 'Independent.'); assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+
+test('paragraph range: empty selection edges restore and renderer metadata remains main-owned', async () => {
+  const h = harness('First.\r\n\r\nMiddle.\r\n\r\nLast.');
+  const before = h.document.text;
+  assert.equal(h.edit(h.span('First.').to, h.span('Last.').from, 'X'), true); await h.controller.idle();
+  assert.equal(h.document.text, 'First.XLast.');
+  assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, before);
+  assert.equal(await h.controller.history('redo'), true); assert.equal(h.document.text, 'First.XLast.');
+});
+
+test('paragraph range: unsupported selection and active composition do not lock later edits', async () => {
+  const h = harness('First.\n\nA **bold** tail.\n\nLast.'), before = h.document.text;
+  assert.equal(h.edit(h.span('First.').from + 1, h.span('Last.').from + 1, 'X'), false);
+  assert.equal(h.requests.length, 0); assert.equal(h.document.text, before);
+  const plain = harness('First.\n\nLast.'); plain.controller.beginComposition();
+  assert.equal(plain.edit(plain.span('First.').from + 1, plain.span('Last.').from + 1, '组合'), false);
+  assert.equal(plain.document.text, 'First.\n\nLast.'); assert.equal(plain.requests.length, 0);
+  plain.controller.endComposition(); await plain.controller.idle();
+  assert.equal(plain.controller.state().composing, false);
+  for (const target of [h, plain]) {
+    const at = target.span('Last.').from; assert.equal(target.edit(at, at, 'Safe '), true); await target.controller.idle();
+    assert.equal(target.document.text.endsWith('Safe Last.'), true);
+  }
+});
+
+for (const failure of ['stale', 'lost']) test(`paragraph range: ${failure} response retains full attempted text`, async () => {
+  const h = harness('First.\n\nMiddle.\n\nLast.');
+  const from = h.span('First.').from + 1, to = h.span('Last.').from + 1;
+  if (failure === 'stale') h.document.edit({ from: 0, to: 0, insert: 'External ', expectedRevision: 0 });
+  else h.dropReplyAfterCommit = true;
+  assert.equal(h.edit(from, to, '新😀'), true); await h.controller.idle();
+  const state = h.controller.state();
+  assert.equal(state.recoveryRecords.length, 1); assert.equal(state.recoveryRecords[0].source, 'F新😀ast.');
+  assert.equal(state.recoveryRecords[0].mainMatchesDraft, failure === 'lost');
+  assert.equal(state.source, h.document.text); assert.deepEqual(fs.readFileSync(h.file), h.disk);
+});
+
+
+function rangeInput(h, type = 'insertText', options = {}) {
+  const a = {}, b = {}, selection = h.state().selection;
+  const dom = { rangeCount: 1, isCollapsed: false, anchorNode: b, anchorOffset: selection.to,
+    focusNode: a, focusOffset: selection.from + (options.mismatch ? 1 : 0) };
+  const view = { get state() { return h.state(); }, editable: true, composing: false, hasFocus: () => true,
+    dom: { ownerDocument: { getSelection: () => dom }, contains: n => n === a || n === b }, posAtDOM: (_, at) => at,
+    dispatch: tr => { if (h.controller.prepare(tr)) h.apply(tr); }, ...options.view };
+  let prevented = false;
+  const event = { inputType: type, data: '新😀', cancelable: true, preventDefault() { prevented = true; }, ...options.event };
+  const handled = replaceParagraphRangeInput(view, event, { state: options.state || h.controller.state(), blocked: !!options.blocked });
+  return { handled, prevented };
+}
+
+for (const type of ['insertText', 'deleteContentBackward', 'deleteContentForward']) test(`paragraph range: native beforeinput ${type} uses one verified edit`, async () => {
+  const h = harness('First.\r\n\r\nLast.\r\n\r\n```md\r\nkeep [x]\r\n```'), before = h.document.text;
+  h.select(h.span('First.').from + 1, h.span('Last.').from + 1);
+  assert.deepEqual(rangeInput(h, type), { handled: true, prevented: true }); await h.controller.idle();
+  assert.equal(h.document.text, before.replace('irst.\r\n\r\nL', type === 'insertText' ? '新😀' : ''));
+  assert.equal(h.requests.length, 1); assert.equal(await h.controller.history('undo'), true); assert.equal(h.document.text, before);
+});
+
+test('paragraph range: native input respects composition, focus/selection and operation guards', () => {
+  const h = harness('First.\n\nLast.'); h.select(h.span('First.').from + 1, h.span('Last.').from + 1);
+  for (const options of [{ mismatch: true }, { blocked: true }, { view: { composing: true } },
+    { view: { editable: false } }, { view: { hasFocus: () => false } }, { event: { isComposing: true } },
+    { event: { data: null } }, { event: { cancelable: false } }, { event: { defaultPrevented: true } },
+    { event: { getTargetRanges: () => [{ startOffset: 1, endOffset: 1 }] } },
+    ...['locked', 'historyPending', 'composing', 'compositionInvalid'].map(key => ({ state: { ...h.controller.state(), [key]: true } })),
+    { state: { ...h.controller.state(), confirmed: { ...h.controller.state().confirmed, readOnly: true } } }]) {
+    assert.deepEqual(rangeInput(h, 'insertText', options), { handled: false, prevented: false });
+  }
+  for (const type of ['insertCompositionText', 'insertReplacementText', 'insertParagraph', 'insertFromPaste']) {
+    assert.deepEqual(rangeInput(h, type), { handled: false, prevented: false });
+  }
+  assert.equal(h.requests.length, 0); assert.equal(h.document.text, 'First.\n\nLast.');
+  h.select(h.span('First.').from, h.span('First.').to);
+  assert.deepEqual(rangeInput(h), { handled: false, prevented: false });
 });

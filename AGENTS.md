@@ -9,9 +9,9 @@ This file provides guidance to Codex when working with code in this repository.
 `lib/document-window-main.js`. Both `npm run dev` and the local `Markdown.app`
 use it. `main.js` / `npm run dev:legacy` retain the old Vault application solely
 for historical development; the dedicated document package excludes that runtime.
-Use the explicitly approved branch. `feat/document-editor` collects the existing
-Document baseline for integration; subsequent work uses short feature branches
-from `main`. A Worktree directory name is not its current Git branch. Preserve
+Use the explicitly approved branch. PR #138 integrated the Document baseline
+into `main` on 2026-11-04; subsequent work uses short feature branches from `main`.
+A Worktree directory name is not its current Git branch. Preserve
 the recovery baseline; do not create a long-lived `develop` branch.
 
 Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
@@ -22,7 +22,7 @@ remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.37.1 is a development WIP**, not public-release acceptance. Native IME and
+Version **0.39.0 is a local development WIP checkpoint**, not public-release acceptance. Native IME and
 historical formal/manual failures are not globally cleared by controlled E2E.
 Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
 is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).

@@ -1,3 +1,4 @@
+import { createCloseView } from './document-close-view.mjs';
 import { createFindPlugin, createFindView } from './document-find-view.mjs';
 import { createReadingView } from './document-reading-view.mjs';
 import { createFormatView } from './document-format-view.mjs';
@@ -10,6 +11,7 @@ import { createCopyActionsView } from './document-copy-actions-view.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
+import { replaceParagraphRangeInput } from './document-paragraph-input.mjs';
 import { createWritingShell } from './document-writing-shell.mjs';
 import { createDraftView } from './document-draft-view.mjs';
 import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
@@ -90,6 +92,11 @@ const testCopyView = createTestCopyView({ api, byId,
   busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
   focus: () => { if (editor?.isEditable) editor.view.focus(); },
 });
+const closeView = createCloseView({ api, byId,
+  context: () => ({ controller, selected, loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
+  busy: value => { loading = value; }, report: viewerStatus, closed: finishDocumentClose,
+  rerender: () => { if (controller) render(controller.state()); else { writingShell.sync(); closeView.sync(); show(); } },
+});
 const lifecycleCode = id => lifecycles.get(id) === 'invalidated' ? 'unknown-session' : lifecycles.get(id);
 function show(code) {
   const s = controller?.state(), current = s?.confirmed;
@@ -140,7 +147,7 @@ function render(s) {
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); show();
+  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); formatView.sync(); findView.sync(); closeView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -229,6 +236,8 @@ function install(snapshot) {
           if (event.inputType === 'insertParagraph' && (event.isComposing || _view.composing || controller?.state().composing)) {
             event.preventDefault(); return true;
           }
+          if (replaceParagraphRangeInput(_view, event, { state: controller?.state(),
+            blocked: activeInvalid() || loading || readOnlyDocument() })) return true;
           if (!['historyUndo', 'historyRedo'].includes(event.inputType)) return false;
           event.preventDefault(); void history(event.inputType === 'historyUndo' ? 'undo' : 'redo'); return true;
         },
@@ -291,7 +300,14 @@ for (const operation of ['check', 'save']) byId(operation).onclick = async () =>
   finally { loading = false; if (active === controller) render(active.state()); }
 };
 api.onLifecycle(({ sessionId, state }) => {
-  lifecycles.set(sessionId, state); // No blocked ID returns to open on this page.
+  // Only a matched, authoritative user-close refusal can release its pending fence.
+  if (state === 'open') {
+    lifecycles.delete(sessionId);
+    if (selected === sessionId) navigationError = '';
+    if (controller) render(controller.state());
+    return;
+  }
+  lifecycles.set(sessionId, state);
   if (pendingSession === sessionId) {
     ++switchEpoch; loading = false; switching = false; pendingSession = null;
     failedSession = sessionId;
@@ -300,6 +316,28 @@ api.onLifecycle(({ sessionId, state }) => {
   else if (selected === sessionId) navigationError = state === 'invalidated' ? 'session-invalidated' : state;
   if (controller) render(controller.state()); else { writingShell.sync(); show(); }
 });
+async function finishDocumentClose(id) {
+  const options = [...byId('documents').options], index = options.findIndex(o => o.value === id);
+  const next = options[index + 1] || options[index - 1];
+  options[index]?.remove(); drafts.delete(id);
+  controller?.dispose(); controller = null; selected = null;
+  editor?.destroy(); editor = null; byId('editor').replaceChildren();
+  findView.reset(); writingShell.closePanels();
+  compositionView = null; copyPanelOpen = false; copyMessage = ''; ++copyEpoch;
+  navigationError = ''; failedSession = null; pendingSession = null;
+  for (const name of ['document-info', 'edit-copy', 'create-test-copy', 'temporary-notice', 'writing-status',
+    'copy-summary-compact', 'copy-operation-alert', 'confirmed-copy-actions', 'composition-warning',
+    'composition-status', 'composition-copy-panel', 'recovery-panel']) byId(name).hidden = true;
+  for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
+  document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
+  for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
+  loading = false; formatView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync();
+  if (next) {
+    byId('documents').value = next.value; await load();
+    if (controller) { byId('document-info').hidden = false; byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; }
+  } else byId('empty-new').focus();
+  void draftView.refresh();
+}
 function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
@@ -386,7 +424,7 @@ api.onReady(data => {
     byId('document-header').hidden = false; byId('empty-state').hidden = false; byId('empty-open').disabled = false;
     byId('writing-actions').hidden = false; byId('new-temporary').disabled = false;
     byId('documents').hidden = true; byId('documents').setAttribute('aria-label', '切换已打开文档');
-    writingShell.configure(); findView.configure();
+    writingShell.configure(); findView.configure(); closeView.configure();
     byId('open-file').disabled = false; document.title = 'Markdown';
   } else byId('connect').disabled = false;
 });

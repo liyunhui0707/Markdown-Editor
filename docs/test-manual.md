@@ -2,6 +2,54 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Ordinary paragraph range editing — installed 0.39.0 WIP (2026-11-05)
+
+205 targeted Node / three final controlled Electron passes are reused; one new
+packaged range/export/reopen/recovery regression and installed welcome startup
+pass. All 528 installed bundle entries match; 0.38.0 is retained for rollback.
+Native dialog choices in the packaged regression were stubbed; physical range
+input and native close Cancel are not newly accepted. Optional bounded check:
+select from the middle of one plain paragraph into the next, replace/delete,
+Undo/Redo, then type and split/join. Try multiline plain-text paste over the same
+range. A selection across a heading, bold span or code block must be rejected
+without preventing the next safe edit. Original files stay read-only.
+Native Chinese composition is not covered by these controlled input checks.
+
+## Individual document close — installed follow-up (2026-11-05)
+
+0.38.0 is now installed and byte-verified, with a preserved 0.37.0 rollback.
+Ordinary launch, a real Cmd+W prompt and a restore action were observed on a
+synthetic draft. A Cancel click returned a stale-window error; the next observed
+state does not establish Cancel semantics. Exact restored-body verification also
+remains incomplete. Native Cancel/full installed-flow acceptance is NOT VERIFIED;
+do not replace that gap with the controlled close E2E passes. The earlier
+historical record below describes the pre-install attempt, not current installation.
+
+## Individual document close — source candidate (2026-11-04)
+
+Automated: main/session/preload guards, cancel/history retention, verified draft
+recovery, empty welcome/find/outline reset, backup-directory replacement refusal,
+continued editing/Undo after refusal and unchanged original bytes. The native
+confirmation choice is stubbed in E2E (five affected workflows passed on
+Electron 43.8.7). A separate native-close attempt could not operate the
+dialog because the GUI control pipe failed to start; its wait timed out.
+Real close confirmation and native IME remain NOT VERIFIED. The unsigned
+0.38.0 package is byte-checked but has not replaced installed 0.37.0 or been
+accepted through an ordinary packaged GUI launch. Historical formal/manual
+FAIL is not cleared.
+
+When accepting a build containing this candidate, use a disposable document:
+
+1. Open an original and edit a copy. Cmd+W → Cancel must keep text and Undo/Redo.
+2. Cmd+W → Keep draft and close should select the remaining document. Restore
+   from 草稿 and check the text; previous Undo/export authority is not restored.
+3. Close the final read-only document: welcome remains, window stays open.
+4. During real Chinese composition, closure must wait for confirmed/cancelled
+   input; after completion it should work. Cmd+Shift+W retains the window guard.
+
+No request to repeat unrelated manual QA. Existing originals/exports must remain
+unchanged; unknown file-creation or backup results require retaining the window.
+
 ## Current Document application — 0.37.0 local WIP (2026-11-04)
 
 - **Observed by Codex:** ordinary macOS launch of `~/Applications/Markdown.app`

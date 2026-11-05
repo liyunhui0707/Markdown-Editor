@@ -161,7 +161,7 @@ for (const nl of ['\n', '\r\n', '\r']) test(`multiline paste V1: atomic source s
   assert.equal(back.ok, true); assert.equal(back.source, source);
   const redo = mapTextEdit(back.source, change, r.leaf, r.paragraphSeparator);
   assert.equal(redo.source, r.source);
-  assert.equal(mapTextEdit(r.source, r.inverse).ok, false, 'cross-paragraph inverse is history-only');
+  assert.equal(mapTextEdit(r.source, r.inverse).source, source, 'ordinary range is also safe without trusted history fields');
 });
 test('multiline paste V1: empty slots preserve terminal newline and surrounding source', () => {
   for (const source of ['', '\n', '\n\nTail.', 'Before.\r\n\r\n']) {
@@ -171,7 +171,7 @@ test('multiline paste V1: empty slots preserve terminal newline and surrounding 
     assert.equal(mapTextEdit(r.source, r.inverse, r.leaf, r.paragraphSeparator).source, source);
   }
 });
-test('multiline paste V1: forbidden structure, ambiguous whitespace and untrusted cross-block edits reject atomically', () => {
+test('multiline paste V1: forbidden structure and ambiguous whitespace reject atomically', () => {
   for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```\ncode\n```']) {
     const span = projectSource(source).spans[0];
     assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
@@ -180,7 +180,7 @@ test('multiline paste V1: forbidden structure, ambiguous whitespace and untruste
     assert.equal(mapTextEdit('Normal.', { from: 2, to: 2, insert }).ok, false, JSON.stringify(insert));
   }
   const source = 'First.\n\nSecond.', spans = projectSource(source).spans;
-  assert.equal(mapTextEdit(source, { from: spans[0].from + 1, to: spans[1].from + 1, insert: 'One\n\nTwo' }).ok, false);
+  assert.equal(mapTextEdit(source, { from: spans[0].from + 1, to: spans[1].from + 1, insert: 'One\n\nTwo' }).source, 'FOne\n\nTwoecond.');
 });
 
 

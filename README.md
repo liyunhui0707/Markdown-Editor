@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.37.1 development WIP:** the installed app is not a signed/notarized release or a
+**0.39.0 local WIP checkpoint:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,7 +15,13 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The installed 0.37.0 bundle has not yet received the 0.37.1 dependency updates.
+The installed 0.39.0 WIP includes individual document close and ordinary-paragraph
+range editing. All installation bytes are verified; 0.38.0 is retained for rollback.
+The packaged range replacement/Undo/Redo, exclusive export, read-only reopen and
+restart/draft-recovery workflow passes, as does installed welcome startup.
+Native dialog choices were stubbed in this regression. Native close Cancel and
+complete physical-input acceptance remain unverified; prior native observations
+and failures stay scoped. This is not release acceptance.
 
 With existing development dependencies, start the same UI from source:
 
@@ -42,6 +48,15 @@ the document title to see its full name and directory. Press Escape or click out
 Escape returns focus to the title when focus was inside the menu. On narrow windows the
 sidebar becomes an overlay. The welcome page offers New and Open. Opened original
 files cannot be edited or saved.
+
+**Installed WIP candidate (`feat/document-close`):** click the header
+× or press **Cmd+W** to close only the current document. Read-only originals close
+without writes. Editing copies offer Cancel or Keep draft and close; closing
+requires a verified backup of their latest confirmed body. Cancellation retains
+text and Undo/Redo. Recovery restores the body, not old history or export receipts.
+Unfinished input, uncertain exports or unverified backups prevent closing. The
+last document returns to the welcome page; **Cmd+Shift+W** closes the window using
+the existing window guard. Closing does not delete or archive drafts or files.
 
 The second integration batch adds a real **文档大纲** on the right: click a heading
 to scroll to it without changing the caret or document. It lists supported headings
@@ -82,12 +97,19 @@ and `]` can be typed when they remain ordinary text; edits that create links or
 reference syntax are still refused. Plain-text
 paste accepts a single line in one supported text range, or up to 32 nonempty
 paragraphs within one plain top-level paragraph (including an empty input slot).
+The installed WIP also replaces or deletes a selection across up to
+32 adjacent plain paragraphs and supports multiline paste over that selection.
+It preserves exact untouched source bytes and one Undo/Redo operation per
+replacement; typing, Enter and Backspace can continue afterward.
 A clipboard newline or one blank separator becomes a paragraph boundary, using
 the document's existing newline style. One paste is one Undo/Redo item. The 4096
 UTF-16 limit applies before and after conversion; clipboard HTML is ignored.
-Leading/trailing blank lines, consecutive empty paragraphs, cross-block selections,
-multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
-are refused as a whole. The native Edit menu includes Paste for system dialogs.
+Leading/trailing blank lines, consecutive empty paragraphs, selections crossing
+headings/lists/formatting/protected blocks or source soft breaks, mixed or ambiguous
+paragraph separators, multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
+are refused as a whole. The native Edit menu includes Paste for system dialogs. Cross-paragraph IME
+replacement and Enter over an existing cross-paragraph selection are not enabled;
+finish input first, and collapse the selection before splitting a paragraph.
 
 The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列表**, selection
 **加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
