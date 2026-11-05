@@ -11,7 +11,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
   const fixture = createHomeFixture('Writing-synthetic-E2E-');
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'document-installed-qa-'));
   const original = path.join(root, 'Installed synthetic.md'), target = path.join(fixture.dir, 'export.md');
-  const raw = Buffer.from('\ufeff# Installed synthetic\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.\r\n');
+  const raw = Buffer.from('\ufeff# Installed synthetic\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.\r\n\r\nAlpha **bold** omega.\r\n');
   await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
   const env = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
   for (const key of ['TMPDIR', 'TMP', 'TEMP']) if (process.env[key]) env[key] = process.env[key];
@@ -63,6 +63,44 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await expect.poll(async () => (await snapshot(page, id)).source).toBe(rangeBefore.source);
     await page.keyboard.press('Meta+Shift+z');
     await expect.poll(async () => (await snapshot(page, id)).source).toBe(replaced);
+    // Mixed plain/bold selection must retain source markers and exact history in the ASAR.
+    const inlineSelected = await page.locator('#editor .tiptap').evaluate(node => {
+      const p = node.querySelectorAll('p')[1], a = p.firstChild, b = p.querySelector('strong').firstChild;
+      node.focus(); window.getSelection().setBaseAndExtent(a, 3, b, 2);
+      document.dispatchEvent(new Event('selectionchange'));
+      return [node.editor.view.posAtDOM(a, 3), node.editor.view.posAtDOM(b, 2)];
+    });
+    await expect.poll(() => page.locator('#editor .tiptap').evaluate(node => [node.editor.state.selection.from, node.editor.state.selection.to])).toEqual(inlineSelected);
+    await page.keyboard.insertText('新😀');
+    const inlineReplaced = replaced.replace('ha **bo', '新😀**');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(inlineReplaced);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(replaced);
+    await page.keyboard.press('Meta+Shift+z');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(inlineReplaced);
+    const caret = async (selector, offset) => {
+      const at = await page.locator(selector).evaluate((p, offset) => {
+        const root = p.closest('.tiptap'), n = p.firstChild;
+        root.focus(); window.getSelection().setBaseAndExtent(n, offset, n, offset);
+        document.dispatchEvent(new Event('selectionchange'));
+        return root.editor.view.posAtDOM(n, offset);
+      }, offset);
+      await expect.poll(() => page.locator('#editor .tiptap').evaluate(n => n.editor.state.selection.from)).toBe(at);
+    };
+    const boundaryKey = async (key, expected) => {
+      await page.keyboard.press(key); await expect.poll(async () => (await snapshot(page, id)).source).toBe(expected);
+    };
+    await caret('#editor strong', 1);
+    const paragraphSplit = inlineReplaced.replace('**ld**', '**l**\r\n\r\n**d**');
+    await boundaryKey('Enter', paragraphSplit); await boundaryKey('Backspace', inlineReplaced);
+    await boundaryKey('Meta+z', paragraphSplit); await boundaryKey('Meta+Shift+z', inlineReplaced);
+    await page.locator('#format-block').selectOption('bullet-list');
+    const listed = inlineReplaced.replace('Alp新😀', '- Alp新😀');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(listed);
+    await caret('#editor li strong', 1);
+    await boundaryKey('Enter', listed.replace('**ld**', '**l**\r\n- **d**'));
+    await boundaryKey('Backspace', listed);
+    await caret('#editor li p', 0); await boundaryKey('Backspace', inlineReplaced);
     await page.keyboard.press('End'); await page.keyboard.insertText('Packaged ');
     await expect.poll(async () => (await snapshot(page, id)).source.includes('Packaged ')).toBe(true);
     await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
@@ -102,7 +140,8 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     expect(result.ok).toBe(true); await close(); passed = true;
     const record = { version: launches[0].identity.version, originalSha256: hash(raw), exportSha256: exported.confirmedCopy.sha256,
       syntheticDraftId: draftId, syntheticDraft: 'archived in private app store', originalUnchanged: true,
-      packaged: true, rangeReplacementUndoRedo: true, processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
+      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true,
+      processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
     await fs.writeFile(info.outputPath('evidence.json'), JSON.stringify(record, null, 2));
   } finally {
     await close();

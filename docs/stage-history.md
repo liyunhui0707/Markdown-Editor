@@ -1,5 +1,62 @@
 # Stage History
 
+## 0.41.0 local WIP checkpoint — continuous writing (2026-11-05)
+
+Retains the two candidate slices below in one bounded checkpoint. All 25 files
+matched the installed/tested candidate before documentation-only status updates.
+Local diff/readiness review found no new confirmed P0/P1; runtime, tests and
+version 0.41.0 are unchanged. Reuse 237 distinct focused Node, four controlled
+source Electron and one packaged workflow passes plus installed startup.
+Native IME, full physical/manual acceptance and historical release gates remain
+open. This preserves work; it is not merge or release sign-off. No remote action,
+new dependency, installation or external Reviewer invocation in this closeout.
+
+## 0.41.0 WIP candidate — paragraph/list boundaries (2026-11-05, uncommitted)
+
+Enter splits and Backspace joins supported plain/bold paragraphs and flat list
+items. First-item Backspace returns that item to a paragraph, retaining the list
+remainder. Empty paragraphs can start lists; first/last empty items can exit.
+Middle empty-item exit remains refused: blank paragraphs alone cannot separate
+same-kind Markdown lists without changing structure or adding hidden syntax.
+
+A 114-line helper extends existing source commands, full projection verification
+and main-owned inverse history. The format mapper shrinks to 90 lines; key view
+65; renderer remains 430. Controller tests 989, boundary tests 116, shared E2E
+2374 and packaged E2E 150 reuse their existing harness. No unrelated split or
+File Store/IPC authorization change.
+
+237 distinct focused Node tests, four source Electron workflows, one packaged
+boundary/export/reopen/recovery workflow and installed startup PASS. 436 source
+files / 39 packaged runtime files and 528 installed entries match. 0.40.0 rollback
+and source snapshot retained. Native IME/dialog and historical formal/manual
+acceptance gaps stay open. No new checkpoint, push/merge/tag/release or Reviewer.
+
+## 0.40.0 WIP candidate — plain/bold selection editing (2026-11-05, uncommitted)
+
+0.39.0 is retained in local checkpoint `b12e2fd`. This new feature allows replacement,
+deletion and single-line plain-text paste across plain/bold spans in one ordinary
+single-source-line paragraph. Text inherits the selected start's mark; boundary
+typing inherits the left mark. A bounded token patch and reparse preserve all
+untouched source; main-owned inverse patches reuse exact hash-guarded history.
+No File Store, overwrite authorization or whole-file serializer change.
+
+216 focused Node, three distinct controlled source Electron workflows, one
+packaged mixed-range/export/reopen/recovery workflow and installed startup PASS.
+The first mixed E2E used an invalid noneditable-block endpoint; the browser
+clamped the selection. The corrected test crosses the block to an editable tail,
+asserts the actual PM selection, and verifies whole-operation refusal. Preserve
+both logs; this was a test-fixture correction, not a product-safety bypass.
+434 source files / 38 packaged runtime files and all 528 installed bundle entries
+match. Installed 0.40.0 has a complete 0.39.0 rollback under ignored `.local/`.
+Native IME/close Cancel/full physical-input acceptance and historical failures
+remain scoped/open. Not signed, not release acceptance, no new feature commit.
+
+Size: new mapper 55 lines; existing source map 249, beforeinput adapter 33,
+session IPC 307, controller tests 949, new matrix tests 65, shared E2E 2308 and
+packaged E2E 127. The IPC/history additions reuse existing authorization/rollback;
+existing large tests keep their harness instead of adding a framework split.
+See the phase record for hashes and exact local evidence paths.
+
 ## 0.39.0 WIP delivery — paragraph range editing (2026-11-05, local checkpoint)
 
 The new user-visible range slice advances package/lock versions to 0.39.0;

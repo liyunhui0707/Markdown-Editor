@@ -267,8 +267,12 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
           if (removed.length > 4096) return reply(failure('history-range-limit'));
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok && s.document.text !== before) {
-            s.undo.push({ before: sourceHash(before), after: sourceHash(s.document.text), redo: change, leaf: mapped.leaf, paragraphSeparator: mapped.paragraphSeparator || null,
-              undo: mapped.inverse || { from: change.from, to: change.from + change.insert.length, insert: removed } });
+            s.undo.push(mapped.inverseSource
+              ? { sourcePatch: true, before: sourceHash(before), after: sourceHash(s.document.text),
+                undo: mapped.inverseSource, redo: mapped.change,
+                undoSelection: { from: change.from, to: change.to }, redoSelection: mapped.selection }
+              : { before: sourceHash(before), after: sourceHash(s.document.text), redo: change, leaf: mapped.leaf, paragraphSeparator: mapped.paragraphSeparator || null,
+                undo: mapped.inverse || { from: change.from, to: change.from + change.insert.length, insert: removed } });
             if (s.undo.length > 64) s.undo.shift();
             s.redo = [];
             backups?.changed(s.document);
@@ -281,7 +285,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
           if (!entry) return reply(failure('history-empty'));
           const fromHash = undoing ? entry.after : entry.before, toHash = undoing ? entry.before : entry.after;
           if (sourceHash(s.document.text) !== fromHash) return reply(failure('history-diverged'));
-          const change = entry[payload.operation], mapped = entry.format
+          const change = entry[payload.operation], mapped = (entry.format || entry.sourcePatch)
             ? { ok: true, source: s.document.text.slice(0, change.from) + change.insert + s.document.text.slice(change.to),
               change, selection: entry[undoing ? 'undoSelection' : 'redoSelection'] }
             : mapTextEdit(s.document.text, change, entry.leaf, entry.paragraphSeparator);

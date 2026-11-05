@@ -1,6 +1,7 @@
+import { mapBoundaryEdit } from './document-boundary-edit.mjs';
 import { projectSource, spanBlock } from './document-source-map.mjs';
 const reject = () => ({ok:false,code:'unsafe-format-range'});
-const actions = ['paragraph','heading-1','heading-2','heading-3','bold','bullet-list','ordered-list','split-list','join-list','split-heading'];
+const actions = ['paragraph','heading-1','heading-2','heading-3','bold','bullet-list','ordered-list','split-list','join-list','split-heading','split-paragraph','join-paragraph'];
 const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
 const inline = text => text ? [{type:'text',text}] : [];
@@ -20,7 +21,9 @@ export function mapFormatEdit(source, command) {
       || Object.keys(command).some(k=>!['action','from','to'].includes(k))) return reject();
   const {action,from,to}=command;
   if(!actions.includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
-  const p=projectSource(source), index=p.blocks.findIndex(b=>b && from>b.from && to<b.to);
+  const p=projectSource(source);
+  if(['split-list','join-list','split-paragraph','join-paragraph'].includes(action)) return mapBoundaryEdit(source,p,command,projectSource);
+  const index=p.blocks.findIndex(b=>b && from>b.from && to<b.to);
   if(index<0) return reject();
   const block=p.blocks[index], node=p.doc.content[index], expected=structuredClone(p.doc);
   const list=!!block.items, selected=p.spans.find(s=>s.blockIndex===index && from>=s.from && to<=s.to);
@@ -48,33 +51,6 @@ export function mapFormatEdit(source, command) {
     a=b=selected.sourceFrom+at;text=nl+nl;
     expected.content[index].content=inline(selected.text.slice(0,at));
     expected.content.splice(index+1,0,paragraph(inline(selected.text.slice(at))));targetIndex=index+1;offset=0;
-  } else if(action==='split-list'||action==='join-list') {
-    if(!list||!selected||from!==to||selected.bold) return reject();
-    const i=selected.itemIndex,row=block.items[i],textNode=node.content[i].content[0];
-    if(textNode.content.length>1 || splits(selected.text,from-selected.from)) return reject();
-    const at=from-selected.from,items=expected.content[index].content;
-    if(action==='split-list') {
-      if(!selected.text) {
-        // Exit only the last empty item. Earlier items and all following source remain intact.
-        if(i!==items.length-1) return reject();
-        a=i ? block.items[i-1].sourceTo : block.sourceFrom;b=row.sourceTo;text=i?nl+nl:'';
-        if(i) { items.pop(); expected.content.splice(index+1,0,paragraph([]));targetIndex=index+1; }
-        else expected.content.splice(index,1,paragraph([]));
-        offset=0;
-      } else {
-        a=b=selected.sourceFrom+at;
-        const marker=node.type==='orderedList'?`${Math.min(999999999,node.attrs.start+i+1)}${row.marker.trim().at(-1)} `:row.marker;
-        text=nl+marker; items.splice(i,1,item(inline(selected.text.slice(0,at))),item(inline(selected.text.slice(at))));
-        targetItem=i+1;offset=0;
-      }
-    } else {
-      if(i===0||at!==0) return reject();
-      const previous=node.content[i-1].content[0];
-      if(previous.content.some(n=>n.marks?.length)) return reject();
-      const left=previous.content.map(n=>n.text).join('');
-      a=block.items[i-1].sourceTo;b=row.bodyFrom;text='';
-      items.splice(i-1,2,item(inline(left+selected.text)));targetItem=i-1;offset=left.length;
-    }
   } else if(list) {
     if(!['paragraph','bullet-list','ordered-list'].includes(action)) return reject();
     const rows=block.items.map(row=>source.slice(row.bodyFrom,row.sourceTo));
@@ -92,7 +68,7 @@ export function mapFormatEdit(source, command) {
     const raw=source.slice(a,b),prefix=node.type==='heading'?raw.match(/^#{1,6}[ \t]+/)?.[0]:'';
     if(prefix===undefined || /[\r\n]/.test(raw)) return reject();
     const body=raw.slice(prefix.length);
-    if(!body || body.trim()!==body) return reject();
+    if((!body && !['bullet-list','ordered-list'].includes(action)) || body.trim()!==body) return reject();
     if(action==='paragraph') {text=body;expected.content[index]=paragraph(node.content);}
     else if(action.startsWith('heading-')) {text='#'.repeat(Number(action.at(-1)))+' '+body;expected.content[index]={type:'heading',attrs:{level:Number(action.at(-1))},content:node.content};}
     else {

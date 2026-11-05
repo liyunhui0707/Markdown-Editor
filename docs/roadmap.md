@@ -9,20 +9,23 @@ complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
 Use short feature branches in the existing Worktree; no long-lived develop
 branch or release/tag is implied.
 
-The 0.39.0 WIP is installed with byte verification and a retained 0.38.0 rollback.
-It includes individual close and selection/replacement/deletion/multiline paste
-across adjacent ordinary paragraphs, with exact source/history preservation.
-205 targeted Node and three isolated Electron passes are reused with matching
-runtime/test fingerprints. One additional packaged range/export/reopen/recovery
-regression and installed welcome startup pass. Native choices were stubbed;
-native close Cancel and complete physical-input acceptance remain incomplete.
-This bounded gap is recorded rather than extending device investigation.
+Local checkpoint `b12e2fd` (0.39.0) preserves close/ordinary-paragraph editing.
+The **0.41.0 local WIP checkpoint** on `feat/document-close` retains both the
+installed 0.40.0 mixed-range slice and the 0.41.0 paragraph/list boundary slice:
+Enter/Backspace with plain/bold text, first-item return to paragraph, first/last
+empty-item exit and an empty-paragraph list start where structurally representable.
+The previous 0.40.0 snapshot and installed app are retained for rollback.
 
-The delivered slice is retained as a 0.39.0 local WIP checkpoint on
-`feat/document-close`; native acceptance gaps remain. Preserve the pre-range
-25-file snapshot for review separation. Next: continuous selection/replacement
-within a paragraph containing plain and bold text, preserving untouched source
-and exact Undo/Redo. No remote action is implied.
+237 distinct focused Node tests pass (236-test regression plus one added capacity
+case; the final 16-test boundary file passes). Four controlled source Electron
+workflows, one packaged workflow and installed startup pass. Native IME/dialog
+acceptance remains separately incomplete; no new release or remote authority.
+
+These two slices are retained together as a local WIP, without claiming new
+human/native-IME acceptance. Next: selection replacement and single-line
+plain-text paste within one simple list item, including plain/bold text. Defer
+cross-item ranges and nested/task lists. Keep the accepted appearance and existing
+editor/file-safety architecture; do not add a new serializer or save system.
 
 Subsequent work should improve continuous writing and supported Markdown ranges
 in small slices. General overwrite remains blocked until its coordination

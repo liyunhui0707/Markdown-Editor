@@ -1,3 +1,4 @@
+import { mapInlineRange } from './document-inline-source.mjs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
@@ -221,6 +222,10 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if (!validText(insert)) return unsafe();
   const matches = projection.spans.filter(s => from >= s.from && to <= s.to && (!leaf
     || (s.blockIndex === leaf.blockIndex && s.childIndex === leaf.childIndex && s.bold === leaf.bold)));
+  if (leaf === null && (matches.length !== 1 || (!insert && from < to && matches[0].from === from && matches[0].to === to))) {
+    const inline = mapInlineRange(source, projection, change, projectSource);
+    if (inline) return inline;
+  }
   if (matches.length !== 1) return unsafe(); // ambiguous insertion between marks
   const span = matches[0], a = from - span.from, b = to - span.from;
   if (splits(span.text, a) || splits(span.text, b)) return unsafe();

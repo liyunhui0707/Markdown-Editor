@@ -2230,3 +2230,145 @@ test('paragraph range V1 replaces selections, continues writing and reopens an e
       clipboard: 'controlled ClipboardEvent', openDialog: 'stubbed', area }));
   }, info, null, true, false, false, null, { root: path.join(area, 'reopen-drafts') });
 });
+
+// Real lifecycle/IPC, with only synthetic files and controlled dialog choices.
+test('inline range V1 edits mixed bold text, continues typing and exports exact source', async ({}, info) => {
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'inline-range-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
+  let receipt,bytes,original,raw;
+  await usingDemo(async({app,page,root,snapshot,settled})=>{
+    original=path.join(root,'inline-original.md');
+    raw=Buffer.from('\ufeff# Keep\r\n\r\nAlpha **bold** omega.\r\n\r\n```md\r\nkeep **bytes**\r\n```\r\n\r\nTail.\r\n');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const before=(await snapshot(id)).snapshot.source;
+    const source=async()=>(await snapshot(id)).snapshot.source;
+    const range=async(from,to,backward=false)=>{
+      const positions=await page.locator('#editor p').first().evaluate((p,[from,to,backward])=>{
+        const editor=p.closest('.tiptap');editor.focus();
+        const resolve=offset=>{const walker=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let n;
+          while(n=walker.nextNode()){if(offset<=n.length)return[n,offset];offset-=n.length;}throw Error('Range outside synthetic paragraph');};
+        const [a,x]=resolve(from),[b,y]=resolve(to),s=window.getSelection();
+        s.setBaseAndExtent(backward?b:a,backward?y:x,backward?a:b,backward?x:y);
+        document.dispatchEvent(new Event('selectionchange'));
+        return[editor.editor.view.posAtDOM(a,x),editor.editor.view.posAtDOM(b,y)];
+      },[from,to,backward]);
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+    };
+    const undo=async expected=>{await page.keyboard.press('Meta+z');await settled();expect(await source()).toBe(expected);};
+    await range(3,8,true);await page.keyboard.insertText('新😀');await settled();
+    const replaced=before.replace('ha **bo','新😀**');expect(await source()).toBe(replaced);
+    await page.keyboard.type('Z');await settled();const continued=replaced.replace('**ld**','Z**ld**');expect(await source()).toBe(continued);
+    await undo(replaced);await undo(before);
+    await page.keyboard.press('Meta+Shift+z');await settled();expect(await source()).toBe(replaced);
+    await undo(before);
+    await range(8,13);await page.keyboard.type('X');await settled();
+    expect(await source()).toBe(before.replace('ld** om','X**'));await undo(before);
+    await range(6,10);await page.keyboard.press('Backspace');await settled();
+    expect(await source()).toBe(before.replace('**bold**',''));await undo(before);
+    await range(0,6);await page.keyboard.press('Backspace');await settled();
+    expect(await source()).toBe(before.replace('Alpha ',''));await undo(before);
+    await range(3,8);
+    const paste=async text=>page.locator('#editor .tiptap').evaluate((n,text)=>{
+      const data=new DataTransfer();data.setData('text/plain',text);data.setData('text/html','<b>NOT USED</b>');
+      n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));
+    },text);
+    await paste('保留😀');await settled();const pasted=before.replace('ha **bo','保留😀**');expect(await source()).toBe(pasted);
+    await undo(before);await range(3,8);await paste('One\nTwo');await settled();expect(await source()).toBe(before);
+    await expect(page.locator('#viewer-status')).toContainText('未粘贴');
+    const protectedRange=await page.locator('#editor .tiptap').evaluate(n=>{
+      n.focus();const ps=n.querySelectorAll('p'),a=ps[0].firstChild,b=ps[ps.length-1].firstChild;
+      window.getSelection().setBaseAndExtent(a,1,b,2);document.dispatchEvent(new Event('selectionchange'));
+      return[n.editor.view.posAtDOM(a,1),n.editor.view.posAtDOM(b,2)];
+    });
+    await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(protectedRange);
+    await page.keyboard.insertText('REFUSE');await settled();expect(await source()).toBe(before);
+    await range(3,8);await paste('保留😀');await settled();expect(await source()).toBe(pasted);
+    await selectDocument(page,originalId);await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    expect((await snapshot(originalId)).snapshot.source).toBe(before);
+    await selectDocument(page,id);await page.locator('#format-undo').click();await settled();expect(await source()).toBe(before);
+    await page.locator('#format-redo').click();await settled();expect(await source()).toBe(pasted);
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const after=(await snapshot(id)).snapshot;receipt=after.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes.equals(Buffer.from('\ufeff'+pasted))).toBe(true);expect(hash(bytes)).toBe(receipt.sha256);
+    expect(after.dirty).toBe(true);expect((await fs.readFile(original)).equals(raw)).toBe(true);
+    await captureTestWindow(app,info.outputPath('inline-range.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const reopened=(await snapshot(await page.locator('#documents').inputValue())).snapshot;
+    expect(Buffer.from('\ufeff'+reopened.source).equals(bytes)).toBe(true);expect(hash(await fs.readFile(original))).toBe(hash(raw));
+    console.log('inline-range-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIme:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+// Keyboard-driven boundary commands, verified against main source and disk bytes.
+test('writing boundaries V1 splits joins and exits lists with exact export reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'writing-boundaries-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
+  let receipt,bytes,raw,original;
+  await usingDemo(async({app,page,root,snapshot})=>{
+    original=path.join(root,'boundaries-original.md');
+    raw=Buffer.from('\ufeff# Keep\r\n\r\nAlpha **bold** omega.\r\n\r\n- First **bold** tail.\r\n- Next.\r\n- \r\n- End.\r\n\r\n```md\r\nKEEP []\r\n```\r\n');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+    const caret=async(selector,n,offset)=>{
+      const at=await page.locator(selector).nth(n).evaluate((p,offset)=>{
+        const root=p.closest('.tiptap'),w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let node,chosen=p,pos=0;
+        while(node=w.nextNode()){chosen=node;pos=Math.min(offset,node.length);if(offset<=node.length)break;offset-=node.length;}
+        root.focus();window.getSelection().setBaseAndExtent(chosen,pos,chosen,pos);document.dispatchEvent(new Event('selectionchange'));
+        return root.editor.view.posAtDOM(chosen,pos);
+      },offset);
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>n.editor.state.selection.from)).toBe(at);
+    };
+    const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+    await caret('#editor .tiptap > p',0,8);
+    const split=before.replace('**bold**','**bo**\r\n\r\n**ld**');
+    await key('Enter',split);await key('Backspace',before);
+    await key('Meta+z',split);await key('Meta+Shift+z',before);
+    await caret('#editor li p',0,8);
+    const listSplit=before.replace('First **bold**','First **bo**\r\n- **ld**');
+    await key('Enter',listSplit);await key('Backspace',before);
+    await caret('#editor li p',0,0);
+    const lifted=before.replace('- First **bold** tail.\r\n','First **bold** tail.\r\n\r\n');
+    await key('Backspace',lifted);await key('Meta+z',before);
+    await caret('#editor li p',2,0);await page.keyboard.press('Enter');
+    await expect(page.locator('#viewer-status')).toContainText('空项退出仅支持首项或末项');expect(await source()).toBe(before);
+    await page.keyboard.type('Safe');
+    const filled=before.replace('- \r\n- End.','- Safe\r\n- End.');await expect.poll(source).toBe(filled);
+    await caret('#editor li p',3,4);
+    const emptyEnd=filled.replace('- End.\r\n\r\n','- End.\r\n- \r\n\r\n');await key('Enter',emptyEnd);
+    const exited=filled.replace('- End.\r\n\r\n','- End.\r\n\r\n\r\n\r\n');await key('Enter',exited);
+    await page.keyboard.type('After list.');const finished=exited.replace('- End.\r\n\r\n','- End.\r\n\r\nAfter list.');await expect.poll(source).toBe(finished);
+    await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);
+    await selectDocument(page,id);await page.keyboard.press('Escape');
+    await page.locator('#new-temporary').click();const blankId=await page.locator('#documents').inputValue();
+    await page.locator('#editor p').click();await page.locator('#format-block').selectOption('bullet-list');
+    await expect.poll(async()=>(await snapshot(blankId)).snapshot.source).toBe('- ');
+    await page.locator('#editor li p').click();await page.keyboard.press('Enter');
+    await expect.poll(async()=>(await snapshot(blankId)).snapshot.source).toBe('');
+    await selectDocument(page,id);await page.keyboard.press('Escape');expect(await source()).toBe(finished);
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes.equals(Buffer.from('\ufeff'+finished))).toBe(true);expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
+    expect(await fs.readFile(original)).toEqual(raw);await captureTestWindow(app,info.outputPath('boundaries.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const reopened=(await snapshot(await page.locator('#documents').inputValue())).snapshot;
+    expect(Buffer.from('\ufeff'+reopened.source)).toEqual(bytes);expect(await fs.readFile(original)).toEqual(raw);
+    console.log('boundaries-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,
+      originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});

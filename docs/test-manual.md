@@ -2,6 +2,43 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Paragraph/list boundaries — installed 0.41.0 WIP (2026-11-05)
+
+Automated: 237 distinct focused Node, four controlled source Electron workflows,
+one packaged keyboard/export/reopen/recovery workflow and installed startup PASS.
+This is not human/native-IME acceptance. Optional short experience:
+
+- In an ordinary paragraph containing bold, press Enter inside the bold text,
+  then Backspace at the next paragraph's beginning; Undo/Redo restores each step.
+- Repeat inside a simple bullet/numbered list. At the first item's beginning,
+  Backspace returns it to normal text while preserving the remaining items.
+- Start a list from an empty document with the format selector; Enter on an empty
+  first/last item exits. A middle empty item's Enter is refused; typing still works.
+- Export a new file and reopen it. Original files stay unchanged and read-only.
+
+The historical 0.40.0 split/join restriction below is superseded only for this
+supported paragraph/simple-list scope. Complete physical QA remains pending.
+
+## Plain/bold selection editing — installed 0.40.0 WIP (2026-11-05)
+
+Automated: 216 focused Node, three controlled source Electron workflows, one
+packaged mixed-range/export/reopen/recovery workflow and installed welcome PASS.
+The 0.39.0 checkpoint/rollback is retained. Native dialogs were stubbed, Chinese
+text was controlled input, and native IME/full physical acceptance is NOT VERIFIED.
+No new user manual acceptance is claimed. Optional brief experience:
+
+- Open a synthetic paragraph such as `Alpha **bold** omega.` and edit a copy.
+  Select from plain text into bold, then in the opposite direction; type or paste
+  one line. New text follows the format of the selected text's start.
+- Delete a complete bold span, Undo/Redo, and continue typing at the boundary.
+  Confirm one Undo restores the complete original operation and formatting.
+- Try multiline paste into the mixed selection or select across a code block:
+  the edit must be refused with existing content retained; a safe edit still works.
+- Export a new file and reopen it; the original stays read-only and unchanged.
+
+The historical 0.39.0 cross-format refusal below is superseded only for this new
+same-paragraph plain/bold scope. Mixed-format paragraph split/join is still limited.
+
 ## Ordinary paragraph range editing — installed 0.39.0 WIP (2026-11-05)
 
 205 targeted Node / three final controlled Electron passes are reused; one new

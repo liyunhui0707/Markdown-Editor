@@ -215,8 +215,8 @@ function install(snapshot) {
       extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false }), gate],
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
-          if (formatView.key(view, event)) return true;
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
+          if (formatView.key(view, event)) return true;
           return false; // Existing Tiptap Backspace command and source gate perform the edit.
         },
         mousedown: finishCompositionForPointer,

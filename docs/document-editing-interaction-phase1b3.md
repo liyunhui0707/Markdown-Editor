@@ -2435,3 +2435,156 @@ Native IME, native close Cancel/full physical acceptance and release restriction
 remain open. This local checkpoint is not PR/merge/release readiness, and no
 remote action is authorized or performed. The 25-file pre-range baseline remains
 available; the combined checkpoint preserves the already installed candidate.
+
+
+### Plain/bold selection editing — 0.40.0 WIP (2026-11-05)
+
+Checkpoint `b12e2fdda8980319db6d76d3d261439257ed1e69` preserves the approved
+32-file 0.39.0 candidate on `feat/document-close`; the worktree was clean after
+commit. No push/merge/tag/release. The new feature below remains uncommitted.
+
+Scope: in one ordinary, single-source-line paragraph containing plain/bold text,
+replace/delete a selection or paste a single line. Starting text marks determine
+replacement marks, independent of drag direction. Collapsed boundary insertion
+uses left marks, matching ProseMirror. Delete whole plain/bold leaves and continue
+typing. Existing adjacent plain-paragraph ranges remain supported. Cross-heading,
+list, code, soft-line and formatted-paragraph ranges, multiline mixed paste and
+structural cross-mark composition remain safely refused; no generic Markdown
+conversion or mixed-paragraph split/join is added.
+
+Implementation: a 55-line inline-token source mapper creates one minimal source
+patch, reparses the whole projection and stores exact inverse bytes. Main IPC
+reuses the existing format-patch history path, verifying before/after SHA-256 and
+revision for Undo/Redo. Inverses/leaf/sourcePatch fields are not accepted from
+renderer requests. The existing native-beforeinput adapter also captures matching
+same-paragraph mixed selections before Chromium mutates DOM; composition, focus,
+selection and session guards remain. Original sessions, file creation, destination
+policy, metadata checks and coordination-required overwrite block are unchanged.
+
+Evidence root: original checkout `.local/verification/inline-editing-5xh4vsiv/`.
+
+- RED: five new source-mapping tests: four failed and one refusal test passed
+  before implementation. Final targeted
+  Node: **216 PASS**, no skips/failures (`node-regression-2.tap`). Covers source
+  matrices for both bold delimiters, surrogate/structural refusals, real PM/main
+  history, stale revision/lost acknowledgment recovery, session and close guards.
+  Three old refusal expectations were narrowly updated for the newly allowed
+  mixed edits; protected cross-block and untrusted-payload refusals remain tested.
+- Controlled source Electron: **three distinct workflows PASS**, format/ordinary
+  range plus mixed-range edit/export/reopen, six successful app-process exits.
+  `e2e-1.log` retains an initial mixed test failure: an endpoint inside a readonly
+  code block was clamped by the browser. The corrected test selects across the
+  code to an editable tail and asserts actual PM selection before attempting the
+  edit; whole-operation refusal and subsequent editing PASS in `e2e-2.log`.
+  Source original SHA-256 stays
+  `f6a5234bf79fba3f58a41db47fe693808d2b6186a7f803c8f7e59d5137e0ec34`;
+  reopened export hash is
+  `46ee4f726406e0b1a5442127609121d94b522fe59ff8092b15fc4017c38c6c94`.
+- **One packaged workflow PASS** (`packaged-e2e.log`, `packaged-results/`): both
+  plain-paragraph and mixed-inline replacement/Undo/Redo, continued typing,
+  exclusive export, existing-target refusal, read-only reopen and exact draft
+  recovery after restart; three clean launches and the single-instance invocation.
+  Original SHA-256 remains
+  `45266ca1e3b9bf6a6dbddacea4d5ce4c7087c7f39c65d1801daf00c208b6d9ca`;
+  export is `030166d7e20cc32bcadc1552d1ea6fbd62326fadd47e4a77d6f750571ff755b8`.
+- Offline unsigned arm64 package, Electron 43.8.7: 434 source snapshot files and
+  38 packaged project runtime files match; no unexpected/private project entries.
+  ASAR SHA-256 `6783701456909c181ac9241782f182fa0a39282f2522f43b8f9edb79679cf0cf`.
+  Version/package-lock/Info.plist are 0.40.0 for this user-visible feature.
+- Installed `~/Applications/Markdown.app`: all 528 bundle entries verified.
+  Welcome startup, installed path/version and normal exit PASS. Old 0.39.0 is
+  intact under `installation/rollback/Markdown-0.39.0.app`; manifests and
+  `installation/RESTORE.md` record recovery. User draft storage is not moved.
+- Successful Home fixtures `Writing-synthetic-E2E-NFKPt1` (format regression)
+  and `Writing-synthetic-E2E-9TxbEQ` (packaged test) were verified/reclaimed by the
+  existing helper. Only the packaged test's own synthetic draft was archived via
+  the existing API. OS-temp originals, source exports and initial failed-test
+  evidence remain; no historical/user files were cleaned.
+
+Bounded Codex self-review: no new confirmed unresolved P0/P1; not an independent
+second-model review. Test runner/renderer input and native dialog choices were
+controlled; this is not native IME or human acceptance. Native IME, native close
+Cancel, complete physical-input acceptance, historical formal/manual FAIL and
+SEC-01 remain scoped/open. Full CI/Air/Reviewer NOT RUN; no new remote action.
+Next suggested slice is paragraph/simple-list boundaries, not overwrite saving
+or a visual redesign. This delivery is a local WIP, not full feature sign-off.
+
+
+### Paragraph/list boundaries — 0.41.0 WIP (2026-11-05)
+
+The user approved the next continuous-writing slice. The prior uncommitted
+0.40.0 candidate's 20 files and all baseline fingerprints were checked before
+work; its snapshot remains unchanged at `.local/verification/inline-editing-5xh4vsiv/`
+in the original checkout. New evidence: `.local/verification/writing-boundaries-m8g4d1zg/`.
+
+Supported collapsed-caret actions: split/join plain/bold paragraphs and flat tight
+list items; first-item Backspace lifts only that item to a paragraph; first/last
+empty-item Enter exits; the format selector starts a list from an empty paragraph
+when the resulting source reprojects exactly. Mid-list empty exit is refused:
+blank whitespace alone parses as one loose list, not two lists plus an empty
+paragraph. No hidden markers or silently altered neighboring structure are added.
+Code, headings, soft lines, nested/task/loose lists and ambiguous gaps remain
+protected. Cross-format composition is still paused/refused, not force-committed.
+
+`document-boundary-edit.mjs` (114 lines) owns only these source patches. The
+existing `format` command/controller/main history/revision/hash gates are reused.
+Every result must match the expected full projection and exact inverse bytes;
+32-item, 4096-unit patch and 131072-unit source limits remain. The source command
+mapper becomes 90 lines; format keys 65; the 430-line renderer only moves native
+Backspace selection synchronization before the format command dispatch. Existing
+large tests retain their shared harness (controller 989, boundary 116, E2E 2374/150).
+
+- RED: initial 13 boundary tests: 12 FAIL / one safe-refusal PASS. Final regression
+  `node-regression-1.tap`: 236 PASS. One extra capacity case was then added; its
+  first fixture equaled the permitted size, not an overflow. Corrected exact-limit
+  success/overflow refusal checks pass in `node-limits-final.tap` (16 boundary
+  tests). Total distinct tests: **237 PASS**, no final skips/failures. No runtime
+  change was made for that fixture correction.
+- `e2e.log`: **four source Electron workflows PASS**, eight clean app exits,
+  covering new keyboard boundaries, prior formatting and both range features.
+  New original SHA-256 remains
+  `7560f7eea1e595105450effa80e5efef08887c9303e1681d0e20d710983dc2a7`;
+  exact export/reopen SHA-256 is
+  `7616cac1a63632a28b4c957cc5b8fa7c93c189fc31c6271063dc9ff2c875b90d`.
+- `packaged-e2e.log`: **one actual ASAR workflow PASS**, three clean launches and
+  single-instance exit. Paragraph/list Enter/Backspace, original/range Undo/Redo,
+  exclusive export, existing-target refusal, readonly reopen and restart/draft
+  recovery pass. Original hash remains
+  `45266ca1e3b9bf6a6dbddacea4d5ce4c7087c7f39c65d1801daf00c208b6d9ca`;
+  export hash `b9057e44faa080a859f20faaf3bb9a5960d8dbe10845f6640444ea13e1456012`.
+- Offline unsigned arm64/Electron 43.8.7 packaging: 436 source and 39 packaged
+  runtime files match; no unexpected/private project entries. ASAR SHA-256:
+  `5115683609e9169c85336b47b1420c3774a27498462ad60805f00976cd2f649a`.
+  Version/package-lock/Info.plist are 0.41.0. Installed startup and normal exit PASS;
+  all 528 bundle entries match. Preserve 0.40.0 under `installation/rollback/`;
+  `installation/RESTORE.md` and manifests record recovery, without moving drafts.
+- Successful Home fixtures `Writing-synthetic-E2E-JTkQD8` and
+  `Writing-synthetic-E2E-r7FgTE` were verified/reclaimed by the existing helper.
+  Only the packaged test's own synthetic draft was archived via the app API.
+  OS-temp inputs/exports and verification logs remain; no historical/user cleanup.
+
+Bounded Codex self-review found no new confirmed unresolved P0/P1; this is not an
+independent model review. Native dialogs were stubbed; controlled input is not
+native IME. Native IME, native close Cancel/full physical QA, historical formal/
+manual FAIL and SEC-01 remain scoped/open. Full CI, Air and Reviewer NOT RUN.
+Original readonly/exclusive create/Not saved semantics, destination restrictions
+and coordination-required overwrite protection remain unchanged. Both the 0.40
+and 0.41 feature slices are uncommitted on `feat/document-close`, HEAD `b12e2fd`;
+no new Git checkpoint, push, merge, tag or release.
+
+
+### 0.41.0 local WIP checkpoint closeout (2026-11-05)
+
+User approved continuing the proposed closeout/checkpoint sequence. All 25
+candidate hashes match the delivered version before documentation-only status
+updates; runtime, tests, generated bundle, package and lock remain unchanged.
+The installed ASAR still matches the recorded 0.41.0 hash. Bounded Codex local
+review found no new confirmed unresolved P0/P1; this is not independent review.
+Reuse 237 distinct focused Node, four source Electron workflows, one packaged
+workflow and installed startup passes. No unrelated tests or GUI runs repeated.
+Version remains 0.41.0. Both writing slices form one coherent WIP checkpoint on
+`feat/document-close`; exact scope and evidence mapping are in original checkout
+`.local/verification/writing-checkpoint-20261105/`. Native IME, native close Cancel,
+full physical/manual acceptance and historical formal failures remain open.
+Original files stay read-only, new-file creation remains exclusive, and overwrite
+is still blocked by `coordination-required`. No push/merge/tag/release or Reviewer.

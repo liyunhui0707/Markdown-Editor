@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.39.0 local WIP checkpoint:** this is not a signed/notarized release or a
+**0.41.0 local WIP checkpoint:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,9 +15,10 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The installed 0.39.0 WIP includes individual document close and ordinary-paragraph
-range editing. All installation bytes are verified; 0.38.0 is retained for rollback.
-The packaged range replacement/Undo/Redo, exclusive export, read-only reopen and
+The installed 0.41.0 WIP adds Enter/Backspace boundaries in plain/bold paragraphs
+and simple lists, alongside existing selection editing and individual close.
+All installation bytes are verified; 0.40.0 is retained for rollback.
+The packaged paragraph/list keys, plain/mixed range editing, exclusive export, read-only reopen and
 restart/draft-recovery workflow passes, as does installed welcome startup.
 Native dialog choices were stubbed in this regression. Native close Cancel and
 complete physical-input acceptance remain unverified; prior native observations
@@ -101,11 +102,20 @@ The installed WIP also replaces or deletes a selection across up to
 32 adjacent plain paragraphs and supports multiline paste over that selection.
 It preserves exact untouched source bytes and one Undo/Redo operation per
 replacement; typing, Enter and Backspace can continue afterward.
+Within a single-source-line paragraph containing plain and bold text, selections
+can also be replaced/deleted or pasted over with a single line. Replacement text
+inherits the format at the start of the selected text (regardless of drag
+direction); at a collapsed bold boundary, typing inherits the left-hand format.
+Undo restores exact original bytes, including `**` versus `__` delimiters.
+With a collapsed caret, Enter also splits a plain/bold paragraph, and Backspace
+at the following paragraph's start joins it to a supported previous paragraph.
+Existing source delimiter style and marks are retained; Undo restores exact bytes.
+Cross-format IME replacement remains unsupported; finish composition first.
 A clipboard newline or one blank separator becomes a paragraph boundary, using
 the document's existing newline style. One paste is one Undo/Redo item. The 4096
 UTF-16 limit applies before and after conversion; clipboard HTML is ignored.
 Leading/trailing blank lines, consecutive empty paragraphs, selections crossing
-headings/lists/formatting/protected blocks or source soft breaks, mixed or ambiguous
+headings/lists/protected blocks, formatted paragraph boundaries or source soft breaks, mixed or ambiguous
 paragraph separators, multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
 are refused as a whole. The native Edit menu includes Paste for system dialogs. Cross-paragraph IME
 replacement and Enter over an existing cross-paragraph selection are not enabled;
@@ -115,10 +125,16 @@ The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列
 **加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
 reparse it; they do not normalize the whole file. Headings require a nonempty
 single source line. Bold applies within one text leaf; removing it requires the
-whole bold leaf. Lists support up to 32 flat, tight, one-line items: Enter splits
-a plain item, Enter on the last empty item exits, and Backspace at a nonfirst plain
-item's start joins it to the previous plain item. Converting a list applies to the
-whole current list. Nested/task/loose lists and complex structures remain protected.
+whole bold leaf. Lists support up to 32 flat, tight, one-line items containing
+plain/bold text: Enter splits an item; Backspace at a nonfirst item's start joins
+it to its predecessor. Backspace at the first item's start returns that item to
+an ordinary paragraph and preserves remaining list items. Enter on the first or
+last empty item exits; an empty paragraph can become a list through the format
+selector when reparsing preserves surrounding structure. A middle empty item
+cannot exit because a blank paragraph alone cannot separate same-kind Markdown
+lists; this operation is explicitly refused. Converting a list with the selector
+still applies to the whole list. Nested/task/loose lists and complex structures
+remain protected.
 Typing Markdown markers is not a general formatting shortcut in this preview.
 
 Normal IME composition shows only **输入中…**, without moving the writing area.

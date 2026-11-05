@@ -22,7 +22,8 @@ remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.39.0 is a local development WIP checkpoint**, not public-release acceptance. Native IME and
+Version **0.41.0 is a local development WIP checkpoint**, not public-release acceptance.
+The preceding 0.39.0 checkpoint is `b12e2fd`. Native IME and
 historical formal/manual failures are not globally cleared by controlled E2E.
 Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
 is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).

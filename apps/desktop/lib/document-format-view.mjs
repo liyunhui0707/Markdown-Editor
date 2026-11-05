@@ -8,7 +8,7 @@ export function createFormatView({ byId, context, report }) {
     const ok=await c.controller.format({action,from,to});
     if(context().controller!==c.controller) return false;
     if(!ok) report(c.controller.state().code==='unsafe-format-range'
-      ? '此处暂不支持该格式操作，原文已保留。标题限单行；加粗需选中同一段文字（取消时选中完整粗体）；列表限单层。'
+      ? '此处暂不支持该格式操作，原文已保留。标题限单行；加粗需选中同一段文字（取消时选中完整粗体）；列表限单层，空项退出仅支持首项或末项。'
       : '格式修改未确认，当前内容仍保留。请查看输入或会话状态。',true);
     else report('格式已应用；原文件未改写。');
     if(!context().invalid && !c.controller.state().locked) c.editor.view.focus();
@@ -42,13 +42,22 @@ export function createFormatView({ byId, context, report }) {
     byId('format-bold').setAttribute('aria-pressed',String(!!editor?.isActive('bold')));
   }
   function key(view,event) {
-    if(event.isComposing||view.composing||context().state?.composing)return false;
+    if(event.isComposing||event.keyCode===229||view.composing||context().state?.composing)return false;
     if((event.metaKey||event.ctrlKey)&&!event.altKey&&event.key.toLowerCase()==='b') {event.preventDefault();void run('bold');return true;}
     const pos=view.state.selection.$from,inList=Array.from({length:pos.depth},(_,i)=>pos.node(i+1).type.name).some(n=>n==='bulletList'||n==='orderedList');
     if(pos.parent.type.name==='heading'&&event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey) {event.preventDefault();void run('split-heading');return true;}
     if(inList && !event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.shiftKey &&
       (event.key==='Enter'||(event.key==='Backspace'&&pos.parentOffset===0&&view.state.selection.empty))) {
       event.preventDefault();void run(event.key==='Enter'?'split-list':'join-list');return true;
+    }
+    if(pos.depth===1 && pos.parent.type.name==='paragraph' && view.state.selection.empty
+        && !event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.shiftKey) {
+      const marked=n=>n?.type.name==='paragraph'&&n.content.content.some(child=>child.marks.length);
+      const previous=view.state.doc.childBefore(pos.before()).node;
+      if(event.key==='Enter' && marked(pos.parent)) {event.preventDefault();void run('split-paragraph');return true;}
+      if(event.key==='Backspace' && pos.parentOffset===0 && previous && (marked(pos.parent)||marked(previous))) {
+        event.preventDefault();void run('join-paragraph');return true;
+      }
     }
     return false;
   }

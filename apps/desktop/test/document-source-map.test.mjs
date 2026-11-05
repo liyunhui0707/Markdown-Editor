@@ -23,16 +23,14 @@ for (const text of ['标题😀', 'A ', '粗体中文', ' end.']) {
     assert.deepEqual(projectSource(r.source).doc, r.projection.doc);
   });
 }
-test('surrogate splitting, mark crossing, structural syntax and empty formatted text fail closed', () => {
+test('surrogate splitting, cross-block edits and structural syntax fail closed', () => {
   const spans = projectSource(source).spans;
   const h = spans[0], bold = spans[2];
   for (const change of [
     { from: h.to - 1, to: h.to, insert: 'x' },
-    { from: spans[1].from, to: bold.to, insert: 'x' },
-    { from: bold.from, to: bold.to, insert: '' },
+    { from: h.from, to: bold.to, insert: 'x' },
     { from: bold.from, to: bold.to, insert: '**new**' },
     { from: h.from, to: h.to, insert: 'line\nbreak' },
-    { from: bold.from, to: bold.from, insert: 'x' }, // ambiguous mark boundary
   ]) assert.equal(mapTextEdit(source, change).ok, false);
 });
 test('HTML, images, tables, unknown syntax, escaped/entities and unsupported multiline syntax are not editable', () => {
@@ -56,11 +54,11 @@ test('source-size limit rejects expansion as an ordinary unsafe edit', () => {
   assert.equal(mapTextEdit(s, { from: p.from + 1, to: p.from + 1, insert: 'xxxx' }).ok, false);
 });
 
-test('P1-2: only an explicit trusted leaf identity resolves an inverse mark-boundary insertion', () => {
+test('P1-2: trusted history restores the bold leaf while ordinary boundary typing inherits the left mark', () => {
   const bold = projectSource(source).spans.find(s => s.bold);
   const deleted = mapTextEdit(source, { from: bold.from, to: bold.from + 1, insert: '' });
   const point = { from: bold.from, to: bold.from, insert: '粗' };
-  assert.equal(mapTextEdit(deleted.source, point).ok, false);
+  assert.equal(mapTextEdit(deleted.source, point).source, deleted.source.replace('A **', 'A 粗**')); // Normal typing is plain here.
   const leaf = { blockIndex: bold.blockIndex, childIndex: bold.childIndex, bold: true };
   const restored = mapTextEdit(deleted.source, point, leaf);
   assert.equal(restored.ok, true); assert.equal(restored.source, source);

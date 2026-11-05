@@ -136,7 +136,7 @@ test('unsafe structural edits and broken UTF-16 are rejected without history or 
   const h = harness(), original = h.document.text, s = h.span('Plain ');
   assert.equal(h.edit(s.from + 1, s.from + 1, '\n'), false);
   assert.equal(h.edit(s.from + 1, s.from + 1, '\uD800'), false);
-  assert.equal(h.edit(s.from, s.to, ''), false);
+  assert.equal(h.edit(h.span('标题😀').from, s.to, ''), false);
   await h.controller.idle(); assert.equal(h.document.text, original); assert.equal(h.document.revision, 0);
 });
 
@@ -901,4 +901,89 @@ test('paragraph range: native input respects composition, focus/selection and op
   assert.equal(h.requests.length, 0); assert.equal(h.document.text, 'First.\n\nLast.');
   h.select(h.span('First.').from, h.span('First.').to);
   assert.deepEqual(rangeInput(h), { handled: false, prevented: false });
+});
+
+for (const mode of ['type','delete','paste']) test(`inline range ${mode}: real PM, main history and continued boundary typing preserve exact bytes`, async()=>{
+  const h=harness('\ufeff# Keep\r\n\r\nAlpha **bold** omega.\r\n\r\n```md\r\nkeep **bytes**\r\n```\r\n');
+  const before=h.document.text,from=h.span('Alpha ').from+3,to=h.span('bold').from+2;
+  h.select(from,to);
+  if(mode==='paste')assert.deepEqual(paste(h,'新😀').messages,[]);
+  else assert.equal(h.edit(from,to,mode==='delete'?'':'新😀'),true);
+  await h.controller.idle(); const after=before.replace('ha **bo',mode==='delete'?'**':'新😀**');
+  assert.equal(h.document.text,after);assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before);
+  assert.equal(h.state().selection.from,from);assert.equal(h.state().selection.to,to);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,after);
+  const at=h.state().selection.from;assert.equal(h.edit(at,at,'続'),true);await h.controller.idle();
+  assert.equal(h.document.text,after.replace('**ld**','続**ld**'));
+  await h.controller.history('undo');await h.controller.history('undo');assert.equal(h.document.text,before);
+  for(const extra of [{sourcePatch:true},{inverseSource:{from:0,to:1,insert:'x'}},{leaf:{blockIndex:1,childIndex:0,bold:false}}]) {
+    assert.equal(h.request('edit',{expectedRevision:h.document.revision,from,to,insert:'x',...extra}).code,'invalid-request');
+  }
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('inline range beforeinput follows marks, refuses composition, and resumes safely',async()=>{
+  const h=harness('Alpha **bold** omega.');
+  const from=h.span('bold').from+2,to=h.span(' omega.').from+3;
+  h.select(from,to);assert.deepEqual(rangeInput(h),{handled:true,prevented:true});await h.controller.idle();
+  assert.equal(h.document.text,'Alpha **bo新😀**ega.');
+  assert.equal(await h.controller.history('undo'),true);h.select(from,to);
+  h.controller.beginComposition();assert.equal(h.edit(from,to,'组合'),false);
+  assert.equal(h.document.text,'Alpha **bold** omega.');
+  h.controller.endComposition();await h.controller.idle();assert.equal(h.controller.state().composing,false);
+  assert.equal(h.edit(2,2,'safe'),true);await h.controller.idle();
+  assert.equal(h.document.text,'Asafelpha **bold** omega.');
+});
+
+for(const lost of [false,true])test(`inline range ${lost?'lost acknowledgement':'stale revision'} preserves draft without replay`,async()=>{
+  const h=harness('Alpha **bold** omega.');
+  const from=h.span('Alpha ').from+3,to=h.span('bold').from+2;
+  if(lost)h.dropReplyAfterCommit=true;
+  else h.document.edit({from:0,to:0,insert:'External ',expectedRevision:0});
+  assert.equal(h.edit(from,to,'X'),true);await h.controller.idle();
+  const s=h.controller.state();assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(s.recoveryRecords[0].source,'AlpX**ld** omega.');
+  assert.equal(s.recoveryRecords[0].mainMatchesDraft,lost);assert.equal(s.source,h.document.text);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+for(const list of [false,true])test(`boundaries ${list?'list':'paragraph'} split/type/join has exact main history and unchanged original`,async()=>{
+  const original=(list?'- ':'')+'A **中文😀bold** Z\r\n\r\nTail.\r\n',h=harness(original);
+  const at=h.span('中文😀bold').from+2;
+  h.select(at);assert.equal(await h.controller.format({action:list?'split-list':'split-paragraph',from:at,to:at}),true);
+  const split=h.document.text,caret=h.state().selection.from;
+  assert.equal(h.edit(caret,caret,'新'),true);await h.controller.idle();assert(h.document.text.includes('**新😀bold**'));
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,split);
+  h.select(caret);assert.equal(await h.controller.format({action:list?'join-list':'join-paragraph',from:caret,to:caret}),true);
+  assert.equal(h.document.text,original);assert.equal(h.state().selection.from,at);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,split);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,original);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,split);
+  const revision=h.document.revision;h.document.edit({from:0,to:0,insert:'External ',expectedRevision:revision});
+  assert.equal(h.request('undo',{expectedRevision:h.document.revision}).code,'history-diverged');
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('boundaries composition/invalid range cannot send a command; a safe command still works',async()=>{
+  const h=harness('- A\n- \n- B');const empty=h.span('');
+  assert.equal(await h.controller.format({action:'split-list',from:empty.from,to:empty.from}),false);
+  const first=h.span('A');h.controller.beginComposition();
+  assert.equal(await h.controller.format({action:'join-list',from:first.from,to:first.from}),false);
+  assert.equal(h.requests.length,0);assert.equal(h.document.text,'- A\n- \n- B');
+  h.controller.endComposition();await h.controller.idle();
+  assert.equal(await h.controller.format({action:'join-list',from:first.from,to:first.from}),true);
+  assert.equal(h.document.text,'A\n\n- \n- B');
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,'- A\n- \n- B');
+});
+
+for(const lost of [false,true])test(`boundaries ${lost?'lost acknowledgment':'stale revision'} never replays a split`,async()=>{
+  const h=harness('A **bold** Z'),at=h.span('bold').from+2;
+  if(lost)h.dropReplyAfterCommit=true;
+  else h.document.edit({from:0,to:0,insert:'External ',expectedRevision:0});
+  assert.equal(await h.controller.format({action:'split-paragraph',from:at,to:at}),false);
+  assert.equal(h.requests.filter(r=>r.operation==='format').length,1);
+  assert.equal(h.controller.state().source,h.document.text);
+  assert.equal(h.document.text,lost?'A **bo**\n\n**ld** Z':'External A **bold** Z');
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

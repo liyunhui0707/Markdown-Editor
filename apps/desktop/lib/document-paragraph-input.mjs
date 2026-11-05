@@ -9,7 +9,10 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
       || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly
       || state.locked || state.historyPending || state.composing || state.compositionInvalid) return false;
   const selection = view.state.selection;
-  if (!(selection instanceof TextSelection) || selection.empty || selection.$from.sameParent(selection.$to)) return false;
+  if (!(selection instanceof TextSelection) || selection.empty) return false;
+  if (selection.$from.sameParent(selection.$to)
+      && (selection.$from.parent.type.name !== 'paragraph'
+        || !selection.$from.parent.content.content.some(n => n.marks.some(m => m.type.name === 'bold')))) return false;
   if (event.inputType === 'insertText' && (typeof event.data !== 'string' || !event.data)) return false;
   try {
     const dom = view.dom.ownerDocument.getSelection();
