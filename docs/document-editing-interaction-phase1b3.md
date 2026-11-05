@@ -2588,3 +2588,114 @@ Version remains 0.41.0. Both writing slices form one coherent WIP checkpoint on
 full physical/manual acceptance and historical formal failures remain open.
 Original files stay read-only, new-file creation remains exclusive, and overwrite
 is still blocked by `coordination-required`. No push/merge/tag/release or Reviewer.
+
+### Single-list-item selection editing V1 (2026-11-05, 0.42.0 uncommitted)
+
+Baseline `ca5d927` / 0.41.0 was clean. Extend the existing inline source mapper
+to one projected simple-list item and preserve whole-document projection checks,
+revision authorization and main-owned inverse history. Plain/bold selections can
+be replaced, deleted or pasted over with one line. Unmodified list markers,
+numbering, BOM, LF/CRLF/CR and surrounding blocks stay byte-exact. A rejected or
+uncertain request retains the existing recovery behavior; no retry is invented.
+
+Regression exposed stale ProseMirror bold marks after deleting all text in an
+all-bold item. Clear stored marks only after a validated deletion produces an
+empty list paragraph; further typing is plain and Undo restores original bytes.
+Cross-item selection, multiline list paste, nested/task/loose lists and source
+forms that cannot represent the requested projection remain safely refused.
+For example an intraword `__` boundary is not silently rewritten to `**`.
+
+267 focused Node tests PASS, including forward/reverse ranges, full deletion,
+continued typing, Undo/Redo, Unicode, three newline styles, refusal, composition
+gates and stale/lost IPC recovery. Four source Electron workflows PASS: list-item
+ranges plus existing paragraph ranges, mixed ranges and boundary keys. One real
+packaged-app workflow PASS covers list paste/Undo/Redo, export, target-exists
+refusal, readonly reopen and restart/draft recovery. Native dialog choices and
+clipboard are controlled. Installed welcome startup PASS with normal process exit;
+no user document opened. 437 source files match the tested snapshot; 39 packaged
+runtime files and all 528 installed entries match. Installed ASAR SHA-256:
+`c8d89aac942484baf6c9dce4ac2c5b5dd67b0c800d48d28614990fc5526c999e`.
+The exact old 0.41.0 app is retained in this run's `installation/rollback/`;
+recovery mapping and manifests are in `installation/`. No user draft migration.
+
+Evidence: original checkout `.local/verification/list-item-editing-d4it3xn4/`,
+including source hashes, Node/Electron logs, screenshot and packaged evidence.
+New source workflow original SHA-256
+`b903de0176ecb63b0e802604f7751d604191fb3843f5ae62727ce798a6d60671`
+remains unchanged; exported SHA-256
+`4ea6389835185de7636671b415db677d2299646067e850bbc2acf7cdab97f710`
+matches intended content after exit/reopen. The packaged successful Home fixture
+was verified and removed by the existing fixture helper; failed/unknown historical
+artifacts were not touched. Temporary evidence and isolated drafts are retained.
+
+Codex bounded diff self-review found no new blocker; it is not independent review.
+Initial sandbox GUI launch was blocked by environment; the permitted isolated run
+passed. Native IME, native close Cancel/full physical QA, prior formal/manual FAIL
+and SEC-01 remain open/scoped. Full CI, Air and external Reviewer NOT RUN.
+Original readonly, exclusive new-file export, Not saved, destination restrictions
+and coordination-required overwrite protection are unchanged. No Git checkpoint,
+push, merge, tag or release in this feature task.
+
+
+### Adjacent list-item selection editing V1 (2026-11-05, 0.43.0 uncommitted)
+
+The preceding 19-file 0.42.0 candidate matched its recorded hashes; HEAD remains
+`ca5d927`. Extend its existing source mapper to adjacent items in one projected
+flat/tight list. A verified splice merges selected items while preserving unselected
+text, marks, untouched source bytes and surrounding blocks. Exact main-owned
+inverse patches retain original numbering and delimiters; no renderer source-patch
+permission or File Store change. Multi-item deletion retains one empty item, using
+an exact text-range transaction instead of PM's expanding deleteSelection heuristic.
+Replacement at an item's end follows PM marksAcross and starts plain.
+
+Confirmed new boundary defect: in real Electron, a selection extending into a
+readonly code block had PM/DOM positions [10,46], while beforeinput targetRanges
+reported [10,44]. The old mismatch path returned false, allowing Chromium's partial
+replacement to continue. Now a verified PM/DOM selection with a mismatched or
+unreadable target is cancelled before mutation with an explicit message. Regression
+checks unchanged source/revision, no edit IPC and subsequent safe editing. No IME
+state timeout/forced completion was added. This is not a native IME acceptance claim.
+
+301 focused Node tests PASS: forward/reverse ranges, plain/bold/Unicode, three
+newline styles, markers/numbering, empty edges, all-item deletion, 32-item and size
+bounds, exact Undo/Redo, continued split/join, stale/lost acknowledgments and atomic
+refusal. Four controlled source Electron workflows PASS on the final code, including
+whole-list Backspace and Delete, clipboard refusals, protected-range refusal,
+original/copy switching and export/reopen. One actual packaged workflow PASS with
+cross-item replacement/Undo/Redo, exclusive create, target-exists refusal, readonly
+reopen and restart/draft recovery. Native dialogs and clipboard were controlled.
+Installed welcome startup PASS with normal exit and no user document opened.
+438 source files and 39 packaged runtime files match the tested snapshot; all
+528 installed entries verified. ASAR SHA-256:
+`38016a24682070085e07cda89dc12f2c1b31fdab39ee71096d35ca2c0fe0284c`.
+Exact 0.42.0 rollback and recovery mapping are in this run's `installation/`.
+No new user/manual/native-IME acceptance.
+
+Evidence: original checkout `.local/verification/list-cross-editing-x0zabrwi/`.
+Original synthetic SHA-256 remains
+`b903de0176ecb63b0e802604f7751d604191fb3843f5ae62727ce798a6d60671`;
+new export SHA-256
+`dc351e38112ede3a6563c35f41d45f8efa1d521b313fe64e2be7ff3daf41fe84`
+matched content after exit/reopen. The successful packaged Home fixture
+`Writing-synthetic-E2E-zB0meg` was verified and removed by the existing helper;
+isolated source fixtures, failed-run evidence and the synthetic archived draft are
+retained. No historical archive, protected Home fixture or user document touched.
+
+Codex bounded self-review found no new unresolved blocker; not independent review.
+Full CI, Air and external Reviewer NOT RUN. Native IME, full physical QA, native
+close Cancel, SEC-01 and earlier formal/manual failures remain open/scoped.
+Source originals stay readonly, export stays exclusive, editing copies stay Not
+saved, and overwrite stays blocked by coordination-required. Prior work preserved;
+no commit, push, merge, tag or release in this feature task.
+
+
+### List selection editing local WIP closeout (2026-11-05, 0.43.0)
+
+The user authorized a local WIP checkpoint before italic editing. All 21 candidate
+files match the previous final fingerprints; reuse 301 focused Node, four source
+Electron and one packaged workflow plus installed welcome PASS. No code/test or
+version changes are needed for closeout. Codex readiness self-check found no new
+blocker or unrelated files; this is not independent review. Native IME, full
+physical QA, SEC-01, prior formal/manual failures and release acceptance remain
+open/scoped. Existing-file overwrite remains coordination-required. Full CI and
+Air are NOT RUN; no push, merge, tag or release is authorized by this checkpoint.

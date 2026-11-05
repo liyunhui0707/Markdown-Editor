@@ -97,9 +97,34 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await page.locator('#format-block').selectOption('bullet-list');
     const listed = inlineReplaced.replace('Alp新😀', '- Alp新😀');
     await expect.poll(async () => (await snapshot(page, id)).source).toBe(listed);
+    // The new single-item range path also runs in the installed product ASAR.
+    const listRange = await page.locator('#editor li p').evaluate(p => {
+      const root = p.closest('.tiptap'), a = p.firstChild, b = p.querySelector('strong').firstChild;
+      root.focus(); window.getSelection().setBaseAndExtent(b, 1, a, 2);
+      document.dispatchEvent(new Event('selectionchange'));
+      return [root.editor.view.posAtDOM(a, 2), root.editor.view.posAtDOM(b, 1)];
+    });
+    await expect.poll(() => page.locator('#editor .tiptap').evaluate(n => [n.editor.state.selection.from, n.editor.state.selection.to])).toEqual(listRange);
+    await page.locator('#editor .tiptap').evaluate(n => {
+      const data = new DataTransfer(); data.setData('text/plain', '列表😀');
+      n.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }));
+    });
+    const listReplaced = listed.replace('p新😀**l', '列表😀**');
+    await expect.poll(async () => (await snapshot(page, id)).source).toBe(listReplaced);
+    await boundaryKey('Meta+z', listed); await boundaryKey('Meta+Shift+z', listReplaced); await boundaryKey('Meta+z', listed);
     await caret('#editor li strong', 1);
-    await boundaryKey('Enter', listed.replace('**ld**', '**l**\r\n- **d**'));
-    await boundaryKey('Backspace', listed);
+    const listSplit=listed.replace('**ld**', '**l**\r\n- **d**');
+    await boundaryKey('Enter',listSplit);
+    const crossList=await page.locator('#editor .tiptap').evaluate(n=>{
+      const a=n.querySelectorAll('li strong')[0].firstChild,b=n.querySelectorAll('li strong')[1].firstChild;n.focus();
+      window.getSelection().setBaseAndExtent(b,1,a,0);document.dispatchEvent(new Event('selectionchange'));
+      return[n.editor.view.posAtDOM(a,0),n.editor.view.posAtDOM(b,1)];
+    });
+    await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(crossList);
+    await page.keyboard.insertText('跨项');const crossResult=listed.replace('**ld**','**跨项**');
+    await expect.poll(async()=>(await snapshot(page,id)).source).toBe(crossResult);
+    await boundaryKey('Meta+z',listSplit);await boundaryKey('Meta+Shift+z',crossResult);await boundaryKey('Meta+z',listSplit);
+    await caret('#editor li:nth-child(2) strong',0);await boundaryKey('Backspace',listed);
     await caret('#editor li p', 0); await boundaryKey('Backspace', inlineReplaced);
     await page.keyboard.press('End'); await page.keyboard.insertText('Packaged ');
     await expect.poll(async () => (await snapshot(page, id)).source.includes('Packaged ')).toBe(true);
@@ -140,7 +165,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     expect(result.ok).toBe(true); await close(); passed = true;
     const record = { version: launches[0].identity.version, originalSha256: hash(raw), exportSha256: exported.confirmedCopy.sha256,
       syntheticDraftId: draftId, syntheticDraft: 'archived in private app store', originalUnchanged: true,
-      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true,
+      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true, listItemRangePasteUndoRedo: true, crossListRangeUndoRedo: true,
       processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
     await fs.writeFile(info.outputPath('evidence.json'), JSON.stringify(record, null, 2));
   } finally {

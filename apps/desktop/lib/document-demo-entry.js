@@ -216,6 +216,8 @@ function install(snapshot) {
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
+          if (replaceParagraphRangeInput(view, event, { state: controller?.state(),
+            blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus })) return true;
           if (formatView.key(view, event)) return true;
           return false; // Existing Tiptap Backspace command and source gate perform the edit.
         },
@@ -237,7 +239,7 @@ function install(snapshot) {
             event.preventDefault(); return true;
           }
           if (replaceParagraphRangeInput(_view, event, { state: controller?.state(),
-            blocked: activeInvalid() || loading || readOnlyDocument() })) return true;
+            blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus })) return true;
           if (!['historyUndo', 'historyRedo'].includes(event.inputType)) return false;
           event.preventDefault(); void history(event.inputType === 'historyUndo' ? 'undo' : 'redo'); return true;
         },

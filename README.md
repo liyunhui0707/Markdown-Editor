@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.41.0 local WIP checkpoint:** this is not a signed/notarized release or a
+**0.43.0 local WIP checkpoint:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,11 +15,11 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The installed 0.41.0 WIP adds Enter/Backspace boundaries in plain/bold paragraphs
-and simple lists, alongside existing selection editing and individual close.
-All installation bytes are verified; 0.40.0 is retained for rollback.
-The packaged paragraph/list keys, plain/mixed range editing, exclusive export, read-only reopen and
+The installed 0.43.0 candidate extends selection replacement, deletion and single-line paste
+to adjacent items in the same simple list, alongside paragraph/list keys and close.
+The packaged list-item/paragraph editing, exclusive export, read-only reopen and
 restart/draft-recovery workflow passes, as does installed welcome startup.
+All installation bytes are verified; 0.42.0 is retained for rollback.
 Native dialog choices were stubbed in this regression. Native close Cancel and
 complete physical-input acceptance remain unverified; prior native observations
 and failures stay scoped. This is not release acceptance.
@@ -126,7 +126,17 @@ The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列
 reparse it; they do not normalize the whole file. Headings require a nonempty
 single source line. Bold applies within one text leaf; removing it requires the
 whole bold leaf. Lists support up to 32 flat, tight, one-line items containing
-plain/bold text: Enter splits an item; Backspace at a nonfirst item's start joins
+plain/bold text. Select within one item or across adjacent items in that same
+list to replace/delete or paste one line, including plain/bold text. A cross-item
+replacement merges the selected items, retaining their unselected text and marks.
+Replacement inherits the selection's start format (plain when starting at an item's
+end); Undo restores exact bytes, markers and original numbering. Deleting all
+selected item text leaves one empty item; subsequent typing starts plain.
+Multiline list paste, selections crossing different lists or other block types,
+and edits whose existing delimiters cannot represent the formatting remain refused.
+If the browser reports a different input range from the current selection, the
+operation is cancelled with a message; it must not partially replace the selection.
+Enter splits an item; Backspace at a nonfirst item's start joins
 it to its predecessor. Backspace at the first item's start returns that item to
 an ordinary paragraph and preserves remaining list items. Enter on the first or
 last empty item exits; an empty paragraph can become a list through the format

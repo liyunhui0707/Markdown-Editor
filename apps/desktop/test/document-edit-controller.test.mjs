@@ -873,7 +873,7 @@ function rangeInput(h, type = 'insertText', options = {}) {
     dispatch: tr => { if (h.controller.prepare(tr)) h.apply(tr); }, ...options.view };
   let prevented = false;
   const event = { inputType: type, data: '新😀', cancelable: true, preventDefault() { prevented = true; }, ...options.event };
-  const handled = replaceParagraphRangeInput(view, event, { state: options.state || h.controller.state(), blocked: !!options.blocked });
+  const handled = replaceParagraphRangeInput(view, event, { state: options.state || h.controller.state(), blocked: !!options.blocked, report: options.report });
   return { handled, prevented };
 }
 
@@ -890,7 +890,6 @@ test('paragraph range: native input respects composition, focus/selection and op
   for (const options of [{ mismatch: true }, { blocked: true }, { view: { composing: true } },
     { view: { editable: false } }, { view: { hasFocus: () => false } }, { event: { isComposing: true } },
     { event: { data: null } }, { event: { cancelable: false } }, { event: { defaultPrevented: true } },
-    { event: { getTargetRanges: () => [{ startOffset: 1, endOffset: 1 }] } },
     ...['locked', 'historyPending', 'composing', 'compositionInvalid'].map(key => ({ state: { ...h.controller.state(), [key]: true } })),
     { state: { ...h.controller.state(), confirmed: { ...h.controller.state().confirmed, readOnly: true } } }]) {
     assert.deepEqual(rangeInput(h, 'insertText', options), { handled: false, prevented: false });
@@ -986,4 +985,119 @@ for(const lost of [false,true])test(`boundaries ${lost?'lost acknowledgment':'st
   assert.equal(h.controller.state().source,h.document.text);
   assert.equal(h.document.text,lost?'A **bo**\n\n**ld** Z':'External A **bold** Z');
   assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+
+for(const mode of ['type','delete','paste'])for(const reverse of [false,true])test(`list item range ${mode}, reverse=${reverse}: one main edit and exact history`,async()=>{
+  const raw='\ufeff# Keep\r\n\r\n7) Alpha **bold** tail.\r\n8) After\r\n',h=harness(raw),before=h.document.text;
+  const from=h.span('Alpha ').from+3,to=h.span('bold').from+2;
+  h.select(reverse?to:from,reverse?from:to);
+  if(mode==='paste')assert.deepEqual(paste(h,'新😀').messages,[]);
+  else assert.deepEqual(rangeInput(h,mode==='delete'?'deleteContentBackward':'insertText'),{handled:true,prevented:true});
+  await h.controller.idle();const after=before.replace('ha **bo',mode==='delete'?'**':'新😀**');
+  assert.equal(h.document.text,after);assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before);
+  assert.equal(h.state().selection.from,from);assert.equal(h.state().selection.to,to);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,after);
+  const at=h.state().selection.from;assert.equal(h.edit(at,at,'続'),true);await h.controller.idle();
+  assert.equal(h.document.text,after.replace('**ld**','続**ld**'));
+  const splitAt=h.span('ld').from+1;h.select(splitAt);
+  assert.equal(await h.controller.format({action:'split-list',from:splitAt,to:splitAt}),true);
+  const joinAt=h.state().selection.from;
+  assert.equal(await h.controller.format({action:'join-list',from:joinAt,to:joinAt}),true);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+for(const body of ['Plain','**Bold**','A **bold** tail'])test(`list full-text deletion retains item and can undo after retyping ${body}`,async()=>{
+  const h=harness('- '+body+'\n- Keep'),before=h.document.text,sp=projectSource(before).spans.filter(s=>s.itemIndex===0);
+  h.select(sp[0].from,sp.at(-1).to);
+  assert.deepEqual(rangeInput(h,'deleteContentForward'),{handled:true,prevented:true});await h.controller.idle();
+  assert.equal(h.document.text,'- \n- Keep');
+  const empty=h.span('');assert.equal(h.edit(empty.from,empty.to,'Again'),true);await h.controller.idle();
+  assert.equal(h.document.text,'- Again\n- Keep');
+  await h.controller.history('undo');await h.controller.history('undo');assert.equal(h.document.text,before);
+  await h.controller.history('redo');assert.equal(h.document.text,'- \n- Keep');
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('list selection refuses cross-block/multiline/composition safely and resumes',async()=>{
+  const h=harness('- A **bold** tail\n\nNext'),before=h.document.text,from=h.span('A ').from,to=h.span('bold').from+2;
+  h.select(from,h.span('Next').to);assert.deepEqual(rangeInput(h),{handled:true,prevented:true});
+  assert.equal(h.document.text,before);assert.equal(h.requests.length,0);
+  h.select(from,to);assert.equal(paste(h,'One\nTwo').messages.length,1);assert.equal(h.document.text,before);
+  assert.equal(paste(h,'').messages.length,0);assert.equal(h.document.text,before);
+  h.controller.beginComposition();assert.equal(h.edit(from,to,'组合'),false);
+  assert.equal(paste(h,'组合').messages.length,1);h.controller.endComposition();await h.controller.idle();
+  h.select(from,to);assert.equal(paste(h,'Safe').messages.length,0);await h.controller.idle();
+  assert.equal(h.document.text,'- Safe**ld** tail\n\nNext');assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+for(const lost of [false,true])test(`list range ${lost?'lost acknowledgment':'stale revision'} retains draft without replay`,async()=>{
+  const h=harness('- A **bold** tail\n- Next'),from=h.span('A ').from,to=h.span('bold').from+2;
+  if(lost)h.dropReplyAfterCommit=true;else h.document.edit({from:0,to:0,insert:'External\n\n',expectedRevision:0});
+  assert.equal(h.edit(from,to,'X'),true);await h.controller.idle();
+  const s=h.controller.state();assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(s.recoveryRecords[0].source,'- X**ld** tail\n- Next');assert.equal(s.recoveryRecords[0].mainMatchesDraft,lost);
+  assert.equal(s.source,h.document.text);assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+for(const mode of ['type','delete','paste'])for(const reverse of [false,true])test(`cross-list ${mode}, reverse=${reverse}: one main edit with exact history and continuation`,async()=>{
+  const h=harness('\ufeff# Keep\r\n\r\n3) Alpha **bold** tail\r\n7) Middle\r\n12) End **strong** finish\r\n99) Keep\r\n'),before=h.document.text;
+  const from=h.span('bold').from+2,to=h.span('strong').from+2,insert=mode==='delete'?'':'新😀';
+  h.select(reverse?to:from,reverse?from:to);
+  if(mode==='paste')assert.deepEqual(paste(h,insert).messages,[]);
+  else assert.deepEqual(rangeInput(h,mode==='delete'?'deleteContentBackward':'insertText'),{handled:true,prevented:true});
+  await h.controller.idle();const after='# Keep\r\n\r\n3) Alpha **bo'+insert+'rong** finish\r\n99) Keep\r\n';
+  assert.equal(h.document.text,after);assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before);
+  assert.equal(h.state().selection.from,from);assert.equal(h.state().selection.to,to);
+  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,after);
+  const at=h.state().selection.from;assert.equal(h.edit(at,at,'Q'),true);await h.controller.idle();
+  assert.equal(h.document.text,after.replace('rong','Qrong'));
+  assert.equal(await h.controller.format({action:'split-list',from:at,to:at}),true);
+  const caret=h.state().selection.from;assert.equal(await h.controller.format({action:'join-list',from:caret,to:caret}),true);
+  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+for(const key of ['Backspace','Delete'])for(const body of ['**Bold**\n- __Last__','A\n- '])test(`cross-list ${key} fully selected text retains an item and can retype ${body}`,async()=>{
+  const h=harness('- '+body),before=h.document.text,rows=projectSource(before).blocks[0].items;
+  h.select(rows.at(-1).to,rows[0].from);
+  assert.deepEqual(rangeInput(h,'keydown',{event:{key}}),{handled:true,prevented:true});await h.controller.idle();
+  assert.equal(h.document.text,'- ');assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(h.edit(3,3,'Again'),true);await h.controller.idle();assert.equal(h.document.text,'- Again');
+  await h.controller.history('undo');await h.controller.history('undo');assert.equal(h.document.text,before);
+  await h.controller.history('redo');assert.equal(h.document.text,'- ');assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('cross-list key input keeps DOM selection, focus, IME and permission guards',async()=>{
+  const h=harness('- A **bold**\n- Last'),before=h.document.text;
+  h.select(h.span('A ').from,h.span('Last').to);
+  for(const options of [{mismatch:true},{blocked:true},{view:{composing:true}},{view:{editable:false}},{view:{hasFocus:()=>false}},
+    ...[{isComposing:true},{keyCode:229},{metaKey:true},{ctrlKey:true},{altKey:true},{shiftKey:true},{defaultPrevented:true},{cancelable:false}].map(event=>({event})),
+    ...['locked','historyPending','composing','compositionInvalid'].map(k=>({state:{...h.controller.state(),[k]:true}})),
+    {state:{...h.controller.state(),confirmed:{...h.controller.state().confirmed,readOnly:true}}}])
+    assert.deepEqual(rangeInput(h,'keydown',{...options,event:{key:'Backspace',...options.event}}),{handled:false,prevented:false});
+  assert.equal(h.requests.length,0);
+  h.controller.beginComposition();assert.equal(h.edit(h.span('A ').from,h.span('Last').to,'组合'),false);
+  h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,before);
+  assert.equal(paste(h,'One\nTwo').messages.length,1);assert.equal(h.document.text,before);
+  h.select(h.span('A ').from,h.span('Last').to);assert.equal(paste(h,'Safe').messages.length,0);await h.controller.idle();
+  assert.equal(h.document.text,'- Safe');assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+for(const lost of [false,true])test(`cross-list ${lost?'lost acknowledgment':'stale revision'} retains attempted draft without retry`,async()=>{
+  const h=harness('- Alpha **bold** tail\n- Last'),from=h.span('Alpha ').from+2,to=h.span('Last').from+2;
+  if(lost)h.dropReplyAfterCommit=true;else h.document.edit({from:0,to:0,insert:'External\n\n',expectedRevision:0});
+  assert.equal(h.edit(from,to,'X'),true);await h.controller.idle();
+  const s=h.controller.state();assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);
+  assert.equal(s.recoveryRecords[0].source,'- AlXst');assert.equal(s.recoveryRecords[0].mainMatchesDraft,lost);
+  assert.equal(s.source,h.document.text);assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+
+test('native shortened or unreadable target range is refused atomically with feedback, then a safe list edit works',async()=>{
+  const h=harness('- First\n- Last\n\n```md\nProtected\n```'),before=h.document.text;
+  h.select(h.span('First').from+1,h.span('Last').to);
+  const messages=[];
+  for(const getTargetRanges of [()=>[{startOffset:4,endOffset:5}],()=>[{},{}],()=>{throw Error('synthetic target failure');}]) {
+    assert.deepEqual(rangeInput(h,'insertText',{event:{getTargetRanges},report:m=>messages.push(m)}),{handled:true,prevented:true});
+    assert.equal(h.document.text,before);assert.equal(h.document.revision,0);assert.equal(h.requests.length,0);
+  }
+  assert.equal(messages.length,3);assert(messages.every(m=>m.includes('输入范围与当前选区不一致')));
+  assert.deepEqual(rangeInput(h),{handled:true,prevented:true});await h.controller.idle();
+  assert.equal(h.document.text,'- F新😀\n\n```md\nProtected\n```');assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

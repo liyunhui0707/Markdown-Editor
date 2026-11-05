@@ -1,17 +1,31 @@
-// Bounded edits to one plain/bold paragraph. Existing source tokens are retained;
+// Bounded edits to one plain/bold paragraph or adjacent projected simple-list items.
+// Existing source tokens are retained;
 // only touched text/strong delimiters are patched. This is not a file serializer.
 export function mapInlineRange(source, projection, change, project) {
   const {from,to,insert}=change, reject=()=>({ok:false,code:'unsafe-source-range'});
   const index=projection.blocks.findIndex(b=>b && from>b.from && to<b.to);
-  if(index<0 || projection.doc.content[index].type!=='paragraph') return null;
-  const spans=projection.spans.filter(s=>s.blockIndex===index);
-  if(!spans.some(s=>s.bold)||spans.some(s=>s.textOffset!==undefined||s.itemIndex!==undefined)) return null;
+  if(index<0) return null;
+  const block=projection.blocks[index],list=!!block.items;
+  if(!list && projection.doc.content[index].type!=='paragraph') return null;
+  const itemIndex=list?block.items.findIndex(row=>from>=row.from&&from<=row.to):undefined;
+  const endItem=list?block.items.findIndex(row=>to>=row.from&&to<=row.to):undefined;
+  if(list && (itemIndex<0||endItem<itemIndex))return reject();
+  const cross=list&&endItem>itemIndex;
+  const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:s.itemIndex===undefined));
+  if((!list&&!spans.some(s=>s.bold))||spans.some(s=>s.textOffset!==undefined)) return null;
   const cut=(s,n)=>n>0 && n<s.length && /[\uD800-\uDBFF]/.test(s[n-1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   const tokens=spans.map(s=>({...s,a:s.sourceFrom-(s.bold?2:0),b:s.sourceTo+(s.bold?2:0),
     marker:s.bold?source.slice(s.sourceFrom-2,s.sourceFrom):''}));
   if(tokens.some((s,i)=>s.bold && (!['**','__'].includes(s.marker)||source.slice(s.sourceTo,s.b)!==s.marker)
-      || i && tokens[i-1].b!==s.a)) return reject();
-  const touched=from===to ? [tokens.find(s=>s.from<from&&from<=s.to)||tokens[0]]
+      || i && tokens[i-1].itemIndex===s.itemIndex && tokens[i-1].b!==s.a)) return reject();
+  // Removing item boundaries must not discard unprojected margins or syntax.
+  if(cross && block.items.slice(itemIndex,endItem+1).some((row,i)=>{
+    const part=tokens.filter(s=>s.itemIndex===itemIndex+i);
+    return !part.length||part[0].a!==row.bodyFrom||part.at(-1).b!==row.sourceTo;
+  }))return reject();
+  const left=cross?tokens.filter(s=>s.itemIndex===itemIndex):null,right=cross?tokens.filter(s=>s.itemIndex===endItem):null;
+  const touched=cross?[left.find(s=>from>=s.from&&from<s.to)||left.at(-1),right.find(s=>to>s.from&&to<=s.to)||right[0]]
+    : from===to ? [tokens.find(s=>s.from<from&&from<=s.to)||tokens[0]]
     : tokens.filter(s=>s.from<to&&s.to>from);
   const first=touched[0],last=touched.at(-1);
   if(!first||from<first.from||to>last.to||cut(first.text,from-first.from)||cut(last.text,to-last.from)) return reject();
@@ -23,7 +37,8 @@ export function mapInlineRange(source, projection, change, project) {
     else pieces.push({text,bold:token.bold,marker:token.marker});
   };
   append(first.text.slice(0,from-first.from),first);
-  append(insert,first); // PM marksAcross for ranges; marks() uses the left token at an insertion boundary.
+  // marksAcross has no start marks at the end of a textblock, unlike collapsed typing.
+  append(insert,cross&&from===block.items[itemIndex].to?{bold:false,marker:''}:first);
   append(last.text.slice(to-last.from),last);
   const replacement=pieces.map(s=>s.bold?s.marker+s.text+s.marker:s.text).join('');
   const original=source.slice(first.a,last.b);
@@ -46,7 +61,9 @@ export function mapInlineRange(source, projection, change, project) {
   for(const s of tokens.slice(0,tokens.indexOf(first)))add(s);
   pieces.forEach(add);
   for(const s of tokens.slice(tokens.indexOf(last)+1))add(s);
-  expected.content[index].content=nodes;
+  const target=list?expected.content[index].content[itemIndex].content[0]:expected.content[index];
+  target.content=nodes;
+  if(cross)expected.content[index].content.splice(itemIndex+1,endItem-itemIndex);
   const nextProjection=project(next);
   if(JSON.stringify(nextProjection.doc)!==JSON.stringify(expected))return reject();
   return {ok:true,source:next,projection:nextProjection,change:{from:a,to:b,insert:text},

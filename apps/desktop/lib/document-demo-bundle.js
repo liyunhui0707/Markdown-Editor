@@ -22914,9 +22914,15 @@ ${prefix}
   function mapInlineRange(source, projection, change, project) {
     const { from: from2, to, insert } = change, reject3 = () => ({ ok: false, code: "unsafe-source-range" });
     const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0 || projection.doc.content[index2].type !== "paragraph") return null;
-    const spans = projection.spans.filter((s) => s.blockIndex === index2);
-    if (!spans.some((s) => s.bold) || spans.some((s) => s.textOffset !== void 0 || s.itemIndex !== void 0)) return null;
+    if (index2 < 0) return null;
+    const block = projection.blocks[index2], list3 = !!block.items;
+    if (!list3 && projection.doc.content[index2].type !== "paragraph") return null;
+    const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
+    const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
+    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject3();
+    const cross = list3 && endItem > itemIndex;
+    const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : s.itemIndex === void 0));
+    if (!list3 && !spans.some((s) => s.bold) || spans.some((s) => s.textOffset !== void 0)) return null;
     const cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
     const tokens = spans.map((s) => ({
       ...s,
@@ -22924,8 +22930,13 @@ ${prefix}
       b: s.sourceTo + (s.bold ? 2 : 0),
       marker: s.bold ? source.slice(s.sourceFrom - 2, s.sourceFrom) : ""
     }));
-    if (tokens.some((s, i) => s.bold && (!["**", "__"].includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].b !== s.a)) return reject3();
-    const touched = from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
+    if (tokens.some((s, i) => s.bold && (!["**", "__"].includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject3();
+    if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
+      const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
+      return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
+    })) return reject3();
+    const left = cross ? tokens.filter((s) => s.itemIndex === itemIndex) : null, right = cross ? tokens.filter((s) => s.itemIndex === endItem) : null;
+    const touched = cross ? [left.find((s) => from2 >= s.from && from2 < s.to) || left.at(-1), right.find((s) => to > s.from && to <= s.to) || right[0]] : from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
     const first2 = touched[0], last = touched.at(-1);
     if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject3();
     const pieces = [];
@@ -22936,7 +22947,7 @@ ${prefix}
       else pieces.push({ text: text6, bold: token.bold, marker: token.marker });
     };
     append2(first2.text.slice(0, from2 - first2.from), first2);
-    append2(insert, first2);
+    append2(insert, cross && from2 === block.items[itemIndex].to ? { bold: false, marker: "" } : first2);
     append2(last.text.slice(to - last.from), last);
     const replacement = pieces.map((s) => s.bold ? s.marker + s.text + s.marker : s.text).join("");
     const original = source.slice(first2.a, last.b);
@@ -22965,7 +22976,9 @@ ${prefix}
     for (const s of tokens.slice(0, tokens.indexOf(first2))) add(s);
     pieces.forEach(add);
     for (const s of tokens.slice(tokens.indexOf(last) + 1)) add(s);
-    expected.content[index2].content = nodes;
+    const target = list3 ? expected.content[index2].content[itemIndex].content[0] : expected.content[index2];
+    target.content = nodes;
+    if (cross) expected.content[index2].content.splice(itemIndex + 1, endItem - itemIndex);
     const nextProjection = project(next);
     if (JSON.stringify(nextProjection.doc) !== JSON.stringify(expected)) return reject3();
     return {
@@ -33640,6 +33653,8 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         notify();
         return false;
       }
+      const at = tr2.selection.$from;
+      if (mapped.edit.insert === "" && tr2.selection.empty && at.parent.type.name === "paragraph" && !at.parent.content.size && at.depth > 1 && at.node(at.depth - 1).type.name === "listItem") tr2.setStoredMarks(null);
       prepared.set(tr2, mapped);
       return true;
     }
@@ -33906,30 +33921,42 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject3("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u540C\u6BB5\u666E\u901A\u6587\u5B57\u4E0E\u7C97\u4F53\u4E4B\u95F4\u652F\u6301\u5355\u884C\u7C98\u8D34\uFF1B\u591A\u884C\u8BF7\u7C98\u8D34\u5230\u666E\u901A\u6BB5\u843D\u3002\u8DE8\u6807\u9898\u3001\u5217\u8868\u6216\u4EE3\u7801\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject3("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u540C\u4E00\u666E\u901A\u6BB5\u843D\u6216\u540C\u4E00\u7B80\u5355\u5217\u8868\u5185\uFF0C\u666E\u901A\u6587\u5B57\u4E0E\u7C97\u4F53\u4E4B\u95F4\u652F\u6301\u5355\u884C\u7C98\u8D34\uFF1B\u591A\u884C\u8BF7\u7C98\u8D34\u5230\u666E\u901A\u6BB5\u843D\u3002\u8DE8\u4E0D\u540C\u5217\u8868\u3001\u6807\u9898\u6216\u4EE3\u7801\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     return true;
   }
 
   // lib/document-paragraph-input.mjs
-  function replaceParagraphRangeInput(view, event, { state, blocked = false }) {
-    if (!["insertText", "deleteContentBackward", "deleteContentForward"].includes(event.inputType) || event.defaultPrevented || !event.cancelable || event.isComposing || view.composing || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly || state.locked || state.historyPending || state.composing || state.compositionInvalid) return false;
+  function replaceParagraphRangeInput(view, event, { state, blocked = false, report = () => {
+  } }) {
+    const keyDelete = ["Backspace", "Delete"].includes(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+    if (!keyDelete && !["insertText", "deleteContentBackward", "deleteContentForward"].includes(event.inputType) || event.defaultPrevented || !event.cancelable || event.isComposing || view.composing || event.keyCode === 229 || !view.editable || !view.hasFocus() || !state || blocked || state.confirmed.readOnly || state.locked || state.historyPending || state.composing || state.compositionInvalid) return false;
     const selection = view.state.selection;
     if (!(selection instanceof TextSelection) || selection.empty) return false;
-    if (selection.$from.sameParent(selection.$to) && (selection.$from.parent.type.name !== "paragraph" || !selection.$from.parent.content.content.some((n) => n.marks.some((m) => m.type.name === "bold")))) return false;
+    const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === "listItem";
+    const crossItems = inItem && selection.$from.depth === 3 && selection.$to.depth === 3 && selection.$from.node(1) === selection.$to.node(1) && selection.$from.node(2) !== selection.$to.node(2) && selection.$to.parent.type.name === "paragraph";
+    if (keyDelete && !crossItems) return false;
+    if (selection.$from.sameParent(selection.$to) && (selection.$from.parent.type.name !== "paragraph" || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => m.type.name === "bold")))) return false;
     if (event.inputType === "insertText" && (typeof event.data !== "string" || !event.data)) return false;
+    const rejectTarget = () => {
+      event.preventDefault();
+      report("\u672A\u5E94\u7528\u4FEE\u6539\uFF1A\u8F93\u5165\u8303\u56F4\u4E0E\u5F53\u524D\u9009\u533A\u4E0D\u4E00\u81F4\u3002\u8BF7\u91CD\u65B0\u9009\u62E9\u53EF\u7F16\u8F91\u6587\u5B57\uFF1B\u5F53\u524D\u5185\u5BB9\u672A\u6539\u53D8\u3002", true);
+      return true;
+    };
+    let matched = false;
     try {
       const dom = view.dom.ownerDocument.getSelection();
       if (!dom || dom.rangeCount !== 1 || dom.isCollapsed || !view.dom.contains(dom.anchorNode) || !view.dom.contains(dom.focusNode)) return false;
       const a = view.posAtDOM(dom.anchorNode, dom.anchorOffset), b = view.posAtDOM(dom.focusNode, dom.focusOffset);
       if (Math.min(a, b) !== selection.from || Math.max(a, b) !== selection.to) return false;
+      matched = true;
       const targets = event.getTargetRanges?.() || [];
-      if (targets.length > 1 || targets.length === 1 && (view.posAtDOM(targets[0].startContainer, targets[0].startOffset) !== selection.from || view.posAtDOM(targets[0].endContainer, targets[0].endOffset) !== selection.to)) return false;
+      if (targets.length > 1 || targets.length === 1 && (view.posAtDOM(targets[0].startContainer, targets[0].startOffset) !== selection.from || view.posAtDOM(targets[0].endContainer, targets[0].endOffset) !== selection.to)) return rejectTarget();
     } catch {
-      return false;
+      return matched ? rejectTarget() : false;
     }
     event.preventDefault();
-    const tr2 = view.state.tr.insertText(event.inputType === "insertText" ? event.data : "").scrollIntoView();
+    const tr2 = crossItems && event.inputType !== "insertText" ? view.state.tr.delete(selection.from, selection.to).scrollIntoView() : view.state.tr.insertText(event.inputType === "insertText" ? event.data : "").scrollIntoView();
     view.dispatch(tr2);
     return true;
   }
@@ -34611,6 +34638,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         editorProps: { attributes: { tabindex: "0" }, handleDOMEvents: {
           keydown: (view, event) => {
             syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
+            if (replaceParagraphRangeInput(view, event, {
+              state: controller?.state(),
+              blocked: activeInvalid() || loading || readOnlyDocument(),
+              report: viewerStatus
+            })) return true;
             if (formatView.key(view, event)) return true;
             return false;
           },
@@ -34644,7 +34676,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
             }
             if (replaceParagraphRangeInput(_view, event, {
               state: controller?.state(),
-              blocked: activeInvalid() || loading || readOnlyDocument()
+              blocked: activeInvalid() || loading || readOnlyDocument(),
+              report: viewerStatus
             })) return true;
             if (!["historyUndo", "historyRedo"].includes(event.inputType)) return false;
             event.preventDefault();

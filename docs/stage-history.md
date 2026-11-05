@@ -1,5 +1,52 @@
 # Stage History
 
+## 0.43.0 WIP candidate — adjacent list-item selection editing (2026-11-05, uncommitted)
+
+Plain/bold selections can replace/delete across adjacent items in one projected
+simple list, or accept one pasted line. The items merge while unselected text,
+marks and surrounding source remain intact; Undo restores exact original markers
+and numbering. Whole-list text deletion retains one empty, editable list item.
+Different lists, complex blocks and multiline list paste remain refused.
+
+The existing inline mapper grows to 72 lines and native input adapter to 51.
+No new serializer, IPC authority or save system. The input adapter captures exact
+Backspace/Delete ranges to prevent automatic whole-list restructuring. A real
+Electron regression exposed beforeinput target clipping at a protected code block;
+the adapter now cancels mismatched/unreadable target ranges and reports refusal.
+
+301 focused Node, four controlled source Electron and one packaged workflow PASS;
+installed welcome startup also PASS. 438 source files and 39 packaged runtime
+files match; 528 installed entries verified, with 0.42.0 retained for rollback.
+New range tests 77 lines; controller tests 1103,
+shared E2E 2450, packaged E2E 175 and renderer entry 432 reuse existing harnesses
+and wiring rather than expand this feature into unrelated file splitting.
+Native IME/full physical acceptance and historical failures remain scoped/open.
+Original read-only, exclusive export, Not saved and coordination-required unchanged.
+The prior uncommitted 0.42.0 slice is preserved; no commit/remote action/Reviewer.
+
+## 0.42.0 WIP candidate — single-list-item selection editing (2026-11-05, uncommitted)
+
+One simple flat list item supports selection replacement, deletion and single-line
+plaintext paste across plain/bold text. Reverse selections, full-text deletion,
+continued typing and exact-byte Undo/Redo are covered. A validated deletion that
+empties an item clears stale stored marks so subsequent typing starts plain.
+Cross-item ranges, multiline list paste and complex lists remain refused.
+
+Reuse the existing source mapper, projection equality and main-owned history;
+no File Store, save authorization or IPC changes. Inline mapper 61 lines, input
+helper 34, controller 245; new list-range tests 73. Controller tests 1040, shared
+E2E 2435 and packaged E2E 165 retain their existing harness to avoid unrelated
+splits; future test reorganization is separate from this bounded feature.
+
+267 focused Node, four source Electron workflows and one packaged workflow PASS.
+Installed welcome startup PASS; 437 source files, 39 packaged runtime files and
+528 installed entries verified. Previous 0.41.0 retained for rollback.
+Native dialogs/clipboard are controlled;
+native IME and full physical/manual acceptance remain NOT VERIFIED. Codex local
+diff review found no new blocker; no independent Reviewer or full CI run.
+Original readonly, exclusive export, Not saved and coordination-required protections
+remain. Baseline `ca5d927` / 0.41.0 retained; no commit/push/merge/tag/release.
+
 ## 0.41.0 local WIP checkpoint — continuous writing (2026-11-05)
 
 Retains the two candidate slices below in one bounded checkpoint. All 25 files

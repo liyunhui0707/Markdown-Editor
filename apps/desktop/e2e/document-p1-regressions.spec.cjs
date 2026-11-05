@@ -2372,3 +2372,79 @@ test('writing boundaries V1 splits joins and exits lists with exact export reope
       originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
   },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
 });
+
+
+// Same production controller/history; native dialogs and clipboard data are controlled.
+test('list ranges V2 replacement deletion paste and continuous editing export reopen',async({},info)=>{
+  const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'list-item-range-e2e-')));
+  const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
+  let original,raw,receipt,bytes;
+  await usingDemo(async({app,page,root,snapshot,settled})=>{
+    original=path.join(root,'list-original.md');
+    raw=Buffer.from('\ufeff# Keep\r\n\r\n- Alpha **bold** tail.\r\n- Keep\r\n- **All**\r\n\r\n```md\r\nKeep []\r\n```\r\n\r\nEnd.');
+    await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
+    await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
+    await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue();
+    const source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+    const range=async(row,from,to,reverse=false,endRow=row)=>{
+      const selected=await page.locator('#editor .tiptap').evaluate((root,r)=>{
+        function at(index,offset){const p=root.querySelectorAll('li p')[index],w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);let n;
+          while(n=w.nextNode()){if(offset<=n.length)return[n,offset];offset-=n.length;}return[p,0];}
+        const a=at(r.row,r.from),b=at(r.endRow,r.to);root.focus();
+        window.getSelection().setBaseAndExtent(...(r.reverse?b:a),...(r.reverse?a:b));document.dispatchEvent(new Event('selectionchange'));
+        return[root.editor.view.posAtDOM(...a),root.editor.view.posAtDOM(...b)];
+      },{row,from,to,reverse,endRow});
+      await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(selected);
+    };
+    const key=async(k,expected)=>{await page.keyboard.press(k);await expect.poll(source).toBe(expected);};
+    const paste=async(text)=>{await page.locator('#editor .tiptap').evaluate((n,text)=>{
+      const d=new DataTransfer();d.setData('text/plain',text);d.setData('text/html','<b>NOT USED</b>');
+      n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}));
+    },text);await settled();};
+    await range(0,3,8,true);await page.keyboard.insertText('X');
+    const typed=before.replace('ha **bo','X**');await expect.poll(source).toBe(typed);
+    await key('Meta+z',before);await key('Meta+Shift+z',typed);await key('Meta+z',before);
+    await range(0,6,10);await key('Backspace',before.replace('**bold**',''));await key('Meta+z',before);
+    await range(0,8,13,true);await paste('中文😀');await expect.poll(source).toBe(before.replace('ld** ta','中文😀**'));await key('Meta+z',before);
+    await range(2,0,3);const empty=before.replace('**All**','');await key('Backspace',empty);
+    await page.keyboard.type('Again');await expect.poll(source).toBe(before.replace('**All**','Again'));
+    await key('Meta+z',before.replace('**All**','Agai')); // ordinary keystrokes retain their existing history granularity
+    for(let i=0;i<4;i++)await page.keyboard.press('Meta+z');await expect.poll(source).toBe(empty);await key('Meta+z',before);
+    await range(0,3,2,false,2);await page.keyboard.insertText('X');
+    const cross=before.replace('ha **bold** tail.\r\n- Keep\r\n- **Al','X**');
+    await expect.poll(source).toBe(cross);await key('Meta+z',before);await key('Meta+Shift+z',cross);await key('Meta+z',before);
+    await range(0,0,3,true,2);const cleared=before.replace('- Alpha **bold** tail.\r\n- Keep\r\n- **All**','- ');
+    await key('Backspace',cleared);await page.keyboard.insertText('Again');await expect.poll(source).toBe(cleared.replace('- \r\n','- Again\r\n'));
+    await key('Meta+z',cleared);await key('Meta+z',before);
+    await range(0,0,3,false,2);await key('Delete',cleared);await key('Meta+z',before);
+    const acrossBlock=await page.locator('#editor .tiptap').evaluate(n=>{
+      const a=n.querySelector('li p').firstChild,b=n.querySelector('pre code').firstChild;n.focus();
+      window.getSelection().setBaseAndExtent(a,1,b,2);document.dispatchEvent(new Event('selectionchange'));
+      return[n.editor.view.posAtDOM(a,1),n.editor.view.posAtDOM(b,2)];
+    });
+    await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(acrossBlock);
+    const protectedRevision=(await snapshot(id)).snapshot.revision;
+    await page.keyboard.insertText('REFUSE');await settled();expect(await source()).toBe(before);
+    expect((await snapshot(id)).snapshot.revision).toBe(protectedRevision);await expect(page.locator('#viewer-status')).toContainText('输入范围与当前选区不一致');
+    await range(0,8,2,true,2);await paste('One\nTwo');expect(await source()).toBe(before);await expect(page.locator('#viewer-status')).toContainText('未粘贴');
+    await paste('');expect(await source()).toBe(before);
+    await paste('最终😀');let finished=before.replace('ld** tail.\r\n- Keep\r\n- **Al','最终😀');await expect.poll(source).toBe(finished);
+    await page.keyboard.type('Q');finished=finished.replace('最终😀','最终😀Q');await expect.poll(source).toBe(finished);
+    await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);
+    await selectDocument(page,id);await page.keyboard.press('Escape');await key('Meta+z',finished.replace('最终😀Q','最终😀'));await key('Meta+Shift+z',finished);
+    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+    const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+    expect(bytes).toEqual(Buffer.from('\ufeff'+finished));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
+    expect(await fs.readFile(original)).toEqual(raw);await captureTestWindow(app,info.outputPath('list-cross-range.png'));
+  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+  await usingDemo(async({app,page,snapshot})=>{
+    await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+    await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+    const reopened=(await snapshot(await page.locator('#documents').inputValue())).snapshot;
+    expect(Buffer.from('\ufeff'+reopened.source)).toEqual(bytes);expect(await fs.readFile(original)).toEqual(raw);
+    console.log('list-cross-range-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',clipboard:'controlled',dialog:'stubbed',area}));
+  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});

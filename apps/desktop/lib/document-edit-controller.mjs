@@ -114,6 +114,11 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       if (composition) composition.invalid = true;
       notify(); return false;
     }
+    // A cleared list item has no source mark to inherit. Do not leave PM's
+    // deleted bold mark behind and reject the user's next ordinary keystroke.
+    const at = tr.selection.$from;
+    if (mapped.edit.insert === '' && tr.selection.empty && at.parent.type.name === 'paragraph'
+        && !at.parent.content.size && at.depth > 1 && at.node(at.depth - 1).type.name === 'listItem') tr.setStoredMarks(null);
     prepared.set(tr, mapped); return true;
   }
   function accept(tr) {

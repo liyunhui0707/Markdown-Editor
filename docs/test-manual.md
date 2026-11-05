@@ -2,6 +2,43 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Adjacent list-item selections — installed 0.43.0 WIP candidate (2026-11-05)
+
+301 focused Node, four controlled source Electron workflows and one packaged
+editing/export/reopen/recovery workflow plus installed welcome startup PASS.
+Native IME and full physical/manual acceptance remain NOT VERIFIED. Optional check:
+
+- In a synthetic simple bullet or numbered list, select from midway through one
+  item into a later item, including bold text; type, paste one line or delete.
+  Unselected edges merge into one item. Undo/Redo restores each complete operation.
+- Select all text across the list and press Backspace/Delete, then type again.
+  One empty list item remains. Undo restores the original items and formatting.
+- Select into a protected code block or paste multiple lines across list items:
+  refuse the entire operation and retain text. Make a safe selection and continue.
+- Switch original/copy, export a new file and reopen; original bytes stay unchanged.
+
+This supersedes the 0.42.0 cross-item refusal only within one simple flat list.
+Different lists, nested/task/loose lists and ambiguous source syntax remain protected.
+Controlled Chinese clipboard text and stubbed dialogs do not establish native IME.
+
+## Single list-item selection editing — installed 0.42.0 WIP candidate (2026-11-05)
+
+Automated: 267 focused Node, four controlled source Electron workflows and one
+packaged editing/export/reopen/recovery workflow plus installed welcome PASS.
+No new human/native-IME acceptance is claimed. Optional brief experience:
+
+- In a synthetic list item such as `- Alpha **bold** tail`, select across plain
+  and bold text in either direction; type or paste one line, then Undo/Redo.
+- Delete all item text, type again, and Undo. The empty item accepts plain text;
+  Undo restores the original text and formatting. Enter/Backspace still work.
+- Select across two list items or paste multiple lines into an item: reject the
+  complete operation, retain content, and allow the next supported edit.
+- Export to a new filename and reopen. The original stays unchanged and read-only.
+
+Mixed-format composition replacement, nested/task/loose lists and ambiguous
+Markdown delimiters remain protected. Controlled Chinese clipboard text does not
+verify native macOS IME; historical formal/manual failures remain scoped/open.
+
 ## Paragraph/list boundaries — installed 0.41.0 WIP (2026-11-05)
 
 Automated: 237 distinct focused Node, four controlled source Electron workflows,

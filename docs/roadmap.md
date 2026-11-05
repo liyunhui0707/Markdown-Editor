@@ -9,23 +9,23 @@ complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
 Use short feature branches in the existing Worktree; no long-lived develop
 branch or release/tag is implied.
 
-Local checkpoint `b12e2fd` (0.39.0) preserves close/ordinary-paragraph editing.
-The **0.41.0 local WIP checkpoint** on `feat/document-close` retains both the
-installed 0.40.0 mixed-range slice and the 0.41.0 paragraph/list boundary slice:
-Enter/Backspace with plain/bold text, first-item return to paragraph, first/last
-empty-item exit and an empty-paragraph list start where structurally representable.
-The previous 0.40.0 snapshot and installed app are retained for rollback.
+Local checkpoint `ca5d927` (0.41.0) preserves close, paragraph selection editing
+and paragraph/list boundary keys. The **0.43.0 local WIP checkpoint** on
+`feat/document-close` retains the 0.42.0 single-item slice and adds selection
+replacement, deletion and single-line paste across adjacent items of one simple
+list. Unselected text/marks survive the merge; Undo restores exact source bytes.
+A shortened native input target is refused rather than applied only in part.
 
-237 distinct focused Node tests pass (236-test regression plus one added capacity
-case; the final 16-test boundary file passes). Four controlled source Electron
-workflows, one packaged workflow and installed startup pass. Native IME/dialog
+301 focused Node tests, four controlled source Electron workflows and one
+packaged workflow plus installed welcome startup pass. All 528 installed entries
+are verified; 0.42.0 is retained for rollback. Native IME/dialog
 acceptance remains separately incomplete; no new release or remote authority.
 
-These two slices are retained together as a local WIP, without claiming new
-human/native-IME acceptance. Next: selection replacement and single-line
-plain-text paste within one simple list item, including plain/bold text. Defer
-cross-item ranges and nested/task lists. Keep the accepted appearance and existing
-editor/file-safety architecture; do not add a new serializer or save system.
+These two list-editing slices are retained together in a bounded local WIP
+checkpoint. Next add selected italic formatting through the existing source map,
+format toolbar and history; keep complex/nested inline syntax protected.
+Nested/task lists remain deferred. Preserve the accepted appearance, existing
+editor/file-safety architecture and source-patching approach.
 
 Subsequent work should improve continuous writing and supported Markdown ranges
 in small slices. General overwrite remains blocked until its coordination
