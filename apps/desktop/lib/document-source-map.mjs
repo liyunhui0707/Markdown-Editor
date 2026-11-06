@@ -1,13 +1,15 @@
+import {projectImage} from './document-image-source.mjs';
+import {projectTable,mapTableText} from './document-table-source.mjs';
 import { projectInlineLeaf, inlineTextNode } from './document-inline-leaf.mjs';
 import { mapInlineRange } from './document-inline-source.mjs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
-import { projectSimpleList } from './document-list-source.mjs';
+import { projectSimpleList, listNodeAt } from './document-list-source.mjs';
 import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
 export const spanBlock = (projection, span) => span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
-  : projection.doc.content[span.blockIndex].content[span.itemIndex].content[0];
+  : listNodeAt(projection.doc.content[span.blockIndex],span.itemPath??[span.itemIndex]).content[0];
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
 const parser = unified().use(remarkParse).use(remarkGfm);
@@ -56,12 +58,12 @@ export function projectSource(source) {
       type: 'paragraph', position: node.position,
       children: [{type:'text',value:pending,position:node.position}],
     };
-    let structured=projectStructuredBlock(node,source,position,content.length);
+    let structured=projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
     if(structured){
       const gap=lines(source.slice(previousEnd,start));
       if((!content.length&&!fm&&gap.length>=2)||(content.length&&gap.length>=4)){
         emptyParagraph(!content.length?0:previousEnd+gap[0].length+gap[1].length);
-        structured=projectStructuredBlock(node,source,position,content.length);
+        structured=projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
       }
       blocks.push(structured.block);content.push(structured.doc);spans.push(...structured.spans);
       position+=structured.size;previousEnd=end;continue;
@@ -254,6 +256,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
       || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== 'boolean')) return unsafe();
   // Internal history only; renderer payloads still allow no separator/leaf fields.
   if (paragraphSeparator !== null && (leaf !== null || !['\n\n', '\r\n\r\n', '\r\r'].includes(paragraphSeparator))) return unsafe();
+  if(leaf===null&&paragraphSeparator===null){const table=mapTableText(source,projection,change,projectSource);if(table)return table;}
   if (leaf===null&&paragraphSeparator===null){const code=mapCodeText(source,projection,change,projectSource);if(code)return code;}
   if (leaf === null) {
     const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);

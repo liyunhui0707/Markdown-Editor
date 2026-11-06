@@ -44,7 +44,7 @@ test('cross-list numbering is not normalized and 32 items are bounded',()=>{
   const tooMany=source+'\n33. Extra';assert.equal(projectSource(tooMany).blocks[0],null);
 });
 test('cross-list refusals: different lists, unsupported items, multiline, source size and forged fields',()=>{
-  for(const raw of ['- First\n\n1. Last','- First\n\n# Heading\n\n- Last','- First\n- [x] Task\n- Last','- First\n  - Nested\n- Last','- First\n\n- Last','- First\n- ***nested***\n- Last']) {
+  for(const raw of ['- First\n\n1. Last','- First\n\n# Heading\n\n- Last','- First\n- [x] Task\n  continuation\n- Last','- First\n  - Nested\n- Last','- First\n\n- Last','- First\n- ***nested***\n- Last']) {
     const p=projectSource(raw),a=p.spans[0],b=p.spans.at(-1);
     assert.equal(mapTextEdit(raw,{from:a?.from??3,to:b?.to??20,insert:'X'}).ok,false,raw);
   }

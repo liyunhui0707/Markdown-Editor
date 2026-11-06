@@ -1,6 +1,9 @@
+import {DocumentImage} from './document-image-node.mjs';
+import {documentTableNodes} from './document-table-nodes.mjs';
 import { Mark } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import {CodeBlock} from '@tiptap/extension-code-block';
+import {taskListItem} from './document-task-item.mjs';
 
 // Links render editable source labels; the separate panel owns address edits.
 // No href is rendered; no automatic linking, paste rules or click plugin runs.
@@ -17,6 +20,6 @@ const SourceLink = Mark.create({
   }, 0]; },
 });
 const SourceCodeBlock=CodeBlock.extend({addAttributes(){return {...this.parent?.(),sourceEditable:{default:false,rendered:false}};}});
-export function documentEditorExtensions() {
-  return [StarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false }), SourceLink, SourceCodeBlock];
+export function documentEditorExtensions(onTaskToggle) {
+  return [DocumentImage,...documentTableNodes, StarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
 }

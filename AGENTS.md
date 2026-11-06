@@ -17,13 +17,50 @@ the recovery baseline; do not create a long-lived `develop` branch.
 Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
 Supported edits patch verified source-map ranges and reparse; **do not serialize
 or normalize the whole file**. Originals stay read-only; independently authorized
-copies support paragraphs, headings, bold, italic, single-backtick inline code, simple inline links, flat lists, explicit single-level quote paragraphs and closed basic fences. Other structures
+copies support paragraphs, headings, bold, italic, single-backtick inline code, simple inline links, tight task/nested lists (six levels / 32 items), bounded plain-cell GFM tables (8 columns / 32 rows), inert standalone image references, explicit single-level quote paragraphs and closed basic fences. Other structures
 remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
+Version **0.54.0 is an installed local WIP checkpoint** for task/nested lists,
+basic tables and image-reference
+creation/edit/removal and history/export/recovery. Cards explicitly have no preview;
+there is no file/image broker, URL fetch, attachment copying or CSP relaxation.
+Main revalidates the existing format command and exact source projection. 316
+focused Node checks and image plus mixed-authoring Pro Electron workflows pass.
+Package contents match 60 project runtime files; the actual package passes combined
+task/list/table/image-reference writing, history, export isolation and restart
+recovery. Installed startup/recent-panel checks pass; existing private records are
+unchanged and 0.53.0 is retained for rollback. No new runtime change or version bump
+in this delivery closeout. Air, independent review, native IME, human acceptance,
+full CI and release approval remain unestablished; historical failures stay open.
+
+The preceding **0.53.0 table candidate is included in the 0.54.0 WIP checkpoint**.
+Table projection/commands use the same source patches, main-owned revision/history
+and save policy. Plain rectangular outer-pipe tables support cell text/navigation,
+row/column addition/removal and export/recovery; formatted/escaped/ragged tables
+remain protected. No table serializer or new persistence authority is introduced.
+421 focused Node checks, two Pro source workflows and actual-package table/history/
+export/restart recovery and installed startup/panel checks pass. The installed
+0.53.0 bundle preserves existing private records; 0.52.0 is retained for rollback.
+A further mixed-authoring Pro workflow passes continuous writing, document switching,
+export snapshot isolation and restart recovery; only tests/docs changed in that
+closeout. Native IME and human table/list QA remain open.
+The preceding 0.52.0 app is retained for rollback; no commit/publication implied.
+
+The preceding **0.52.0 list candidate, now included in the 0.54.0 WIP**, was installed for bounded user
+acceptance of task and nested lists. The preceding 0.51.0 checkpoint is `755c751`.
+Task toggles, Enter continuation and Tab/Shift+Tab subtree moves use existing
+source patches and main-owned history. Loose/multiline items, cross-parent or
+subtree-spanning range edits, and ambiguous source boundaries remain protected.
+396 focused Node / three source Electron workflows pass; the actual package
+passes task editing/history/export/restart recovery, with installed startup
+verified. Dialogs and IME events are controlled; human/native acceptance remains
+open. The installed 0.51.0 bundle is retained for rollback. No Git checkpoint,
+publication, original-file overwrite or broad Markdown acceptance is implied.
+
 Version **0.51.0 is a local WIP checkpoint** for draft naming and recent documents, not public-release acceptance.
-The preceding 0.49.0 checkpoint is `d8a3f25`; the installed local app is 0.51.0.
+The preceding 0.49.0 checkpoint is `d8a3f25`; that checkpoint installed 0.51.0.
 Draft naming uses the existing private backup writer, bound to session, content
 revision and previous label. Only a confirmed backup updates the live name;
 body/history and export receipts remain unchanged. Recovery keeps the saved label.

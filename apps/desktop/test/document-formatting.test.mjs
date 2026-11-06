@@ -52,7 +52,7 @@ test('flat list marker variants keep unmodified spelling; complex lists remain o
     assert.ok(split.source.endsWith(marker+'Second'+nl));
     assert.equal(format(source,'paragraph','First').source,'First'+nl+nl+'Second'+nl);
   }
-  for(const source of ['- a\n\n- b','- a\n  continuation','- a\n  - nested','- [x] task','- [**link**](x)','- a  \n  b','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
+  for(const source of ['- a\n\n- b','- a\n  continuation','- a\n  - nested\n    continuation','- [x] task\n  continuation','- [**link**](x)','- a  \n  b','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
 });
 test('format source inverse exactly restores accepted byte ranges over a small boundary matrix',()=>{
   let accepted=0;

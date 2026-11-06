@@ -1,3 +1,5 @@
+import {createImageView} from './document-image-view.mjs';
+import {createTableView} from './document-table-view.mjs';
 import { createNameView } from './document-name-view.mjs';
 import { createCloseView } from './document-close-view.mjs';
 import { createFindPlugin, createFindView } from './document-find-view.mjs';
@@ -5,7 +7,7 @@ import { createReadingView } from './document-reading-view.mjs';
 import { createFormatView } from './document-format-view.mjs';
 import { Editor, Extension, getSchema } from '@tiptap/core';
 import { documentEditorExtensions } from './document-editor-extensions.mjs';
-import { Plugin, TextSelection } from '@tiptap/pm/state';
+import { Plugin, TextSelection, NodeSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
 import { createCopyActionsView } from './document-copy-actions-view.mjs';
@@ -16,9 +18,9 @@ import { replaceParagraphRangeInput } from './document-paragraph-input.mjs';
 import { createWritingShell } from './document-writing-shell.mjs';
 import { createRecentView } from './document-recent-view.mjs';
 import { createDraftView } from './document-draft-view.mjs';
-import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
+import { syncNativeBackspaceSelection, syncNativeListSelection } from './document-native-selection.mjs';
 
-import { applyBlockShortcut, applyStructuredKey } from './document-block-input.mjs';
+import { applyBlockShortcut, applyStructuredKey, applyTaskToggle } from './document-block-input.mjs';
 import { createLinkView } from './document-link-view.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
@@ -26,6 +28,8 @@ let controller = null, editor = null, resetting = false, loading = false, select
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
 const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
+const tableView=createTableView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
+const imageView=createImageView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
@@ -143,6 +147,10 @@ function render(s) {
   byId('discard-recovery').disabled = busy || records.length === 0;
   const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
   if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
+  for(const button of editor?.view.dom.querySelectorAll('.document-task-toggle')||[]) {
+    button.disabled=!editable||s.composing||s.compositionInvalid||records.length>0;
+    button.setAttribute('aria-disabled',String(button.disabled));
+  }
   if (readOnlyWindow) {
     for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = busy;
     const current = s.confirmed, temporary = current.temporary === true;
@@ -158,11 +166,11 @@ function render(s) {
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、单层列表、引用或基本代码块内编辑；复杂 Markdown 块保持只读。', true);
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 块保持只读。', true);
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync(); linkView.sync(); findView.sync(); closeView.sync(); show();
+  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); closeView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -172,7 +180,8 @@ function resetSource(source, selection) {
     editor.commands.setContent(projectSource(source).doc, { emitUpdate: false, errorOnInvalidContent: true });
     const doc = editor.state.doc, clamp = n => Math.max(1, Math.min(n, doc.content.size - 1));
     const from = clamp(old.from), to = clamp(old.to);
-    const next = doc.resolve(from).parent.inlineContent && doc.resolve(to).parent.inlineContent
+    const imageAt=Number.isInteger(old.from)&&old.from>=0&&old.from<doc.content.size&&doc.nodeAt(old.from)?.type.name==='documentImage'&&old.to===old.from+1;
+    const next = imageAt ? NodeSelection.create(doc,old.from) : doc.resolve(from).parent.inlineContent && doc.resolve(to).parent.inlineContent
       ? TextSelection.create(doc, from, to) : TextSelection.near(doc.resolve(from));
     editor.view.dispatch(editor.state.tr.setSelection(next));
   } finally { resetting = false; }
@@ -227,9 +236,12 @@ function install(snapshot) {
         'Mod-Shift-z': () => { void history('redo'); return true; } };
     } });
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
-      extensions: [...documentEditorExtensions(), gate],
+      extensions: [...documentEditorExtensions((view,position)=>applyTaskToggle(view,position,{controller,loading,invalid:activeInvalid()})), gate],
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
+          syncNativeListSelection(view,event,{state:controller?.state(),blocked:activeInvalid()||loading||readOnlyDocument()});
+          if (imageView.key(view,event)) return true;
+          if (tableView.key(view,event)) return true;
           if (applyStructuredKey(view,event,{controller,loading,invalid:activeInvalid(),report:viewerStatus})) return true;
           if (applyBlockShortcut(view,event,{controller,loading,invalid:activeInvalid()})) return true;
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
@@ -263,7 +275,7 @@ function install(snapshot) {
         },
       } }, // Before ProseMirror's default clipboard/HTML parsing, not handlePaste.
       onTransaction: () => queueMicrotask(() => findView.sync()),
-      onSelectionUpdate: () => {formatView.sync();linkView.sync();},
+      onSelectionUpdate: () => {formatView.sync();tableView.sync();linkView.sync();imageView.sync();},
       onUpdate: ({ transaction }) => { if (!resetting) controller.accept(transaction); } });
   } else resetSource(snapshot.source, { from: 1, to: 1 });
   render(controller.state());
@@ -351,7 +363,7 @@ async function finishDocumentClose(id) {
   for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
   document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
   for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
-  loading = false; nameView.sync(); formatView.sync(); linkView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();
+  loading = false; nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();
   if (next) {
     byId('documents').value = next.value; await load();
     if (controller) { byId('document-info').hidden = false; byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; }
@@ -426,7 +438,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => { if (!linkView.isOpen() && !nameView.isOpen()) return openDocument(false); };
+const openReadOnly = () => { if (!linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;

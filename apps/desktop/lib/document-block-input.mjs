@@ -10,8 +10,10 @@ export function applyBlockShortcut(view, event, context) {
       ||!s||s.confirmed.readOnly||s.composing||s.compositionInvalid||s.locked
       ||s.historyPending||s.recoveryRecords.length||loading||invalid) return false;
   const {from,to,$from,empty}=view.state.selection;
-  if(!empty||$from.depth!==1||$from.parent.type.name!=='paragraph') return false;
-  const command={action:event.key==='Enter'?'fence-shortcut':'block-shortcut',from,to},mapped=mapFormatEdit(s.source,command);
+  if(!empty||$from.parent.type.name!=='paragraph') return false;
+  const task=$from.depth>1&&$from.node($from.depth-1).type.name==='listItem'&&event.key===' ';
+  if(!task&&$from.depth!==1)return false;
+  const command={action:task?'task-shortcut':event.key==='Enter'?'fence-shortcut':'block-shortcut',from,to},mapped=mapFormatEdit(s.source,command);
   if(!mapped.ok) return false;
   const doc=view.state.schema.nodeFromJSON(mapped.projection.doc);
   const tr=view.state.tr.replaceWith(0,view.state.doc.content.size,doc.content);
@@ -36,6 +38,8 @@ export function applyStructuredKey(view,event,{controller,loading,invalid,report
  if((code||quoted)&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key==='Enter')action='exit-block';
  else if(quoted&&plain&&event.key==='Enter')action='split-quote';
  else if((code||quoted)&&plain&&event.key==='Backspace'&&selection.empty&&pos.parentOffset===0)action=quoted?'join-quote':!pos.parent.content.size?'paragraph':null;
+ const inList=pos.depth>1&&pos.node(pos.depth-1).type.name==='listItem';
+ if(inList&&event.key==='Tab'&&!event.metaKey&&!event.ctrlKey&&!event.altKey)action=event.shiftKey?'outdent-list':'indent-list';
  if(!code&&!quoted&&plain){
   const inList=Array.from({length:pos.depth},(_,i)=>pos.node(i+1).type.name).some(n=>n==='bulletList'||n==='orderedList');
   if(pos.parent.type.name==='heading'){
@@ -59,4 +63,15 @@ export function applyStructuredKey(view,event,{controller,loading,invalid,report
  const doc=view.state.schema.nodeFromJSON(mapped.projection.doc),tr=view.state.tr.replaceWith(0,view.state.doc.content.size,doc.content);
  tr.setSelection(TextSelection.create(tr.doc,mapped.selection.from,mapped.selection.to)).setStoredMarks(null).setMeta('document-block-shortcut',command);
  view.dispatch(tr.scrollIntoView());return true;
+}
+
+export function applyTaskToggle(view,position,{controller,loading,invalid}) {
+ const s=controller?.state();
+ if(!s||loading||invalid||!view.editable||s.confirmed.readOnly||s.locked||s.historyPending||s.recoveryRecords.length||s.composing||s.compositionInvalid||view.composing)return false;
+ const command={action:'toggle-task',from:position,to:position},mapped=mapFormatEdit(s.source,command);
+ if(!mapped.ok)return false;
+ const old=view.state.selection,doc=view.state.schema.nodeFromJSON(mapped.projection.doc);
+ const tr=view.state.tr.replaceWith(0,view.state.doc.content.size,doc.content);
+ tr.setSelection(TextSelection.create(tr.doc,old.from,old.to)).setMeta('document-block-shortcut',command);
+ view.dispatch(tr);return true;
 }

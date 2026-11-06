@@ -1,5 +1,114 @@
 # Stage History
 
+## 0.54.0 local WIP — structured Markdown authoring checkpoint (2026-11-06)
+
+One local checkpoint preserves 47 verified files covering task/nested lists, basic
+plain-cell tables and inert image references, with their tests, bundle, docs and
+existing 0.54.0 version/lock. No additional version bump, runtime/test modification
+or installation in this checkpoint step. All 519 delivery fingerprints matched
+before documentation updates; 316 focused Node and two source Electron passes,
+actual-package combined writing/export/recovery and installed startup evidence
+were reused. Generated renderer matches the prior reproducible build exactly.
+Bounded Codex self-review found no new confirmed P0/P1; no independent review claim.
+Manual structured-writing experience and native IME remain pending, historical
+FAIL/SEC-01 remain open, image loading/copying is absent and original overwrite
+stays blocked. This checkpoint preserves WIP; it does not approve acceptance,
+publication or release. No push, merge or tag. Installed 0.54.0/rollback 0.53.0
+and existing private records are unchanged by this step.
+
+## Structured-document delivery — 0.54.0 installed (2026-11-06)
+
+No runtime/test changes or version bump. All 519 prior candidate fingerprints
+matched; 316 focused Node and two source Electron passes were reused. Packaging
+verified 60 project runtime members, version/entry/runtime and private-data
+exclusions. The actual arm64 app passed combined heading/task/nested-list/table/
+image-reference writing, table/image Undo/Redo, exact exclusive export/SHA-256,
+later-edit isolation and fresh-start draft recovery with two clean exits.
+Installed startup/recent-panel check passed with a clean exit and matching ASAR.
+All pre-existing draft/catalog records retained their identity/hash; one explicitly
+named synthetic recovery draft remains as evidence. The successful Home fixture
+was reclaimed. Old 0.53.0 is retained with bundle manifests and a restore map.
+This is a local unsigned WIP, not native IME/human/full-CI acceptance. Image cards
+still do not load or copy images; original-file overwrite remains blocked. No
+Air/DeepSeek, Git checkpoint, push, merge, tag or release in this closeout.
+
+## 0.54.0 source candidate — standalone image references (2026-11-06)
+
+Adds inert reference cards and an insert/edit/remove panel, Enter to prose,
+Undo/Redo and exact export/reopen/recovery via existing source patches and
+main-owned history. No image loader, path authority, attachment copy, network
+request or CSP change. Simple standalone references only; unsupported image
+syntax stays protected. Relative references do not move with exported files.
+316 focused Node checks PASS, including stale-session/revision, composition,
+request failure and readonly fences. Pro image workflow plus existing mixed
+writing regression PASS, each with two clean exits. Light/dark/narrow screenshots
+reviewed; successful Home fixtures reclaimed by the existing helper. Renderer
+rebuild is byte-identical. Four new runtime helpers are 11–45 lines; existing
+463-line renderer remains lifecycle wiring, with image behavior kept in helpers.
+Version/lock 0.54.0 is a feature candidate. Installed app stays 0.53.0. No new
+package/install, Air, independent review, full CI or human/native-IME PASS.
+Historical FAIL/SEC-01, exclusive-create-only and coordination-required remain;
+no Git checkpoint or publication. See the existing phase record for evidence.
+
+## Structured-writing closeout — 0.53.0 unchanged (2026-11-06)
+
+Added one mixed-document regression to the existing table E2E: heading/inline
+formatting, list/quote/fence transitions, task nesting, table/history, sidebar
+switching, narrow layout, exact export/hash and later-edit restart recovery.
+The final Pro workflow PASS has two clean exits; successful Home fixtures were
+reclaimed by the existing identity/hash mechanism. Earlier diagnostic attempts
+are retained, not reported as passes. The test now observes confirmed renderer
+source without competing snapshot IPC and uses visible current UI controls.
+No runtime change; all preceding runtime/test evidence hashes still match.
+Only tests/docs change, so version remains 0.53.0. Native IME, human list/table
+acceptance, historical FAIL/SEC-01 and release gates remain open; no Git commit
+or independent-review claim. Details in the existing phase record.
+
+## 0.53.0 local candidate — basic GFM table authoring (2026-11-06)
+
+One coherent batch adds table creation, plain cell editing/one-line paste,
+Tab/Shift+Tab/Enter navigation, row/column controls, Undo/Redo and export/recovery.
+The existing projection/format IPC owns all edits. Untouched bytes/alignment and
+LF/CRLF/CR remain intact; no original overwrite or new save authority. Bounds:
+8 columns / 32 rows, explicit outer pipes, three-hyphen delimiters; rich/escaped,
+ragged and multiline cells remain protected. 421 targeted Node checks, table and
+list-regression Pro workflows and actual-package table/export/restart recovery
+PASS. Installed startup/panel checks pass with unchanged prior private records;
+0.52.0 is retained for rollback. The first installed automation connection failed;
+a window-ready recheck passed, with both attempts preserved.
+Controlled dialogs/composition do not clear native IME/human QA or historical
+FAIL/SEC-01. No Air, independent Reviewer or full CI claim; no Git publication.
+Four new runtime modules are 10–68 lines. The existing renderer (459 lines) stays
+as lifecycle wiring; table behavior is in focused helpers, avoiding unrelated
+restructuring. Version/lock 0.53.0 is a feature-minor candidate, not a release.
+
+## 0.52.0 local candidate — structured-list delivery (2026-11-06)
+
+The validated list implementation is unchanged. Version/package-lock now use
+0.52.0 under the feature SemVer rule. Nine entry/packaging checks PASS; renderer
+rebuild is byte-identical. The actual unsigned arm64 package passes task typing,
+nesting, checkbox Undo/Redo, exclusive export/hash and two-start draft recovery.
+Installed startup/panel checks pass with the same ASAR and prior private records
+unchanged. The 0.51.0 app is recoverably retained. No user document was opened;
+the successful Home fixture was reclaimed and one synthetic draft remains as
+recovery evidence. Human list QA/native IME, SEC-01 and release limits remain;
+no commit/push/merge/tag/release. Existing candidate-stage evidence follows.
+
+## Structured writing — task and nested lists (2026-11-06, uncommitted candidate)
+
+One coherent batch adds task creation/toggle, tight nested lists, keyboard
+continuation/indent/outdent, sibling range edits, source-preserving history,
+export/reopen and draft recovery. A reproduced native-caret/PM-selection timing
+gap is fixed before list structural keys. 396 relevant Node cases and three Pro
+Electron workflows PASS; a separate installed 0.51.0 preflight covers named
+writing/export/readonly reopen/recovery with controlled dialogs. No native IME,
+human list QA, Air, independent review or full CI pass is implied. Original
+readonly/exclusive creation/coordination-required and historical FAILs remain.
+Version stays 0.51.0 until an authorized 0.52.0 feature checkpoint. Installed app
+unchanged; no commit/push/merge/tag/release. New list helpers are 55/123/26 lines;
+existing renderer 456 and controller test 1365 lines (previously 1312) retain their established
+lifecycle/harness ownership; unrelated splitting is deferred. See phase record.
+
 ## 0.51.0 WIP — file-workflow checkpoint and local installation (2026-11-06)
 
 The combined 29-file recent-documents / draft-naming batch is preserved as an

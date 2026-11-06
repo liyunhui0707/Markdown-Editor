@@ -1,5 +1,68 @@
 # Manual Test Checklist  
 
+## Image references — 0.54.0 installed candidate (2026-11-06)
+
+Human acceptance is pending. The local app at `~/Applications/Markdown.app` is
+now 0.54.0; actual-package combined writing/export/recovery and installed startup
+passed controlled automation. Try these checks with the task/table steps below in
+one scratch draft. Do not treat the card as a loaded image. Native IME remains
+NOT VERIFIED and historical formal/manual FAIL remains open.
+
+1. In a scratch paragraph, use the image button with a relative address; select
+   the resulting card to edit its description/address. Cancel preserves it.
+   Enter continues in prose; remove and Undo/Redo restore the exact reference.
+2. Check light/dark and narrow layout. Invalid script/file/data addresses leave
+   panel input and body intact; composing input must not be committed prematurely.
+3. Export a new `.md`, reopen readonly, then restart and recover the draft.
+   Reference text should match; original files remain unchanged. No preview or
+   attachment copying is promised; check relative paths when choosing a new folder.
+
+## Basic tables — 0.53.0 local candidate (2026-11-06)
+
+Focused human acceptance is pending; automated evidence is in the phase record.
+The mixed list/table workflow also passed scripted Pro verification. For this
+acceptance, combine the list and table steps in one scratch draft, switch away
+and back, and check that later edits remain separate from the exported snapshot.
+Native Chinese IME remains NOT VERIFIED; earlier manual/formal FAIL is retained.
+
+1. New scratch draft: click the table button; replace header text, fill empty
+   cells, Tab/Shift+Tab between cells and Enter down a column. At the last row,
+   advancing appends a blank row; Cmd+Enter returns to ordinary prose.
+2. Use +/− row and column controls. Undo/Redo should restore content and structure;
+   the header row/final column cannot be removed. Try one-line Chinese/emoji paste
+   inside one cell; multiline/cross-cell input must be refused without text loss.
+3. Export to a new Markdown file, reopen read-only, then restart and restore the
+   draft. Check cell contents/order/alignment. The original must remain unchanged.
+
+Bounds: plain outer-pipe rectangular tables, 8 columns / 32 rows (header included),
+three-hyphen separators; no nested marks, links, escaped pipes, merged cells or
+spreadsheet paste. Test native IME separately; synthetic strings are not native QA.
+
+## Task and nested lists — installed 0.52.0 candidate (2026-11-06)
+
+Installed at `~/Applications/Markdown.app`; human acceptance remains pending.
+Native Chinese IME remains NOT VERIFIED and the
+historical formal/manual FAIL is not cleared by synthetic input.
+
+1. Create a scratch draft; type `- [ ] ` and a task, toggle its checkbox, then
+   Undo/Redo. Text and checked state must both match each revision.
+2. Enter another task, Tab to nest it, Enter a sibling, Shift+Tab to lift it.
+   Try ordinary and ordered items, including a subtree with children. Nested
+   empty tasks lift; a final top-level empty item exits to normal prose.
+3. Select text across two same-level leaf items; replace/paste one line, delete,
+   and Undo/Redo. Cross-level/subtree ranges must leave all text intact on refusal.
+4. Export once to a supported fresh file, reopen readonly, exit/restart and
+   restore the draft. Compare text, nesting, checked states; the original and
+   exported snapshot must not change after later draft edits.
+5. Check checkbox alignment/focus in the accepted light/dark workspace. During
+   actual IME composition, checkbox/structure operations must not write preedit.
+
+Limits: six levels/32 items; no loose or multiline item bodies, cross-level range
+replacement, multiline list paste or bulk structured-list conversion. Type text
+before indenting an empty ordinary bullet; ambiguous CommonMark boundaries remain
+refused. Controlled Pro tests cover the above supported paths but do not replace
+this native interaction acceptance.
+
 ## Draft naming / export names — installed 0.51.0 WIP (2026-11-06)
 
 Automated: 130 targeted Node checks and one two-start Pro Electron workflow PASS;

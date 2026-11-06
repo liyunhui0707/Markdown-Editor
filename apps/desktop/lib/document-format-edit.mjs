@@ -1,9 +1,12 @@
+import {mapImageEdit} from './document-image-edit.mjs';
+import {tableActions,mapTableEdit} from './document-table-edit.mjs';
+import {mapListEdit} from './document-list-edit.mjs';
 import {mapStructuredEdit} from './document-structured-edit.mjs';
 import { mapLinkEdit } from './document-link-edit.mjs';
 import { mapBoundaryEdit } from './document-boundary-edit.mjs';
 import { projectSource, spanBlock } from './document-source-map.mjs';
 const reject = () => ({ok:false,code:'unsafe-format-range'});
-const actions = ['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','block-shortcut','fence-shortcut','blockquote','code-block','split-quote','join-quote','exit-block','bold','italic','code','bullet-list','ordered-list','split-list','join-list','split-heading','split-paragraph','join-paragraph'];
+const actions = ['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','block-shortcut','fence-shortcut','blockquote','code-block','split-quote','join-quote','exit-block','bold','italic','code','bullet-list','ordered-list','split-list','join-list','split-heading','split-paragraph','join-paragraph','task-list','task-shortcut','toggle-task','indent-list','outdent-list'];
 const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
 const inline = text => text ? [{type:'text',text}] : [];
@@ -20,12 +23,20 @@ function merge(nodes) {
 // Explicit bounded commands. No caller-provided source, source offsets, path or serializer.
 export function mapFormatEdit(source, command) {
   if(!command || Object.getPrototypeOf(command)!==Object.prototype) return reject();
+  if(['set-image','remove-image','image-exit'].includes(command.action)) return mapImageEdit(source,command);
   if(['set-link','remove-link'].includes(command.action)) return mapLinkEdit(source,command);
   if(Object.keys(command).length!==3
       || Object.keys(command).some(k=>!['action','from','to'].includes(k))) return reject();
   const {action,from,to}=command;
-  if(!actions.includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
+  if(![...actions,...tableActions].includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
   const p=projectSource(source);
+  if(tableActions.includes(action))return mapTableEdit(source,p,command,projectSource);
+  if(p.blocks.some(b=>b?.cells&&from>b.from&&to<b.to))return reject();
+  const selectedList=p.blocks.find(b=>b?.items&&from>b.from&&to<b.to);
+  const structuredList=selectedList?.items.some(r=>r.path.length>1||r.checked!==null);
+  if(['task-shortcut','toggle-task','indent-list','outdent-list'].includes(action)
+      ||(action==='task-list'&&selectedList)||(['split-list','join-list'].includes(action)&&structuredList))
+    return mapListEdit(source,p,command,projectSource);
   if(['split-list','join-list','split-paragraph','join-paragraph'].includes(action)) return mapBoundaryEdit(source,p,command,projectSource);
   const index=p.blocks.findIndex(b=>b && from>b.from && to<b.to);
   if(index<0) return reject();
@@ -72,6 +83,7 @@ export function mapFormatEdit(source, command) {
     expected.content[index].content=inline(selected.text.slice(0,at));
     expected.content.splice(index+1,0,paragraph(inline(selected.text.slice(at))));targetIndex=index+1;offset=0;
   } else if(list) {
+    if(block.items.some(r=>r.path.length>1||r.checked!==null))return reject();
     if(!['paragraph','bullet-list','ordered-list'].includes(action)) return reject();
     const rows=block.items.map(row=>source.slice(row.bodyFrom,row.sourceTo));
     // Block conversion owns only these markers and their intervening separators.
@@ -92,8 +104,8 @@ export function mapFormatEdit(source, command) {
     if(action==='paragraph') {text=body;expected.content[index]=paragraph(node.content);}
     else if(action.startsWith('heading-')) {text='#'.repeat(Number(action.at(-1)))+' '+body;expected.content[index]={type:'heading',attrs:{level:Number(action.at(-1))},content:node.content};}
     else {
-      text=(action==='ordered-list'?'1. ':'- ')+body;
-      expected.content[index]={type:action==='ordered-list'?'orderedList':'bulletList',...(action==='ordered-list'?{attrs:{start:1}}:{}),content:[item(node.content)]};targetItem=0;
+      text=(action==='ordered-list'?'1. ':action==='task-list'?'- [ ] ':'- ')+body;
+      expected.content[index]={type:action==='ordered-list'?'orderedList':'bulletList',...(action==='ordered-list'?{attrs:{start:1}}:{}),content:[action==='task-list'?{type:'listItem',attrs:{checked:false},content:[paragraph(node.content)]}:item(node.content)]};targetItem=0;
     }
   }
   if(typeof text!=='string'||text.length>4096||b-a>4096) return reject();

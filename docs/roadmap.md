@@ -14,7 +14,7 @@ formatting and the complete link panel. The **0.49.0 local WIP checkpoint `d8a3f
 single-level quotes and basic fenced code as one writing workflow: creation,
 editing, exit to prose, history and export/reopen. The common-authoring closeout
 now passes a mixed-document workflow, packaged restart/recovery and installed
-startup: the local app is 0.49.0, with 0.46.0 preserved for rollback. 351 targeted
+startup: that checkpoint installed 0.49.0, with 0.46.0 preserved for rollback. 351 targeted
 Node cases, five source Electron workflows and one product-package workflow pass.
 Native IME, full CI and independent review are not established by this batch.
 General overwrite remains blocked by `coordination-required`.
@@ -34,7 +34,7 @@ small changes internally without asking for a separate user approval per button.
 | Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
 | Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Implemented and locally installed; mixed-document/export/recovery checks pass within supported syntax; native IME and broader acceptance remain open |
 | Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | 0.51.0 locally checkpointed and installed: recent documents, resume writing, draft naming and export-name continuity; bounded checks pass, human acceptance remains open; overwrite protection remains |
-| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | After core writing; prioritize real document needs |
+| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | 0.54.0 tasks/nesting, plain-cell tables and image references installed; package workflow verified; actual image preview/import and focused human acceptance remain open |
 | Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
 
 The everyday-authoring implementation and bounded installed closeout are complete;
@@ -51,14 +51,50 @@ locked; no Air PASS is claimed for 0.51.0. Five recent regressions pass on the
 combined version. The authorized closeout installed 0.51.0 with a recoverable
 0.49.0 bundle; bounded package/startup/panel checks passed and existing private
 records were unchanged. This local WIP preserves the cohesive file-workflow batch.
-Next accept the installed writing/reopen/naming/export experience before choosing
-the next feature batch. Human/native acceptance and a full packaged writing
-workflow remain distinct from the bounded closeout checks.
+The installed 0.51.0 writing/name/export/readonly-reopen/recovery workflow now
+passes a bounded synthetic Pro check with controlled dialog selections. It is
+separate from native IME/human acceptance. The next approved **structured writing**
+batch now implements task toggles, six-level tight lists, keyboard nesting/lifting,
+continuation, same-parent range edits and exact source export/recovery. 396 targeted
+Node cases and three Pro Electron workflows pass. It remains an uncommitted source
+candidate, now versioned and installed as 0.52.0. Nine packaging/entry checks pass;
+the actual package passes task editing/history/export/restart recovery. Installed
+startup and existing-record preservation pass; 0.51.0 is retained for rollback.
+This is not a Git checkpoint, native IME/human sign-off or a release.
+
+The user authorized continuing to basic tables from the preserved, uncommitted
+0.52.0 baseline; this does not turn the pending list/manual checks into PASS.
+**Basic GFM table authoring** is now implemented as one workflow in the 0.53.0
+candidate: creation, plain cell editing/navigation, row/column operations,
+Undo/Redo, export/reopen and draft recovery. It reuses verified source patches;
+rectangular outer-pipe tables are limited to 8 columns / 32 rows, with formatted
+or escaped cells and spreadsheet paste protected. 421 targeted Node cases, two
+Pro source workflows and the actual-package table/export/recovery check pass.
+A mixed-document Pro workflow now also passes heading/inline/quote/code/list/table
+continuity, sidebar switching, export snapshot isolation and restart recovery.
+That 0.53.0 closeout changed only tests/records. The user then authorized the next
+development step; this is not human acceptance or permission to commit the prior
+candidate. The 0.54.0 candidate now adds **standalone image-reference
+authoring**: insert/edit/remove, Enter back to prose, history, export/reopen and
+recovery. 316 targeted Node checks and two Pro source workflows pass. Cards are
+inert and explicitly say no preview: no image bytes are read, fetched or copied,
+and relative references are not relocated on export. This is only part of image
+support, not its completion. The subsequent delivery closeout installed 0.54.0:
+60 packaged runtime files match, the actual package passes combined structured
+writing/history/export/restart recovery, and installed startup/panel checks pass.
+Existing private records are unchanged; 0.53.0 is retained for rollback. No runtime
+changes or extra version bump were needed. Native IME/human acceptance remain open.
+The subsequent authorized 0.54.0 local WIP checkpoint preserves this 47-file
+structured-authoring batch without changing runtime code, tests or the version.
+Focused human experience and native IME remain pending; preservation is not product
+acceptance. Next, prioritize one bounded, explicitly selected local-image preview /
+attachment portability workflow before claiming image support. Long-document
+and source escape hatches remain later work; do not keep adding unrelated syntax
+before delivery and acceptance.
 Do not add another save framework or unlock overwrite. Preserve the visual baseline
-and keep unsaved draft, exported snapshot and subsequent edits distinct. Tasks,
-nesting, tables and images remain later broader-document work. Native IME, file
-integrity, SEC-01 and release checks remain continuous gates. No merge, publication
-or overwrite authorization is implied.
+and keep unsaved draft, exported snapshot and subsequent edits distinct. Native
+IME, file integrity, SEC-01 and release checks remain continuous gates. No merge,
+publication or overwrite authorization is implied.
 
 ## Historical assessment — project recovery audit (2026-10-22)
 

@@ -1,3 +1,4 @@
+import {listNodeAt,sameListParent} from './document-list-source.mjs';
 // Bounded edits to one plain/bold/italic paragraph or adjacent projected simple-list items.
 // Existing source tokens are retained;
 // only touched text/emphasis delimiters are patched. This is not a file serializer.
@@ -13,6 +14,7 @@ export function mapInlineRange(source, projection, change, project) {
   const endItem=list?block.items.findIndex(row=>to>=row.from&&to<=row.to):undefined;
   if(list && (itemIndex<0||endItem<itemIndex))return reject();
   const cross=list&&endItem>itemIndex;
+  if(cross&&block.items.slice(itemIndex,endItem+1).some(r=>!sameListParent(block.items[itemIndex],r)||r.subtreeTo!==r.sourceTo))return reject();
   const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:quoted?s.quoteIndex===quoteRow:s.itemIndex===undefined));
   // V1 edits one link label at a time. Never reconstruct its destination.
   if(spans.some(s=>s.link))return reject();
@@ -65,9 +67,9 @@ export function mapInlineRange(source, projection, change, project) {
   for(const s of tokens.slice(0,tokens.indexOf(first)))add(s);
   pieces.forEach(add);
   for(const s of tokens.slice(tokens.indexOf(last)+1))add(s);
-  const target=list?expected.content[index].content[itemIndex].content[0]:quoted?expected.content[index].content[quoteRow]:expected.content[index];
+  const target=list?listNodeAt(expected.content[index],block.items[itemIndex].path).content[0]:quoted?expected.content[index].content[quoteRow]:expected.content[index];
   target.content=nodes;
-  if(cross)expected.content[index].content.splice(itemIndex+1,endItem-itemIndex);
+  if(cross)listNodeAt(expected.content[index],block.items[itemIndex].path.slice(0,-1)).content.splice(block.items[itemIndex].siblingIndex+1,endItem-itemIndex);
   const nextProjection=project(next);
   if(JSON.stringify(nextProjection.doc)!==JSON.stringify(expected))return reject();
   return {ok:true,source:next,projection:nextProjection,change:{from:a,to:b,insert:text},

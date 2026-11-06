@@ -222,3 +222,40 @@ body[data-document-viewer] .tiptap blockquote p {margin:.7em 0}
 #draft-name-input {box-sizing:border-box;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit}
 #name-dialog #draft-name-error {color:#99652f;min-height:1.5em;font-size:12px}
 #rename-draft {margin:10px 0}
+
+/* Source-owned task items share the established reading width and palette. */
+#editor li {position:relative}
+#editor li[data-task-item] {list-style:none}
+#editor .document-task-toggle {position:absolute;left:-1.6em;top:.35em;width:1.1em;height:1.1em;min-width:0;padding:0;margin:0;line-height:1;border:1px solid var(--muted);border-radius:4px;background:transparent;color:var(--accent);font:inherit;font-size:.85em;display:grid;place-items:center;line-height:1;cursor:pointer}
+#editor .document-task-toggle[aria-checked=true] {background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+#editor .document-task-toggle:disabled {cursor:default;opacity:.75}
+#editor li[data-task-item]>div>p {margin-top:0}
+
+/* Bounded GFM tables share the reading width and existing visual palette. */
+#table-tools {display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex:none}
+#table-position {font-size:11px;color:var(--muted);margin-right:8px}
+body[data-document-viewer] #table-tools button {padding:3px 9px;font-size:11px}
+body[data-document-viewer] .tiptap table {border-collapse:collapse;table-layout:fixed;width:100%;margin:1.2em 0;font-size:15px;line-height:1.65}
+body[data-document-viewer] .tiptap :is(th,td) {border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left;min-width:32px;font-weight:400}
+body[data-document-viewer] .tiptap th {background:var(--panel);font-weight:600}
+body[data-document-viewer] .tiptap :is(th,td):focus-within {box-shadow:inset 0 0 0 1px var(--accent)}
+body[data-document-viewer] .tiptap :is(th,td) p {margin:0;min-height:1.65em;white-space:pre-wrap}
+body[data-document-viewer] .tiptap [data-align=center] {text-align:center}
+body[data-document-viewer] .tiptap [data-align=right] {text-align:right}
+
+/* Inert image references share the document surface; never an external fetch. */
+body[data-document-viewer] .document-image-reference { display:flex; flex-direction:column; align-items:center; gap:8px; margin:1.4em 0; padding:28px 24px; border:1px solid var(--line); border-radius:10px; background:var(--panel); text-align:center; cursor:default; }
+body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { outline:2px solid var(--accent); outline-offset:3px; }
+.document-image-reference .image-reference-icon { font-size:30px; opacity:.55; }
+.document-image-reference .image-reference-label { font-weight:600; }
+.document-image-reference .image-reference-target { font:13px ui-monospace,monospace; overflow-wrap:anywhere; max-width:100%; opacity:.72; }
+.document-image-reference small { font-size:12px; opacity:.65; }
+#image-form label { display:flex; flex-direction:column; gap:7px; margin:18px 0; }
+#image-form input { width:100%; box-sizing:border-box; padding:10px 12px; }
+#image-error { color:var(--warning-ink, #8a5a2d); }
+
+#image-dialog {width:440px;padding:24px}
+#image-dialog h2 {margin:0;font-size:17px}
+#image-form input {border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+#image-apply {background:var(--accent);border-color:var(--accent);color:var(--on-accent,white)}
+#format-image[aria-pressed=true] {background:var(--active);color:var(--accent)}

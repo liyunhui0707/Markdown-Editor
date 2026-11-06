@@ -5,8 +5,79 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.51.0 local WIP checkpoint and installed app:** this is not a signed/notarized release or a
-promise of unrestricted Markdown editing/saving. Current limits are below.
+**0.54.0 installed local WIP checkpoint.** This is not
+a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
+
+## Image references — 0.54.0 installed candidate (2026-11-06)
+
+The image toolbar button inserts a standalone Markdown image reference after the
+current paragraph (or in an empty paragraph). Select its card and use the button
+to edit its description/address or remove it. Enter returns to prose; Delete or
+Backspace removes the selected reference. Undo/Redo, export/reopen and draft
+recovery retain the reference and untouched source bytes, including existing titles.
+
+**Cards say “未加载预览”: images are not loaded, validated or copied.** Relative
+addresses and http(s) references are stored as Markdown text only. Exporting to a
+different folder does not relocate attachments or repair relative paths. Inline,
+reference-style, nested or complex images remain protected; paste/drop of image
+files, title editing, local-file access and network previews are not implemented.
+316 focused Node checks and two Pro Electron workflows (images and existing mixed
+writing) pass. Controlled dialogs/composition do not establish native IME or human
+acceptance. The actual 0.54.0 package also passes combined task/table/image-reference
+writing, history, export snapshot isolation and restart recovery. Installed startup
+and recent-panel checks pass; existing private records were unchanged. The 0.53.0
+bundle is retained for rollback. The combined task/nested-list, table and image-reference
+batch is preserved in one local WIP checkpoint. Focused human acceptance remains
+pending; the checkpoint is not release acceptance.
+
+## Basic tables — 0.53.0 local candidate (2026-11-06)
+
+Use the table button in the format toolbar from an ordinary paragraph to create
+2 columns with a header and 2 data rows. Type or paste one line in a cell. Tab /
+Shift+Tab moves between cells; Enter moves down; advancing past the last row adds
+an empty row. Cmd+Enter returns to prose. The contextual controls add a row below,
+add a column to the right, or delete a data row/column; Undo/Redo restores them.
+The header and final column cannot be deleted. Existing alignment and untouched
+source bytes are retained through export, readonly reopen and draft recovery.
+
+This first subset supports rectangular, outer-pipe GFM tables with plain-text
+cells, at most 8 columns and 32 rows including the header. Separator cells need
+at least three hyphens. Cell padding remains editable source text. Inline marks,
+links, escaped pipes/backslashes, merged cells, formulas, cell newlines and
+spreadsheet/cross-cell paste remain protected; they are not silently normalized.
+
+421 targeted Node checks, two Pro source Electron workflows (table and prior
+list regression), actual-package table/history/export/restart recovery and installed
+startup/recent-panel checks pass. Prior draft/catalog records remain unchanged.
+Native dialog choices/composition are controlled, not native IME acceptance.
+Original files remain read-only; export only creates a new file. Human table/list
+acceptance, native IME, SEC-01 and existing release limitations remain open.
+
+## Structured lists — introduced in 0.52.0 (2026-11-06)
+
+The installed local candidate adds task items and tight nested lists (up to
+six levels and 32 items per projected list). Type `- [ ] ` or use **任务列表**;
+click a checkbox to toggle it. Enter continues with an unchecked task, Tab nests
+the current item and its children, and Shift+Tab lifts it. A nested empty task
+lifts one level; a first/last top-level empty item exits to prose. Same-parent
+leaf-item selections support replacement, deletion and one-line plain-text paste.
+All changes use the existing main-owned source patches, revision and Undo/Redo.
+
+Multiline/loose list items, cross-level or subtree-crossing range replacement,
+multiline list paste and bulk conversion of a structured list stay refused.
+An empty ordinary bullet cannot start a new nested list after a paragraph in
+CommonMark: enter its text before indenting. A newly nested ordered list starts
+at `1`; untouched markers and exact inverse bytes are retained. Some empty or
+mixed-marker boundaries that cannot reparse identically remain protected.
+
+396 focused Node checks and three Pro Electron workflows pass, including export,
+readonly reopen and draft recovery. Installed 0.51.0 also passed the bounded
+name/edit/export/reopen/recovery preflight with synthetic content and controlled
+dialog choices. The actual 0.52.0 package also passed task editing, history,
+export and restart recovery; installed startup and record preservation passed.
+The old 0.51.0 bundle is retained for rollback. Native IME, human list acceptance,
+Air, full CI and independent review are not newly accepted. Historical failures
+and file-safety limits remain. No Git commit or release was made.
 
 ## Open the application
 
@@ -29,7 +100,7 @@ exits either block into prose. Undo/Redo and new-file export/reopen preserve sou
 markers and line endings. Nested/lazy/soft-wrapped quotes, splitting marked quote
 paragraphs, unclosed/metadata-bearing fences and code execution stay unsupported.
 Code-to-prose conversion is limited to one line; use Cmd+Enter for multiline code.
-Tasks, nested lists and nested inline marks remain outside this batch.
+The installed app includes the task/nested-list subset introduced in 0.52.0. Nested inline marks remain protected.
 The link button or **Cmd+K** opens an insert/edit panel. Select plain text or place
 the caret to insert; place the caret in a simple link to edit its text/address or
 remove the link while retaining its text. Cancel/Escape preserves the document;
@@ -39,7 +110,7 @@ with a new paragraph without rewriting the link. Links stay inert; cross-link se
 nested marks and title editing remain unsupported. The panel accepts http(s),
 mailto, relative and fragment targets, rejecting script/file protocols, credentials,
 whitespace and control characters. No URL is opened or fetched.
-The installed app is now **0.51.0**. The previous 0.49.0 bundle is retained locally
+The installed app is now **0.54.0**; the previous 0.53.0 bundle is retained locally
 for recovery; user documents and existing drafts were not migrated. The 0.48.0
 checkpoint is `dd0eef4`; the 0.49.0 local WIP `d8a3f25` preserves quote/code and authoring closeout.
 The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
@@ -185,7 +256,7 @@ The compact format bar offers **正文 / 标题 1–6 / 无序列表 / 有序列
 reparse it; they do not normalize the whole file. Headings use a supported single
 source line and may start empty. Bold/italic/code applies within one unmarked text leaf; removing it requires the
 whole corresponding marked leaf. Combining marks, partial removal and
-formatting a selection across leaves remain refused. Lists support up to 32 flat, tight, one-line items containing
+formatting a selection across leaves remain refused. The flat-list baseline supports up to 32 tight, one-line items containing
 plain/bold/italic/code text. Select within one item or across adjacent items in that same
 list to replace/delete or paste one line, including plain/bold/italic/code text. A cross-item
 replacement merges the selected items, retaining their unselected text and marks.
@@ -203,8 +274,7 @@ last empty item exits; an empty paragraph can become a list through the format
 selector when reparsing preserves surrounding structure. A middle empty item
 cannot exit because a blank paragraph alone cannot separate same-kind Markdown
 lists; this operation is explicitly refused. Converting a list with the selector
-still applies to the whole list. Nested/task/loose lists and complex structures
-remain protected.
+still applies to the whole flat list. The 0.52.0 candidate extends tasks/nesting as described above; loose lists and complex structures remain protected.
 Typing Markdown markers is not a general formatting shortcut in this preview.
 
 Normal IME composition shows only **输入中…**, without moving the writing area.

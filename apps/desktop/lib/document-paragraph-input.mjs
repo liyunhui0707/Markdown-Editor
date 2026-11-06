@@ -13,8 +13,9 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection) || selection.empty) return false;
   const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === 'listItem';
-  const crossItems = inItem && selection.$from.depth === 3 && selection.$to.depth === 3
-    && selection.$from.node(1) === selection.$to.node(1) && selection.$from.node(2) !== selection.$to.node(2)
+  const crossItems = inItem && selection.$from.depth === selection.$to.depth
+    && selection.$from.node(selection.$from.depth-2) === selection.$to.node(selection.$to.depth-2)
+    && selection.$from.node(selection.$from.depth-1) !== selection.$to.node(selection.$to.depth-1)
     && selection.$to.parent.type.name === 'paragraph';
   if (keyDelete && !crossItems) return false;
   if (selection.$from.sameParent(selection.$to)

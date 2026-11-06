@@ -1,7 +1,7 @@
 import { applyBlockShortcut, applyStructuredKey } from '../lib/document-block-input.mjs';
 import { mapFormatEdit } from '../lib/document-format-edit.mjs';
 import test from 'node:test';
-import { syncNativeBackspaceSelection } from '../lib/document-native-selection.mjs';
+import { syncNativeBackspaceSelection, syncNativeListSelection } from '../lib/document-native-selection.mjs';
 import { pastePlainText } from '../lib/document-plain-paste.mjs';
 import { replaceParagraphRangeInput } from '../lib/document-paragraph-input.mjs';
 import assert from 'node:assert/strict';
@@ -1309,4 +1309,57 @@ test('structured keys leave ordinary empty-paragraph Backspace to the existing e
   const view=structuredKeys(h).view;
   assert.equal(applyStructuredKey(view,{key:'Backspace',preventDefault(){throw Error('plain key consumed')}},{controller:h.controller}),false);
   assert.equal(h.requests.length,0);
+});
+
+test('structured lists use main history and queued keyboard commands without writing original',async()=>{
+ const h=harness('- [ ] Alpha\n- [x] Beta');
+ const key=key=>{const event={key,preventDefault(){},isComposing:false};const view={get state(){return h.state();},editable:true,composing:false,dispatch:tr=>{if(h.controller.prepare(tr))h.apply(tr);}};return applyStructuredKey(view,event,{controller:h.controller});};
+ h.select(h.span('Beta').from+2);h.delayed=true;assert.equal(key('Tab'),true);
+ assert.equal(h.controller.state().source,'- [ ] Alpha\n  - [x] Beta');
+ assert.equal(h.edit(h.state().selection.from,h.state().selection.to,'中'),true);
+ await tick();h.delayed=false;h.replies.shift()();await h.controller.idle();
+ assert.equal(h.controller.state().confirmed.source,'- [ ] Alpha\n  - [x] Be中ta');
+ await h.controller.history('undo');assert.equal(h.controller.state().source,'- [ ] Alpha\n  - [x] Beta');
+ await h.controller.history('undo');assert.equal(h.controller.state().source,'- [ ] Alpha\n- [x] Beta');
+ await h.controller.history('redo');assert.equal(h.controller.state().source,'- [ ] Alpha\n  - [x] Beta');
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+test('task toggle is refused during composition and accepted as main-owned exact history',async()=>{
+ const h=harness('- [ ] Alpha'),at=h.span('Alpha').from;
+ assert.equal(await h.controller.format({action:'toggle-task',from:at,to:at}),true);
+ assert.equal(h.controller.state().source,'- [x] Alpha');await h.controller.history('undo');
+ assert.equal(h.controller.state().source,'- [ ] Alpha');
+ h.controller.beginComposition();assert.equal(await h.controller.format({action:'toggle-task',from:at,to:at}),false);
+ assert.equal(h.controller.state().source,'- [ ] Alpha');assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+
+test('list Enter sees a native line-end caret before the delayed PM selectionchange',async()=>{
+ const h=harness('- [x] Plan'),c=nativeCaret(h,'Plan');h.select(h.span('Plan').from);
+ c.selection.anchorOffset=c.selection.focusOffset=4;
+ assert.equal(syncNativeListSelection(c.view,{key:'Enter'},{state:h.controller.state()}),true);
+ assert.equal(h.state().selection.from,h.span('Plan').to);
+ c.view.dispatch=tr=>{if(h.controller.prepare(tr))h.apply(tr);};
+ assert.equal(applyStructuredKey(c.view,{key:'Enter',preventDefault(){}},{controller:h.controller}),true);
+ await h.controller.idle();assert.equal(h.document.text,'- [x] Plan\n- [ ] ');
+ for(const extra of [{composing:true},{pending:1},{locked:true}]){
+  h.select(h.span('Plan').from);assert.equal(syncNativeListSelection(c.view,{key:'Enter'},{state:{...h.controller.state(),...extra}}),false);
+ }
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('list Tab follows a verified native caret moved from another paragraph',async()=>{
+ const h=harness('- [x] Parent\n- [ ] Child\n\nTail'),c=nativeCaret(h,'Child');
+ h.select(h.span('Tail').to);c.selection.anchorOffset=c.selection.focusOffset=5;
+ for(const alter of [()=>{c.paragraph.textContent='preedit';},()=>{c.view.nodeDOM=()=>({});}]){
+  const nodeDOM=c.view.nodeDOM;alter();
+  assert.equal(syncNativeListSelection(c.view,{key:'Tab'},{state:h.controller.state()}),false);
+  assert.equal(h.state().selection.from,h.span('Tail').to);c.paragraph.textContent='Child';c.view.nodeDOM=nodeDOM;
+ }
+ assert.equal(syncNativeListSelection(c.view,{key:'Tab'},{state:h.controller.state()}),true);
+ assert.equal(h.state().selection.from,h.span('Child').to);
+ c.view.dispatch=tr=>{if(h.controller.prepare(tr))h.apply(tr);};
+ assert.equal(applyStructuredKey(c.view,{key:'Tab',preventDefault(){}},{controller:h.controller}),true);
+ await h.controller.idle();assert.equal(h.document.text,'- [x] Parent\n  - [ ] Child\n\nTail');
+ assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });
