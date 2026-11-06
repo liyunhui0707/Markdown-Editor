@@ -1396,16 +1396,16 @@ test('local drafts V1 restores two confirmed documents after direct process exit
   await usingDemo(async ({ app, page, snapshot, select, settled }) => {
     await page.locator('#show-drafts').click();
     await expect(page.locator('#draft-recovery-list > p')).toHaveCount(2);
-    const firstRow = page.locator('#draft-recovery-list > p').filter({ hasText: 'original.md' });
+    const firstRow = page.locator('#draft-recovery-list > p').filter({ hasText: expected.label });
     await firstRow.getByRole('button', { name: '恢复副本' }).click();
-    await expect(page.locator('#document-name')).toContainText('恢复：');
+    await expect(page.locator('#document-name')).toHaveText(expected.label);
     const firstId = await page.locator('#documents').inputValue(), recovered = (await snapshot(firstId)).snapshot;
     expect(recovered.source).toBe(expected.source); expect(recovered.bom).toBe(true); expect(recovered.revision).toBe(0);
     expect(recovered.canUndo).toBe(false); expect(recovered.canRedo).toBe(false); expect(recovered.temporary).toBe(true);
     expect(firstId).not.toBe(originalSession); await expect(page.locator('#readonly-badge')).toHaveText('本地草稿');
     await expect(page.locator('#draft-backup-status')).toContainText('本地草稿已备份（修订 0）');
     await page.locator('#show-drafts').click();
-    await page.locator('#draft-recovery-list > p').filter({ hasText: 'Temporary' }).getByRole('button', { name: '恢复副本' }).click();
+    await page.locator('#draft-recovery-list > p').filter({ hasText: '未命名' }).getByRole('button', { name: '恢复副本' }).click();
     const secondId = await page.locator('#documents').inputValue(); expect((await snapshot(secondId)).snapshot.source).toBe(secondText);
     await selectDocument(page, firstId); await select('#editor p:first-of-type', 0);
     await page.keyboard.insertText('CONTINUED '); await settled();

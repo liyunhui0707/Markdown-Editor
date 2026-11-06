@@ -179,9 +179,10 @@ function persistentDirectory(root) {
 }
 // A dialog suggestion only. The selected destination must still be freshly
 // authorized and pinned by captureCopyDestination before any writer is started.
-function suggestCopyPath(root) {
-  try { persistentDirectory(root); return path.join(root, 'Untitled.md'); }
-  catch { return 'Untitled.md'; }
+function suggestCopyPath(root, proposedName = 'Untitled.md') {
+  const name = copyName(proposedName) ? proposedName : 'Untitled.md';
+  try { persistentDirectory(root); return path.join(root, name); }
+  catch { return name; }
 }
 function captureCopyDestination(filePath) {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !copyName(path.basename(filePath))) return deny('invalid-copy-name');

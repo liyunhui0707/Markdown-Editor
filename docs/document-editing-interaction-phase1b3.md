@@ -3098,3 +3098,196 @@ only current documentation status changed for this checkpoint. Version remains
 0.49.0. Reuse the 351 Node, five source Electron, product-package and installed
 startup results above. This is a local WIP, not merge or release acceptance.
 Native IME/historical QA, full CI, independent-review and overwrite limits remain.
+
+
+### Recent documents and resume writing — 0.50.0 candidate (2026-11-06)
+
+The authorized preceding checkpoint was completed as `d8a3f25e2543161a05af8dcea21762dc805611cb`
+(`feat(desktop): checkpoint common Markdown authoring`), version 0.49.0, 35 files.
+The tree/index were clean afterward. This new file-workflow slice is uncommitted
+0.50.0; no push, merge, tag or release. The installed application remains 0.49.0.
+
+Welcome now shows three draft entries and six recent files; the sidebar panel
+shows up to 12 recent files, Refresh and Clear list. Only successful explicit
+readonly opens (native selection, recent entry or verified exported-file shortcut)
+enter the catalog. Temporary copies do not. Resume uses the existing draft service
+and retains the body, not old Undo/Redo history or file-saving authority.
+
+Main owns the recent ID/path mapping. Renderer submits only an ID; main reopens
+through the existing bounded File Store/Service, checking original-byte SHA-256,
+device and inode before provisioning a new read-only session. Missing, changed,
+replaced and symlink targets are refused while the active document is preserved.
+The user can explicitly select the changed file through native Open. No directory
+scan, overwrite authority or Save As policy change; `coordination-required` remains.
+Preload/renderer pause recent actions during pending or unconfirmed input, and
+lost/malformed IPC replies retain the unknown-result fence.
+
+A separate `Recent Documents` directory below the product's private userData uses
+the existing draft-store protocol (0700 root, 0600 verified snapshots). It stores
+paths/identities/hashes/times, not document bodies. At most 12 entries and two
+verified generations are retained. Clear writes an empty current catalog; it does
+not delete Markdown files/drafts or securely erase the previous path snapshot.
+Catalog damage disables shortcuts and retains evidence without blocking native
+Open. No existing user draft schema or backup writer was changed.
+
+Evidence under control checkout `.local/verification/recent-documents-o27o05_z/`:
+
+- `recents-node-final.log`: 147 targeted Node cases PASS across recent metadata,
+  read-only open, IPC/preload, draft persistence/view, close/view, writing shell
+  and launch-mode tests. `confirmed-actions-final.log`: one additional confirmed
+  export-open history test PASS (148 total). The earlier differently named filter
+  matched no case; `confirmed-recent-test.log` is not acceptance evidence.
+- Existing hostile-markup readonly test was stale after 0.49 link support; its
+  baseline failure was reproduced. Corrected only the expectation: blocked HTML
+  and images stay opaque; a dangerous link renders an inert span with no href.
+  No production link/navigation policy was relaxed.
+- `recents-gui-final.log`: Pro source workflow PASS, three clean exits; original
+  BOM/CRLF retained, restart draft recovery, readonly reopen, changed-target
+  refusal and clear-list persistence. Earlier root-alias and hidden-window resize
+  failures were test-fixture issues, corrected; their logs remain.
+- `air-evidence/run.log` and `result.json`: same workflow PASS on Air after the
+  user confirmed its desktop available. Three clean exits, no watchdog or remaining
+  test processes. 54 project files plus bounded runner/manifests; copied isolated
+  dependencies, no installation or shared writable profile. Node 24.20.0,
+  Electron 43.8.7 arm64; source/tool hashes unchanged. Input manifest SHA-256
+  `cdfa56b35e69d9a020617fa7791fb18ec9e28df6136bd5d61d4adba345acd9cb`.
+  Returned archive SHA-256
+  `285486da73feb5aec22662b5b238f0e2a28ed5ace9416646b56f9e0e7b0432bc`.
+  Normal/narrow screenshots were visually checked. This is controlled Electron
+  interaction, not native IME or physical dialog acceptance.
+- `package-verification.json`: 456 source fingerprints, 48 packaged project runtime
+  files, no unexpected/private project entries; package/plist 0.50.0. ASAR SHA-256
+  `5ff8d5aa9035f00eb7dea3cf7a7b32dfe9adbf9eb430655a1de8999f32a2b38f`.
+  `package-runtime-smoke.log` verifies actual packaged source-map projection and
+  format/service/session/recent imports. Builder dependency-reference warnings
+  remain in `package.log`; this bounded import check is not a full packaged GUI
+  test. The new app has not replaced the user's installed 0.49.0 bundle.
+- All test documents/catalogs/drafts were synthetic and isolated in temporary
+  roots recorded by the evidence. No Home-top-level test directory was created.
+  Air run retained at its private `air-testing/runs/markdown-recents-o27o05_z/`;
+  its synthetic fixture is `/private/tmp/document-recents-e2e-1leWmS`. Failed Pro
+  fixtures/logs were preserved; no historical cleanup or user-data migration.
+
+Bounded Codex self-review found no remaining blocking issue in this slice; it is
+not independent model review. New modules 62/78 lines, new tests 63/51; central
+IPC327/renderer442 reuse existing paths rather than creating a second architecture.
+Native IME remains NOT VERIFIED, historical manual/formal FAIL is not globally
+cleared, full CI and independent review were not run. Existing-file overwrite,
+complex Markdown and release limits remain. Next direction: draft naming and
+export-name continuity, after accepting this candidate; no new slice started here.
+
+
+### Draft naming and export-name continuity — 0.51.0 candidate (2026-11-06)
+
+Continues the approved everyday file-workflow direction on `feat/document-close`,
+HEAD `d8a3f25`. The previous 22-file 0.50.0 candidate is preserved. Source/package
+version is now 0.51.0; installed app remains 0.49.0. No commit, push, merge, tag,
+release, user-data migration or change to existing-file overwrite protection.
+
+The title menu opens a bounded naming form for independent drafts. Main accepts
+only label metadata, a session ID, expected revision and expected previous label;
+no renderer path or body. Sender/session checks and pending/unknown input fences
+remain. A verified write through the existing draft store updates the live name.
+Failure keeps the prior name/body; unknown backup results stop retry. A failed
+pending body backup does not cause an automatic second write during rename.
+Recovery now uses the stored name unchanged; pre-existing labels are not migrated.
+Named empty drafts get a backup. Original files, content revisions, Undo/Redo and
+previous export receipts are unchanged. Save As supplies a main-owned filename
+suggestion only; native destination validation and exclusive create are unchanged.
+
+Evidence: control checkout `.local/verification/draft-names-g_gbqjlq/`:
+
+- `names-red.log` records the initial missing-feature test failure.
+  `names-node-final.log`: 130 targeted cases PASS across draft names, draft store,
+  session/preload, close and save-directory metadata. This is bounded regression,
+  not a full CI claim.
+- `pro-e2e-051.log` and `pro-e2e-051/`: final candidate workflow PASS, two clean
+  process exits. Checks cancel/invalid names, controlled composition, exact source/
+  revision/history preservation, suggested filename, new-file SHA-256, existing
+  target refusal, unchanged original/export, and named restart recovery. Normal
+  and narrow screenshots inspected. Native dialog selections were controlled;
+  native Chinese IME remains NOT VERIFIED.
+- Earlier Pro harness failures remain recorded: the first launch supplied the
+  wrong isolated-create root prefix and was correctly refused before writing;
+  the second checked cancellation on a persistent receipt instead of the separate
+  operation status. Both test defects were corrected without relaxing protections.
+  Their Home fixtures were retained by the existing conservative cleanup helper:
+  `Writing-synthetic-E2E-hSyrWq` is empty; the other retained fixture and its one
+  synthetic export are mapped by `pro-e2e-2/*/fixture-cleanup.json`. Successful
+  Pro runs reclaimed only their verified fresh fixture/file after both processes
+  exited (`pro-e2e-final/` and `pro-e2e-051/`). No historical artifacts were touched.
+- Air: preflight initially confirmed the desktop, Node24.20.0 and target identity.
+  After explicit approval, 57 project files plus runner/manifests were transferred
+  to `air-testing/runs/markdown-draft-names-g_gbqjlq/`. Input manifest SHA-256:
+  `0adc9fc0f53e18a46a69296810215e962d9f4c762f0f54f390569023c4c10810`.
+  The runner verified input and copied tool hashes (Electron43.8.7), then detected
+  a locked screen before launching Playwright/Electron. **BLOCKED**, zero GUI tests;
+  no blind retry, privacy changes or new Home fixture. `air-console.log` preserves
+  the failure, `air-final-state.json` confirms lock. Its sole process-text match is
+  the short-lived read-only inspection command itself, not a test application.
+  Transferred input/tool copies remain in that private run directory.
+- `package-verification.json`: 50 packaged project runtime files match source,
+  version/plist 0.51.0, no unexpected/private project entries. ASAR SHA-256:
+  `a32ff946980c0cd55c3f203e38e61130360b8542e520001daced9330b59f2709`.
+  `package-runtime-smoke.log` confirms actual packaged names, source projection,
+  format/session/draft/service/recent imports with Electron43.8.7. Builder dependency
+  reference warnings remain in `package.log`; this does not claim full packaged GUI
+  or installed acceptance. The user's installed app/profile were not replaced.
+
+Bounded Codex self-review found no remaining blocking finding in this slice; this
+is not independent model review. The existing storage format/writer and save
+policy are reused. Historical manual/formal FAIL, native IME, full CI, independent
+review and release gates remain distinct. Next: review and close the combined
+file-workflow candidate, then safely update the installed app when authorized.
+
+
+### File-workflow local checkpoint and installation — 0.51.0 (2026-11-06)
+
+User accepted the proposed closeout: preserve the combined recent-documents and
+draft-naming batch as one local WIP and safely update the app. The exact 29-file
+candidate and all 501 source fingerprints matched prior evidence. No product or
+test implementation changed during closeout; only current documentation status
+changed. Version stays 0.51.0 (feature SemVer already applied in package and lock).
+Codex local self-review found no new blocking issue; no independent review was run.
+The changed-file credential scan found no high-confidence secret pattern. This is
+local commit readiness, not merge/publication or complete user acceptance.
+
+Evidence: control checkout `.local/verification/file-workflow-closeout-20261106/`.
+Reuse the prior 130 Node and Pro naming/export/recovery workflow with matching
+0.51.0 fingerprints, and retain the separate 0.50.0 Pro/Air and 148 Node results
+as dated slice evidence. `recents-051.log` adds five passing recent-file cases on
+the combined candidate: readonly identity, changed/replaced/symlinked targets,
+catalog protection, clear-list semantics and unaffected files.
+
+`candidate-gui.json`: actual packaged 0.51.0 startup, recent panel, empty scratch
+draft name validation/cancel PASS; exact source/revision/label/history unchanged.
+`installed-gui.json`: installed 0.51.0 startup and recent panel PASS. Both processes
+exited normally (code 0). No user document was opened, no valid name was committed
+and no Markdown was exported by these two checks. Existing draft/catalog record
+identities, hashes and modes matched before/after. The runtime's blank scratch
+and session directories remain only in its usual private temporary roots; no new
+Home-top-level fixture was made. The naming screenshot was visually inspected.
+These are bounded product-entry checks, not a full packaged writing/recovery or
+native-dialog test. Prior synthetic source E2E supplies the persistence coverage.
+
+`bundle-rebuild.json`: independent rebuild from the original snapshot root is
+byte-identical. Building from the live Worktree instead changes esbuild dependency
+location labels because the snapshot links its node_modules; exact replacement
+of that one relative prefix accounts for the entire difference. No runtime drift
+or source/bundle change was needed; location-independent output is not claimed.
+The installed ASAR remains
+`a32ff946980c0cd55c3f203e38e61130360b8542e520001daced9330b59f2709`.
+
+`installation/result.json` verifies 528 entries in both the new and old bundles
+(file hashes, modes/ownership and link targets). The exited 0.49.0 bundle was moved
+unchanged to `installation/rollback/Markdown-0.49.0.app`; new 0.51.0 is installed at
+`~/Applications/Markdown.app`. Recovery paths and instructions are in
+`installation/recovery.json`. No deletion or user-profile migration occurred.
+
+Only the 29 approved candidate paths enter the local WIP commit; manifests,
+screenshots, packages and recovery material stay ignored under `.local/` in the
+control checkout. No remote operation, push, merge, tag or release. Native IME
+remains NOT VERIFIED; historical manual/formal FAIL, SEC-01, full CI and human
+workflow acceptance are not cleared. Air naming GUI remains BLOCKED by its prior
+lock check. Original overwrite remains prohibited by `coordination-required`;
+new-file export restrictions and uncertain-write fencing remain unchanged.

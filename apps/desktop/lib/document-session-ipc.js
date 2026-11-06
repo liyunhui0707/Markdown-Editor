@@ -4,11 +4,12 @@ const path = require('node:path');
 const { record, failure } = require('./document-contract');
 const { createDraftBackups } = require('./document-draft-backups');
 const { closeDocumentSession } = require('./document-close');
+const { normalizeDraftName, draftFileName } = require('./document-draft-name');
 const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned native selection / confirmed receipt authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit = null, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null, revealFile = null, confirmClose = null }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit = null, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null, revealFile = null, confirmClose = null, recentFiles = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   const backups = draftStore && createDraftBackups(draftStore, (document, backup) => {
     for (const [sessionId, s] of sessions) if (s.document === document) {
@@ -84,20 +85,34 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
       if (selected?.canceled !== false || !Array.isArray(selected.filePaths) || selected.filePaths.length !== 1
           || typeof file !== 'string' || !path.isAbsolute(file) || !/\.md$/i.test(file)
           || path.basename(file).startsWith('.env.') || file.split(path.sep).includes('secrets')) return failure('unsupported-path');
-      const opened = service.open(file, { parse: projectSource, maxBytes: 524288 });
-      if (!opened.ok) {
-        if (opened.document) service.close(opened.document);
-        const code = ['ENOENT', 'ENOTDIR'].includes(opened.code) ? 'file-unavailable'
-          : ['EACCES', 'EPERM'].includes(opened.code) ? 'read-failed'
-          : ['unsupported-path', 'unsupported-file', 'unsupported-size', 'unsupported-encoding', 'parse-failed', 'external-change'].includes(opened.code) ? opened.code : 'open-failed';
-        return failure(code);
-      }
-      try {
-        const id = provision(binding.win, opened.document, path.basename(file), { readOnly: true });
-        return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
-      } catch { service.close(opened.document); return failure('open-failed'); }
+      return openPath(event, binding, file);
     } catch { return failure('open-failed'); }
     finally { binding.opening = false; }
+  }
+  function openPath(event, binding, file, recent = null) {
+    if (sessions.size >= 8) return failure('session-limit');
+    const opened = service.open(file, { parse: projectSource, maxBytes: 524288 });
+    if (!opened.ok) {
+      if (opened.document) service.close(opened.document);
+      const code = ['ENOENT', 'ENOTDIR'].includes(opened.code) ? 'file-unavailable'
+        : ['EACCES', 'EPERM'].includes(opened.code) ? 'read-failed'
+        : ['unsupported-path', 'unsupported-file', 'unsupported-size', 'unsupported-encoding', 'parse-failed', 'external-change'].includes(opened.code) ? opened.code : 'open-failed';
+      return failure(code);
+    }
+    try {
+      if (authorizedBinding(event) !== binding) { service.close(opened.document); return failure('unauthorized-sender'); }
+      if (recent && !recentFiles.matches(recent, opened.document)) { service.close(opened.document); return failure('recent-file-unavailable'); }
+      const id = provision(binding.win, opened.document, path.basename(file), { readOnly: true });
+      try { recentFiles?.remember(opened.document); } catch { /* A history failure cannot undo a valid open. */ }
+      return { ok: true, ...(recent ? { recentId: recent.id } : {}), snapshot: snapshot(id, sessions.get(id)) };
+    } catch { service.close(opened.document); return failure('open-failed'); }
+  }
+  function openRecent(event, binding, id) {
+    if (binding.opening) return failure('open-busy');
+    const entry = recentFiles?.resolve(id);
+    if (!entry) return failure('recent-file-unavailable');
+    const result = openPath(event, binding, entry.filePath, entry);
+    return result.ok || result.code === 'session-limit' ? result : failure('recent-file-unavailable');
   }
   function newTemporary(binding, source = null, isAuthorized = () => true, recovery = null) {
     if (typeof createTemporary !== 'function') return failure('temporary-unavailable');
@@ -111,7 +126,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
           || opened.document.revision !== 0 || opened.document.dirty || !opened.document.bytesForSave().equals(bytes)) return failure('temporary-create-failed');
       if (!opened?.ok) return failure('temporary-create-failed');
       const number = ++binding.temporaryCount;
-      const label = recovery ? ('恢复：' + recovery.label.replace(/^恢复：/, '')).slice(0, 512) : source ? `${source.label} · 编辑副本 ${number}` : '未命名 ' + number;
+      const label = recovery ? recovery.label : source ? `${source.label.replace(/\.md$/i, '')} · 编辑副本 ${number}` : '未命名 ' + number;
       const id = provision(binding.win, opened.document, label, { temporary: true });
       backups?.attach(opened.document, label, recovery);
       return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
@@ -124,7 +139,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     const authorized = () => authorizedBinding(event) === binding && sessions.get(id) === s;
     try {
       if (payload.expectedSha256 !== sourceHash(s.document.bytesForSave())) return failure('source-hash-mismatch');
-      const selected = await chooseCopy(binding.win);
+      const selected = await chooseCopy(binding.win, { suggestedName: draftFileName(s.label) });
       if (!authorized()) return failure('copy-session-invalidated');
       let result;
       if (selected?.canceled === true) result = { ok: false, code: 'create-cancelled', state: 'not-created', created: false };
@@ -154,6 +169,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
       }
       const next = provision(binding.win, result.document, path.basename(result.document.filePath), { readOnly: true });
       const view = snapshot(next, sessions.get(next)); kept = true;
+      try { recentFiles?.remember(result.document); } catch { /* Verified open is independent of navigation history. */ }
       return { ok: true, copyId: payload.copyId, snapshot: view };
     } catch { return failure(opening ? 'copy-open-failed' : 'copy-reveal-failed'); }
     finally { s.copying = false; if (result?.document && !kept) service.close(result.document); }
@@ -161,14 +177,17 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action', 'label', 'href'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
       undo: ['operation', 'sessionId', 'expectedRevision'], redo: ['operation', 'sessionId', 'expectedRevision'] };
-    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId', 'action', 'expectedToken', 'copyId', 'label', 'href'])
+    if (!record(payload, ['operation', 'sessionId', 'expectedRevision', 'expectedSha256', 'from', 'to', 'insert', 'draftId', 'action', 'expectedToken', 'copyId', 'label', 'href', 'recentId', 'expectedLabel'])
         || typeof payload.operation !== 'string' || !Object.hasOwn(fields, payload.operation)
         || !record(payload, fields[payload.operation])) return failure('invalid-request');
+    if (payload.operation === 'list-recents') return recentFiles?.list() || failure('recents-unavailable');
+    if (payload.operation === 'clear-recents') return recentFiles?.clear() || failure('recents-unavailable');
+    if (payload.operation === 'open-recent') return openRecent(event, binding, payload.recentId);
     if (['list-drafts', 'restore-draft', 'manage-draft'].includes(payload.operation)) {
       if (!draftStore) return failure('drafts-unavailable');
       try {
@@ -203,13 +222,25 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     if (s.closing) return reply(failure('close-in-progress'));
     if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
-    if (s.readOnly && ['format', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
+    if (s.readOnly && ['rename-draft', 'format', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
+    if (['rename-draft', 'open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
     try {
       switch (payload.operation) {
+        case 'rename-draft': {
+          if (!s.temporary || !backups || s.document.blocked) return reply(failure('draft-name-unavailable'));
+          if (payload.expectedLabel !== s.label) return reply(failure('stale-draft-name'));
+          const label = normalizeDraftName(payload.label);
+          if (!label) return reply(failure('invalid-draft-name'));
+          const copy = service.getCopyState(s.document);
+          if (copy && !copy.ok && copy.created !== false) return reply(failure('unresolved-save-state'));
+          const result = backups.rename(s.document, label);
+          if (authorizedBinding(event) !== binding || sessions.get(id) !== s) return failure('unknown-session');
+          if (result.ok) s.label = label;
+          return reply(result);
+        }
         case 'open-confirmed-copy': case 'reveal-confirmed-copy': return followCopy(event, binding, id, s, payload);
         case 'edit-copy': {
           if (!s.readOnly) return reply(failure('read-only-source-required'));

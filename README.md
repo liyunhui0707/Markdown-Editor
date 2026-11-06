@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.49.0 local WIP candidate:** this is not a signed/notarized release or a
+**0.51.0 local WIP checkpoint and installed app:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -15,7 +15,7 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The source candidate includes line-start shortcuts: type `#` through `######`
+The installed app includes line-start shortcuts: type `#` through `######`
 then Space for headings, or `-`, `+`, `*`, `1.` / `3)` then Space for flat lists.
 Bare prefixes stay visible until Space; an empty heading accepts text, Enter
 returns it to a paragraph, and Backspace at a heading start removes its format.
@@ -39,16 +39,32 @@ with a new paragraph without rewriting the link. Links stay inert; cross-link se
 nested marks and title editing remain unsupported. The panel accepts http(s),
 mailto, relative and fragment targets, rejecting script/file protocols, credentials,
 whitespace and control characters. No URL is opened or fetched.
-The installed app is now **0.49.0**. The previous 0.46.0 bundle is retained locally
+The installed app is now **0.51.0**. The previous 0.49.0 bundle is retained locally
 for recovery; user documents and existing drafts were not migrated. The 0.48.0
-checkpoint is `dd0eef4`; the following local 0.49.0 WIP preserves quote/code and authoring closeout.
+checkpoint is `dd0eef4`; the 0.49.0 local WIP `d8a3f25` preserves quote/code and authoring closeout.
 The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
 existing final newline, and structural keys arriving before text acknowledgements.
-351 targeted Node cases, five source Electron workflows, one real packaged-app
-workflow and installed startup pass. Export/reopen and restart recovery preserve
+For that 0.49.0 authoring closeout, 351 targeted Node cases, five source Electron
+workflows, one real packaged-app workflow and installed startup passed. Export/reopen and restart recovery preserve
 verified source bytes. Controlled dialogs/clipboard and text insertion are not
 native IME acceptance. Air, independent review and full CI were not run for this
 batch; historical manual failures and release limitations remain.
+
+The recent-documents slice passed 148 targeted Node cases and the
+restart/recovery/reopen/clear workflow on Pro and Air (three clean exits per run).
+Air used the final 0.50.0 snapshot and isolated copied dependencies. Package
+membership, source hashes and main-process dependency imports passed. Five recent
+regressions also pass on the combined 0.51.0 candidate. See the phase record for
+exact evidence; these counts cover different scopes, not one full CI run.
+
+The 0.51.0 checkpoint adds draft naming and suggested export names. It passes 130
+targeted Node checks, one two-start Pro Electron workflow and package checks.
+This batch's Air GUI did not start because its launch-time check found the screen
+locked. The 0.51.0 package subsequently passed bounded welcome/recent-panel and
+name cancel/invalid-input checks; the installed app passed startup and the recent
+panel with the same ASAR. Existing draft/recent record identities and hashes were
+unchanged. Full packaged writing/recovery, native dialogs/IME, independent review
+and full CI are not newly accepted by this closeout. Human experience checks remain open.
 
 With existing development dependencies, start the same UI from source:
 
@@ -73,8 +89,25 @@ bottom status bar. The sidebar filters open document names only; it does not sca
 folders or search document content. Click a row to switch original/copy, or click
 the document title to see its full name and directory. Press Escape or click outside to dismiss the title menu;
 Escape returns focus to the title when focus was inside the menu. On narrow windows the
-sidebar becomes an overlay. The welcome page offers New and Open. Opened original
+sidebar becomes an overlay. The 0.50.0 welcome page adds **继续写作** (up to three local drafts) and
+**最近文档** (six recent files); the sidebar opens the full recent list of up to
+12 entries. Recovery reuses independent drafts, without old Undo history or save
+authority. Recent files reopen read-only after identity and content verification.
+Changed, replaced or missing files require a fresh selection through **打开…**.
+The catalog contains local paths, identities and hashes, not document bodies; it
+does not scan folders. **清空列表** removes visible history, not Markdown files or
+drafts; older verified catalog generations may remain, so this is not secure
+erasure. Catalog failures leave normal native Open available. Opened original
 files cannot be edited or saved.
+
+For an independent draft, click its title and choose **重命名草稿…**. A confirmed
+name appears in the sidebar and survives draft recovery, including an empty named
+draft. Cancel/Escape keeps the old name. Names cannot be paths; invalid names or
+unconfirmed backups retain the current body and name. **另存新文件…** suggests this
+name with `.md`; you can still choose a different new filename in the native dialog.
+Naming does not rename original/exported files, change text or reset Undo/Redo.
+Recovery keeps the name and confirmed body, without restoring old history or
+export receipts. Existing-file overwrite and destination restrictions remain unchanged.
 
 **Installed WIP candidate (`feat/document-close`):** click the header
 × or press **Cmd+W** to close only the current document. Read-only originals close

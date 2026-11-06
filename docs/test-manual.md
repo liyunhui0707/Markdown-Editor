@@ -1,4 +1,45 @@
 # Manual Test Checklist  
+
+## Draft naming / export names — installed 0.51.0 WIP (2026-11-06)
+
+Automated: 130 targeted Node checks and one two-start Pro Electron workflow PASS;
+normal/narrow screenshots reviewed. Dialog choices and composition events are
+controlled. Air blocked on launch-time lock detection before GUI. The installed
+app is now 0.51.0. Bounded package naming cancel/invalid-input checks and installed
+startup/recent-panel checks pass; existing private records were unchanged. This
+is not a human/native-IME PASS or a full packaged writing/recovery acceptance.
+
+Optionally check one short writing session in the installed app:
+
+- In an independent draft, click the title → **重命名草稿…**; cancel once, then
+  confirm a short Chinese/English name. Title/sidebar update; text and Undo remain.
+- Export to a supported folder: the suggested name matches and ends in `.md`.
+  A different native filename only names the new file; an existing target is refused.
+- Quit after backup, restart and resume: the draft name/body remain. Renaming does
+  not rename the original or an earlier export, and recovery does not restore Undo
+  or export receipts. A named empty draft is also recoverable.
+
+Original-file overwrite remains prohibited. Native IME and the historical manual
+FAIL remain separate acceptance gaps; no repeated real-document saves are needed.
+
+## Recent documents / resume writing — 0.50.0 candidate (2026-11-06)
+
+Automated: 148 targeted Node checks; one isolated Electron workflow on both Pro
+and Air, each with three clean starts/exits. Normal and narrow screenshots were
+reviewed. Dialog choices are controlled; native IME is NOT VERIFIED. The installed
+app now includes this workflow in 0.51.0; five recent Node regressions were
+rechecked on the combined candidate. These human checks remain pending:
+
+- Open a disposable `.md`, edit an independent copy, wait for backup and restart.
+  Welcome should offer the draft under **继续写作** and the file under **最近文档**.
+- Resume the draft and continue writing; use **最近文档** to reopen the original
+  read-only. Draft content and original content remain separate.
+- Modify the disposable file externally: its recent entry should require **打开…**
+  again, retaining the current document. Clear the list and restart: history stays
+  empty, while the file and recoverable draft remain.
+
+No human PASS is implied. Clearing the list is not secure erasure of retained
+catalog generations; no existing-file overwrite or save-destination expansion.
   
 Use this checklist before sharing the app with another person.  
 

@@ -98,7 +98,7 @@ body[data-document-viewer] .tiptap pre code {font:inherit;background:none;paddin
 #copy-operation-alert[data-tone=neutral] {background:var(--panel);color:var(--muted);border-color:#a6b2a3}
 #viewer-status {position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 #viewer-status[data-notice] {position:static;display:block;width:calc(100% - 2 * var(--gutter));height:auto;clip-path:none;white-space:normal;max-width:var(--reading-width);margin:18px auto -12px;padding:12px 15px;background:#f5f0e5;border-radius:5px;color:#785d33;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
-#empty-state {max-width:640px;margin:0 auto;padding:75px 32px 80px;display:flex;flex-direction:column;align-items:flex-start}
+#empty-state {max-width:640px;margin:0 auto;padding:36px 32px 60px;display:flex;flex-direction:column;align-items:flex-start}
 body[data-document-viewer] .welcome-icon {width:30px;height:34px;color:#8c9c92;margin-bottom:28px;display:none}
 #empty-state .welcome-kicker {font-size:11px;letter-spacing:1px;color:var(--muted);margin:0 0 16px}
 #empty-state h1 {font:500 36px/1.4 "Songti SC",Georgia,serif;margin:0 0 18px;letter-spacing:-.02em}
@@ -200,3 +200,25 @@ body[data-document-viewer] .tiptap .document-source-link { color:var(--accent);t
 
 body[data-document-viewer] .tiptap blockquote {margin:1.3em 0;padding:0 0 0 1.1em;border-left:3px solid var(--accent);color:var(--muted)}
 body[data-document-viewer] .tiptap blockquote p {margin:.7em 0}
+
+/* Resume the accepted workspace without changing the writing surface. */
+.resume-sections {width:100%;margin-top:24px;border-top:1px solid var(--line);text-align:left}
+.resume-sections>section {margin-top:22px}
+.resume-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
+#empty-state .resume-heading h2 {font-size:13px;font-weight:600;margin:0;color:var(--ink)}
+#empty-state .resume-note {font-size:12px;margin:8px 0;color:var(--muted)}
+.resume-heading button {font-size:12px}
+.resume-row {display:block;width:100%;margin:4px 0;padding:11px 13px;text-align:left;border:1px solid transparent;background:transparent;border-radius:8px;color:var(--ink)}
+.resume-row:hover {background:var(--surface);border-color:var(--line)}
+.resume-row strong,.resume-row small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.resume-row strong {font-size:13px;font-weight:500}
+.resume-row small {font-size:11px;color:var(--muted);margin-top:3px}
+.recent-actions {display:flex;gap:8px;margin-top:20px}
+
+#name-dialog {box-sizing:border-box;width:min(478px,calc(100vw - 40px));padding:24px}
+#name-dialog h2 {margin:0 0 16px;font-size:17px}
+#name-dialog p {color:var(--muted);font-size:12px}
+#name-form label {display:block;font-size:12px;margin:20px 0 8px}
+#draft-name-input {box-sizing:border-box;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit}
+#name-dialog #draft-name-error {color:#99652f;min-height:1.5em;font-size:12px}
+#rename-draft {margin:10px 0}

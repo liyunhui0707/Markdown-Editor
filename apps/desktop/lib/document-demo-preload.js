@@ -26,6 +26,12 @@ const request = async (operation, data = {}) => {
   }
   const forking = operation === 'edit-copy' || operation === 'restore-draft';
   const following = operation === 'open-confirmed-copy' || operation === 'reveal-confirmed-copy';
+  const recentOpening = operation === 'open-recent', recentClearing = operation === 'clear-recents', renaming = operation === 'rename-draft';
+  if (recentOpening || recentClearing || renaming) {
+    if (composing) return { ok: false, code: 'composition-active' };
+    if (pending) return { ok: false, code: 'document-busy' };
+    if (unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
+  }
   const managing = operation === 'manage-draft';
   if (operation === 'format' && composing) return { ok: false, code: 'composition-active' };
   if (operation === 'format' && pending) return { ok: false, code: 'document-busy' };
@@ -48,10 +54,21 @@ const request = async (operation, data = {}) => {
     if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
     if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
     unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (creating || forking || managing || following) return { ok: false, code: unknown.get(sessionId) };
+    if (creating || forking || managing || following || renaming) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
   } finally { --pending; if (creating || forking || managing || following) copies.delete(sessionId); }
+  if (renaming && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (result.snapshot?.sessionId !== sessionId || result.snapshot.revision !== data.expectedRevision
+       || result.snapshot.temporary !== true || result.snapshot.readOnly !== false
+       || typeof data.label !== 'string' || result.snapshot.label !== data.label.trim().replace(/\.md$/i, '').trim())))) {
+    unknown.set(sessionId, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
+  }
+  if (recentOpening && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (result.recentId !== data.recentId || typeof result.snapshot?.sessionId !== 'string'
+       || result.snapshot.readOnly !== true || result.snapshot.temporary === true || states.has(result.snapshot.sessionId))))) {
+    unknown.set(undefined, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
+  }
   if (managing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
       result.state !== (data.action === 'archive' ? 'archived' : 'available')))) {
     draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' };
@@ -94,6 +111,10 @@ const request = async (operation, data = {}) => {
   return result;
 };
 contextBridge.exposeInMainWorld('documentDemo', {
+  renameDraft: data => request('rename-draft', data),
+  listRecents: () => request('list-recents'),
+  openRecent: recentId => request('open-recent', { recentId }),
+  clearRecents: () => request('clear-recents'),
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
   listDrafts: () => request('list-drafts'),

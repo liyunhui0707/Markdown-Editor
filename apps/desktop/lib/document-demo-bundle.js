@@ -29,9 +29,9 @@
     mod
   ));
 
-  // node_modules/extend/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/extend/index.js
   var require_extend = __commonJS({
-    "node_modules/extend/index.js"(exports, module) {
+    "../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/extend/index.js"(exports, module) {
       "use strict";
       var hasOwn = Object.prototype.hasOwnProperty;
       var toStr = Object.prototype.toString;
@@ -120,6 +120,105 @@
     }
   });
 
+  // lib/document-name-view.mjs
+  function createNameView({ api: api2, byId: byId2, context, busy, rerender, changed }) {
+    const button = byId2("rename-draft"), dialog = byId2("name-dialog"), input = byId2("draft-name-input"), error = byId2("draft-name-error");
+    let captured = null, inFlight = false, composing = false;
+    const blocked = (c) => !c.state?.confirmed.temporary || c.loading || c.invalid || c.nativeComposing || c.state.pending || c.state.composing || c.state.compositionInvalid || c.state.historyPending || c.state.locked || c.state.recoveryRecords.length || c.state.source !== c.state.confirmed.source;
+    function sync() {
+      const c = context();
+      button.hidden = !c.state?.confirmed.temporary;
+      button.disabled = inFlight || !!blocked(c);
+      byId2("name-apply").disabled = inFlight || composing;
+      byId2("name-cancel").disabled = inFlight;
+      input.disabled = inFlight;
+    }
+    function open() {
+      const c = context();
+      if (blocked(c) || dialog.open) return;
+      captured = { controller: c.controller, snapshot: c.state.confirmed };
+      input.value = captured.snapshot.label;
+      error.textContent = "";
+      composing = false;
+      byId2("document-info").open = false;
+      dialog.showModal();
+      input.focus();
+      input.select();
+      sync();
+    }
+    function close2() {
+      if (inFlight || composing) return;
+      dialog.close();
+      captured = null;
+      context().editor?.view.focus();
+    }
+    async function commit() {
+      if (!captured || inFlight || composing) return;
+      const c = context(), before = captured.snapshot;
+      if (blocked(c) || c.controller !== captured.controller || c.state.confirmed.revision !== before.revision || c.state.confirmed.label !== before.label) {
+        error.textContent = "\u6587\u6863\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8BF7\u53D6\u6D88\u540E\u91CD\u65B0\u547D\u540D\u3002\u5F53\u524D\u8F93\u5165\u4FDD\u7559\u3002";
+        return;
+      }
+      const requestedName = input.value, label = requestedName.trim().replace(/\.md$/i, "").trim();
+      if (!label) {
+        error.textContent = "\u8BF7\u8F93\u5165\u8349\u7A3F\u540D\u79F0\u3002";
+        return;
+      }
+      inFlight = true;
+      busy(true);
+      rerender();
+      sync();
+      try {
+        const result = await api2.renameDraft({ sessionId: before.sessionId, expectedRevision: before.revision, expectedLabel: before.label, label: requestedName });
+        if (context().controller !== c.controller || context().invalid) {
+          error.textContent = "\u4F1A\u8BDD\u5DF2\u53D8\u5316\uFF0C\u547D\u540D\u7ED3\u679C\u672A\u786E\u8BA4\u3002";
+          return;
+        }
+        c.controller.refresh(result);
+        if (result.ok && c.controller.state().confirmed.label === label && !c.controller.state().locked) {
+          changed(before.sessionId, label);
+          dialog.close();
+          captured = null;
+        } else error.textContent = result.code === "invalid-draft-name" ? "\u540D\u79F0\u4E0D\u80FD\u4EE5\u70B9\u5F00\u5934\uFF0C\u4E5F\u4E0D\u80FD\u542B\u8DEF\u5F84\u5206\u9694\u7B26\u3001\u5192\u53F7\u6216\u63A7\u5236\u5B57\u7B26\uFF1B\u8BF7\u4F7F\u7528\u8F83\u77ED\u540D\u79F0\u3002" : "\u540D\u79F0\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u540D\u79F0\u548C\u6B63\u6587\u4ECD\u4FDD\u7559\u3002\u8BF7\u68C0\u67E5\u8349\u7A3F\u5907\u4EFD\u72B6\u6001\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002";
+      } catch {
+        c.controller.refresh(null);
+        error.textContent = "\u547D\u540D\u7ED3\u679C\u672A\u77E5\uFF0C\u5F53\u524D\u6B63\u6587\u4FDD\u7559\uFF0C\u8BF7\u52FF\u91CD\u590D\u64CD\u4F5C\u3002";
+      } finally {
+        inFlight = false;
+        busy(false);
+        rerender();
+        sync();
+        if (!dialog.open) c.editor?.view.focus();
+      }
+    }
+    button.onpointerdown = (event) => {
+      if (blocked(context())) event.preventDefault();
+    };
+    button.onclick = open;
+    byId2("name-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      void commit();
+    });
+    byId2("name-cancel").onclick = close2;
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      close2();
+    });
+    dialog.addEventListener("keydown", (event) => event.stopPropagation());
+    input.addEventListener("compositionstart", () => {
+      composing = true;
+      sync();
+    });
+    input.addEventListener("compositionend", () => {
+      composing = false;
+      sync();
+    });
+    input.addEventListener("input", () => {
+      error.textContent = "";
+    });
+    return { sync, isOpen: () => dialog.open };
+  }
+
   // lib/document-close-view.mjs
   function createCloseView({ api: api2, byId: byId2, context, busy, rerender, closed, report }) {
     let enabled = false, inFlight = false;
@@ -173,7 +272,7 @@
     } };
   }
 
-  // node_modules/orderedmap/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/orderedmap/dist/index.js
   function OrderedMap(content4) {
     this.content = content4;
   }
@@ -292,7 +391,7 @@
   };
   var dist_default = OrderedMap;
 
-  // node_modules/prosemirror-model/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-model/dist/index.js
   function findDiffStart(a, b, pos) {
     for (let i = 0; ; i++) {
       if (i == a.childCount || i == b.childCount)
@@ -3509,7 +3608,7 @@
     return { dom, contentDOM };
   }
 
-  // node_modules/prosemirror-transform/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-transform/dist/index.js
   var lower16 = 65535;
   var factor16 = Math.pow(2, 16);
   function makeRecover(index2, offset) {
@@ -5368,7 +5467,7 @@
     }
   };
 
-  // node_modules/prosemirror-state/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-state/dist/index.js
   var classesById = /* @__PURE__ */ Object.create(null);
   var Selection = class {
     /**
@@ -6294,7 +6393,7 @@
     }
   };
 
-  // node_modules/prosemirror-view/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-view/dist/index.js
   var domIndex = function(node2) {
     for (var index2 = 0; ; index2++) {
       node2 = node2.previousSibling;
@@ -12089,7 +12188,7 @@
     return { sync, key: key2, run: run3 };
   }
 
-  // node_modules/@tiptap/core/dist/rolldown-runtime-D7D4PA-g.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/core/dist/rolldown-runtime-D7D4PA-g.js
   var __defProp2 = Object.defineProperty;
   var __exportAll = (all2, no_symbols) => {
     let target = {};
@@ -12101,7 +12200,7 @@
     return target;
   };
 
-  // node_modules/prosemirror-commands/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-commands/dist/index.js
   var deleteSelection = (state, dispatch) => {
     if (state.selection.empty)
       return false;
@@ -12627,7 +12726,7 @@
     macBaseKeymap[key2] = pcBaseKeymap[key2];
   var mac2 = typeof navigator != "undefined" ? /Mac|iP(hone|[oa]d)/.test(navigator.platform) : typeof os != "undefined" && os.platform ? os.platform() == "darwin" : false;
 
-  // node_modules/prosemirror-schema-list/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-schema-list/dist/index.js
   function wrapInList(listType, attrs = null) {
     return function(state, dispatch) {
       let { $from, $to } = state.selection;
@@ -12751,7 +12850,7 @@
     };
   }
 
-  // node_modules/w3c-keyname/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/w3c-keyname/index.js
   var base = {
     8: "Backspace",
     9: "Tab",
@@ -12857,7 +12956,7 @@
     return name;
   }
 
-  // node_modules/prosemirror-keymap/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-keymap/dist/index.js
   var mac4 = typeof navigator != "undefined" && /Mac|iP(hone|[oa]d)/.test(navigator.platform);
   var windows2 = typeof navigator != "undefined" && /Win/.test(navigator.platform);
   function normalizeKeyName(name) {
@@ -12936,7 +13035,7 @@
     };
   }
 
-  // node_modules/@tiptap/core/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/core/dist/index.js
   function createChainableState(config) {
     const { state, transaction } = config;
     let { selection } = transaction;
@@ -17650,7 +17749,7 @@ img.ProseMirror-separator {
     });
   }
 
-  // node_modules/@tiptap/core/dist/jsx-runtime/jsx-runtime.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/core/dist/jsx-runtime/jsx-runtime.js
   var jsxElements = /* @__PURE__ */ new WeakSet();
   var jsxFragments = /* @__PURE__ */ new WeakSet();
   function createJSXElement(spec) {
@@ -17701,7 +17800,7 @@ img.ProseMirror-separator {
   }
   var h = (tag, attributes) => render(tag, attributes);
 
-  // node_modules/@tiptap/extension-blockquote/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-blockquote/dist/index.js
   var handleBackspace = (editor2, type) => {
     var _previous$lastChild;
     const { state } = editor2;
@@ -17795,7 +17894,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-bold/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-bold/dist/index.js
   var starInputRegex = /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))$/;
   var starPasteRegex = /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))/g;
   var underscoreInputRegex = /(?:^|\s)(__(?!\s+__)((?:[^_]+))__(?!\s+__))$/;
@@ -17878,7 +17977,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-code/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-code/dist/index.js
   var inputRegexMatch = (text5) => {
     const match = /`([^`]+)`(?!`)$/.exec(text5);
     if (!match) return null;
@@ -17962,7 +18061,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-code-block/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-code-block/dist/index.js
   var DEFAULT_TAB_SIZE = 4;
   var backtickInputRegex = /^```([a-z]+)?[\s\n]$/;
   var tildeInputRegex = /^~~~([a-z]+)?[\s\n]$/;
@@ -18194,7 +18293,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-document/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-document/dist/index.js
   var Document = Node2.create({
     name: "doc",
     topNode: true,
@@ -18205,7 +18304,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-hard-break/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-hard-break/dist/index.js
   var HardBreak = Node2.create({
     name: "hardBreak",
     markdownTokenName: "br",
@@ -18259,7 +18358,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-heading/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-heading/dist/index.js
   var Heading = Node2.create({
     name: "heading",
     addOptions() {
@@ -18336,7 +18435,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-horizontal-rule/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-horizontal-rule/dist/index.js
   var HorizontalRule = Node2.create({
     name: "horizontalRule",
     addOptions() {
@@ -18397,7 +18496,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-italic/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-italic/dist/index.js
   var starInputRegex2 = /(?:^|\s)(\*(?!\s+\*)((?:[^*]+))\*(?!\s+\*))$/;
   var starPasteRegex2 = /(?:^|\s)(\*(?!\s+\*)((?:[^*]+))\*(?!\s+\*))/g;
   var underscoreInputRegex2 = /(?:^|\s)(_(?!\s+_)((?:[^_]+))_(?!\s+_))$/;
@@ -18478,7 +18577,7 @@ ${prefix}
     }
   });
 
-  // node_modules/linkifyjs/dist/linkify.mjs
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/linkifyjs/dist/linkify.mjs
   var encodedTlds = "aaa1rp3bb0ott3vie4c1le2ogado5udhabi7c0ademy5centure6ountant0s9o1tor4d0s1ult4e0g1ro2tna4f0l1rica5g0akhan5ency5i0g1rbus3force5tel5kdn3l0ibaba4pay4lfinanz6state5y2sace3tom5m0azon4ericanexpress7family11x2fam3ica3sterdam8nalytics7droid5quan4z2o0l2partments8p0le4q0uarelle8r0ab1mco4chi3my2pa2t0e3s0da2ia2sociates9t0hleta5torney7u0ction5di0ble3o3spost5thor3o0s4w0s2x0a2z0ure5ba0by2idu3namex4d1k2r0celona5laycard4s5efoot5gains6seball5ketball8uhaus5yern5b0c1t1va3cg1n2d1e0ats2uty4er2rlin4st0buy5t2f1g1h0arti5i0ble3d1ke2ng0o3o1z2j1lack0friday9ockbuster8g1omberg7ue3m0s1w2n0pparibas9o0ats3ehringer8fa2m1nd2o0k0ing5sch2tik2on4t1utique6x2r0adesco6idgestone9oadway5ker3ther5ussels7s1t1uild0ers6siness6y1zz3v1w1y1z0h3ca0b1fe2l0l1vinklein9m0era3p2non3petown5ital0one8r0avan4ds2e0er0s4s2sa1e1h1ino4t0ering5holic7ba1n1re3c1d1enter4o1rn3f0a1d2g1h0anel2nel4rity4se2t2eap3intai5ristmas6ome4urch5i0priani6rcle4sco3tadel4i0c2y3k1l0aims4eaning6ick2nic1que6othing5ud3ub0med6m1n1o0ach3des3ffee4llege4ogne5m0mbank4unity6pany2re3uter5sec4ndos3struction8ulting7tact3ractors9oking4l1p2rsica5untry4pon0s4rses6pa2r0edit0card4union9icket5own3s1uise0s6u0isinella9v1w1x1y0mru3ou3z2dad1nce3ta1e1ing3sun4y2clk3ds2e0al0er2s3gree4livery5l1oitte5ta3mocrat6ntal2ist5si0gn4v2hl2iamonds6et2gital5rect0ory7scount3ver5h2y2j1k1m1np2o0cs1tor4g1mains5t1wnload7rive4tv2ubai3pont4rban5vag2r2z2earth3t2c0o2deka3u0cation8e1g1mail3erck5nergy4gineer0ing9terprises10pson4quipment8r0icsson6ni3s0q1tate5t1u0rovision8s2vents5xchange6pert3osed4ress5traspace10fage2il1rwinds6th3mily4n0s2rm0ers5shion4t3edex3edback6rrari3ero6i0delity5o2lm2nal1nce1ial7re0stone6mdale6sh0ing5t0ness6j1k1lickr3ghts4r2orist4wers5y2m1o0o0d1tball6rd1ex2sale4um3undation8x2r0ee1senius7l1ogans4ntier7tr2ujitsu5n0d2rniture7tbol5yi3ga0l0lery3o1up4me0s3p1rden4y2b0iz3d0n2e0a1nt0ing5orge5f1g0ee3h1i0ft0s3ves2ing5l0ass3e1obal2o4m0ail3bh2o1x2n1odaddy5ld0point6f2odyear5g0le4p1t1v2p1q1r0ainger5phics5tis4een3ipe3ocery4up4s1t1u0cci3ge2ide2tars5ru3w1y2hair2mburg5ngout5us3bo2dfc0bank7ealth0care8lp1sinki6re1mes5iphop4samitsu7tachi5v2k0t2m1n1ockey4ldings5iday5medepot5goods5s0ense7nda3rse3spital5t0ing5t0els3mail5use3w2r1sbc3t1u0ghes5yatt3undai7ibm2cbc2e1u2d1e0ee3fm2kano4l1m0amat4db2mo0bilien9n0c1dustries8finiti5o2g1k1stitute6urance4e4t0ernational10uit4vestments10o1piranga7q1r0ish4s0maili5t0anbul7t0au2v3jaguar4va3cb2e0ep2tzt3welry6io2ll2m0p2nj2o0bs1urg4t1y2p0morgan6rs3uegos4niper7kaufen5ddi3e0rryhotels6properties14fh2g1h1i0a1ds2m1ndle4tchen5wi3m1n1oeln3matsu5sher5p0mg2n2r0d1ed3uokgroup8w1y0oto4z2la0caixa5mborghini8er3nd0rover6xess5salle5t0ino3robe5w0yer5b1c1ds2ease3clerc5frak4gal2o2xus4gbt3i0dl2fe0insurance9style7ghting6ke2lly3mited4o2ncoln4k2ve1ing5k1lc1p2oan0s3cker3us3l1ndon4tte1o3ve3pl0financial11r1s1t0d0a3u0ndbeck6xe1ury5v1y2ma0drid4if1son4keup4n0agement7go3p1rket0ing3s4riott5shalls7ttel5ba2c0kinsey7d1e0d0ia3et2lbourne7me1orial6n0u2rck0msd7g1h1iami3crosoft7l1ni1t2t0subishi9k1l0b1s2m0a2n1o0bi0le4da2e1i1m1nash3ey2ster5rmon3tgage6scow4to0rcycles9v0ie4p1q1r1s0d2t0n1r2u0seum3ic4v1w1x1y1z2na0b1goya4me2vy3ba2c1e0c1t0bank4flix4work5ustar5w0s2xt0direct7us4f0l2g0o2hk2i0co2ke1on3nja3ssan1y5l1o0kia3rton4w0ruz3tv4p1r0a1w2tt2u1yc2z2obi1server7ffice5kinawa6layan0group9lo3m0ega4ne1g1l0ine5oo2pen3racle3nge4g0anic5igins6saka4tsuka4t2vh3pa0ge2nasonic7ris2s1tners4s1y3y2ccw3e0t2f0izer5g1h0armacy6d1ilips5one2to0graphy6s4ysio5ics1tet2ures6d1n0g1k2oneer5zza4k1l0ace2y0station9umbing5s3m1n0c2ohl2ker3litie5rn2st3r0axi3ess3ime3o0d0uctions8f1gressive8mo2perties3y5tection8u0dential9s1t1ub2w0c2y2qa1pon3uebec3st5racing4dio4e0ad1lestate6tor2y4cipes5d0umbrella9hab3ise0n3t2liance6n0t0als5pair3ort3ublican8st0aurant8view0s5xroth6ich0ardli6oh3l1o1p2o0cks3deo3gers4om3s0vp3u0gby3hr2n2w0e2yukyu6sa0arland6fe0ty4kura4le1on3msclub4ung5ndvik0coromant12ofi4p1rl2s1ve2xo3b0i1s2c0b1haeffler7midt4olarships8ol3ule3warz5ience5ot3d1e0arch3t2cure1ity6ek2lect4ner3rvices6ven3w1x0y3fr2g1h0angrila6rp3ell3ia1ksha5oes2p0ping5uji3w3i0lk2na1gles5te3j1k0i0n2y0pe4l0ing4m0art3ile4n0cf3o0ccer3ial4ftbank4ware6hu2lar2utions7ng1y2y2pa0ce3ort2t3r0l2s1t0ada2ples4r1tebank4farm7c0group6ockholm6rage3e3ream4udio2y3yle4u0cks3pplies3y2ort5rf1gery5zuki5v1watch4iss4x1y0dney4stems6z2tab1ipei4lk2obao4rget4tamotors6r2too4x0i3c0i2d0k2eam2ch0nology8l1masek5nnis4va3f1g1h0d1eater2re6iaa2ckets5enda4ps2res2ol4j0maxx4x2k0maxx5l1m0all4n1o0day3kyo3ols3p1ray3shiba5tal3urs3wn2yota3s3r0ade1ing4ining5vel0ers0insurance16ust3v2t1ube2i1nes3shu4v0s2w1z2ua1bank3s2g1k1nicom3versity8o2ol2ps2s1y1z2va0cations7na1guard7c1e0gas3ntures6risign5m\xF6gensberater2ung14sicherung10t2g1i0ajes4deo3g1king4llas4n1p1rgin4sa1ion4va1o3laanderen9n1odka3lvo3te1ing3o2yage5u2wales2mart4ter4ng0gou5tch0es6eather0channel12bcam3er2site5d0ding5ibo2r3f1hoswho6ien2ki2lliamhill9n0dows4e1ners6me2oodside6rk0s2ld3w2s1tc1f3xbox3erox4ihuan4n2xx2yz3yachts4hoo3maxun5ndex5e1odobashi7ga2kohama6u0tube6t1un3za0ppos4ra3ero3ip2m1one3uerich6w2";
   var encodedUtlds = "\u03B5\u03BB1\u03C52\u0431\u04331\u0435\u043B3\u0434\u0435\u0442\u04384\u0435\u044E2\u043A\u0430\u0442\u043E\u043B\u0438\u043A6\u043E\u043C3\u043C\u043A\u04342\u043E\u043D1\u0441\u043A\u0432\u04306\u043E\u043D\u043B\u0430\u0439\u043D5\u0440\u04333\u0440\u0443\u04412\u04442\u0441\u0430\u0439\u04423\u0440\u04313\u0443\u043A\u04403\u049B\u0430\u04373\u0570\u0561\u05753\u05D9\u05E9\u05E8\u05D0\u05DC5\u05E7\u05D5\u05DD3\u0627\u0628\u0648\u0638\u0628\u064A5\u0631\u0627\u0645\u0643\u06485\u0644\u0627\u0631\u062F\u06464\u0628\u062D\u0631\u064A\u06465\u062C\u0632\u0627\u0626\u06315\u0633\u0639\u0648\u062F\u064A\u06296\u0639\u0644\u064A\u0627\u06465\u0645\u063A\u0631\u06285\u0645\u0627\u0631\u0627\u062A5\u06CC\u0631\u0627\u06465\u0628\u0627\u0631\u062A2\u0632\u0627\u06314\u064A\u062A\u06433\u06BE\u0627\u0631\u062A5\u062A\u0648\u0646\u06334\u0633\u0648\u062F\u0627\u06463\u0631\u064A\u06295\u0634\u0628\u0643\u06294\u0639\u0631\u0627\u06422\u06282\u0645\u0627\u06464\u0641\u0644\u0633\u0637\u064A\u06466\u0642\u0637\u06313\u0643\u0627\u062B\u0648\u0644\u064A\u06436\u0648\u06453\u0645\u0635\u06312\u0644\u064A\u0633\u064A\u06275\u0648\u0631\u064A\u062A\u0627\u0646\u064A\u06277\u0642\u06394\u0647\u0645\u0631\u0627\u06475\u067E\u0627\u06A9\u0633\u062A\u0627\u06467\u0680\u0627\u0631\u062A4\u0915\u0949\u092E3\u0928\u0947\u091F3\u092D\u093E\u0930\u09240\u092E\u094D3\u094B\u09245\u0938\u0902\u0917\u0920\u09285\u09AC\u09BE\u0982\u09B2\u09BE5\u09AD\u09BE\u09B0\u09A42\u09F0\u09A44\u0A2D\u0A3E\u0A30\u0A244\u0AAD\u0ABE\u0AB0\u0AA44\u0B2D\u0B3E\u0B30\u0B244\u0B87\u0BA8\u0BCD\u0BA4\u0BBF\u0BAF\u0BBE6\u0BB2\u0B99\u0BCD\u0B95\u0BC86\u0B9A\u0BBF\u0B99\u0BCD\u0B95\u0BAA\u0BCD\u0BAA\u0BC2\u0BB0\u0BCD11\u0C2D\u0C3E\u0C30\u0C24\u0C4D5\u0CAD\u0CBE\u0CB0\u0CA44\u0D2D\u0D3E\u0D30\u0D24\u0D025\u0DBD\u0D82\u0D9A\u0DCF4\u0E04\u0E2D\u0E213\u0E44\u0E17\u0E223\u0EA5\u0EB2\u0EA73\u10D2\u10D42\u307F\u3093\u306A3\u30A2\u30DE\u30BE\u30F34\u30AF\u30E9\u30A6\u30C94\u30B0\u30FC\u30B0\u30EB4\u30B3\u30E02\u30B9\u30C8\u30A23\u30BB\u30FC\u30EB3\u30D5\u30A1\u30C3\u30B7\u30E7\u30F36\u30DD\u30A4\u30F3\u30C84\u4E16\u754C2\u4E2D\u4FE11\u56FD1\u570B1\u6587\u7F513\u4E9A\u9A6C\u900A3\u4F01\u4E1A2\u4F5B\u5C712\u4FE1\u606F2\u5065\u5EB72\u516B\u53662\u516C\u53F81\u76CA2\u53F0\u6E7E1\u70632\u5546\u57CE1\u5E971\u68072\u5609\u91CC0\u5927\u9152\u5E975\u5728\u7EBF2\u5927\u62FF2\u5929\u4E3B\u65593\u5A31\u4E502\u5BB6\u96FB2\u5E7F\u4E1C2\u5FAE\u535A2\u6148\u55842\u6211\u7231\u4F603\u624B\u673A2\u62DB\u80582\u653F\u52A11\u5E9C2\u65B0\u52A0\u57612\u95FB2\u65F6\u5C1A2\u66F8\u7C4D2\u673A\u67842\u6DE1\u9A6C\u95213\u6E38\u620F2\u6FB3\u95802\u70B9\u770B2\u79FB\u52A82\u7EC4\u7EC7\u673A\u67844\u7F51\u57401\u5E971\u7AD91\u7EDC2\u8054\u901A2\u8C37\u6B4C2\u8D2D\u72692\u901A\u8CA92\u96C6\u56E22\u96FB\u8A0A\u76C8\u79D14\u98DE\u5229\u6D663\u98DF\u54C12\u9910\u53852\u9999\u683C\u91CC\u62C93\u6E2F2\uB2F7\uB1371\uCEF42\uC0BC\uC1312\uD55C\uAD6D2";
   var numeric = "numeric";
@@ -19625,7 +19724,7 @@ ${prefix}
     return filtered;
   }
 
-  // node_modules/@tiptap/extension-link/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-link/dist/index.js
   var UNICODE_WHITESPACE_PATTERN = "[\0- \xA0\u1680\u180E\u2000-\u2029\u205F\u3000]";
   var UNICODE_WHITESPACE_REGEX = new RegExp(UNICODE_WHITESPACE_PATTERN);
   var UNICODE_WHITESPACE_REGEX_END = new RegExp(`${UNICODE_WHITESPACE_PATTERN}$`);
@@ -20071,7 +20170,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-list/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-list/dist/index.js
   var ListItemName$1 = "listItem";
   var TextStyleName$1 = "textStyle";
   var bulletListInputRegex = /^\s*([-+*])\s$/;
@@ -21277,7 +21376,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-paragraph/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-paragraph/dist/index.js
   var EMPTY_PARAGRAPH_MARKDOWN = "&nbsp;";
   var NBSP_CHAR = "\xA0";
   var Paragraph = Node2.create({
@@ -21325,7 +21424,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-strike/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-strike/dist/index.js
   var inputRegex3 = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))$/;
   var pasteRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))/g;
   var Strike = Mark2.create({
@@ -21389,7 +21488,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/extension-text/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-text/dist/index.js
   var Text2 = Node2.create({
     name: "text",
     group: "inline",
@@ -21402,7 +21501,7 @@ ${prefix}
     renderMarkdown: (node2) => node2.text || ""
   });
 
-  // node_modules/@tiptap/extension-underline/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extension-underline/dist/index.js
   var Underline = Mark2.create({
     name: "underline",
     addOptions() {
@@ -21467,7 +21566,7 @@ ${prefix}
     }
   });
 
-  // node_modules/prosemirror-dropcursor/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-dropcursor/dist/index.js
   function dropCursor(options = {}) {
     return new Plugin({
       view(editorView) {
@@ -21600,7 +21699,7 @@ ${prefix}
     }
   };
 
-  // node_modules/prosemirror-gapcursor/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-gapcursor/dist/index.js
   var GapCursor = class _GapCursor extends Selection {
     /**
     Create a gap cursor.
@@ -21814,7 +21913,7 @@ ${prefix}
     return DecorationSet.create(state.doc, [Decoration.widget(state.selection.head, node2, { key: "gapcursor" })]);
   }
 
-  // node_modules/rope-sequence/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/rope-sequence/dist/index.js
   var GOOD_LEAF_SIZE = 200;
   var RopeSequence = function RopeSequence2() {
   };
@@ -21997,7 +22096,7 @@ ${prefix}
   })(RopeSequence);
   var dist_default2 = RopeSequence;
 
-  // node_modules/prosemirror-history/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/prosemirror-history/dist/index.js
   var max_empty_items = 500;
   var Branch = class _Branch {
     constructor(items, eventCount) {
@@ -22350,7 +22449,7 @@ ${prefix}
   var undoNoScroll = buildCommand(false, false);
   var redoNoScroll = buildCommand(true, false);
 
-  // node_modules/@tiptap/extensions/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/extensions/dist/index.js
   var CharacterCount = Extension.create({
     name: "characterCount",
     addOptions() {
@@ -22874,7 +22973,7 @@ ${prefix}
     }
   });
 
-  // node_modules/@tiptap/starter-kit/dist/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/@tiptap/starter-kit/dist/index.js
   var StarterKit = Extension.create({
     name: "starterKit",
     addExtensions() {
@@ -23070,21 +23169,21 @@ ${prefix}
     };
   }
 
-  // node_modules/bail/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/bail/index.js
   function bail(error) {
     if (error) {
       throw error;
     }
   }
 
-  // node_modules/unified/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unified/lib/index.js
   var import_extend = __toESM(require_extend(), 1);
 
-  // node_modules/devlop/lib/default.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/devlop/lib/default.js
   function ok() {
   }
 
-  // node_modules/is-plain-obj/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/is-plain-obj/index.js
   function isPlainObject2(value) {
     if (typeof value !== "object" || value === null) {
       return false;
@@ -23093,7 +23192,7 @@ ${prefix}
     return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
   }
 
-  // node_modules/trough/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/trough/lib/index.js
   function trough() {
     const fns = [];
     const pipeline = { run: run3, use };
@@ -23177,7 +23276,7 @@ ${prefix}
     }
   }
 
-  // node_modules/unist-util-stringify-position/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unist-util-stringify-position/lib/index.js
   function stringifyPosition(value) {
     if (!value || typeof value !== "object") {
       return "";
@@ -23203,7 +23302,7 @@ ${prefix}
     return value && typeof value === "number" ? value : 1;
   }
 
-  // node_modules/vfile-message/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile-message/lib/index.js
   var VFileMessage = class extends Error {
     /**
      * Create a message for `reason`.
@@ -23339,7 +23438,7 @@ ${prefix}
   VFileMessage.prototype.ruleId = void 0;
   VFileMessage.prototype.source = void 0;
 
-  // node_modules/vfile/lib/minpath.browser.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile/lib/minpath.browser.js
   var minpath = { basename, dirname, extname, join: join2, sep: "/" };
   function basename(path2, extname2) {
     if (extname2 !== void 0 && typeof extname2 !== "string") {
@@ -23552,13 +23651,13 @@ ${prefix}
     }
   }
 
-  // node_modules/vfile/lib/minproc.browser.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile/lib/minproc.browser.js
   var minproc = { cwd };
   function cwd() {
     return "/";
   }
 
-  // node_modules/vfile/lib/minurl.shared.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile/lib/minurl.shared.js
   function isUrl(fileUrlOrPath) {
     return Boolean(
       fileUrlOrPath !== null && typeof fileUrlOrPath === "object" && "href" in fileUrlOrPath && fileUrlOrPath.href && "protocol" in fileUrlOrPath && fileUrlOrPath.protocol && // @ts-expect-error: indexing is fine.
@@ -23566,7 +23665,7 @@ ${prefix}
     );
   }
 
-  // node_modules/vfile/lib/minurl.browser.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile/lib/minurl.browser.js
   function urlToPath(path2) {
     if (typeof path2 === "string") {
       path2 = new URL(path2);
@@ -23609,7 +23708,7 @@ ${prefix}
     return decodeURIComponent(pathname);
   }
 
-  // node_modules/vfile/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/vfile/lib/index.js
   var order = (
     /** @type {const} */
     [
@@ -24065,7 +24164,7 @@ ${prefix}
     );
   }
 
-  // node_modules/unified/lib/callable-instance.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unified/lib/callable-instance.js
   var CallableInstance = (
     /**
      * @type {new <Parameters extends Array<unknown>, Result>(property: string | symbol) => (...parameters: Parameters) => Result}
@@ -24094,7 +24193,7 @@ ${prefix}
     })
   );
 
-  // node_modules/unified/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unified/lib/index.js
   var own = {}.hasOwnProperty;
   var Processor = class _Processor extends CallableInstance {
     /**
@@ -24730,7 +24829,7 @@ ${prefix}
     );
   }
 
-  // node_modules/mdast-util-to-string/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-string/lib/index.js
   var emptyOptions = {};
   function toString(value, options) {
     const settings = options || emptyOptions;
@@ -24767,7 +24866,7 @@ ${prefix}
     return Boolean(value && typeof value === "object");
   }
 
-  // node_modules/decode-named-character-reference/index.dom.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/decode-named-character-reference/index.dom.js
   var element = document.createElement("i");
   function decodeNamedCharacterReference(value) {
     const characterReference2 = "&" + value + ";";
@@ -24779,7 +24878,7 @@ ${prefix}
     return character === characterReference2 ? false : character;
   }
 
-  // node_modules/micromark-util-chunked/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-chunked/index.js
   function splice(list3, start, remove, items) {
     const end = list3.length;
     let chunkStart = 0;
@@ -24813,7 +24912,7 @@ ${prefix}
     return items;
   }
 
-  // node_modules/micromark-util-combine-extensions/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-combine-extensions/index.js
   var hasOwnProperty = {}.hasOwnProperty;
   function combineExtensions(extensions) {
     const all2 = {};
@@ -24853,7 +24952,7 @@ ${prefix}
     splice(existing, 0, 0, before);
   }
 
-  // node_modules/micromark-util-decode-numeric-character-reference/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-decode-numeric-character-reference/index.js
   function decodeNumericCharacterReference(value, base2) {
     const code3 = Number.parseInt(value, base2);
     if (
@@ -24871,12 +24970,12 @@ ${prefix}
     return String.fromCodePoint(code3);
   }
 
-  // node_modules/micromark-util-normalize-identifier/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-normalize-identifier/index.js
   function normalizeIdentifier(value) {
     return value.replace(/[\t\n\r ]+/g, " ").replace(/^ | $/g, "").toLowerCase().toUpperCase();
   }
 
-  // node_modules/micromark-util-character/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-character/index.js
   var asciiAlpha = regexCheck(/[A-Za-z]/);
   var asciiAlphanumeric = regexCheck(/[\dA-Za-z]/);
   var asciiAtext = regexCheck(/[#-'*+\--9=?A-Z^-~]/);
@@ -24908,7 +25007,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-factory-space/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-factory-space/index.js
   function factorySpace(effects, ok3, type, max) {
     const limit = max ? max - 1 : Number.POSITIVE_INFINITY;
     let size = 0;
@@ -24930,7 +25029,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark/lib/initialize/content.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/initialize/content.js
   var content = {
     tokenize: initializeContent
   };
@@ -24980,7 +25079,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark/lib/initialize/document.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/initialize/document.js
   var document2 = {
     tokenize: initializeDocument
   };
@@ -25162,7 +25261,7 @@ ${prefix}
     return factorySpace(effects, effects.attempt(this.parser.constructs.document, ok3, nok), "linePrefix", this.parser.constructs.disable.null.includes("codeIndented") ? void 0 : 4);
   }
 
-  // node_modules/micromark-util-classify-character/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-classify-character/index.js
   function classifyCharacter(code3) {
     if (code3 === null || markdownLineEndingOrSpace(code3) || unicodeWhitespace(code3)) {
       return 1;
@@ -25172,7 +25271,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-util-resolve-all/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-resolve-all/index.js
   function resolveAll(constructs2, events, context) {
     const called = [];
     let index2 = -1;
@@ -25186,7 +25285,7 @@ ${prefix}
     return events;
   }
 
-  // node_modules/micromark-core-commonmark/lib/attention.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/attention.js
   var attention = {
     name: "attention",
     resolveAll: resolveAllAttention,
@@ -25317,7 +25416,7 @@ ${prefix}
     point3._bufferIndex += offset;
   }
 
-  // node_modules/micromark-core-commonmark/lib/autolink.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/autolink.js
   var autolink2 = {
     name: "autolink",
     tokenize: tokenizeAutolink
@@ -25418,7 +25517,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/blank-line.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/blank-line.js
   var blankLine = {
     partial: true,
     tokenize: tokenizeBlankLine
@@ -25433,7 +25532,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/block-quote.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/block-quote.js
   var blockQuote = {
     continuation: {
       tokenize: tokenizeBlockQuoteContinuation
@@ -25491,7 +25590,7 @@ ${prefix}
     effects.exit("blockQuote");
   }
 
-  // node_modules/micromark-core-commonmark/lib/character-escape.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/character-escape.js
   var characterEscape = {
     name: "characterEscape",
     tokenize: tokenizeCharacterEscape
@@ -25517,7 +25616,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/character-reference.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/character-reference.js
   var characterReference = {
     name: "characterReference",
     tokenize: tokenizeCharacterReference
@@ -25582,7 +25681,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/code-fenced.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/code-fenced.js
   var nonLazyContinuation = {
     partial: true,
     tokenize: tokenizeNonLazyContinuation
@@ -25765,7 +25864,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/code-indented.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/code-indented.js
   var codeIndented = {
     name: "codeIndented",
     tokenize: tokenizeCodeIndented
@@ -25829,7 +25928,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/code-text.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/code-text.js
   var codeText = {
     name: "codeText",
     previous,
@@ -25944,7 +26043,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-util-subtokenize/lib/splice-buffer.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-subtokenize/lib/splice-buffer.js
   var SpliceBuffer = class {
     /**
      * @param {ReadonlyArray<T> | null | undefined} [initial]
@@ -26137,7 +26236,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-util-subtokenize/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-subtokenize/index.js
   function subtokenize(eventsArray) {
     const jumps = {};
     let index2 = -1;
@@ -26290,7 +26389,7 @@ ${prefix}
     return gaps;
   }
 
-  // node_modules/micromark-core-commonmark/lib/content.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/content.js
   var content2 = {
     resolve: resolveContent,
     tokenize: tokenizeContent
@@ -26361,7 +26460,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-factory-destination/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-factory-destination/index.js
   function factoryDestination(effects, ok3, nok, type, literalType, literalMarkerType, rawType, stringType, max) {
     const limit = max || Number.POSITIVE_INFINITY;
     let balance = 0;
@@ -26453,7 +26552,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-factory-label/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-factory-label/index.js
   function factoryLabel(effects, ok3, nok, type, markerType, stringType) {
     const self = this;
     let size = 0;
@@ -26514,7 +26613,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-factory-title/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-factory-title/index.js
   function factoryTitle(effects, ok3, nok, type, markerType, stringType) {
     let marker;
     return start;
@@ -26576,7 +26675,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-factory-whitespace/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-factory-whitespace/index.js
   function factoryWhitespace(effects, ok3) {
     let seen;
     return start;
@@ -26595,7 +26694,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/definition.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/definition.js
   var definition = {
     name: "definition",
     tokenize: tokenizeDefinition
@@ -26681,7 +26780,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/hard-break-escape.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/hard-break-escape.js
   var hardBreakEscape = {
     name: "hardBreakEscape",
     tokenize: tokenizeHardBreakEscape
@@ -26702,7 +26801,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/heading-atx.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/heading-atx.js
   var headingAtx = {
     name: "headingAtx",
     resolve: resolveHeadingAtx,
@@ -26793,7 +26892,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-util-html-tag-name/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-html-tag-name/index.js
   var htmlBlockNames = [
     "address",
     "article",
@@ -26860,7 +26959,7 @@ ${prefix}
   ];
   var htmlRawNames = ["pre", "script", "style", "textarea"];
 
-  // node_modules/micromark-core-commonmark/lib/html-flow.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/html-flow.js
   var htmlFlow = {
     concrete: true,
     name: "htmlFlow",
@@ -27239,7 +27338,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/html-text.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/html-text.js
   var htmlText = {
     name: "htmlText",
     tokenize: tokenizeHtmlText
@@ -27545,7 +27644,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/label-end.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/label-end.js
   var labelEnd = {
     name: "labelEnd",
     resolveAll: resolveAllLabelEnd,
@@ -27771,7 +27870,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/label-start-image.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/label-start-image.js
   var labelStartImage = {
     name: "labelStartImage",
     resolveAll: labelEnd.resolveAll,
@@ -27802,7 +27901,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/label-start-link.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/label-start-link.js
   var labelStartLink = {
     name: "labelStartLink",
     resolveAll: labelEnd.resolveAll,
@@ -27824,7 +27923,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/line-ending.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/line-ending.js
   var lineEnding = {
     name: "lineEnding",
     tokenize: tokenizeLineEnding
@@ -27839,7 +27938,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/thematic-break.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/thematic-break.js
   var thematicBreak = {
     name: "thematicBreak",
     tokenize: tokenizeThematicBreak
@@ -27878,7 +27977,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/list.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/list.js
   var list = {
     continuation: {
       tokenize: tokenizeListContinuation
@@ -28008,7 +28107,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-core-commonmark/lib/setext-underline.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-core-commonmark/lib/setext-underline.js
   var setextUnderline = {
     name: "setextUnderline",
     resolveTo: resolveToSetextUnderline,
@@ -28100,7 +28199,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark/lib/initialize/flow.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/initialize/flow.js
   var flow = {
     tokenize: initializeFlow
   };
@@ -28138,7 +28237,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark/lib/initialize/text.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/initialize/text.js
   var resolver = {
     resolveAll: createResolver()
   };
@@ -28277,7 +28376,7 @@ ${prefix}
     return events;
   }
 
-  // node_modules/micromark/lib/constructs.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/constructs.js
   var constructs_exports = {};
   __export(constructs_exports, {
     attentionMarkers: () => attentionMarkers,
@@ -28352,7 +28451,7 @@ ${prefix}
     null: []
   };
 
-  // node_modules/micromark/lib/create-tokenizer.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/create-tokenizer.js
   function createTokenizer(parser2, initialize, from2) {
     let point3 = {
       _bufferIndex: -1,
@@ -28675,7 +28774,7 @@ ${prefix}
     return result.join("");
   }
 
-  // node_modules/micromark/lib/parse.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/parse.js
   function parse(options) {
     const settings = options || {};
     const constructs2 = (
@@ -28701,14 +28800,14 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark/lib/postprocess.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/postprocess.js
   function postprocess(events) {
     while (!subtokenize(events)) {
     }
     return events;
   }
 
-  // node_modules/micromark/lib/preprocess.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark/lib/preprocess.js
   var search = /[\0\t\n\r]/g;
   function preprocess() {
     let column = 1;
@@ -28787,7 +28886,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-util-decode-string/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-util-decode-string/index.js
   var characterEscapeOrReference = /\\([!-/:-@[-`{-~])|&(#(?:\d{1,7}|x[\da-f]{1,6})|[\da-z]{1,31});/gi;
   function decodeString(value) {
     return value.replace(characterEscapeOrReference, decode);
@@ -28805,7 +28904,7 @@ ${prefix}
     return decodeNamedCharacterReference($2) || $0;
   }
 
-  // node_modules/mdast-util-from-markdown/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-from-markdown/lib/index.js
   var own2 = {}.hasOwnProperty;
   function fromMarkdown(value, encoding, options) {
     if (encoding && typeof encoding === "object") {
@@ -29514,7 +29613,7 @@ ${prefix}
     }
   }
 
-  // node_modules/remark-parse/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/remark-parse/lib/index.js
   function remarkParse(options) {
     const self = this;
     self.parser = parser2;
@@ -29531,7 +29630,7 @@ ${prefix}
     }
   }
 
-  // node_modules/ccount/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/ccount/index.js
   function ccount(value, character) {
     const source = String(value);
     if (typeof character !== "string") {
@@ -29546,7 +29645,7 @@ ${prefix}
     return count;
   }
 
-  // node_modules/mdast-util-find-and-replace/node_modules/escape-string-regexp/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-find-and-replace/node_modules/escape-string-regexp/index.js
   function escapeStringRegexp(string3) {
     if (typeof string3 !== "string") {
       throw new TypeError("Expected a string");
@@ -29554,7 +29653,7 @@ ${prefix}
     return string3.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&").replace(/-/g, "\\x2d");
   }
 
-  // node_modules/unist-util-is/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unist-util-is/lib/index.js
   var convert = (
     // Note: overloads in JSDoc can’t yet use different `@template`s.
     /**
@@ -29653,12 +29752,12 @@ ${prefix}
     return value !== null && typeof value === "object" && "type" in value;
   }
 
-  // node_modules/unist-util-visit-parents/lib/color.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unist-util-visit-parents/lib/color.js
   function color(d) {
     return d;
   }
 
-  // node_modules/unist-util-visit-parents/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unist-util-visit-parents/lib/index.js
   var empty2 = [];
   var CONTINUE = true;
   var EXIT = false;
@@ -29735,7 +29834,7 @@ ${prefix}
     return value === null || value === void 0 ? empty2 : [value];
   }
 
-  // node_modules/mdast-util-find-and-replace/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-find-and-replace/lib/index.js
   function findAndReplace(tree, list3, options) {
     const settings = options || {};
     const ignored = convert(settings.ignore || []);
@@ -29840,7 +29939,7 @@ ${prefix}
     };
   }
 
-  // node_modules/mdast-util-gfm-autolink-literal/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm-autolink-literal/lib/index.js
   var inConstruct = "phrasing";
   var notInConstruct = ["autolink", "link", "image", "label"];
   function gfmAutolinkLiteralFromMarkdown() {
@@ -29990,7 +30089,7 @@ ${prefix}
     (!email || code3 !== 47);
   }
 
-  // node_modules/mdast-util-gfm-footnote/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm-footnote/lib/index.js
   footnoteReference.peek = footnoteReferencePeek;
   function enterFootnoteCallString() {
     this.buffer();
@@ -30103,7 +30202,7 @@ ${prefix}
     return (blank ? "" : "    ") + line;
   }
 
-  // node_modules/mdast-util-gfm-strikethrough/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm-strikethrough/lib/index.js
   var constructsWithoutStrikethrough = [
     "autolink",
     "destinationLiteral",
@@ -30155,7 +30254,7 @@ ${prefix}
     return "~";
   }
 
-  // node_modules/markdown-table/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/markdown-table/index.js
   function defaultStringLength(value) {
     return value.length;
   }
@@ -30296,7 +30395,7 @@ ${prefix}
     return code3 === 67 || code3 === 99 ? 99 : code3 === 76 || code3 === 108 ? 108 : code3 === 82 || code3 === 114 ? 114 : 0;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/blockquote.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/blockquote.js
   function blockquote(node2, _, state, info) {
     const exit3 = state.enter("blockquote");
     const tracker = state.createTracker(info);
@@ -30313,7 +30412,7 @@ ${prefix}
     return ">" + (blank ? "" : " ") + line;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/pattern-in-scope.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/pattern-in-scope.js
   function patternInScope(stack, pattern) {
     return listInScope(stack, pattern.inConstruct, true) && !listInScope(stack, pattern.notInConstruct, false);
   }
@@ -30333,7 +30432,7 @@ ${prefix}
     return false;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/break.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/break.js
   function hardBreak(_, _1, state, info) {
     let index2 = -1;
     while (++index2 < state.unsafe.length) {
@@ -30344,7 +30443,7 @@ ${prefix}
     return "\\\n";
   }
 
-  // node_modules/longest-streak/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/longest-streak/index.js
   function longestStreak(value, substring) {
     const source = String(value);
     let index2 = source.indexOf(substring);
@@ -30368,7 +30467,7 @@ ${prefix}
     return max;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/format-code-as-indented.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/format-code-as-indented.js
   function formatCodeAsIndented(node2, state) {
     return Boolean(
       state.options.fences === false && node2.value && // If there’s no info…
@@ -30378,7 +30477,7 @@ ${prefix}
     );
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-fence.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-fence.js
   function checkFence(state) {
     const marker = state.options.fence || "`";
     if (marker !== "`" && marker !== "~") {
@@ -30389,7 +30488,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/code.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/code.js
   function code(node2, _, state, info) {
     const marker = checkFence(state);
     const raw = node2.value || "";
@@ -30441,7 +30540,7 @@ ${prefix}
     return (blank ? "" : "    ") + line;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-quote.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-quote.js
   function checkQuote(state) {
     const marker = state.options.quote || '"';
     if (marker !== '"' && marker !== "'") {
@@ -30452,7 +30551,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/definition.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/definition.js
   function definition2(node2, _, state, info) {
     const quote2 = checkQuote(state);
     const suffix = quote2 === '"' ? "Quote" : "Apostrophe";
@@ -30508,7 +30607,7 @@ ${prefix}
     return value;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-emphasis.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-emphasis.js
   function checkEmphasis(state) {
     const marker = state.options.emphasis || "*";
     if (marker !== "*" && marker !== "_") {
@@ -30519,12 +30618,12 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/encode-character-reference.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/encode-character-reference.js
   function encodeCharacterReference(code3) {
     return "&#x" + code3.toString(16).toUpperCase() + ";";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/encode-info.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/encode-info.js
   function encodeInfo(outside, inside, marker) {
     const outsideKind = classifyCharacter(outside);
     const insideKind = classifyCharacter(inside);
@@ -30566,7 +30665,7 @@ ${prefix}
     );
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/emphasis.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/emphasis.js
   emphasis.peek = emphasisPeek;
   function emphasis(node2, _, state, info) {
     const marker = checkEmphasis(state);
@@ -30606,7 +30705,7 @@ ${prefix}
     return state.options.emphasis || "*";
   }
 
-  // node_modules/unist-util-visit/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/unist-util-visit/lib/index.js
   function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
     let reverse;
     let test;
@@ -30628,7 +30727,7 @@ ${prefix}
     }
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/format-heading-as-setext.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/format-heading-as-setext.js
   function formatHeadingAsSetext(node2, state) {
     let literalWithBreak = false;
     visit(node2, function(node3) {
@@ -30642,7 +30741,7 @@ ${prefix}
     );
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/heading.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/heading.js
   function heading(node2, _, state, info) {
     const rank = Math.max(Math.min(6, node2.depth || 1), 1);
     const tracker = state.createTracker(info);
@@ -30684,7 +30783,7 @@ ${prefix}
     return value;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/html.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/html.js
   html.peek = htmlPeek;
   function html(node2) {
     return node2.value || "";
@@ -30693,7 +30792,7 @@ ${prefix}
     return "<";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/image.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/image.js
   image.peek = imagePeek;
   function image(node2, _, state, info) {
     const quote2 = checkQuote(state);
@@ -30750,7 +30849,7 @@ ${prefix}
     return "!";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/image-reference.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/image-reference.js
   imageReference.peek = imageReferencePeek;
   function imageReference(node2, _, state, info) {
     const type = node2.referenceType;
@@ -30789,7 +30888,7 @@ ${prefix}
     return "!";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/inline-code.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/inline-code.js
   inlineCode.peek = inlineCodePeek;
   function inlineCode(node2, _, state) {
     let value = node2.value || "";
@@ -30820,7 +30919,7 @@ ${prefix}
     return "`";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/format-link-as-autolink.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/format-link-as-autolink.js
   function formatLinkAsAutolink(node2, state) {
     const raw = toString(node2);
     return Boolean(
@@ -30835,7 +30934,7 @@ ${prefix}
     );
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/link.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/link.js
   link.peek = linkPeek;
   function link(node2, _, state, info) {
     const quote2 = checkQuote(state);
@@ -30915,7 +31014,7 @@ ${prefix}
     return formatLinkAsAutolink(node2, state) ? "<" : "[";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/link-reference.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/link-reference.js
   linkReference.peek = linkReferencePeek;
   function linkReference(node2, _, state, info) {
     const type = node2.referenceType;
@@ -30954,7 +31053,7 @@ ${prefix}
     return "[";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-bullet.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-bullet.js
   function checkBullet(state) {
     const marker = state.options.bullet || "*";
     if (marker !== "*" && marker !== "+" && marker !== "-") {
@@ -30965,7 +31064,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-bullet-other.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-bullet-other.js
   function checkBulletOther(state) {
     const bullet = checkBullet(state);
     const bulletOther = state.options.bulletOther;
@@ -30985,7 +31084,7 @@ ${prefix}
     return bulletOther;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-bullet-ordered.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-bullet-ordered.js
   function checkBulletOrdered(state) {
     const marker = state.options.bulletOrdered || ".";
     if (marker !== "." && marker !== ")") {
@@ -30996,7 +31095,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-rule.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-rule.js
   function checkRule(state) {
     const marker = state.options.rule || "*";
     if (marker !== "*" && marker !== "-" && marker !== "_") {
@@ -31007,7 +31106,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/list.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/list.js
   function list2(node2, parent, state, info) {
     const exit3 = state.enter("list");
     const bulletCurrent = state.bulletCurrent;
@@ -31047,7 +31146,7 @@ ${prefix}
     return value;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-list-item-indent.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-list-item-indent.js
   function checkListItemIndent(state) {
     const style2 = state.options.listItemIndent || "one";
     if (style2 !== "tab" && style2 !== "one" && style2 !== "mixed") {
@@ -31058,7 +31157,7 @@ ${prefix}
     return style2;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/list-item.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/list-item.js
   function listItem(node2, parent, state, info) {
     const listItemIndent = checkListItemIndent(state);
     let bullet = state.bulletCurrent || checkBullet(state);
@@ -31087,7 +31186,7 @@ ${prefix}
     }
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/paragraph.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/paragraph.js
   function paragraph(node2, _, state, info) {
     const exit3 = state.enter("paragraph");
     const subexit = state.enter("phrasing");
@@ -31097,7 +31196,7 @@ ${prefix}
     return value;
   }
 
-  // node_modules/mdast-util-phrasing/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-phrasing/lib/index.js
   var phrasing = (
     /** @type {(node?: unknown) => node is Exclude<PhrasingContent, Html>} */
     convert([
@@ -31125,7 +31224,7 @@ ${prefix}
     ])
   );
 
-  // node_modules/mdast-util-to-markdown/lib/handle/root.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/root.js
   function root(node2, _, state, info) {
     const hasPhrasing = node2.children.some(function(d) {
       return phrasing(d);
@@ -31134,7 +31233,7 @@ ${prefix}
     return container.call(state, node2, info);
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-strong.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-strong.js
   function checkStrong(state) {
     const marker = state.options.strong || "*";
     if (marker !== "*" && marker !== "_") {
@@ -31145,7 +31244,7 @@ ${prefix}
     return marker;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/strong.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/strong.js
   strong.peek = strongPeek;
   function strong(node2, _, state, info) {
     const marker = checkStrong(state);
@@ -31185,12 +31284,12 @@ ${prefix}
     return state.options.strong || "*";
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/text.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/text.js
   function text3(node2, _, state, info) {
     return state.safe(node2.value, info);
   }
 
-  // node_modules/mdast-util-to-markdown/lib/util/check-rule-repetition.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/util/check-rule-repetition.js
   function checkRuleRepetition(state) {
     const repetition = state.options.ruleRepetition || 3;
     if (repetition < 3) {
@@ -31201,13 +31300,13 @@ ${prefix}
     return repetition;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/thematic-break.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/thematic-break.js
   function thematicBreak2(_, _1, state) {
     const value = (checkRule(state) + (state.options.ruleSpaces ? " " : "")).repeat(checkRuleRepetition(state));
     return state.options.ruleSpaces ? value.slice(0, -1) : value;
   }
 
-  // node_modules/mdast-util-to-markdown/lib/handle/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-to-markdown/lib/handle/index.js
   var handle = {
     blockquote,
     break: hardBreak,
@@ -31231,7 +31330,7 @@ ${prefix}
     thematicBreak: thematicBreak2
   };
 
-  // node_modules/mdast-util-gfm-table/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm-table/lib/index.js
   function gfmTableFromMarkdown() {
     return {
       enter: {
@@ -31384,7 +31483,7 @@ ${prefix}
     }
   }
 
-  // node_modules/mdast-util-gfm-task-list-item/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm-task-list-item/lib/index.js
   function gfmTaskListItemFromMarkdown() {
     return {
       exit: {
@@ -31457,7 +31556,7 @@ ${prefix}
     }
   }
 
-  // node_modules/mdast-util-gfm/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/mdast-util-gfm/lib/index.js
   function gfmFromMarkdown() {
     return [
       gfmAutolinkLiteralFromMarkdown(),
@@ -31479,7 +31578,7 @@ ${prefix}
     };
   }
 
-  // node_modules/micromark-extension-gfm-autolink-literal/lib/syntax.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-autolink-literal/lib/syntax.js
   var wwwPrefix = {
     tokenize: tokenizeWwwPrefix,
     partial: true
@@ -31821,7 +31920,7 @@ ${prefix}
     return result;
   }
 
-  // node_modules/micromark-extension-gfm-footnote/lib/syntax.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-footnote/lib/syntax.js
   var indent = {
     tokenize: tokenizeIndent2,
     partial: true
@@ -32096,7 +32195,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-extension-gfm-strikethrough/lib/syntax.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-strikethrough/lib/syntax.js
   function gfmStrikethrough(options) {
     const options_ = options || {};
     let single = options_.singleTilde;
@@ -32190,7 +32289,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-extension-gfm-table/lib/edit-map.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-table/lib/edit-map.js
   var EditMap = class {
     /**
      * Create a new edit map.
@@ -32269,7 +32368,7 @@ ${prefix}
     editMap.map.push([at, remove, add]);
   }
 
-  // node_modules/micromark-extension-gfm-table/lib/infer.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-table/lib/infer.js
   function gfmTableAlign(events, index2) {
     let inDelimiterRow = false;
     const align = [];
@@ -32296,7 +32395,7 @@ ${prefix}
     return align;
   }
 
-  // node_modules/micromark-extension-gfm-table/lib/syntax.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-table/lib/syntax.js
   function gfmTable() {
     return {
       flow: {
@@ -32682,7 +32781,7 @@ ${prefix}
     return event[1][side];
   }
 
-  // node_modules/micromark-extension-gfm-task-list-item/lib/syntax.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm-task-list-item/lib/syntax.js
   var tasklistCheck = {
     name: "tasklistCheck",
     tokenize: tokenizeTasklistCheck
@@ -32756,7 +32855,7 @@ ${prefix}
     }
   }
 
-  // node_modules/micromark-extension-gfm/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/micromark-extension-gfm/index.js
   function gfm(options) {
     return combineExtensions([
       gfmAutolinkLiteral(),
@@ -32767,7 +32866,7 @@ ${prefix}
     ]);
   }
 
-  // node_modules/remark-gfm/lib/index.js
+  // ../../../../../../../../Worktrees/markdown-vault-app-phase1b3/apps/desktop/node_modules/remark-gfm/lib/index.js
   var emptyOptions2 = {};
   function remarkGfm(options) {
     const self = (
@@ -34599,6 +34698,129 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } };
   }
 
+  // lib/document-recent-view.mjs
+  function createRecentView({ api: api2, byId: byId2, context, open, restore }) {
+    let enabled = false, draftsEnabled = false, busy = false, refreshing = false, sequence = 0;
+    const dialog = byId2("recent-dialog");
+    const blocked = () => {
+      const c = context(), s = c.state;
+      return busy || refreshing || c.loading || c.invalid || s?.pending || s?.historyPending || s?.composing || s?.compositionInvalid || s?.locked || s?.recoveryRecords?.length;
+    };
+    function sync() {
+      for (const id of ["show-recents", "refresh-recents", "clear-recents", "welcome-drafts"]) byId2(id).disabled = !enabled || !!blocked() || id === "welcome-drafts" && !draftsEnabled;
+      for (const id of ["welcome-recent-list", "recent-list", "welcome-draft-list"])
+        for (const button of byId2(id).querySelectorAll("button")) button.disabled = !!blocked() || button.dataset.unavailable === "true";
+    }
+    function close2() {
+      dialog.close();
+      byId2("show-recents").setAttribute("aria-expanded", "false");
+    }
+    async function act(fn) {
+      if (blocked()) return;
+      busy = true;
+      sync();
+      close2();
+      try {
+        await fn();
+      } finally {
+        busy = false;
+        await refresh();
+      }
+    }
+    function row(parent, label, detail, action, unavailable = false) {
+      const button = document.createElement("button"), title = document.createElement("strong"), subtitle = document.createElement("small");
+      button.type = "button";
+      button.className = "resume-row";
+      button.title = detail;
+      title.textContent = label;
+      subtitle.textContent = detail;
+      button.append(title, subtitle);
+      button.dataset.unavailable = String(unavailable);
+      button.onclick = () => act(action);
+      button.onpointerdown = (e) => {
+        if (blocked()) e.preventDefault();
+      };
+      parent.append(button);
+      return button;
+    }
+    async function refresh() {
+      if (!enabled || busy) return;
+      const serial = ++sequence;
+      refreshing = true;
+      sync();
+      try {
+        const [recent, drafts2] = await Promise.all([api2.listRecents(), draftsEnabled ? api2.listDrafts() : null]);
+        if (serial !== sequence) return;
+        for (const id of ["welcome-recent-list", "recent-list", "welcome-draft-list"]) byId2(id).replaceChildren();
+        const entries = recent.ok ? recent.entries : [];
+        for (const [id, limit] of [["welcome-recent-list", 6], ["recent-list", 12]]) {
+          const panel = byId2(id);
+          for (const e of entries.slice(0, limit)) {
+            const button = row(panel, e.label, e.location, () => open(e.id));
+            button.dataset.recentId = e.id;
+          }
+        }
+        const status = recent.ok ? entries.length ? "\u70B9\u51FB\u540E\u4EE5\u53EA\u8BFB\u65B9\u5F0F\u91CD\u65B0\u9A8C\u8BC1\u5E76\u6253\u5F00\u3002" : "\u5C1A\u65E0\u6700\u8FD1\u6587\u6863\u3002\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u4E00\u4EFD Markdown \u5F00\u59CB\u3002" : "\u6700\u8FD1\u5217\u8868\u6682\u4E0D\u53EF\u7528\uFF0C\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\u3002\u4ECD\u53EF\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u6587\u4EF6\u3002";
+        byId2("welcome-recent-status").textContent = status;
+        byId2("recent-status").textContent = status;
+        const available = drafts2?.ok ? drafts2.drafts : [];
+        for (const d of available.slice(0, 3)) {
+          const detail = d.active ? "\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00" : d.warning ? "\u8F83\u65B0\u5907\u4EFD\u672A\u786E\u8BA4 \xB7 \u53EF\u6062\u590D\u5DF2\u9A8C\u8BC1\u6B63\u6587" : d.recoverable ? "\u672C\u5730\u8349\u7A3F \xB7 " + new Date(d.time).toLocaleString() : "\u5907\u4EFD\u9700\u8981\u68C0\u67E5";
+          const button = row(byId2("welcome-draft-list"), d.label, detail, () => restore(d.id), d.active || !d.recoverable);
+          button.dataset.draftId = d.id;
+        }
+        byId2("welcome-draft-status").textContent = !draftsEnabled ? "\u672C\u5730\u8349\u7A3F\u4E0D\u53EF\u7528\u3002" : !drafts2?.ok ? "\u8349\u7A3F\u5217\u8868\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u300C\u8349\u7A3F\u300D\u4E2D\u67E5\u770B\u8BE6\u60C5\u3002" : available.length ? "\u6062\u590D\u4E3A\u72EC\u7ACB\u8349\u7A3F\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u4E0D\u53D8\u3002" : "\u6682\u65E0\u5F85\u6062\u590D\u8349\u7A3F\u3002";
+      } catch {
+        if (serial !== sequence) return;
+        for (const id of ["welcome-recent-list", "recent-list", "welcome-draft-list"]) byId2(id).replaceChildren();
+        byId2("welcome-recent-status").textContent = byId2("recent-status").textContent = "\u5217\u8868\u8BFB\u53D6\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u5237\u65B0\u3002\u5F53\u524D\u6587\u6863\u4FDD\u6301\u4E0D\u53D8\u3002";
+        byId2("welcome-draft-status").textContent = "\u8349\u7A3F\u8BFB\u53D6\u5931\u8D25\uFF0C\u8BF7\u5728\u300C\u8349\u7A3F\u300D\u4E2D\u67E5\u770B\u3002";
+      } finally {
+        if (serial === sequence) {
+          refreshing = false;
+          sync();
+        }
+      }
+    }
+    byId2("show-recents").onclick = () => {
+      if (!enabled || blocked()) return;
+      dialog.showModal();
+      byId2("show-recents").setAttribute("aria-expanded", "true");
+      void refresh();
+    };
+    byId2("show-recents").onpointerdown = (e) => {
+      if (blocked()) e.preventDefault();
+    };
+    byId2("close-recent-dialog").onclick = close2;
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      close2();
+    });
+    byId2("refresh-recents").onclick = refresh;
+    byId2("welcome-drafts").onclick = () => {
+      if (!blocked()) byId2("show-drafts").click();
+    };
+    byId2("clear-recents").onclick = async () => {
+      if (blocked()) return;
+      busy = true;
+      sync();
+      let ok3 = false;
+      try {
+        ok3 = (await api2.clearRecents()).ok === true;
+      } catch {
+      } finally {
+        busy = false;
+        await refresh();
+      }
+      if (!ok3) byId2("recent-status").textContent = "\u6E05\u7A7A\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u8BB0\u5F55\u4FDD\u7559\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002Markdown \u6587\u4EF6\u672A\u6539\u53D8\u3002";
+    };
+    return { sync, refresh, configure(data) {
+      enabled = true;
+      draftsEnabled = data.draftsEnabled === true;
+      void refresh();
+    } };
+  }
+
   // lib/document-draft-view.mjs
   function createDraftView({ api: api2, byId: byId2, context, restore }) {
     const receipts = /* @__PURE__ */ new Map();
@@ -35001,6 +35223,24 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id) => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id) => openDocument(true, false, id) });
+  var recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: (id) => openDocument(false, false, null, null, id), restore: (id) => openDocument(true, false, id) });
+  var nameView = createNameView({
+    api,
+    byId,
+    context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
+    busy: (value) => {
+      loading = value;
+    },
+    rerender: () => {
+      if (controller) render3(controller.state());
+    },
+    changed: (id, label) => {
+      const option = [...byId("documents").options].find((o) => o.value === id);
+      if (option) option.textContent = label;
+      void draftView.refresh();
+      void recentView.refresh();
+    }
+  });
   function persistentCopyNote(receipt) {
     if (receipt?.ok === true && receipt.state === "created-confirmed" && receipt.created === true && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
       return `\u5DF2\u786E\u8BA4\u6587\u4EF6\u526F\u672C\uFF1A\u4FEE\u8BA2 ${receipt.revision}\u3002\u4E0D\u5305\u542B\u540E\u7EED\u7F16\u8F91\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002`;
@@ -35100,6 +35340,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (controller) render3(controller.state());
       else {
         writingShell.sync();
+        recentView.sync();
         closeView.sync();
         show();
       }
@@ -35180,6 +35421,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     copyActionsView.render();
     renderCompositionCopies(s);
     writingShell.sync();
+    recentView.sync();
+    nameView.sync();
     formatView.sync();
     linkView.sync();
     findView.sync();
@@ -35341,6 +35584,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (loading && !switching || s?.pending || s?.composing || s?.historyPending) {
       byId("documents").value = selected || "";
       writingShell.sync();
+      recentView.sync();
       show("document-busy");
       return;
     }
@@ -35375,6 +35619,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         if (controller) render3(controller.state());
         else {
           writingShell.sync();
+          recentView.sync();
           show();
         }
       }
@@ -35454,6 +35699,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (controller) render3(controller.state());
     else {
       writingShell.sync();
+      recentView.sync();
       show();
     }
   });
@@ -35497,11 +35743,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("empty-state").hidden = false;
     for (const name of ["open-file", "empty-open", "new-temporary", "documents"]) byId(name).disabled = false;
     loading = false;
+    nameView.sync();
     formatView.sync();
     linkView.sync();
     findView.sync();
     copyActionsView.render();
     writingShell.sync();
+    recentView.sync();
     if (next) {
       byId("documents").value = next.value;
       await load();
@@ -35512,14 +35760,15 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       }
     } else byId("empty-new").focus();
     void draftView.refresh();
+    void recentView.refresh();
   }
   function viewerStatus(message, notice = false) {
     byId("viewer-status").textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
-  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null) {
+  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null) {
     const state = controller?.state();
-    if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.historyPending) return;
+    if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
     const original = state?.confirmed;
     if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length || state.source !== original.source || confirmedCopy.sessionId !== selected || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
     if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source)) return;
@@ -35528,14 +35777,17 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     for (const id of ["open-file", "empty-open", "new-temporary"]) byId(id).disabled = true;
     if (controller) render3(controller.state());
     else writingShell.sync();
+    recentView.sync();
     viewerStatus(editingCopy ? "\u6B63\u5728\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u2026" : temporary ? "\u6B63\u5728\u65B0\u5EFA\u8349\u7A3F\u2026" : "\u6B63\u5728\u6253\u5F00\u2026");
     let candidate = null;
     try {
-      const r = await (confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+      const r = await (recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
       if (epoch !== switchEpoch) return;
       if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) throw Error("Source session invalidated");
       if (!r.ok) {
         const messages = {
+          "recent-file-unavailable": "\u6700\u8FD1\u6587\u6863\u5DF2\u53D8\u5316\u3001\u88AB\u79FB\u52A8\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u3002",
+          "recents-unavailable": "\u6700\u8FD1\u5217\u8868\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u6587\u4EF6\u3002",
           "confirmed-copy-unavailable": "\u6587\u4EF6\u5DF2\u79FB\u52A8\u3001\u88AB\u4FEE\u6539\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u68C0\u67E5\u3002",
           "copy-action-unknown": "\u6253\u5F00\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u8BF7\u52FF\u91CD\u590D\u64CD\u4F5C\uFF1B\u5F53\u524D\u8349\u7A3F\u4E0E\u6587\u4EF6\u56DE\u6267\u4ECD\u4FDD\u7559\u3002",
           "draft-already-open": "\u8BE5\u8349\u7A3F\u5DF2\u5728\u5F53\u524D\u7A97\u53E3\u6253\u5F00\u3002",
@@ -35562,7 +35814,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         return;
       }
       candidate = r.snapshot;
-      if (!candidate || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
+      if (!candidate || recentId && r.recentId !== recentId || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
       if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error("Invalid copy snapshot");
       const projection = projectSource(candidate.source);
       const schema = editor?.schema || getSchema([...documentEditorExtensions()]);
@@ -35600,11 +35852,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       for (const id of ["open-file", "empty-open", "new-temporary"]) byId(id).disabled = false;
       if (controller) render3(controller.state());
       else writingShell.sync();
+      recentView.sync();
+      void recentView.refresh();
       if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
     }
   }
   var openReadOnly = () => {
-    if (!linkView.isOpen()) return openDocument(false);
+    if (!linkView.isOpen() && !nameView.isOpen()) return openDocument(false);
   };
   byId("new-temporary").onclick = () => openDocument(true);
   byId("edit-copy").onclick = () => openDocument(true, true);
@@ -35633,6 +35887,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       writingShell.configure();
       findView.configure();
       closeView.configure();
+      recentView.configure(data);
       byId("open-file").disabled = false;
       document.title = "Markdown";
     } else byId("connect").disabled = false;

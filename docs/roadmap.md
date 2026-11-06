@@ -10,7 +10,7 @@ Use short feature branches in the existing Worktree; no long-lived develop
 branch or release/tag is implied.
 
 Local checkpoint `dd0eef4` (0.48.0, `feat/document-close`) preserves common inline
-formatting and the complete link panel. The **0.49.0 local WIP checkpoint** adds
+formatting and the complete link panel. The **0.49.0 local WIP checkpoint `d8a3f25`** adds
 single-level quotes and basic fenced code as one writing workflow: creation,
 editing, exit to prose, history and export/reopen. The common-authoring closeout
 now passes a mixed-document workflow, packaged restart/recovery and installed
@@ -33,15 +33,27 @@ small changes internally without asking for a separate user approval per button.
 | --- | --- | --- |
 | Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
 | Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Implemented and locally installed; mixed-document/export/recovery checks pass within supported syntax; native IME and broader acceptance remain open |
-| Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | Next major usability goal; cannot remove overwrite protection to claim completion |
+| Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | 0.51.0 locally checkpointed and installed: recent documents, resume writing, draft naming and export-name continuity; bounded checks pass, human acceptance remains open; overwrite protection remains |
 | Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | After core writing; prioritize real document needs |
 | Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
 
 The everyday-authoring implementation and bounded installed closeout are complete;
-this is not general Markdown or release sign-off. Next move to the **everyday file
-workflow** stage, beginning with a small recent-documents / resume-writing entry
-point using existing open/session/draft services. A recent entry must not grant
-write authority; unavailable or changed files require a fresh validated open.
+this is not general Markdown or release sign-off. The **everyday file workflow**
+stage combines the 0.50.0 recent-documents / resume-writing slice in the 0.51.0 local WIP.
+148 targeted Node checks and the same three-start workflow on Pro and Air pass;
+package checks pass. A recent entry grants
+no write authority; unavailable or changed files require native selection.
+The 0.51.0 checkpoint implements draft naming and export-name
+continuity through the existing session, draft and Save As New File services.
+130 targeted Node checks, a two-start Pro naming/export/recovery workflow and
+package verification pass. Air stopped before GUI launch because the screen was
+locked; no Air PASS is claimed for 0.51.0. Five recent regressions pass on the
+combined version. The authorized closeout installed 0.51.0 with a recoverable
+0.49.0 bundle; bounded package/startup/panel checks passed and existing private
+records were unchanged. This local WIP preserves the cohesive file-workflow batch.
+Next accept the installed writing/reopen/naming/export experience before choosing
+the next feature batch. Human/native acceptance and a full packaged writing
+workflow remain distinct from the bounded closeout checks.
 Do not add another save framework or unlock overwrite. Preserve the visual baseline
 and keep unsaved draft, exported snapshot and subsequent edits distinct. Tasks,
 nesting, tables and images remain later broader-document work. Native IME, file

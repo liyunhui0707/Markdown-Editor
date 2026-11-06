@@ -15,7 +15,7 @@
     <div class="session-heading"><span>当前窗口</span><span id="session-count">0</span></div>
     <nav id="session-list" aria-label="已打开文档"></nav>
     <p id="session-empty">打开一份文档，<br>或从新的草稿开始。</p>
-    <div id="sidebar-bottom"></div>
+    <div id="sidebar-bottom"><button id="show-recents" disabled aria-haspopup="dialog" aria-controls="recent-dialog" aria-expanded="false">最近文档</button></div>
   </aside>
   <button id="sidebar-scrim" aria-label="关闭文档侧栏" hidden></button>
   <section id="writing-workspace" aria-label="Markdown 工作区">
@@ -47,7 +47,7 @@
   <details id="document-info" hidden>
     <summary title="文档信息与切换"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
     <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
-      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。编辑副本支持常用文字格式、简单链接、单层引用和基本代码块。链接面板可修改地址；点击链接不会打开网页。其他未支持的 Markdown 格式按原文显示。</p></div>
+      <button id="rename-draft" hidden aria-haspopup="dialog" aria-controls="name-dialog">重命名草稿…</button><div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。编辑副本支持常用文字格式、简单链接、单层引用和基本代码块。链接面板可修改地址；点击链接不会打开网页。其他未支持的 Markdown 格式按原文显示。</p></div>
   </details>
 <div id="header-end"><button id="close-current-document" class="icon-button" hidden aria-label="关闭当前文档" title="关闭当前文档（⌘W）">×</button><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
 </header>
@@ -91,6 +91,10 @@
   <p>打开 Markdown 阅读，或新建草稿开始写作。<br>原文件始终受到保护。</p>
   <div class="welcome-actions"><button id="empty-new" disabled>新建草稿</button><button id="empty-open" disabled>打开 Markdown <kbd aria-hidden="true">⌘O</kbd></button></div>
   <p class="welcome-note">文件以只读方式打开，点击「编辑副本」开始修改。</p>
+  <div class="resume-sections">
+    <section aria-labelledby="welcome-draft-heading"><div class="resume-heading"><h2 id="welcome-draft-heading">继续写作</h2><button id="welcome-drafts" class="quiet-button" disabled>全部草稿</button></div><p id="welcome-draft-status" class="resume-note" role="status">正在读取…</p><div id="welcome-draft-list"></div></section>
+    <section aria-labelledby="welcome-recent-heading"><div class="resume-heading"><h2 id="welcome-recent-heading">最近文档</h2></div><p id="welcome-recent-status" class="resume-note" role="status">正在读取…</p><div id="welcome-recent-list"></div></section>
+  </div>
 </section>
 <div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Unsupported syntax is displayed as read-only source.</p>
 <button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
@@ -123,6 +127,8 @@
 <p id="link-error" role="status" aria-live="polite"></p>
 <div class="link-dialog-actions"><button type="button" id="link-remove" hidden>取消链接</button><span></span><button type="button" id="link-cancel">取消</button><button type="submit" id="link-apply">插入链接</button></div>
 </form></dialog>
+<dialog id="name-dialog" class="writing-dialog" aria-labelledby="name-dialog-title"><form id="name-form"><h2 id="name-dialog-title">重命名草稿</h2><p>为写作起个名字。只修改草稿名称，不重命名原文件或已导出的文件。</p><label for="draft-name-input">草稿名称</label><input id="draft-name-input" type="text" maxlength="255" autocomplete="off" spellcheck="false"><p class="save-dialog-note">另存新文件时使用此名称，自动补上 .md。</p><p id="draft-name-error" role="status" aria-live="polite"></p><div class="link-dialog-actions"><span></span><button type="button" id="name-cancel">取消</button><button type="submit" id="name-apply">确认名称</button></div></form></dialog>
+<dialog id="recent-dialog" class="writing-dialog side-panel" aria-labelledby="recent-title"><div class="panel-heading"><h2 id="recent-title">最近文档</h2><button id="close-recent-dialog" autofocus aria-label="关闭最近文档">关闭</button></div><div class="panel-content"><p id="recent-status" role="status"></p><div id="recent-list"></div><div class="recent-actions"><button id="refresh-recents">刷新</button><button id="clear-recents">清空列表</button></div><p>仅清除本机最近列表，不删除 Markdown 文件或草稿。</p></div></dialog>
 <dialog id="draft-dialog" class="writing-dialog side-panel" aria-labelledby="draft-dialog-title"><div class="panel-heading"><h2 id="draft-dialog-title">本地草稿</h2><button id="close-draft-dialog" autofocus aria-label="关闭草稿面板">关闭</button></div><div id="draft-dialog-content" class="panel-content"></div></dialog>
 <dialog id="document-details-dialog" class="writing-dialog side-panel" aria-labelledby="document-details-title"><div class="panel-heading"><h2 id="document-details-title">文档与保存详情</h2><button id="close-document-details-dialog" autofocus aria-label="关闭详情面板">关闭</button></div><div id="document-details-content" class="panel-content"><section class="detail-card document-identity"><span class="section-label">当前文档</span><h3 id="details-document-name"></h3><span id="details-document-kind" class="state-pill"></span><p id="details-document-location"></p><dl class="document-facts"><div><dt>已确认修订</dt><dd id="details-document-revision"></dd></div><div><dt>原文字符</dt><dd id="details-document-count"></dd></div></dl></section><section id="details-backup-card" class="detail-card"><h3>本地备份</h3><div id="details-backup-content"></div><details class="panel-help" id="details-writing-help"><summary>备份与编辑范围</summary></details></section></div></dialog>
 <dialog id="copy-confirm-dialog" class="writing-dialog" aria-labelledby="copy-confirm-title"><div class="save-dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 14h8M8 17h5"/></svg></div><p class="section-label">保留一份 Markdown</p><h2 id="copy-confirm-title">另存为新文件</h2><p>选择一个新文件名，保留此刻已确认的内容。已有文件不会被覆盖。</p><p class="save-dialog-note">另存后仍可继续编辑草稿；后续修改不会自动写回新文件。</p></dialog>

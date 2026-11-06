@@ -1,5 +1,65 @@
 # Stage History
 
+## 0.51.0 WIP — file-workflow checkpoint and local installation (2026-11-06)
+
+The combined 29-file recent-documents / draft-naming batch is preserved as an
+authorized local WIP. All 501 candidate fingerprints matched prior test evidence;
+closeout changed documentation only, with no additional version bump. Five recent
+Node regressions pass on 0.51.0. Actual package startup/recent-panel/name validation
+and cancel pass; installed startup/recent-panel pass with identical ASAR. Existing
+draft/catalog record identities and hashes remained unchanged. The installed app
+is 0.51.0 and 0.49.0 is recoverably retained under project-local verification.
+No new full packaged writing/recovery, human QA, native IME, Air naming GUI, full
+CI or independent-review pass is claimed. Historical failures, SEC-01, restricted
+exclusive creation and overwrite prohibition remain. No push/merge/tag/release.
+Exact checks, build-location caveat and rollback mapping: existing phase record.
+Earlier candidate installation statuses below describe their original runs.
+
+## 0.51.0 WIP — draft naming and export-name continuity (2026-11-06, uncommitted)
+
+The title menu now names independent drafts. Main verifies session, revision and
+previous label, persists through the existing private draft snapshot writer, then
+updates the live name. Failed/unknown writes preserve the body and old live name;
+a failed pending backup does not trigger a second write during the rename.
+Recovery keeps the saved name. Save As suggests the main-owned name with `.md`,
+while originals and exported files remain unchanged. Text revision, Undo/Redo,
+export receipts, exclusive creation and destination policy are preserved.
+
+130 targeted Node checks PASS; one two-start Pro Electron workflow PASS, including
+cancel/invalid names, controlled composition guard, history, BOM/CRLF export/hash,
+existing-target refusal and restart recovery. Normal/narrow screenshots reviewed.
+Air input/tool verification completed, but the launch-time lock check blocked GUI;
+no Air test started or was retried. Package/runtime-import verification PASS;
+installed app stays 0.49.0. Native IME remains NOT VERIFIED and historical manual/
+formal FAIL is not globally cleared. No new DeepSeek, full CI, commit or release.
+Evidence: the draft-naming entry in the existing phase record.
+
+New name modules are 13/53 lines, new Node/E2E tests 73/112. Existing IPC340 and
+renderer451 exceed the soft size guide; this slice only wires existing authority
+and views, avoiding unrelated lifecycle refactoring. The prior 0.50.0 changes
+remain in the same uncommitted candidate.
+
+## 0.50.0 WIP — recent documents and resume writing (2026-11-06, uncommitted)
+
+Following the 0.49.0 local checkpoint `d8a3f25`, the welcome page adds draft resume
+and recent-file entries, with a sidebar recent panel and clear-list action. Main
+owns opaque IDs and rechecks file identity/content; every reopened file stays
+read-only. Changed/replaced/missing targets require native selection. The private
+12-entry metadata catalog reuses the existing two-generation snapshot protocol;
+clear-list never deletes user files/drafts and is not secure erasure of old paths.
+
+148 targeted Node cases and one restart/recovery/reopen/clear Electron workflow
+on each of Pro and Air PASS; three clean exits per device. Air used final 0.50.0,
+with independently checked input/tool hashes and no remaining test processes.
+Package/source membership and packaged dependency-import smoke PASS. Installed
+app remains 0.49.0; 0.50.0 packaged GUI/install acceptance is pending. No new
+DeepSeek, full CI or native IME run; historical QA limits remain. No new 0.50.0
+commit, push, merge, tag or release. Evidence is linked in the existing phase record.
+
+New recent modules are 62/78 lines, new Node/E2E files 63/51. Existing central
+session IPC (327) and renderer entry (442) exceed the soft size guide; the additions
+wire existing ownership/navigation paths, avoiding a second session/disk framework.
+
 ## 0.49.0 WIP — common-authoring closeout and local installation (2026-11-06)
 
 A mixed article now covers headings, emphasis, links, lists, quotes and fenced code,

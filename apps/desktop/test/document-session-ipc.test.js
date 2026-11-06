@@ -622,3 +622,26 @@ test('link format payloads are revision bound, readonly isolated and exactly rev
  assert.equal(f.call({operation:'save',sessionId:f.id,expectedRevision:3}).code,'coordination-required');
  assert.equal(f.call({operation:'snapshot',sessionId:readonly}).snapshot.source,before);assert.deepEqual(fs.readFileSync(f.file),disk);
 });
+
+test('recent preload fences composition, pending edits and unknown outcomes; validates readonly ID receipts',async()=>{
+  const a=preloadFixture();a.dom.emit('compositionstart');assert.equal((await a.api.openRecent('recent')).code,'composition-active');assert.equal((await a.api.clearRecents()).code,'composition-active');assert.equal(a.pending.length,0);
+  a.dom.emit('compositionend');const pending=a.api.snapshot({sessionId:'draft'});assert.equal((await a.api.openRecent('recent')).code,'document-busy');a.pending[0].resolve({ok:true});await pending;
+  for(const result of [{ok:true,recentId:'other',snapshot:{sessionId:'new',readOnly:true}},{ok:true,recentId:'recent',snapshot:{sessionId:'new',temporary:true,readOnly:false}}]){
+    const f=preloadFixture(),call=f.api.openRecent('recent');f.pending[0].resolve(result);assert.equal((await call).code,'ipc-outcome-unknown');assert.equal((await f.api.openRecent('recent')).code,'ipc-outcome-unknown');
+  }
+  const b=preloadFixture(),call=b.api.openRecent('recent');b.pending[0].resolve({ok:true,recentId:'recent',snapshot:{sessionId:'new',readOnly:true}});assert.equal((await call).ok,true);
+  const c=preloadFixture(),lost=c.api.openRecent('recent');c.pending[0].reject(Error('lost'));await assert.rejects(lost);assert.equal((await c.api.clearRecents()).code,'ipc-outcome-unknown');
+});
+
+test('draft rename preload fences input and unknown outcomes and checks name/session/revision receipts',async()=>{
+ const q={sessionId:'draft',expectedRevision:2,expectedLabel:'Old',label:'New'},a=preloadFixture();
+ a.dom.emit('compositionstart');assert.equal((await a.api.renameDraft(q)).code,'composition-active');assert.equal(a.pending.length,0);a.dom.emit('compositionend');
+ const inFlight=a.api.renameDraft(q);assert.equal((await a.api.renameDraft(q)).code,'document-busy');
+ a.pending[0].resolve({ok:true,snapshot:{sessionId:'draft',revision:2,label:'New',temporary:true,readOnly:false}});assert.equal((await inFlight).ok,true);
+ for(const altered of [{label:'Wrong'},{sessionId:'other'},{revision:3},{readOnly:true}]){
+  const f=preloadFixture(),p=f.api.renameDraft(q);f.pending[0].resolve({ok:true,snapshot:{sessionId:'draft',revision:2,label:'New',temporary:true,readOnly:false,...altered}});
+  assert.equal((await p).code,'ipc-outcome-unknown');assert.equal((await f.api.renameDraft(q)).code,'ipc-outcome-unknown');
+ }
+ const f=preloadFixture(),lost=f.api.renameDraft(q);f.pending[0].reject(Error('lost'));assert.equal((await lost).ok,false);
+ assert.equal((await f.api.createPersistentCopy({sessionId:'draft'})).code,'ipc-outcome-unknown');
+});

@@ -22,9 +22,23 @@ remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.49.0 is a local WIP checkpoint**, not public-release acceptance.
+Version **0.51.0 is a local WIP checkpoint** for draft naming and recent documents, not public-release acceptance.
+The preceding 0.49.0 checkpoint is `d8a3f25`; the installed local app is 0.51.0.
+Draft naming uses the existing private backup writer, bound to session, content
+revision and previous label. Only a confirmed backup updates the live name;
+body/history and export receipts remain unchanged. Recovery keeps the saved label.
+The main-owned name supplies a Save As filename suggestion, never a target path or
+overwrite permission. Pending/unconfirmed input and unknown results remain fenced.
+Recent documents remember at most 12 main-owned path/identity/hash records in a
+separate private catalog using the existing draft snapshot writer. Reopening
+uses a new read-only session and revalidates identity/content; changed files
+require native selection. Welcome resume-writing uses existing draft recovery.
+Clearing history does not delete files/drafts or securely erase older snapshots.
+No new file-write permission or directory scan is introduced.
 The preceding 0.48.0 checkpoint is `dd0eef4`; 0.49.0 preserves quote/code and the bounded writing closeout.
-The installed local app is 0.49.0; 0.46.0 is retained for rollback.
+The installed 0.51.0 app passed bounded startup/panel checks; 0.49.0 is retained
+for rollback. Existing draft/catalog records were verified unchanged. This does
+not replace native manual acceptance or full CI.
 The preceding list-editing checkpoint is `01a4d7a` (0.43.0). Selected italic and inline-code
 formatting reuse existing source-map patches, format toolbar and main-owned history.
 Line-start heading (1–6) and flat-list shortcuts convert on Space through the
