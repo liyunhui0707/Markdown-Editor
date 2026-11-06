@@ -1,5 +1,40 @@
 # Stage History
 
+## 0.49.0 WIP — common-authoring closeout and local installation (2026-11-06)
+
+A mixed article now covers headings, emphasis, links, lists, quotes and fenced code,
+followed by export/reopen, restart/recovery and continued writing. This exposed and
+fixed four integration gaps: heading/mixed-paragraph spaces typed separately; Enter after a linked
+paragraph; a fence prefix before an existing final newline; and structural keys
+silently dropped while text IPC was pending. Reuse of the existing optimistic
+format queue preserves main-owned revisions/history and exact source checks.
+351 unique targeted Node cases, five source Electron workflows, one packaged
+workflow and installed startup PASS. The installed app is 0.49.0, with the previous
+0.46.0 bundle recoverably retained. No new commit/push/merge/tag/release.
+
+Source map 292, boundary mapper 121 and input helper 62 lines remain bounded.
+The existing controller test and shared E2E exceed the normal size guideline;
+they retain the established IPC/process fixtures rather than duplicating them.
+The new 56-line shared mixed-writing helper exercises both source and product ASAR.
+Native IME, historical QA FAIL, full CI/independent review and release limits remain
+open. Exact evidence, failed-test corrections and fixture disposition are recorded
+in the phase record; earlier candidate installation statuses below are historical.
+
+## 0.49.0 WIP — quotes and basic fenced code (2026-11-06, uncommitted)
+
+Single-level quote and basic closed-code creation/edit/exit/history/export form one
+writing batch. Menu commands and natural prefixes reuse source maps, main-owned
+revisions and exact source inverses; no serialization, IPC authority or save-policy
+expansion. Code Enter/Tab/multiline paste preserve source line endings. A controller
+regression caught and fixed a redo caret using source instead of PM coordinates.
+383 targeted Node and five Pro source Electron workflows PASS, nine clean exits.
+Original BOM/CRLF bytes and mode remain unchanged. Two new helpers (77/60 lines)
+keep source-block mapping separate; existing entry 439, source-map 271, controller
+tests 1260 and E2E 2771 reuse their harness/ownership without unrelated refactoring.
+Installed app is untouched; native IME, historical QA FAIL, SEC-01 and release
+limits remain. Evidence/package checks are in the phase record.
+
+
 ## 0.48.0 WIP — link creation and address editing workflow (2026-11-05, local checkpoint)
 
 A shared link panel (toolbar / Cmd+K) inserts at a plain selection or caret,

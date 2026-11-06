@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Schema } from '@tiptap/pm/model';
+import { getSchema } from '@tiptap/core';
+import { documentEditorExtensions } from '../lib/document-editor-extensions.mjs';
 import { projectSource } from '../lib/document-source-map.mjs';
 import { defaultReading, changeReading, documentHeadings, createReadingView } from '../lib/document-reading-view.mjs';
-const schema = new Schema({ nodes: { doc: { content: 'block+' }, text: { group: 'inline' },
-  paragraph: { group: 'block', content: 'inline*' }, heading: { group: 'block', content: 'inline*', attrs: { level: { default: 1 } } },
-  codeBlock: { group: 'block', content: 'text*' }, blockquote: { group: 'block', content: 'block+' } }, marks: { bold: {} } });
+const schema = getSchema(documentEditorExtensions());
 const projected = source => schema.nodeFromJSON(projectSource(source).doc);
 
 test('reading options accept only declared display values and preserve defaults', () => {
@@ -15,11 +14,11 @@ test('reading options accept only declared display values and preserve defaults'
   for (const [key, value] of [['size','10000'],['font','url(https://example.invalid)'],['width','auto'],['theme','auto'],['__proto__','x'],['path','/tmp']])
     assert.equal(changeReading(result, key, value), result);
 });
-test('outline uses projected headings and excludes code, unsupported headings and frontmatter', () => {
+test('outline uses supported headings including links and excludes code, nested headings and frontmatter', () => {
   const source = '\ufeff---\r\nsecret: synthetic\r\n---\r\n# 中文 **标题**\r\n\r\n```md\n# Code heading\n```\n\n## Same\n\n## Same\n\n### [link](https://example.invalid)\n\n> # Nested\n';
   const doc = projected(source.slice(1)), before = doc.toJSON(), rows = documentHeadings(doc);
-  assert.deepEqual(rows.map(r => [r.level,r.title]), [[1,'中文 标题'],[2,'Same'],[2,'Same']]);
-  assert.equal(new Set(rows.map(r => r.position)).size, 3);
+  assert.deepEqual(rows.map(r => [r.level,r.title]), [[1,'中文 标题'],[2,'Same'],[2,'Same'],[3,'link']]);
+  assert.equal(new Set(rows.map(r => r.position)).size, 4);
   for (const row of rows) assert.equal(doc.nodeAt(row.position).textContent, row.title);
   assert.deepEqual(doc.toJSON(), before); assert.equal(documentHeadings(projected('Only paragraph.')).length, 0);
 });

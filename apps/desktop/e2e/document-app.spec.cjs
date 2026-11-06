@@ -1,4 +1,5 @@
 const { test, expect, _electron: electron } = require('@playwright/test');
+const { authorMixedDocument } = require('./common-authoring.cjs');
 const fs = require('node:fs/promises'), os = require('node:os'), path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawn } = require('node:child_process');
@@ -10,7 +11,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
   const exe = process.env.DOCUMENT_APP_EXECUTABLE;
   const fixture = createHomeFixture('Writing-synthetic-E2E-');
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'document-installed-qa-'));
-  const original = path.join(root, 'Installed synthetic.md'), target = path.join(fixture.dir, 'export.md');
+  const original = path.join(root, `Installed synthetic ${path.basename(root)}.md`), target = path.join(fixture.dir, 'export.md');
   const raw = Buffer.from('\ufeff# Installed synthetic\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.\r\n\r\nAlpha **bold** omega.\r\n\r\nA [label](<https://example.test/path> "title") tail.\r\n');
   await fs.writeFile(original, raw, { flag: 'wx', mode: 0o600 });
   const env = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
@@ -148,6 +149,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await expect.poll(async()=>(await snapshot(page,id)).source).toBe(linkSource);
     await expect(page.locator('#editor a')).toHaveCount(0);
     await boundaryKey('Meta+z',beforeLink);await boundaryKey('Meta+Shift+z',linkSource);
+    await authorMixedDocument(page,async()=>(await snapshot(page,id)).source,{append:true,newline:'\r\n'});
     await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
     await expect(page.locator('#open-confirmed-copy')).toBeVisible();
     exported = await snapshot(page, id); expect(exported.confirmedCopy.state).toBe('created-confirmed'); expect(exported.dirty).toBe(true);
@@ -173,7 +175,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await page.locator(`[data-draft-id="${draftId}"]`).getByRole('button', { name: '恢复副本' }).click();
     await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'true');
     const restored = await snapshot(page, await page.locator('#documents').inputValue());
-    expect(restored.source).toBe(expected); expect(restored.canUndo).toBe(false); expect(restored.confirmedCopy).toBeNull();
+    expect(restored.source).toBe(expected); expect(restored.canUndo).toBe(false); expect(restored.confirmedCopy ?? null).toBeNull();
     expect(await fs.readFile(original)).toEqual(raw); expect(hash(await fs.readFile(target))).toBe(exported.confirmedCopy.sha256);
     await close();
     // Archive only this newly created synthetic draft through the existing app API.
@@ -185,7 +187,7 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     expect(result.ok).toBe(true); await close(); passed = true;
     const record = { version: launches[0].identity.version, originalSha256: hash(raw), exportSha256: exported.confirmedCopy.sha256,
       syntheticDraftId: draftId, syntheticDraft: 'archived in private app store', originalUnchanged: true,
-      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true, listItemRangePasteUndoRedo: true, crossListRangeUndoRedo: true, italicToolbarShortcut: true, codeToolbarShortcut: true,
+      packaged: true, rangeReplacementUndoRedo: true, inlineRangeReplacementUndoRedo: true, paragraphListBoundaryKeys: true, listItemRangePasteUndoRedo: true, crossListRangeUndoRedo: true, italicToolbarShortcut: true, codeToolbarShortcut: true, mixedAuthoring: true,
       processes: launches.length, nativeDialogs: 'stubbed choices', nativeIME: 'NOT VERIFIED' };
     await fs.writeFile(info.outputPath('evidence.json'), JSON.stringify(record, null, 2));
   } finally {

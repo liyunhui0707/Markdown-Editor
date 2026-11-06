@@ -197,3 +197,6 @@ body[data-document-viewer] .tiptap .document-source-link { color:var(--accent);t
 .link-dialog-actions {display:flex;align-items:center;gap:8px;margin-top:16px}
 .link-dialog-actions span {flex:1}
 #link-apply {background:var(--accent);border-color:var(--accent);color:white}
+
+body[data-document-viewer] .tiptap blockquote {margin:1.3em 0;padding:0 0 0 1.1em;border-left:3px solid var(--accent);color:var(--muted)}
+body[data-document-viewer] .tiptap blockquote p {margin:.7em 0}

@@ -2,6 +2,36 @@
   
 Use this checklist before sharing the app with another person.  
 
+## Common-authoring closeout — installed 0.49.0 (2026-11-06)
+
+Automated: 351 targeted Node cases, five source Electron workflows, one packaged
+workflow and installed startup PASS. This adds no human/native-IME PASS. The local
+app is updated; the previous bundle is recoverably retained.
+
+For a short optional experience, write one article using `# `, ordinary paragraphs,
+bold/italic, a link, a flat list, `> ` and a basic fenced code block. Continue typing
+immediately after Enter. Export a new file, reopen it, then quit and recover the
+draft: content should match, while old Undo history and export authority do not
+return. Originals remain unchanged; later draft edits do not update the export.
+Native Chinese composition and historical failures still need separate acceptance.
+
+## Quote/code workflow — 0.49.0 WIP candidate (2026-11-06)
+
+Automated: 383 targeted Node and five Pro source Electron workflows PASS. No
+new human/native-IME or installed-app acceptance is claimed. After safe installation:
+
+- In a new draft type `>` and Space, write two plain quote paragraphs, then
+  Enter on the last empty quote paragraph to continue ordinary prose.
+- Type three backticks plus optional `js`, then Enter. Type code, use Enter/Tab,
+  paste multiple lines with blank lines, Undo/Redo, and Cmd+Enter to continue prose.
+- Edit a supported loaded quote/code block, export a new file, reopen and compare;
+  original content must remain unchanged. Complex blocks stay read-only.
+
+Quotes require explicit `> ` lines with `> ` blank separators; lazy/wrapped/nested
+quotes stay protected. Splitting marked quote paragraphs is not supported; use
+Cmd+Enter to exit. Basic fences must be closed, unindented, with a simple optional
+language and no metadata. Existing safety/IME/release limitations remain.
+
 ## Link workflow — 0.48.0 WIP candidate (2026-11-05)
 
 Automated: 399 targeted Node cases and three controlled source Electron workflows

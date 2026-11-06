@@ -16,7 +16,7 @@ import { createWritingShell } from './document-writing-shell.mjs';
 import { createDraftView } from './document-draft-view.mjs';
 import { syncNativeBackspaceSelection } from './document-native-selection.mjs';
 
-import { applyBlockShortcut } from './document-block-input.mjs';
+import { applyBlockShortcut, applyStructuredKey } from './document-block-input.mjs';
 import { createLinkView } from './document-link-view.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
@@ -147,7 +147,7 @@ function render(s) {
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
     if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题或单层列表内编辑；复杂 Markdown 块保持只读。', true);
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、单层列表、引用或基本代码块内编辑；复杂 Markdown 块保持只读。', true);
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
@@ -178,7 +178,7 @@ function protectOpaqueBlocks(state) {
   // Do not let native IME start editing them only to lose its end event when
   // the source-range gate rejects/redraws that mutation. The gate remains final.
   state.doc.descendants((node, pos) => {
-    if (node.type.name === 'codeBlock') decorations.push(Decoration.node(pos, pos + node.nodeSize,
+    if (node.type.name === 'codeBlock' && !node.attrs.sourceEditable) decorations.push(Decoration.node(pos, pos + node.nodeSize,
       { contenteditable: 'false', 'aria-readonly': 'true', title: '此 Markdown 块暂不支持编辑，原文已保留。' }));
   });
   return DecorationSet.create(state.doc, decorations);
@@ -219,6 +219,7 @@ function install(snapshot) {
       extensions: [...documentEditorExtensions(), gate],
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
+          if (applyStructuredKey(view,event,{controller,loading,invalid:activeInvalid(),report:viewerStatus})) return true;
           if (applyBlockShortcut(view,event,{controller,loading,invalid:activeInvalid()})) return true;
           syncNativeBackspaceSelection(view, event, { state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument() });
           if (replaceParagraphRangeInput(view, event, { state: controller?.state(),

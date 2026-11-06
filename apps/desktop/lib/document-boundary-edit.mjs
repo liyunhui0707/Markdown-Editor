@@ -45,7 +45,13 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
     return {pieces,text:pieces.map(s=>s.text).join(''),a,b:end,from:row?row.from:b.from+1};
   }
   let a,b,text,targetIndex=index,targetItem=null,offset=0;
-  if(action==='split-paragraph'||action==='join-paragraph') {
+  if(action==='split-paragraph' && node.type==='paragraph' && from===block.to-1
+      && p.spans.some(s=>s.blockIndex===index&&s.link) && !p.spans.some(s=>s.blockIndex===index&&s.textOffset!==undefined)) {
+    // Continue after a linked paragraph without splitting/reconstructing its
+    // labels, destinations or titles. Full reparse equality still gates the edit.
+    a=b=block.sourceTo;text=nl+nl;
+    expected.content.splice(index+1,0,paragraph([]));targetIndex++;
+  } else if(action==='split-paragraph'||action==='join-paragraph') {
     const current=body(index);if(!current)return reject();
     const at=from-current.from;if(cutsPair(current.text,at))return reject();
     if(action==='split-paragraph') {

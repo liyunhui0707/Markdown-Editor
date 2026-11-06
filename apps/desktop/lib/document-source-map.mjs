@@ -4,8 +4,9 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import { projectSimpleList } from './document-list-source.mjs';
+import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
-export const spanBlock = (projection, span) => span.itemIndex === undefined ? projection.doc.content[span.blockIndex]
+export const spanBlock = (projection, span) => span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
   : projection.doc.content[span.blockIndex].content[span.itemIndex].content[0];
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
@@ -39,13 +40,32 @@ export function projectSource(source) {
   for (let node of tree.children) {
     let start = node.position.start.offset, end = node.position.end.offset;
     if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
+    // An empty fence prefix can sit before the original file's final newline.
+    // Keep that newline outside the cursor span, as for an ordinary paragraph.
+    const terminalPrefix = node.type === 'code' && !node.value && end === source.length
+      && source.slice(start,end).match(/^(```[A-Za-z0-9_+-]{0,32})(\r\n|\n|\r)$/);
+    if (terminalPrefix) {
+      end -= terminalPrefix[2].length;
+      node = {...node, position:{start:node.position.start,
+        end:{...node.position.start,offset:end,column:node.position.start.column+terminalPrefix[1].length}}};
+    }
     // A bare shortcut prefix stays visible until Space. This is a projection
     // choice only: source bytes are unchanged, including on read-only opens.
     const pending = source.slice(start, end);
-    if (/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(pending)) node = {
+    if (/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(pending)||literalBlockPrefix(pending)) node = {
       type: 'paragraph', position: node.position,
       children: [{type:'text',value:pending,position:node.position}],
     };
+    let structured=projectStructuredBlock(node,source,position,content.length);
+    if(structured){
+      const gap=lines(source.slice(previousEnd,start));
+      if((!content.length&&!fm&&gap.length>=2)||(content.length&&gap.length>=4)){
+        emptyParagraph(!content.length?0:previousEnd+gap[0].length+gap[1].length);
+        structured=projectStructuredBlock(node,source,position,content.length);
+      }
+      blocks.push(structured.block);content.push(structured.doc);spans.push(...structured.spans);
+      position+=structured.size;previousEnd=end;continue;
+    }
     const list = projectSimpleList(node, source, position, content.length);
     if (list) {
       const gap = lines(source.slice(previousEnd, start));
@@ -78,6 +98,8 @@ export function projectSource(source) {
         textOffset += match[0].length + 1;
       }
       supported = parts.length >= 2 && parts.map(p => p.text).join(' ') === raw.replace(/\r\n|\n|\r/g, ' ');
+    } else if(literalBlockPrefix(pending)){
+      parts.push({text:pending,sourceFrom:start,sourceTo:end,bold:false});
     } else for (const child of node.children || []) {
       const part=projectInlineLeaf(child,source);
       if(!part){supported=false;break;}
@@ -85,6 +107,18 @@ export function projectSource(source) {
     }
     if (supported && node.type === 'heading' && !parts.length && /^#{1,6} $/.test(raw)) {
       parts.push({text:'',sourceFrom:end,sourceTo:end,bold:false});
+    }
+    if (supported && !soft && ['heading','paragraph'].includes(node.type) && node.children?.length) {
+      // remark trims margin spaces. Keep them in the editable projection
+      // so a word-separating Space can be acknowledged before the next letter.
+      // Closing ATX markers are not whitespace and remain untouched source bytes.
+      const from = node.children.at(-1).position.end.offset, suffix = source.slice(from, end);
+      if (/^ +$/.test(suffix)) {
+        const last = parts.at(-1);
+        if (!last.bold && !last.italic && !last.code && !last.link) {
+          last.text += suffix; last.sourceTo = end;
+        } else parts.push({text:suffix,sourceFrom:from,sourceTo:end,bold:false});
+      }
     }
     if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
       // Keep plain-line margin spaces: remark omits them, but a split must not.
@@ -220,6 +254,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
       || !Number.isSafeInteger(leaf.childIndex) || leaf.childIndex < 0 || typeof leaf.bold !== 'boolean')) return unsafe();
   // Internal history only; renderer payloads still allow no separator/leaf fields.
   if (paragraphSeparator !== null && (leaf !== null || !['\n\n', '\r\n\r\n', '\r\r'].includes(paragraphSeparator))) return unsafe();
+  if (leaf===null&&paragraphSeparator===null){const code=mapCodeText(source,projection,change,projectSource);if(code)return code;}
   if (leaf === null) {
     const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
     if (paragraph) return paragraph;

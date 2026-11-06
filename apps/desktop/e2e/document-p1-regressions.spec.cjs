@@ -1,4 +1,5 @@
 const { test, expect, _electron: electron } = require('@playwright/test');
+const { authorMixedDocument } = require('./common-authoring.cjs');
 const fs = require('node:fs/promises'), path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
@@ -1635,7 +1636,7 @@ test('writing UI V2 panels, composition gate, copy feedback and document switchi
 test('writing V3 quiet composition and safe formatting export reopen', async ({}, info) => {
   const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'writing-v3-')));
   const draftRoot=path.join(area,'drafts'),original=path.join(area,'original.md');
-  const raw='\ufeff---\r\nkeep: synthetic\r\n---\r\n\r\n第一段中文。\r\n\r\nSecond paragraph.\r\n\r\n```md\r\nuntouched [syntax]\r\n```\r\n';
+  const raw='\ufeff---\r\nkeep: synthetic\r\n---\r\n\r\n第一段中文。\r\n\r\nSecond paragraph.\r\n\r\n```md metadata\r\nuntouched [syntax]\r\n```\r\n';
   const bytes=Buffer.from(raw),hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');
   await fs.writeFile(original,bytes,{flag:'wx',mode:0o600});let fixture,target,exported;
   await usingDemo(async({app,page,snapshot,select,settled})=>{
@@ -2381,7 +2382,7 @@ test('list ranges V2 replacement deletion paste and continuous editing export re
   let original,raw,receipt,bytes;
   await usingDemo(async({app,page,root,snapshot,settled})=>{
     original=path.join(root,'list-original.md');
-    raw=Buffer.from('\ufeff# Keep\r\n\r\n- Alpha **bold** tail.\r\n- Keep\r\n- **All**\r\n\r\n```md\r\nKeep []\r\n```\r\n\r\nEnd.');
+    raw=Buffer.from('\ufeff# Keep\r\n\r\n- Alpha **bold** tail.\r\n- Keep\r\n- **All**\r\n\r\n```md protected\r\nKeep []\r\n```\r\n\r\nEnd.');
     await fs.writeFile(original,raw,{flag:'wx',mode:0o600});
     await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},original);
     await page.locator('#empty-open').click();const originalId=await page.locator('#documents').inputValue();
@@ -2711,4 +2712,84 @@ test('link panel V1 insert edit cancel remove stale guard export and reopen',asy
   await expect(page.locator('#editor [data-document-link]')).toHaveCount(2);await expect(page.locator('#editor a')).toHaveCount(0);expect(await fs.readFile(original)).toEqual(raw);
   console.log('link-panel-evidence:'+JSON.stringify({original,exported:receipt.filePath,originalSha256:hash(raw),exportSha256:receipt.sha256,originalUnchanged:true,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
  },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+test('quote code V1 natural creation editing history export and reopen',async({},info)=>{
+ const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'quote-code-e2e-')));
+ const hash=b=>require('node:crypto').createHash('sha256').update(b).digest('hex');let receipt,bytes;
+ await usingDemo(async({app,page,snapshot,settled})=>{
+  await page.locator('#empty-new').click();const id=await page.locator('#documents').inputValue();
+  const source=async()=>(await snapshot(id)).snapshot.source;
+  await page.locator('#editor .tiptap > p').click();await page.keyboard.type('> First');await expect.poll(source).toBe('> First');
+  await expect(page.locator('#editor blockquote p')).toHaveText('First');
+  await page.keyboard.press('Enter');await page.keyboard.type('Second');await expect.poll(source).toBe('> First\n> \n> Second');
+  await page.keyboard.press('Enter');await page.keyboard.press('Enter');await page.keyboard.type('```js');await page.keyboard.press('Enter');
+  await expect.poll(source).toBe('> First\n> \n> Second\n\n```js\n```');
+  await page.keyboard.type('const x = [];');await page.keyboard.press('Enter');await page.keyboard.press('Tab');await page.keyboard.type('x.push(1);');
+  const base='> First\n> \n> Second\n\n```js\nconst x = [];\n\tx.push(1);\n```';await expect.poll(source).toBe(base);
+  await page.locator('#editor .tiptap').evaluate(root=>{const data=new DataTransfer();data.setData('text/plain','\n\n\t// 中文');root.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));});
+  const pasted=base.replace('x.push(1);','x.push(1);\n\n\t// 中文');await expect.poll(source).toBe(pasted);
+  await page.keyboard.press('Meta+z');await expect.poll(source).toBe(base);await page.keyboard.press('Meta+Shift+z');await expect.poll(source).toBe(pasted);
+  await page.keyboard.press('Meta+Enter');await page.keyboard.type('After code');await expect.poll(source).toBe(pasted+'\n\nAfter code');
+  // Same toolbar handles conversion back to prose, without touching the previous code.
+  await page.locator('#format-block').selectOption('blockquote');await expect.poll(source).toBe(pasted+'\n\n> After code');
+  await page.locator('#format-block').selectOption('paragraph');const final=pasted+'\n\nAfter code';await expect.poll(source).toBe(final);
+  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+  await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
+  expect(bytes).toEqual(Buffer.from(final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
+  await captureTestWindow(app,info.outputPath('quote-code.png'));
+ },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+ await usingDemo(async({app,page,snapshot})=>{
+  await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},receipt.filePath);
+  await page.locator('#empty-open').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');
+  expect(Buffer.from((await snapshot(await page.locator('#documents').inputValue())).snapshot.source)).toEqual(bytes);
+  await expect(page.locator('#editor blockquote p')).toHaveCount(2);await expect(page.locator('#editor pre code')).toHaveText('const x = [];\n\tx.push(1);\n\n\t// 中文');
+  console.log('quote-code-evidence:'+JSON.stringify({exported:receipt.filePath,sha256:receipt.sha256,reopenedAfterExit:true,nativeIME:'NOT VERIFIED',dialog:'stubbed',area}));
+ },info,null,true,false,false,null,{root:path.join(area,'reopen-drafts')});
+});
+
+test('quote code V1 loaded CRLF blocks preserve original and reject unsupported edits',async({},info)=>{
+ const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'quote-code-loaded-e2e-')));
+ await usingDemo(async({app,page,root,snapshot,settled})=>{
+  const file=path.join(root,'quote-code-original.md'),raw=Buffer.from('\ufeff> First **bold** tail\r\n> \r\n> Second\r\n\r\n```js\r\nconst x = 1;\r\n```\r\n\r\n```js metadata\r\nProtected bytes\r\n```\r\n');
+  await fs.writeFile(file,raw,{flag:'wx',mode:0o400});await app.evaluate(({dialog},p)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[p]});},file);
+  await page.locator('#empty-open').click();await page.locator('#edit-copy').click();const id=await page.locator('#documents').inputValue(),source=async()=>(await snapshot(id)).snapshot.source,before=await source();
+  const range=async(selector,from,to=from)=>{
+   const positions=await page.locator(selector).evaluate((p,r)=>{const root=p.closest('.tiptap'),n=p.firstChild;root.focus();getSelection().setBaseAndExtent(n,r.from,n,r.to);document.dispatchEvent(new Event('selectionchange'));return[root.editor.view.posAtDOM(n,r.from),root.editor.view.posAtDOM(n,r.to)];},{from,to});
+   await expect.poll(()=>page.locator('#editor .tiptap').evaluate(n=>[n.editor.state.selection.from,n.editor.state.selection.to])).toEqual(positions);
+  };
+  await range('#editor blockquote strong',0,4);await page.keyboard.insertText('粗体');await expect.poll(source).toBe(before.replace('bold','粗体'));
+  await range('#editor pre:first-of-type code',0,12);await page.keyboard.press('Backspace');const cleared=before.replace('bold','粗体').replace('const x = 1;','');await expect.poll(source).toBe(cleared);
+  await page.keyboard.type('a');await page.keyboard.press('Enter');await page.keyboard.type('b');const typed=cleared.replace('```js\r\n\r\n```','```js\r\na\r\nb\r\n```');await expect.poll(source).toBe(typed);
+  await page.keyboard.press('Meta+z');await expect.poll(source).toBe(typed.replace('a\r\nb','a\r\n'));await page.keyboard.press('Meta+Shift+z');await expect.poll(source).toBe(typed);
+  await range('#editor pre:first-of-type code',0,3);await page.keyboard.insertText('```\n# escape');await settled();expect(await source()).toBe(typed);
+  await expect(page.locator('#editor pre').last()).toHaveAttribute('contenteditable','false');await page.locator('#editor pre').last().click();await page.keyboard.type('REFUSE');await settled();expect(await source()).toBe(typed);
+  await range('#editor pre:first-of-type code',3);await page.keyboard.type('c');const final=typed.replace('a\r\nb','a\r\nbc');await expect.poll(source).toBe(final);
+  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+  const receipt=(await snapshot(id)).snapshot.copyState;expect(await fs.readFile(receipt.filePath)).toEqual(Buffer.from('\ufeff'+final));expect(await fs.readFile(file)).toEqual(raw);expect((await fs.stat(file)).mode&0o777).toBe(0o400);
+  console.log('quote-code-loaded-evidence:'+JSON.stringify({original:file,exported:receipt.filePath,sha256:receipt.sha256,originalUnchanged:true,crlfPreserved:true,area}));
+ },info,null,true,true,false,null,{root:path.join(area,'drafts')});
+});
+
+
+test('common authoring closeout mixed document export restart recovery and continued editing',async({},info)=>{
+ const area=await fs.realpath(await fs.mkdtemp(path.join(require('node:os').tmpdir(),'common-authoring-e2e-'))),draftRoot=path.join(area,'drafts');
+ let expected,receipt,bytes,draftId;
+ await usingDemo(async({app,page,snapshot})=>{
+  await page.locator('#empty-new').click();const id=await page.locator('#documents').inputValue();
+  expected=await authorMixedDocument(page,async()=>(await snapshot(id)).snapshot.source);
+  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+  const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);expect(bytes).toEqual(Buffer.from(expected));expect(saved.dirty).toBe(true);
+  await page.locator('#open-confirmed-copy').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');expect((await snapshot(await page.locator('#documents').inputValue())).snapshot.source).toBe(expected);
+  await selectDocument(page,id);await page.keyboard.press('Escape');await expect.poll(async()=>(await snapshot(id)).snapshot.draftBackup.state).toBe('backed-up');
+  draftId=await page.evaluate(label=>window.documentDemo.listDrafts().then(r=>r.drafts.find(d=>d.label===label)?.id),saved.label);expect(typeof draftId).toBe('string');
+  await captureTestWindow(app,info.outputPath('mixed-document.png'));
+ },info,null,true,true,false,null,{root:draftRoot});
+ await usingDemo(async({app,page,snapshot})=>{
+  await page.locator('#show-drafts').click();await page.locator(`[data-draft-id="${draftId}"]`).getByRole('button',{name:'恢复副本'}).click();
+  const id=await page.locator('#documents').inputValue(),restored=(await snapshot(id)).snapshot;expect(restored.source).toBe(expected);expect(restored.canUndo).toBe(false);expect(restored.confirmedCopy ?? null).toBeNull();
+  await page.locator('#editor .tiptap > p').last().click();await page.keyboard.press('End');await page.keyboard.insertText(' Continued.');await expect.poll(async()=>(await snapshot(id)).snapshot.source).toBe(expected+' Continued.');
+  await page.keyboard.press('Meta+z');await expect.poll(async()=>(await snapshot(id)).snapshot.source).toBe(expected);expect(await fs.readFile(receipt.filePath)).toEqual(bytes);
+  console.log('common-authoring-evidence:'+JSON.stringify({exported:receipt.filePath,sha256:receipt.sha256,draftRoot,draftId,restartRecovery:true,laterEditDoesNotChangeExport:true,nativeIME:'NOT VERIFIED',dialog:'stubbed'}));
+ },info,null,true,false,false,null,{root:draftRoot});
 });

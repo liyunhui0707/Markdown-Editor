@@ -47,14 +47,14 @@
   <details id="document-info" hidden>
     <summary title="文档信息与切换"><span id="document-name">Markdown</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 5 3 3 3-3"/></svg></summary>
     <div class="document-info-panel"><p id="document-full-name"></p><p id="document-location"></p>
-      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。已有简单链接可在编辑副本中修改文字，地址不变；暂不支持跨链接替换、删除整个链接或点击打开网页。其他未支持的 Markdown 格式按原文显示。</p></div>
+      <div id="document-switcher"></div><p id="document-info-note" class="document-info-note">原文件只读。编辑副本支持常用文字格式、简单链接、单层引用和基本代码块。链接面板可修改地址；点击链接不会打开网页。其他未支持的 Markdown 格式按原文显示。</p></div>
   </details>
 <div id="header-end"><button id="close-current-document" class="icon-button" hidden aria-label="关闭当前文档" title="关闭当前文档（⌘W）">×</button><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
 </header>
 <div id="writing-actions" hidden><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <div id="writing-status" hidden><span id="readonly-badge"></span><output id="backup-summary" role="status" hidden></output></div>
 <div id="format-toolbar" hidden role="toolbar" aria-label="正文格式">
-<select id="format-block" aria-label="段落格式" title="对当前单行段落或整个单层列表应用格式"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="heading-4">标题 4</option><option value="heading-5">标题 5</option><option value="heading-6">标题 6</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="unsupported" disabled>只读结构</option></select>
+<select id="format-block" aria-label="段落格式" title="对当前单行段落或整个单层列表应用格式"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="heading-4">标题 4</option><option value="heading-5">标题 5</option><option value="heading-6">标题 6</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="blockquote">引用</option><option value="code-block">代码块</option><option value="unsupported" disabled>只读结构</option></select>
 <button id="format-bold" aria-label="加粗" aria-pressed="false" title="选中文字加粗（⌘B）；取消时选中完整粗体">B</button>
 <button id="format-italic" aria-label="斜体" aria-pressed="false" title="选中文字设为斜体（⌘I）；取消时选中完整斜体"><em>I</em></button>
 <button id="format-code" aria-label="行内代码" aria-pressed="false" title="选中文字设为行内代码（⌘E）；取消时选中完整代码">&lt;/&gt;</button>
@@ -92,7 +92,7 @@
   <div class="welcome-actions"><button id="empty-new" disabled>新建草稿</button><button id="empty-open" disabled>打开 Markdown <kbd aria-hidden="true">⌘O</kbd></button></div>
   <p class="welcome-note">文件以只读方式打开，点击「编辑副本」开始修改。</p>
 </section>
-<div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Grey code blocks are read-only source.</p>
+<div class="developer-only"><p>Developer experiment · synthetic documents · memory edits only. Unsupported syntax is displayed as read-only source.</p>
 <button id="connect" disabled>Connect synthetic documents</button><select id="documents" aria-label="Synthetic documents"></select>
 <button id="reload">Reload memory</button><button id="check">Check disk</button><button id="save">Request save (denied)</button>
 <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button>

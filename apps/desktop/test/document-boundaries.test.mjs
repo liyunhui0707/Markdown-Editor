@@ -114,3 +114,14 @@ test('boundary key routing respects marks, selections and composition without ta
   assert.equal(key('**First**','First',0,'Backspace'),false);
   assert.equal(calls.length,3);
 });
+
+for(const nl of ['\n','\r\n','\r']) test(`Enter after a linked paragraph creates a new paragraph without rewriting the link ${JSON.stringify(nl)}`,()=>{
+  for(const body of ['[label](<../guide.md#part> "title")','A [label](https://example.test) **bold** *italic* `code`.']){
+    const source='# Keep'+nl+nl+body+nl+nl+'Tail'+nl,p=projectSource(source),last=p.spans.filter(s=>s.blockIndex===1).at(-1);
+    const r=mapFormatEdit(source,{action:'split-paragraph',from:last.to,to:last.to});
+    check(r,source,'# Keep'+nl+nl+body+nl+nl+nl+nl+'Tail'+nl);
+    assert.deepEqual(r.change,{from:source.indexOf(body)+body.length,to:source.indexOf(body)+body.length,insert:nl+nl});
+    const link=p.spans.find(s=>s.link);
+    assert.equal(mapFormatEdit(source,{action:'split-paragraph',from:link.from+1,to:link.from+1}).ok,false);
+  }
+});

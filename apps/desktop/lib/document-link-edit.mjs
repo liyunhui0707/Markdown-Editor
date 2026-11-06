@@ -2,7 +2,7 @@ import {projectSource,spanBlock} from './document-source-map.mjs';
 const reject=code=>({ok:false,code:code||'unsafe-link-range'});
 const splits=(s,n)=>/[\uD800-\uDBFF]/.test(s[n-1]||'')&&/[\uDC00-\uDFFF]/.test(s[n]||'');
 const textNode=text=>text?[{type:'text',text}]:[];
-const plain=s=>!s.bold&&!s.italic&&!s.code&&!s.link&&s.textOffset===undefined;
+const plain=s=>!s.codeBlock&&!s.bold&&!s.italic&&!s.code&&!s.link&&s.textOffset===undefined;
 const validString=s=>typeof s==='string'&&!/[\u0000-\u001f\u007f]/.test(s)
  && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
 export function validLinkTarget(href){

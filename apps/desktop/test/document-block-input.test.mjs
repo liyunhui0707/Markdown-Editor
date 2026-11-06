@@ -42,3 +42,27 @@ test('all heading levels work in an empty paragraph and can return to a paragrap
     assert.equal(mapFormatEdit(r.source,{action:'paragraph',...r.selection}).source,'');
   }
 });
+
+for(const nl of ['\n','\r\n','\r']) test(`heading accepts consecutive words one keystroke at a time (${JSON.stringify(nl)})`,()=>{
+  for(let level=1;level<=6;level++){
+    const tail=nl+nl+'Untouched **body**.'+nl;
+    let source='#'.repeat(level)+' '+tail;
+    for(const char of 'Field notes 中文😀'){
+      const s=projectSource(source).spans[0],r=mapTextEdit(source,{from:s.to,to:s.to,insert:char});
+      assert.equal(r.ok,true,JSON.stringify(source+char));source=r.source;
+    }
+    assert.equal(source,'#'.repeat(level)+' Field notes 中文😀'+tail);
+  }
+});
+test('heading margin spaces are editable while optional closing markers stay source-only',()=>{
+  for(const source of ['# Field  ','# **Title**  ','# *Title*  ','# `Title`  ','# [Title](https://example.test)  ']){
+    const p=projectSource(source),s=p.spans.at(-1);
+    assert.equal(p.doc.content[0].content.map(n=>n.text).join(''),'Title  '.replace('Title',source.includes('Field')?'Field':'Title'));
+    const r=mapTextEdit(source,{from:s.to,to:s.to,insert:'next'});
+    assert.equal(r.ok,true,source);assert.equal(r.source,source+'next');
+  }
+  const source='# Title #  \r\n\r\nBody';const p=projectSource(source),s=p.spans[0];
+  assert.equal(s.text,'Title');
+  const r=mapTextEdit(source,{from:s.from,to:s.from+1,insert:'t'});
+  assert.equal(r.ok,true);assert.equal(r.source,source.replace('Title','title'));
+});

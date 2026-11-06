@@ -19,7 +19,7 @@ test('single-backtick source is literal; normalized and nested constructs stay p
  for(const text of ['a<T> | $x \\ {}','*literal* [x](y)','a b',' x','x ']){
    const s='A `'+text+'` Z',p=span(s,text);assert.equal(p.code,true);assert.equal(mapTextEdit(s,{from:p.from+1,to:p.from+1,insert:'中'}).ok,true);
  }
- for(const s of ['` x `','``x``','`a\nb`','**`code`**','*`code`*','- [x] `task`','```\nfenced\n```','A <html> Z'])assert.equal(projectSource(s).spans.length,0,s);
+ for(const s of ['` x `','``x``','`a\nb`','**`code`**','*`code`*','- [x] `task`','```md extra\nfenced\n```','A <html> Z'])assert.equal(projectSource(s).spans.length,0,s);
  for(const s of ['A **bold** Z','A *italic* Z']){const p=projectSource(s).spans.find(p=>p.bold||p.italic);assert.equal(mapFormatEdit(s,{action:'code',from:p.from,to:p.to}).ok,false);}
  const s='A `code` Z';for(const a of ['bold','italic'])assert.equal(cmd(s,a,'code',0,4).ok,false);
  assert.equal(cmd(s,'code','code',1,3).ok,false);assert.equal(mapTextEdit(s,{from:4,to:4,insert:'`'}).ok,false);

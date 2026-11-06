@@ -89,7 +89,7 @@ test('writing V1: split/join inverses protect mixed line endings and unsupported
   const split=mapTextEdit(source,{from:one.from+1,to:one.from+1,insert:'\n\n'});
   assert.equal(split.ok,true);
   const back=mapTextEdit(split.source,split.inverse);assert.equal(back.ok,true);assert.equal(back.source,source);
-  for(const text of ['# heading','- list','> quote','```\ncode\n```','A **bold** end.']){
+  for(const text of ['# heading','- list','> quote','```md extra\ncode\n```','A **bold** end.']){
     const q=projectSource(text),s=q.spans.find(s=>s.text);
     assert.equal(mapTextEdit(text,{from:s?.from||1,to:s?.from||1,insert:'\n\n'}).ok,false);
   }
@@ -170,7 +170,7 @@ test('multiline paste V1: empty slots preserve terminal newline and surrounding 
   }
 });
 test('multiline paste V1: forbidden structure and ambiguous whitespace reject atomically', () => {
-  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```\ncode\n```']) {
+  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```md extra\ncode\n```']) {
     const span = projectSource(source).spans[0];
     assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
   }
@@ -224,4 +224,19 @@ for (const nl of ['\n', '\r\n']) test(`literal brackets: exact text editing and 
   // A definition elsewhere must not silently turn text into a reference link.
   const referenced = '[label\n\n[label]: /target';
   assert.equal(mapTextEdit(referenced, { from: 7, to: 7, insert: ']' }).ok, false);
+});
+
+test('typed margin spaces in mixed paragraphs remain visible until the next word',()=>{
+  for(const original of ['A **bold** tail.','[label](<../guide.md>) tail.']){
+    let source=original;
+    for(const char of ' next word'){
+      const s=projectSource(source).spans.at(-1),r=mapTextEdit(source,{from:s.to,to:s.to,insert:char});
+      assert.equal(r.ok,true,JSON.stringify(source+char));source=r.source;
+    }
+    assert.equal(source,original+' next word');
+  }
+  for(const original of ['**Bold**','*Italic*','`Code`','[Link](target)']){
+    const source=original+' ',s=projectSource(source).spans.at(-1);assert.equal(s.text,' ');
+    const r=mapTextEdit(source,{from:s.to,to:s.to,insert:'next'});assert.equal(r.ok,true);assert.equal(r.source,source+'next');
+  }
 });

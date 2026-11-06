@@ -1,8 +1,9 @@
+import {mapStructuredEdit} from './document-structured-edit.mjs';
 import { mapLinkEdit } from './document-link-edit.mjs';
 import { mapBoundaryEdit } from './document-boundary-edit.mjs';
 import { projectSource, spanBlock } from './document-source-map.mjs';
 const reject = () => ({ok:false,code:'unsafe-format-range'});
-const actions = ['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','block-shortcut','bold','italic','code','bullet-list','ordered-list','split-list','join-list','split-heading','split-paragraph','join-paragraph'];
+const actions = ['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','block-shortcut','fence-shortcut','blockquote','code-block','split-quote','join-quote','exit-block','bold','italic','code','bullet-list','ordered-list','split-list','join-list','split-heading','split-paragraph','join-paragraph'];
 const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
 const inline = text => text ? [{type:'text',text}] : [];
@@ -28,9 +29,13 @@ export function mapFormatEdit(source, command) {
   if(['split-list','join-list','split-paragraph','join-paragraph'].includes(action)) return mapBoundaryEdit(source,p,command,projectSource);
   const index=p.blocks.findIndex(b=>b && from>b.from && to<b.to);
   if(index<0) return reject();
+  const structured=p.blocks[index].quoteRows||p.blocks[index].codeBody;
+  if(['blockquote','code-block','split-quote','join-quote','exit-block','fence-shortcut'].includes(action)
+      ||(structured&&action==='paragraph')||(action==='block-shortcut'&&/^(?:>|```[A-Za-z0-9_+-]{0,32})$/.test(source.slice(p.blocks[index].sourceFrom,p.blocks[index].sourceTo))))
+    return mapStructuredEdit(source,p,command,projectSource);
   const block=p.blocks[index], node=p.doc.content[index], expected=structuredClone(p.doc);
   const list=!!block.items, selected=p.spans.find(s=>s.blockIndex===index && from>=s.from && to<=s.to);
-  let a=block.sourceFrom,b=block.sourceTo,text,offset=from-block.from-1, targetIndex=index,targetItem=null;
+  let a=block.sourceFrom,b=block.sourceTo,text,offset=from-block.from-1, targetIndex=index,targetItem=null,targetQuote=null;
   const nl=source.slice(a,b).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || '\n';
   if(action==='block-shortcut') {
     if(node.type!=='paragraph'||!selected||from!==to||selected.textOffset!==undefined
@@ -58,7 +63,7 @@ export function mapFormatEdit(source, command) {
       parent.content.splice(child,1,...inline(selected.text.slice(0,start)),{type:'text',text:value,marks:[{type:action}]},...inline(selected.text.slice(end)));
     }
     parent.content=merge(parent.content);
-    targetItem=selected.itemIndex??null; offset=to-(list?block.items[targetItem].from:block.from+1);
+    targetItem=selected.itemIndex??null;targetQuote=selected.quoteIndex??null; offset=to-(list?block.items[targetItem].from:targetQuote!==null?block.quoteRows[targetQuote].from:block.from+1);
   } else if(action==='split-heading') {
     if(node.type!=='heading'||!selected||selected.bold||selected.italic||selected.code||selected.link||node.content.length!==1||from!==to) return reject();
     const at=from-selected.from;
@@ -98,7 +103,7 @@ export function mapFormatEdit(source, command) {
   if(JSON.stringify(projection.doc)!==JSON.stringify(expected)) return reject();
   const target=projection.blocks[targetIndex];
   if(!target) return reject();
-  const position=(targetItem===null?target.from+1:target.items?.[targetItem]?.from)+offset;
+  const position=(targetItem!==null?target.items?.[targetItem]?.from:targetQuote!==null?target.quoteRows?.[targetQuote]?.from:target.from+1)+offset;
   if(!Number.isSafeInteger(position)||position>=target.to) return reject();
   return {ok:true,source:next,projection,change:{from:a,to:b,insert:text},
     inverseSource:{from:a,to:a+text.length,insert:source.slice(a,b)},selection:{from:['bold','italic','code'].includes(action)?position-(to-from):position,to:position}};

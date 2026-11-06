@@ -5,7 +5,7 @@ function transactionEdit(source, tr) {
   if (!tr.docChanged || tr.steps.length !== 1) return null;
   const shortcut=tr.getMeta('document-block-shortcut');
   if(shortcut) {
-    if(shortcut.action!=='block-shortcut') return null;
+    if(!['block-shortcut','fence-shortcut','split-quote','join-quote','exit-block','paragraph','split-heading','split-list','join-list','split-paragraph','join-paragraph'].includes(shortcut.action)) return null;
     const mapped=mapFormatEdit(source,shortcut),schema=tr.doc.type.schema;
     if(!mapped.ok || !tr.before.eq(schema.nodeFromJSON(projectSource(source).doc))
         || !tr.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;

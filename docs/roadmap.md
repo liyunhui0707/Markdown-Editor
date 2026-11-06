@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-05)
+## Current direction (2026-11-06)
 
 The Document writing workspace is now the default and available as a local
 `Markdown.app`. Preserve the accepted visual baseline and existing file-safety
@@ -9,13 +9,15 @@ complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
 Use short feature branches in the existing Worktree; no long-lived develop
 branch or release/tag is implied.
 
-Local checkpoint `01a4d7a` (0.43.0) preserves the two list-selection slices.
-The **0.48.0 local WIP checkpoint** on `feat/document-close` adds a complete
-link insert/edit/remove panel, following heading/list shortcuts, italic and
-inline-code editing. 399 targeted Node cases and three Pro source workflows pass;
-package identity is checked, but the running installed 0.46.0 app is untouched.
-Native IME, full CI, installed GUI and independent review are not established by
-this batch. General overwrite remains blocked by `coordination-required`.
+Local checkpoint `dd0eef4` (0.48.0, `feat/document-close`) preserves common inline
+formatting and the complete link panel. The **0.49.0 local WIP checkpoint** adds
+single-level quotes and basic fenced code as one writing workflow: creation,
+editing, exit to prose, history and export/reopen. The common-authoring closeout
+now passes a mixed-document workflow, packaged restart/recovery and installed
+startup: the local app is 0.49.0, with 0.46.0 preserved for rollback. 351 targeted
+Node cases, five source Electron workflows and one product-package workflow pass.
+Native IME, full CI and independent review are not established by this batch.
+General overwrite remains blocked by `coordination-required`.
 
 ### Delivery goals (updated after user feedback, 2026-11-05)
 
@@ -30,20 +32,21 @@ small changes internally without asking for a separate user approval per button.
 | Major stage | User outcome / exit criteria | Position |
 | --- | --- | --- |
 | Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
-| Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Current focus; heading/list shortcuts and link panel completed in this candidate, not full-stage acceptance |
+| Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Implemented and locally installed; mixed-document/export/recovery checks pass within supported syntax; native IME and broader acceptance remain open |
 | Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | Next major usability goal; cannot remove overwrite protection to claim completion |
 | Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | After core writing; prioritize real document needs |
 | Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
 
-The link package now covers creation, text/address editing, cancellation, removal,
-Undo/Redo and export/reopen. Next, group quotes and basic fenced code into one
-document-writing package: create, edit, exit back to prose, undo and export/reopen.
-Nested structures, code execution and advanced highlighting are outside that package.
-Keep URL navigation/security scope separate from link editing. Use
-workflow-level checkpoints rather than independent mini-stages for each button.
-Native IME, file integrity, SEC-01 and release checks remain continuous gates,
-not issues deferred until the last stage. The accumulated formatting work is retained in a user-authorized local WIP
-checkpoint; no merge or publication is implied.
+The everyday-authoring implementation and bounded installed closeout are complete;
+this is not general Markdown or release sign-off. Next move to the **everyday file
+workflow** stage, beginning with a small recent-documents / resume-writing entry
+point using existing open/session/draft services. A recent entry must not grant
+write authority; unavailable or changed files require a fresh validated open.
+Do not add another save framework or unlock overwrite. Preserve the visual baseline
+and keep unsaved draft, exported snapshot and subsequent edits distinct. Tasks,
+nesting, tables and images remain later broader-document work. Native IME, file
+integrity, SEC-01 and release checks remain continuous gates. No merge, publication
+or overwrite authorization is implied.
 
 ## Historical assessment — project recovery audit (2026-10-22)
 

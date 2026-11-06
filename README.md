@@ -5,7 +5,7 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.48.0 local WIP candidate:** this is not a signed/notarized release or a
+**0.49.0 local WIP candidate:** this is not a signed/notarized release or a
 promise of unrestricted Markdown editing/saving. Current limits are below.
 
 ## Open the application
@@ -20,24 +20,35 @@ then Space for headings, or `-`, `+`, `*`, `1.` / `3)` then Space for flat lists
 Bare prefixes stay visible until Space; an empty heading accepts text, Enter
 returns it to a paragraph, and Backspace at a heading start removes its format.
 Undo/Redo uses the existing document history. Heading levels 1–6 are also in
-the format menu. This is not general Markdown autoformatting: quotes, fences,
-tasks, nested lists and nested inline marks remain outside this batch.
+the format menu. Type `>` then Space for a single-level quote, or three backticks
+(optionally followed by a simple language name) then Enter for a fenced code block.
+The block menu also offers quote/code creation. Plain quote paragraphs split with
+Enter; Enter on the last empty quote paragraph returns to prose. Code supports
+literal Enter/Tab and multiline plain-text paste, including blank lines. **Cmd+Enter**
+exits either block into prose. Undo/Redo and new-file export/reopen preserve source
+markers and line endings. Nested/lazy/soft-wrapped quotes, splitting marked quote
+paragraphs, unclosed/metadata-bearing fences and code execution stay unsupported.
+Code-to-prose conversion is limited to one line; use Cmd+Enter for multiline code.
+Tasks, nested lists and nested inline marks remain outside this batch.
 The link button or **Cmd+K** opens an insert/edit panel. Select plain text or place
 the caret to insert; place the caret in a simple link to edit its text/address or
 remove the link while retaining its text. Cancel/Escape preserves the document;
 Undo/Redo covers the complete change. Unchanged addresses and existing titles
-retain their source spelling. Links stay inert; cross-link selection/splitting,
+retain their source spelling. Enter at the end of a linked paragraph continues
+with a new paragraph without rewriting the link. Links stay inert; cross-link selection/splitting,
 nested marks and title editing remain unsupported. The panel accepts http(s),
 mailto, relative and fragment targets, rejecting script/file protocols, credentials,
 whitespace and control characters. No URL is opened or fetched.
-The installed app is still 0.46.0: it was running, so this batch did not replace
-or close it. A separate unsigned 0.48.0 candidate package is prepared.
-The 0.43.0 checkpoint remains `01a4d7a`; the accumulated formatting work is
-retained in the local 0.48.0 WIP checkpoint.
-399 targeted Node cases and three Pro source Electron workflows pass.
-Packaged source/version checks pass; installed GUI acceptance is pending.
-Air, independent review and full CI were not run for this batch. Native IME and
-historical manual failures are not globally cleared by controlled tests.
+The installed app is now **0.49.0**. The previous 0.46.0 bundle is retained locally
+for recovery; user documents and existing drafts were not migrated. The 0.48.0
+checkpoint is `dd0eef4`; the following local 0.49.0 WIP preserves quote/code and authoring closeout.
+The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
+existing final newline, and structural keys arriving before text acknowledgements.
+351 targeted Node cases, five source Electron workflows, one real packaged-app
+workflow and installed startup pass. Export/reopen and restart recovery preserve
+verified source bytes. Controlled dialogs/clipboard and text insertion are not
+native IME acceptance. Air, independent review and full CI were not run for this
+batch; historical manual failures and release limitations remain.
 
 With existing development dependencies, start the same UI from source:
 

@@ -1,6 +1,6 @@
 // Small command surface over the same source controller and main-owned history.
 export function createFormatView({ byId, context, report }) {
-  const actions=['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','bullet-list','ordered-list'];
+  const actions=['paragraph','heading-1','heading-2','heading-3','heading-4','heading-5','heading-6','bullet-list','ordered-list','blockquote','code-block'];
   const blocked=()=>{const {state:s,loading,invalid}=context();return !s || s.confirmed.readOnly || s.locked || invalid || loading || s.composing || s.compositionInvalid || s.pending || s.historyPending || s.recoveryRecords.length;};
   async function run(action) {
     const c=context(); if(blocked()||!c.editor) return false;
@@ -8,9 +8,9 @@ export function createFormatView({ byId, context, report }) {
     const ok=await c.controller.format({action,from,to});
     if(context().controller!==c.controller) return false;
     if(!ok) report(c.controller.state().code==='unsafe-format-range'
-      ? '此处暂不支持该格式操作，原文已保留。标题限单行；粗体/斜体/行内代码需选中同一文字片段（取消时选中完整格式文字），暂不支持叠加；链接仅支持修改文字，含链接的段落暂不拆分或合并；列表限单层，空项退出仅支持首项或末项。'
+      ? '此处暂不支持该格式操作，原文已保留。标题限单行；粗体/斜体/行内代码需选中同一文字片段（取消时选中完整格式文字），暂不支持叠加；链接请使用链接面板；引用限单层，带格式引用暂不拆分；代码块用 ⌘Enter 回到正文。列表限单层，空项退出仅支持首项或末项。'
       : '格式修改未确认，当前内容仍保留。请查看输入或会话状态。',true);
-    else report('格式已应用；原文件未改写。');
+    else report(action==='code-block'?'代码块中 Enter 换行、Tab 缩进；⌘Enter 回到正文。':action==='blockquote'?'引用中 Enter 分段，末尾空段再按 Enter 回到正文。':'格式已应用；原文件未改写。');
     if(!context().invalid && !c.controller.state().locked) c.editor.view.focus();
     sync(); return ok;
   }
@@ -27,7 +27,7 @@ export function createFormatView({ byId, context, report }) {
   function sync() {
     const {state:s,editor}=context();
     byId('format-toolbar').hidden=!s || s.confirmed.readOnly || s.confirmed.temporary!==true;
-    const busy=!!blocked();selector.disabled=busy;for(const mark of ['bold','italic','code'])byId('format-'+mark).disabled=busy||!editor||editor.state.selection.empty;
+    const busy=!!blocked();selector.disabled=busy;for(const mark of ['bold','italic','code'])byId('format-'+mark).disabled=busy||!editor||editor.state.selection.empty||editor.state.selection.$from.parent.type.name==='codeBlock';
     byId('format-undo').disabled=busy||!s?.confirmed.canUndo;byId('format-redo').disabled=busy||!s?.confirmed.canRedo;
     let value='paragraph';
     if(editor) {
@@ -37,7 +37,8 @@ export function createFormatView({ byId, context, report }) {
         if(node.type.name==='bulletList') {value='bullet-list';break;}
         if(node.type.name==='orderedList') {value='ordered-list';break;}
         if(node.type.name==='heading')value='heading-'+node.attrs.level;
-        if(node.type.name==='codeBlock')value='unsupported';
+        if(node.type.name==='blockquote')value='blockquote';
+        if(node.type.name==='codeBlock')value=node.attrs.sourceEditable?'code-block':'unsupported';
       }
     }
     selector.value=value;

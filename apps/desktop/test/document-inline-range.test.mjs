@@ -26,7 +26,7 @@ for (const marker of ['**','__']) test(`inline range projection and exact source
   const prefix='---\r\nkind: synthetic\r\n---\r\n\r\n';
   const body=`A中😀 ${marker}B文😀${marker} C尾😀.`;
   const suffix='\r\n\r\n```md\r\nkeep **bytes**\r\n```\r\n';
-  const raw=prefix+body+suffix, p=projectSource(raw), spans=p.spans, left=spans[0],right=spans.at(-1);
+  const raw=prefix+body+suffix, p=projectSource(raw), spans=p.spans.filter(s=>s.blockIndex===1), left=spans[0],right=spans.at(-1);
   const doc=schema.nodeFromJSON(p.doc);let accepted=0;
   for(let from=left.from;from<=right.to;from++) for(let to=from;to<=right.to;to++) {
     for(const insert of ['','新😀']) {

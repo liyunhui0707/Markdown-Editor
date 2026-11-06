@@ -6,12 +6,14 @@ export function mapInlineRange(source, projection, change, project) {
   const index=projection.blocks.findIndex(b=>b && from>b.from && to<b.to);
   if(index<0) return null;
   const block=projection.blocks[index],list=!!block.items;
-  if(!list && projection.doc.content[index].type!=='paragraph') return null;
+  const quoteRow=block.quoteRows?.findIndex(r=>from>=r.from&&to<=r.to);
+  const quoted=quoteRow!==undefined&&quoteRow>=0;
+  if(!list&&!quoted&&projection.doc.content[index].type!=='paragraph')return null;
   const itemIndex=list?block.items.findIndex(row=>from>=row.from&&from<=row.to):undefined;
   const endItem=list?block.items.findIndex(row=>to>=row.from&&to<=row.to):undefined;
   if(list && (itemIndex<0||endItem<itemIndex))return reject();
   const cross=list&&endItem>itemIndex;
-  const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:s.itemIndex===undefined));
+  const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:quoted?s.quoteIndex===quoteRow:s.itemIndex===undefined));
   // V1 edits one link label at a time. Never reconstruct its destination.
   if(spans.some(s=>s.link))return reject();
   if((!list&&!spans.some(s=>s.bold||s.italic||s.code))||spans.some(s=>s.textOffset!==undefined)) return null;
@@ -63,7 +65,7 @@ export function mapInlineRange(source, projection, change, project) {
   for(const s of tokens.slice(0,tokens.indexOf(first)))add(s);
   pieces.forEach(add);
   for(const s of tokens.slice(tokens.indexOf(last)+1))add(s);
-  const target=list?expected.content[index].content[itemIndex].content[0]:expected.content[index];
+  const target=list?expected.content[index].content[itemIndex].content[0]:quoted?expected.content[index].content[quoteRow]:expected.content[index];
   target.content=nodes;
   if(cross)expected.content[index].content.splice(itemIndex+1,endItem-itemIndex);
   const nextProjection=project(next);
