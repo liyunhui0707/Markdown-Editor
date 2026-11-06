@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { getSchema } from '@tiptap/core';
 import { documentEditorExtensions } from '../lib/document-editor-extensions.mjs';
 import { projectSource } from '../lib/document-source-map.mjs';
-import { defaultReading, changeReading, documentHeadings, createReadingView } from '../lib/document-reading-view.mjs';
+import { defaultReading, changeReading, documentHeadings, createReadingView, activeHeadingIndex } from '../lib/document-reading-view.mjs';
 const schema = getSchema(documentEditorExtensions());
 const projected = source => schema.nodeFromJSON(projectSource(source).doc);
 
@@ -91,4 +91,41 @@ test('closing the last document clears outline rows and stale navigation', t => 
   c.state=undefined; c.editor=null; view.sync();
   assert.equal(byId('outline-list').children.length,0); stale.onclick();
   assert.equal(scroll.calls,undefined);
+});
+
+
+test('active heading lookup is logarithmic for a large ordered outline', () => {
+  let reads=0;
+  assert.equal(activeHeadingIndex(4096, index => { reads++; return index * 100; }, 205050),2050);
+  assert.ok(reads<=13,`layout reads: ${reads}`);
+  assert.equal(activeHeadingIndex(0,()=>{throw Error('no headings');},0),-1);
+  assert.equal(activeHeadingIndex(3,i=>i*100,-10),0);
+  assert.equal(activeHeadingIndex(3,i=>i*100,999),2);
+});
+test('outline filtering is literal, preserves source and resets across sessions', t => {
+  const {c,byId,view,scroll}=fixture(t), before=structuredClone(c.state);
+  byId('outline-filter').value='SECOND';byId('outline-filter').oninput();
+  assert.equal(byId('outline-list').children[0].hidden,true);
+  assert.equal(byId('outline-list').children[1].hidden,false);
+  assert.equal(byId('outline-count').textContent,'1 / 2');
+  byId('outline-filter').onkeydown({key:'Enter',preventDefault(){}});assert.equal(scroll.calls,1);
+  byId('outline-filter').value='.*';byId('outline-filter').oninput();
+  assert.equal(byId('outline-empty').textContent,'没有匹配的标题。');
+  assert.deepEqual(c.state,before);
+  c.state.confirmed={...c.state.confirmed,sessionId:'b'};view.sync();
+  assert.equal(byId('outline-filter').value,'');assert.equal(byId('outline-count').textContent,'2');
+});
+test('outline navigation waits for native composition even before controller catches up', t => {
+  const {c,byId,view,scroll}=fixture(t);c.editor.view.composing=true;view.sync();
+  byId('outline-list').children[0].onclick();assert.equal(scroll.calls,undefined);
+});
+
+
+test('outline filter composition cannot jump on the candidate confirmation key', t => {
+  const {byId,scroll}=fixture(t), input=byId('outline-filter');
+  input.oncompositionstart();input.value='Second';input.oninput();
+  input.onkeydown({key:'Enter',preventDefault(){throw Error('candidate key consumed');}});
+  assert.equal(scroll.calls,undefined);input.oncompositionend();
+  assert.equal(byId('outline-count').textContent,'1 / 2');
+  input.onkeydown({key:'Enter',preventDefault(){}});assert.equal(scroll.calls,1);
 });

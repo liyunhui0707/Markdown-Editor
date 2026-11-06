@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-06)
+## Current direction (2026-11-07)
 
 The Document writing workspace is now the default and available as a local
 `Markdown.app`. Preserve the accepted visual baseline and existing file-safety
@@ -19,6 +19,13 @@ Node cases, five source Electron workflows and one product-package workflow pass
 Native IME, full CI and independent review are not established by this batch.
 General overwrite remains blocked by `coordination-required`.
 
+The **0.56.1 local WIP checkpoint** preserves the installed broader-document
+batch without a further version/runtime change. The immediate next step is a
+bounded real-writing acceptance pass: input/history, image export/reopen and long
+article navigation/source. Pending native IME, historical failures, full CI and
+SEC-01 remain explicit; this checkpoint does not start existing-file overwrite
+or claim daily-use release readiness.
+
 ### Delivery goals (updated after user feedback, 2026-11-05)
 
 The goal is a local-first Mac Markdown app: write continuously in one WYSIWYG
@@ -34,7 +41,7 @@ small changes internally without asking for a separate user approval per button.
 | Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
 | Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Implemented and locally installed; mixed-document/export/recovery checks pass within supported syntax; native IME and broader acceptance remain open |
 | Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | 0.51.0 locally checkpointed and installed: recent documents, resume writing, draft naming and export-name continuity; bounded checks pass, human acceptance remains open; overwrite protection remains |
-| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | 0.54.0 tasks/nesting, plain-cell tables and image references installed; package workflow verified; actual image preview/import and focused human acceptance remain open |
+| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | 0.56.1 installed local WIP checkpoint includes local PNG/JPEG import/export/recovery, filtered outline, read-only source and bounded input-pressure recovery; prior tasks/tables/reference baseline retained; focused human acceptance remains open |
 | Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
 
 The everyday-authoring implementation and bounded installed closeout are complete;
@@ -343,3 +350,42 @@ Outputs:
 - setup instructions
 - demo vault
 - MCP setup instructions
+
+
+### Local image workflow delivery (2026-11-06)
+
+0.55.0 completes the bounded local-image workflow within Broader documents:
+choose PNG/JPEG, preview, undo, back up, export with sidecars, reopen and recover.
+The visual baseline is unchanged. Packaged native-image selection and the
+image/export/recovery workflow pass; 0.55.0 is installed with 0.54.0 retained for
+rollback. Source remains uncommitted. Focused human acceptance remains pending
+before broadening syntax or save destinations; installation is not release approval.
+Long-document work and a bounded source/preview escape hatch remain in this stage;
+ordinary existing-file overwrite still requires a separately proven coordination
+solution. Do not restart the blocked replacement experiment to finish images.
+
+
+### Long-document and source candidate (2026-11-06)
+
+0.56.0 source adds filtered outline navigation, bounded scroll measurements and
+complete read-only source viewing within Broader documents. It also fixes the
+0.55.0 opaque-block attachment lookup regression. 43 focused Node checks and two
+Pro Electron workflows pass. 0.56.0 is installed; packaged paced typing,
+outline/source, history/recovery and installed startup pass, with prior records
+unchanged and 0.55.0 retained for rollback. Source remains uncommitted.
+Integrated delivery exposed the existing 64-edit queue limit under zero-delay
+input: rejected keys are absent and later acknowledgements obscure the warning.
+The stress failure is retained; a 20 ms per-key run preserved all 1,066 characters.
+0.56.1 now implements deterministic queue saturation pause/recovery. Next finish
+focused human acceptance and checkpoint readiness on the accepted visual baseline
+before expanding authoring; do not split further feature work into this fix. Do not equate this bounded fixture with unlimited
+large-file performance or reopen unrestricted saving/source editing. Native IME,
+accessibility, broader performance, full CI and release gates remain outstanding.
+
+
+### Input saturation correction (2026-11-07)
+
+0.56.1 completes the bounded pause/notice/recovery fix within the current
+Broader documents stage. It does not raise the queue limit or introduce new
+file-writing authority. Source, actual-package checks and delivery evidence are
+recorded in stage history; native IME and broad authoring acceptance remain open.

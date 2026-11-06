@@ -1,5 +1,61 @@
 # Manual Test Checklist  
 
+## Input saturation correction — 0.56.1 (2026-11-07)
+
+Automated verification passes; human acceptance is pending. No user needs to
+manually force 65 queued edits. If the pause notice appears during normal use,
+confirm it persists, copy needed text from the retained Markdown, and explicitly
+acknowledge before resuming. Later accepted replies must not hide it. Pending
+operations must settle first; switching documents must preserve the record.
+Check light/dark readability. The record is window-local, not a backup; do not
+close before retaining needed text. Controlled composition tests do not establish
+native Chinese IME acceptance or remove historical manual/formal FAIL.
+
+
+## Long documents / read-only source — 0.56.0 installed WIP (2026-11-07)
+
+Pending human acceptance on the installed 0.56.0 App. Packaged paced typing,
+outline/source, history/recovery and startup passed controlled automation.
+Zero-delay automated input exceeded the 64-edit queue and lost rejected keys;
+this historical FAILED case remains recorded. 0.56.1 adds bounded pause/recovery;
+it does not promise unlimited input throughput. Controlled results do not replace these checks:
+
+1. Open a long article, filter an outline title and press Enter to jump; clear
+   with Escape. Duplicate headings remain separate targets. Scroll and confirm
+   the active heading follows the article; filtering does not change the body.
+2. Open **源码**. Confirm heading markers, unsupported syntax and original line
+   endings/BOM description. Select/copy text, toggle wrapping, press Escape;
+   return to the same article position and continue editing/Undo/Redo.
+3. While Chinese input is composing, the source trigger must not steal focus;
+   finish input and retry. This is still native IME NOT VERIFIED, not a cleared
+   historical manual/formal FAIL.
+4. Switch documents and inspect source again: no prior document text. Check a
+   narrow window and light/dark appearance. Source is read-only, with no original
+   overwrite; copy selection is not a byte-exact backup. Existing drafts/export
+   retain their original meanings.
+
+
+
+## Local images — 0.55.0 installed local WIP (2026-11-06)
+
+Human acceptance is pending; these features are included in installed 0.56.0. The actual 0.55.0 package passed
+macOS native PNG selection through computer-use automation, preview/history,
+attachment export, readonly reopening and restart recovery. Save/close choices
+in that package test were controlled; earlier source E2E also covers JPEG.
+Native IME is NOT VERIFIED; historical formal/manual FAIL remains.
+
+1. In a scratch draft, use image → 选择本地图片 with a small PNG/JPEG. Check the
+   native picker, cancel, description, preview, Enter, Undo/Redo and normal typing.
+2. Export to a supported local folder with a new name. Keep the Markdown and
+   image sidecars together; reopen and check both images and text. Original image
+   and original Markdown must be unchanged. Later edits stay in the draft.
+3. Wait for confirmed draft backup, close and recover. Check images and text;
+   old Undo history and export authority must not return. Image drafts need 0.55.0.
+4. Unsupported/oversize images and missing or replaced attachments must not appear
+   as confirmed exports. Preserve any partial/unknown result; do not retry or delete
+   it blindly. Check narrow/dark layout and real IME without treating automation
+   as native input-method acceptance.
+
 ## Image references — 0.54.0 installed candidate (2026-11-06)
 
 Human acceptance is pending. The local app at `~/Applications/Markdown.app` is

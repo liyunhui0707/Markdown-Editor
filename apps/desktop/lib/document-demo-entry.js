@@ -1,8 +1,11 @@
+import { createInputPressureView } from './document-input-pressure-view.mjs';
+import {createImagePreviews} from './document-image-preview.mjs';
 import {createImageView} from './document-image-view.mjs';
 import {createTableView} from './document-table-view.mjs';
 import { createNameView } from './document-name-view.mjs';
 import { createCloseView } from './document-close-view.mjs';
 import { createFindPlugin, createFindView } from './document-find-view.mjs';
+import { createSourceView } from './document-source-view.mjs';
 import { createReadingView } from './document-reading-view.mjs';
 import { createFormatView } from './document-format-view.mjs';
 import { Editor, Extension, getSchema } from '@tiptap/core';
@@ -29,10 +32,12 @@ let switching = false, switchEpoch = 0, pendingSession = null, failedSession = n
 const drafts = new Map(), lifecycles = new Map();
 const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const tableView=createTableView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
-const imageView=createImageView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
+const imagePreviews=createImagePreviews({api,context:()=>({state:controller?.state(),loading})});
+const imageView=createImageView({api,byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-const writingShell = createWritingShell({ byId, reading: readingView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
+const sourceView = createSourceView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 const recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: id => openDocument(false, false, null, null, id), restore: id => openDocument(true, false, id) });
@@ -101,6 +106,7 @@ async function copyComposition(kind) {
   renderCompositionCopies(controller.state());
 }
 const activeInvalid = () => lifecycles.has(selected);
+const inputPressure = createInputPressureView({ byId, context: () => ({ controller, state: controller?.state(), invalid: activeInvalid(), loading }), focus: () => editor?.view.focus() });
 const copyActionsView = createCopyActionsView({ api, byId,
   context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
   open: request => openDocument(false, false, null, request),
@@ -127,8 +133,8 @@ function show(code) {
     canUndo: current?.canUndo, canRedo: current?.canRedo });
 }
 function render(s) {
-  const records = s.recoveryRecords;
-  drafts.set(selected, records);
+  drafts.set(selected, s.recoveryRecords);
+  const records = s.recoveryRecords.filter(r => r.reason !== 'edit-queue-full');
   byId('documents').value = selected;
   byId('source').textContent = s.confirmed.source;
   byId('recovery').textContent = records.map(r => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? 'snapshot matches' : 'not reapplied'}\n${r.source}${'visibleText' in r ? `\nPartial DOM text (possibly incomplete):\n${r.visibleText ?? '[unavailable]'}` : ''}`).join('\n\n----\n\n');
@@ -148,7 +154,7 @@ function render(s) {
   const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
   if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
   for(const button of editor?.view.dom.querySelectorAll('.document-task-toggle')||[]) {
-    button.disabled=!editable||s.composing||s.compositionInvalid||records.length>0;
+    button.disabled=!editable||s.composing||s.compositionInvalid||s.recoveryRecords.length>0;
     button.setAttribute('aria-disabled',String(button.disabled));
   }
   if (readOnlyWindow) {
@@ -165,12 +171,13 @@ function render(s) {
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
-    if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
+    if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus('');
+    else if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
     else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 块保持只读。', true);
     else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); closeView.sync(); show();
+  inputPressure.sync(); draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -236,7 +243,7 @@ function install(snapshot) {
         'Mod-Shift-z': () => { void history('redo'); return true; } };
     } });
     editor = new Editor({ element: byId('editor'), content: projectSource(snapshot.source).doc, enableInputRules: false, enablePasteRules: false,
-      extensions: [...documentEditorExtensions((view,position)=>applyTaskToggle(view,position,{controller,loading,invalid:activeInvalid()})), gate],
+      extensions: [...documentEditorExtensions((view,position)=>applyTaskToggle(view,position,{controller,loading,invalid:activeInvalid()}),imagePreviews.nodeView), gate],
       editorProps: { attributes: { tabindex: '0' }, handleDOMEvents: {
         keydown: (view, event) => {
           syncNativeListSelection(view,event,{state:controller?.state(),blocked:activeInvalid()||loading||readOnlyDocument()});
@@ -359,11 +366,11 @@ async function finishDocumentClose(id) {
   navigationError = ''; failedSession = null; pendingSession = null;
   for (const name of ['document-info', 'edit-copy', 'create-test-copy', 'temporary-notice', 'writing-status',
     'copy-summary-compact', 'copy-operation-alert', 'confirmed-copy-actions', 'composition-warning',
-    'composition-status', 'composition-copy-panel', 'recovery-panel']) byId(name).hidden = true;
+    'composition-status', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId(name).hidden = true;
   for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
   document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
   for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
-  loading = false; nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();
+  loading = false; inputPressure.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();
   if (next) {
     byId('documents').value = next.value; await load();
     if (controller) { byId('document-info').hidden = false; byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; }

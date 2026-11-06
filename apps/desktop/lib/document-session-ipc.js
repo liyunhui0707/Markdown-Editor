@@ -9,14 +9,14 @@ const CHANNEL = 'document-demo:request';
 const sourceHash = source => createHash('sha256').update(source).digest('hex');
 
 // Main-owned native selection / confirmed receipt authority; no renderer paths or policies.
-function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit = null, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null, revealFile = null, confirmClose = null, recentFiles = null }) {
+function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormatEdit = null, windowFor, chooseFile = null, createTemporary = null, allowTestCopies = false, chooseCopy = null, draftStore = null, revealFile = null, confirmClose = null, recentFiles = null, images = null, chooseImage = null }) {
   const bindings = new Map(), sessions = new Map(), retained = new Set();
   const backups = draftStore && createDraftBackups(draftStore, (document, backup) => {
     for (const [sessionId, s] of sessions) if (s.document === document) {
       try { if (!s.sender.isDestroyed()) s.sender.send('document-demo:draft-status', { sessionId, backup }); }
       catch { /* Backup remains on disk even when renderer is gone. */ }
     }
-  });
+  }, document => images?.attachments(document) || []);
   function invalidate(id, s) {
     backups?.release(s.document);
     sessions.delete(id); // Revoke authority before notifying the captured owner.
@@ -50,7 +50,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function copyState(s, receipt = service.getCopyState(s.document)) {
     if (!receipt) return null;
     const safe = {};
-    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId'])
+    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId', 'attachments', 'attachmentPaths'])
       if (Object.hasOwn(receipt, key)) safe[key] = receipt[key];
     return safe;
   }
@@ -102,6 +102,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     try {
       if (authorizedBinding(event) !== binding) { service.close(opened.document); return failure('unauthorized-sender'); }
       if (recent && !recentFiles.matches(recent, opened.document)) { service.close(opened.document); return failure('recent-file-unavailable'); }
+      images?.open(opened.document);
       const id = provision(binding.win, opened.document, path.basename(file), { readOnly: true });
       try { recentFiles?.remember(opened.document); } catch { /* A history failure cannot undo a valid open. */ }
       return { ok: true, ...(recent ? { recentId: recent.id } : {}), snapshot: snapshot(id, sessions.get(id)) };
@@ -127,6 +128,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
       if (!opened?.ok) return failure('temporary-create-failed');
       const number = ++binding.temporaryCount;
       const label = recovery ? recovery.label : source ? `${source.label.replace(/\.md$/i, '')} · 编辑副本 ${number}` : '未命名 ' + number;
+      images?.attach(opened.document, source?.document, recovery);
       const id = provision(binding.win, opened.document, label, { temporary: true });
       backups?.attach(opened.document, label, recovery);
       return { ok: true, snapshot: snapshot(id, sessions.get(id)) };
@@ -151,6 +153,19 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     } catch { return { ok: false, code: 'persistent-copy-failed', copy: copyState(s), ...(authorized() ? { snapshot: snapshot(id, s) } : {}) }; }
     finally { s.copying = false; }
   }
+  async function importImage(event, binding, id, s, payload) {
+    if (!images || !chooseImage || !s.temporary || s.readOnly || s.document.blocked) return failure('image-import-unavailable');
+    s.copying = true;
+    try {
+      const selected = await chooseImage(binding.win);
+      if (authorizedBinding(event) !== binding || sessions.get(id) !== s || s.document.revision !== payload.expectedRevision) return failure('image-session-changed');
+      if (selected?.canceled === true) return failure('image-cancelled');
+      if (selected?.canceled !== false || !Array.isArray(selected.filePaths) || selected.filePaths.length !== 1) return failure('invalid-image-selection');
+      const href = images.importFile(s.document, selected.filePaths[0]);
+      return {ok: true, sessionId: id, revision: s.document.revision, href};
+    } catch (cause) { return failure(cause.code || 'image-import-failed'); }
+    finally { s.copying = false; }
+  }
   function followCopy(event, binding, id, s, payload) {
     if (!allowTestCopies || !s.temporary || s.readOnly) return failure('confirmed-copy-unavailable');
     const opening = payload.operation === 'open-confirmed-copy';
@@ -167,6 +182,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
         revealFile(result.filePath); // Verified main-owned path; a display request, not a write.
         return { ok: true, copyId: payload.copyId };
       }
+      images?.open(result.document);
       const next = provision(binding.win, result.document, path.basename(result.document.filePath), { readOnly: true });
       const view = snapshot(next, sessions.get(next)); kept = true;
       try { recentFiles?.remember(result.document); } catch { /* Verified open is independent of navigation history. */ }
@@ -177,7 +193,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'import-image': ['operation', 'sessionId', 'expectedRevision'], 'image-preview': ['operation', 'sessionId', 'expectedRevision', 'href'], 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action', 'label', 'href'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       save: ['operation', 'sessionId', 'expectedRevision'], close: ['operation', 'sessionId', 'expectedRevision'],
@@ -222,13 +238,15 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     if (s.closing) return reply(failure('close-in-progress'));
     if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
-    if (s.readOnly && ['rename-draft', 'format', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['rename-draft', 'open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
+    if (s.readOnly && ['import-image', 'rename-draft', 'format', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
+    if (['import-image', 'image-preview', 'rename-draft', 'open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
     try {
       switch (payload.operation) {
+        case 'import-image': return importImage(event, binding, id, s, payload);
+        case 'image-preview': return images ? {ok: true, sessionId: id, revision: s.document.revision, href: payload.href, dataUrl: images.preview(s.document, payload.href)} : failure('image-preview-unavailable');
         case 'rename-draft': {
           if (!s.temporary || !backups || s.document.blocked) return reply(failure('draft-name-unavailable'));
           if (payload.expectedLabel !== s.label) return reply(failure('stale-draft-name'));
@@ -280,6 +298,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
           for(const key of ['label','href'])if(Object.hasOwn(payload,key))command[key]=payload[key];
           const mapped = mapFormatEdit(before, command);
           if (!mapped.ok) return reply(failure(mapped.code));
+          if (payload.action === 'set-image') images?.validateChange(s.document, mapped.source);
           const result = s.document.edit({ ...mapped.change, expectedRevision: payload.expectedRevision });
           if (result.ok && s.document.text !== before) {
             // Source patches are main-owned history only; the renderer can never submit one.

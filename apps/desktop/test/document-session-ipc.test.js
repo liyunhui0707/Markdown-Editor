@@ -645,3 +645,18 @@ test('draft rename preload fences input and unknown outcomes and checks name/ses
  const f=preloadFixture(),lost=f.api.renameDraft(q);f.pending[0].reject(Error('lost'));assert.equal((await lost).ok,false);
  assert.equal((await f.api.createPersistentCopy({sessionId:'draft'})).code,'ipc-outcome-unknown');
 });
+test('local image preload blocks composition and native-pick overlap; preview cannot hold the typing fence', async () => {
+ const f=preloadFixture(),q={sessionId:'image-session',expectedRevision:2},href='markdown-image-'+'a'.repeat(64)+'.png';
+ f.dom.emit('compositionstart');assert.equal((await f.api.importImage(q)).code,'composition-active');assert.equal(f.pending.length,0);f.dom.emit('compositionend');
+ const preview=f.api.imagePreview({...q,href}),pick=f.api.importImage(q);assert.equal(f.pending.length,2);
+ assert.equal((await f.api.format({...q,action:'bold',from:1,to:2})).code,'document-busy');
+ f.pending[1].resolve({ok:true,sessionId:q.sessionId,revision:2,href});assert.equal((await pick).ok,true);
+ f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:2,href,dataUrl:'data:image/svg+xml;base64,AAAA'});assert.equal((await preview).ok,false);
+ const forged=f.api.importImage(q);f.pending[2].resolve({ok:true,sessionId:'different',revision:2,href});assert.equal((await forged).ok,false);
+ assert.equal((await f.api.createPersistentCopy(q)).ok,false);
+});
+test('local image preload ignores stale preview after session revocation', async () => {
+ const f=preloadFixture(),q={sessionId:'image-session',expectedRevision:1,href:'markdown-image-'+'b'.repeat(64)+'.png'};
+ const preview=f.api.imagePreview(q);f.events.emit('document-demo:invalidated',{}, {sessionId:q.sessionId});
+ f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:1,href:q.href,dataUrl:'data:image/png;base64,AAAA'});assert.equal((await preview).ok,false);
+});

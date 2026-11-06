@@ -58,11 +58,11 @@ function nodeFork(hooks = {}) {
     return child;
   };
 }
-function fixture(writer) {
+function fixture(writer, attachments = []) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-safe-create-'))); fs.chmodSync(root, 0o700);
   process.chdir(root); // Dedicated Node test process only.
   const seed = path.join(root, 'seed.md'); fs.writeFileSync(seed, '', { flag: 'wx', mode: 0o600 });
-  const service = createDocumentService({ isolatedCreateRoot: root, persistentWriter: writer });
+  const service = createDocumentService({ isolatedCreateRoot: root, persistentWriter: writer, attachmentsFor: () => attachments });
   const document = service.open(seed, { syntheticTemporary: true }).document;
   assert.equal(document.edit({ from: 0, to: 0, insert: text, expectedRevision: 0 }).ok, true);
   const request = filePath => ({ filePath, expectedRevision: document.revision, expectedSha256: hash(document.bytesForSave()), isAuthorized: () => true });
@@ -420,4 +420,30 @@ for (const mutation of [null, 'attribute', 'content', 'ctime', 'mode']) test('fi
       console.log('first-metadata-evidence:' + evidence);
     }
   }
+});
+
+const imageBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64');
+const imageName=require('../lib/document-local-images').imageAsset(imageBytes).name;
+const imageAttachments=[{name:imageName,base64:imageBytes.toString('base64')}];
+test('image sidecars use exclusive writer, parent verification and identical readonly reuse',async()=>{
+ const d=destination({cleanup:true}),f=fixture(createCopyProcess({fork:nodeFork()}).create,imageAttachments);
+ const first=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(first.ok,true,JSON.stringify(first));assert.equal(first.attachments.length,1);
+ assert.deepEqual(fs.readFileSync(path.join(d.dir,imageName)),imageBytes);const identity=fs.statSync(path.join(d.dir,imageName)).ino;
+ d.owned.recordFile('copy.md',Buffer.from(text));d.owned.recordFile(imageName,imageBytes);
+ const second=await f.service.createPersistentCopy(f.document,f.request(path.join(d.dir,'second.md')));assert.equal(second.ok,true,JSON.stringify(second));assert.equal(second.attachments[0].created,false);assert.equal(fs.statSync(path.join(d.dir,imageName)).ino,identity);
+ assert.equal(f.document.dirty,true);assert.equal(fs.readFileSync(f.seed,'utf8'),'');d.owned.recordFile('second.md',Buffer.from(text));reclaim(d.owned);
+});
+test('partial image write retains artifacts and draft, never creates Markdown or retries',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork({fault:'partial'})}).create,imageAttachments);
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.state,'created-partial');assert.equal(fs.existsSync(d.filePath),false);
+ assert.equal(fs.readFileSync(path.join(d.dir,imageName)).length,3);assert.equal(f.document.dirty,true);
+ assert.equal((await f.service.createPersistentCopy(f.document,f.request(d.filePath))).code,'unresolved-copy-state');
+});
+test('existing wrong or linked attachment rejects before writing the Markdown target',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork()}).create,imageAttachments),imagePath=path.join(d.dir,imageName);fs.writeFileSync(imagePath,'wrong',{mode:0o600});
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.created,false);assert.equal(fs.readFileSync(imagePath,'utf8'),'wrong');assert.equal(fs.existsSync(d.filePath),false);
+});
+test('parent catches a sidecar replaced after child verification, and keeps the result unresolved',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork({beforeAck:()=>{const imagePath=path.join(d.dir,imageName);fs.renameSync(imagePath,imagePath+'.evidence');fs.writeFileSync(imagePath,imageBytes,{mode:0o600});}})}).create,imageAttachments);
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.state,'created-unverified');assert.equal(r.code,'copy-post-verification-failed');assert.equal(f.document.dirty,true);
 });

@@ -1,5 +1,197 @@
 # Stage History
 
+## Broader-document workflows — 0.56.1 local WIP checkpoint (2026-11-07)
+
+Preserves one related batch: local PNG/JPEG import/preview, draft retention and
+exclusive attachment export; filtered long-document outline and read-only source;
+and bounded input-saturation pause/recovery. The user approved the proposed
+stage closeout/local checkpoint. This is preservation of current work, not human
+feature acceptance, mainline integration or public-release approval.
+
+Exact scope: 45 files (27 runtime including the required generated bundle,
+10 tests, six documents and two version files). Version remains 0.56.1;
+no dependency, runtime, test, package or installed-App change in this closeout.
+All 530 source fingerprints and 45 candidate fingerprints matched the final
+input-pressure evidence before documentation-only closeout edits. Reused the
+151 focused Node / two Pro Electron passes and actual-package pressure/history
+and installed-startup checks, alongside the recorded image/export/recovery and
+long-source checks. Overlapping historical counts are not summed. No new test,
+GUI, Air or Reviewer run, and no new Home fixture.
+
+Codex A bounded self-review found no new confirmed P0/P1; it is not an independent
+review. Native IME remains NOT VERIFIED; historical manual/formal FAIL, SEC-01,
+full CI, independent/human acceptance and release gates remain open. The prior
+zero-delay stress failure is preserved: 0.56.1 pauses at the same 64-edit limit,
+retains only the first refused supported edit in the current window, and does
+not accept later keys or automatically retry. Existing-file overwrite remains
+blocked by coordination-required; destination and exclusive-create rules stay.
+
+Next is one bounded real-writing acceptance pass across input/history, local
+images/export/reopen, and long-article navigation/source. Preserve the visual
+baseline and original-file protection; do not infer broad daily-use readiness.
+Checkpoint manifests and Git verification are in the control checkout's
+`.local/verification/broader-documents-checkpoint-0561-8br483qy/`; earlier evidence/rollback files are unchanged.
+No push, merge, tag or release is part of this checkpoint.
+
+## Input saturation protection — 0.56.1 local WIP (2026-11-07)
+
+Fixes the 0.56.0 transient queue-full warning. The existing 64-operation queue
+and main-owned revision/history are unchanged. The first otherwise valid edit
+refused at capacity is retained with the preceding queued source in the existing
+window-local recovery collection; editing pauses. Accepted operations drain in
+order, but later acknowledgements and document switches cannot erase the pause.
+A visible Chinese notice offers selectable Markdown; resuming requires an idle,
+confirmed state and explicit acknowledgement that the user has retained needed
+content and agrees to discard the unsubmitted change. No automatic retry occurs.
+Controlled composition completes before its overflow result is retained; the
+browser's real composition lifecycle is not synthesized or force-ended.
+
+These records are NOT persistent backups. Keys after the pause are not accepted,
+and closing/restarting loses this window-local evidence. Confirmed source alone
+remains eligible for draft backup. Export, close-document, history and editing
+stay fenced while recovery is pending; other recovery records are not discarded.
+Original files, save destinations, exclusive creation and coordination-required
+are unchanged. This fixes explicit protection/recovery, not unlimited throughput;
+the prior zero-delay stress failure and failed synthetic draft remain preserved.
+
+Validation: 151 focused Node checks PASS (seven new saturation/view regressions;
+initial four core regressions reproduced RED), two isolated Pro Electron workflows
+PASS (pressure + long-source regression), and the actual packaged pressure/history
+workflow PASS. The packaged synthetic draft was archived via the application;
+pre-existing draft/recent file identities and hashes are unchanged. Native IME
+remains NOT VERIFIED; historical manual/formal FAIL, SEC-01, full CI, human
+acceptance and release approval are not cleared. No Air/Reviewer call this turn.
+Codex A bounded self-review found no new confirmed P0/P1; this is not independent
+review. Controller 265 lines and new view 38 lines; existing entry 470 lines keeps
+only integration wiring, so no unrelated module split. New Node/E2E files stay
+under 200 lines. Bundle rebuilt with preserve-symlinks to use reproducible module
+paths; no dependency change. Patch version follows the repository bug-fix rule.
+
+Installed 0.56.1 startup/Recent Documents panel PASS; no user document opened.
+Complete 0.56.0 bundle retained for rollback; existing draft format is unchanged.
+Evidence: control checkout `.local/verification/input-pressure-8cfefafq/`.
+Source changes remain uncommitted; no push, merge, tag or release.
+
+
+## Long-document delivery — installed 0.56.0, bounded acceptance (2026-11-07)
+
+Reused 527 matching source fingerprints and the previous 43 focused Node / two
+source Electron passes. No runtime, test or version edits in this delivery slice.
+Verified 64 packaged project files, 9,637 ASAR entries and no private/unexpected
+project entries; actual runtime is Electron 43.8.7 arm64. Existing builder
+missing/duplicate dependency diagnostics remain in the log; package content and
+actual-runtime checks pass, not a substitute for full CI/dependency audit.
+ASAR SHA-256: `dd8882128ef4e245f859c42a82b5d65d19f7ef0a3361034b96c098af32520f14`.
+
+Actual package PASS at 20 ms/key: exact 1,066-character article, nine headings,
+filtered navigation, read-only source/selection/wrapping, unchanged scroll and
+revision on return, Undo/Redo, restart recovery and archive through existing UI.
+Installed startup/recent-panel/normal exit PASS; no user documents opened. Three
+successful normal process exits; no page errors or HTTP requests. Original draft
+and recent-catalog records retain their identity/content hashes. The successful
+synthetic draft is archived in the app, with its ID in local evidence.
+
+**Stress failure remains open:** initial zero-delay packaged typing lost rejected
+characters. An isolated diagnosis produced 947/1,066 characters and 118 observed
+`edit-queue-full` states; 20 ms/key produced all 1,066. The existing controller
+intentionally rejects the 65th pending edit, but later acknowledgements obscure
+its notice. This is an existing input-capacity/feedback limitation, not proven
+fixed by paced testing. No queue limit or editing protection was relaxed. Retain
+the failed synthetic draft and logs. Next bounded task is deterministic queue
+saturation feedback/recovery, before broader authoring/checkpoint acceptance.
+Two diagnostic startup attempts were refused because the harness test root/cwd
+did not meet existing constraints; corrected harness only, no product bypass.
+
+`~/Applications/Markdown.app` is 0.56.0; complete 0.55.0 rollback, bundle manifests
+and recovery mapping are in control-checkout evidence
+`.local/verification/long-document-delivery-056-nxbohlxj/installation/`.
+The same directory's parent holds GUI logs, screenshots, source hashes and input
+rate evidence/mapping. No Home fixtures or exported user files were created.
+No Air, DeepSeek, Git commit, push, merge, tag or release. Source/index remain
+uncommitted/empty. Native IME NOT VERIFIED, historical manual/formal FAIL, SEC-01,
+independent review, full CI and human acceptance remain open. Overwrite protection,
+file/directory policy and the accepted visual baseline are unchanged. This is
+limited local delivery, not complete writing acceptance or a release sign-off.
+
+## Long documents and read-only source — 0.56.0 candidate (2026-11-06)
+
+The outline now filters titles literally (case-insensitive); Enter jumps to the
+first match and Escape clears the query. Scrolling locates the active heading
+with logarithmic layout reads. The toolbar's **源码** opens the complete confirmed
+Markdown as selectable, read-only text, including protected syntax. It offers
+wrapping and Select All, reports line endings/BOM, and returns without changing
+article scroll, source, selection or history. Clipboard selection may normalize
+line endings and omits the BOM; export remains the byte-preserving file path.
+Pending/unconfirmed/composing input blocks opening; session/revision changes clear
+and dismiss the snapshot. No new IPC, writer, network access or save authority.
+
+A real 0.55.0 regression was found and fixed: attachment lookup dereferenced null
+source mappings for opaque HTML/unsupported blocks, preventing such files from
+opening. The regression failed before the one-line null guard and passes after it.
+43 focused Node checks and two Pro Electron workflows pass. The long fixture has
+116,352 bytes / 201 headings; one measured scroll used 8 heading layout reads.
+Timing samples (not a performance guarantee): open 263 ms, source view 44 ms.
+Light/dark/narrow screenshots were inspected. Dialogs and composition are controlled;
+native Chinese IME NOT VERIFIED, historical manual/formal FAIL, SEC-01, independent
+review, full CI and human acceptance remain open. Existing overwrite stays blocked
+by `coordination-required`; syntax/file limits and destination policy are unchanged.
+
+This is uncommitted source, not an installed/released 0.56.0. The installed App
+remains 0.55.0. Prior image work is preserved. Evidence is in the control checkout
+`.local/verification/long-document-gutntr4s/` (Node log, e2e-final, hashes and scope).
+New presentation helper is 62 lines; reading controller remains below 300 lines.
+The existing large renderer entry gains only import/wiring; no unrelated split.
+
+
+## Local image delivery — 0.55.0 installed (2026-11-06)
+
+Reused all 524 matching source fingerprints and the prior 212 Node / two source
+Electron checks; no runtime, test or version changes. Actual packaged native PNG
+selection through the macOS dialog, preview, image history, exact attachment export,
+readonly reopen and restart recovery pass. Installed startup/recent-panel checks
+pass with the expected ASAR and clean exit. 0.54.0 is retained with a bundle manifest
+and restore map; old versions cannot restore v2 image drafts.
+
+The local delivery harness initially used a wrong close-button selector and assumed
+reopening an export would not update recents. Corrected the harness and resumed the
+same synthetic draft; no product defect found. All prior user drafts remained
+byte/identity-identical. The sole synthetic recent entry was withdrawn through the
+existing verified snapshot writer after proving the original two entries unchanged;
+logical history is restored, snapshot generations advanced. The synthetic draft
+was archived through the UI; exported artifacts were recoverably moved into this
+run's evidence directory with hashes/path mapping. No Home fixture remains from
+this batch. Evidence: `.local/verification/local-images-delivery-055-96986cxv/` in the
+control checkout. Native IME/human acceptance, independent review, full CI, SEC-01
+and historical FAIL remain open. No Git commit, push, merge, tag or release.
+
+
+
+## 0.55.0 source candidate — local images as a complete file workflow (2026-11-06)
+
+Native-selected PNG/JPEG → inert-source atom with verified raster preview →
+private draft backup → exclusive Markdown plus sibling attachments → readonly
+reopen and restart recovery. Uses existing source patches, history, draft writer,
+Service and utility-process exclusive writer; no generic filesystem broker,
+network fetch or original-file overwrite. Four distinct 1 MiB images per document;
+4096-pixel side / 16M-pixel limit. Draft v2 prevents old readers silently dropping
+attachments. Plain text remains v1. Partial/unknown batches retain their evidence
+and draft; verified identical sidecars may be reused without writing.
+
+212 distinct targeted Node checks / two Pro Electron workflows PASS. Initial
+GUI failure was a test polling error during a second export; fixed waiting logic
+passes. Final affected tests were rerun after exact-attachment backup confirmation,
+post-metadata identity recheck and v2 compatibility fixes. Successful Home fixtures
+were reclaimed; this run's intentional negative/uncertain fixtures were moved
+verbatim into control-checkout `.local/verification/local-images-qmut5gpk/` with
+hash/identity/path mappings. No historical artifacts were touched.
+
+Codex A bounded self-review, not independent review. New helpers stay below 150
+lines; existing Service/File Store/IPC/renderer and test files remain over 300
+lines, extended only at existing lifecycle boundaries to avoid a parallel save
+framework. Source/lock 0.55.0; installed 0.54.0 is unchanged. No commit, push,
+merge or tag. Native IME NOT VERIFIED, historical manual/formal FAIL, SEC-01,
+independent review, full CI, human acceptance and release approval remain open.
+
 ## 0.54.0 local WIP — structured Markdown authoring checkpoint (2026-11-06)
 
 One local checkpoint preserves 47 verified files covering task/nested lists, basic

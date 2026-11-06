@@ -1,5 +1,5 @@
 // Presentation only: session authority, edits, composition and writes stay in their controllers.
-export function createWritingShell({ byId, context, refreshDrafts = () => {}, reading = null }) {
+export function createWritingShell({ byId, context, refreshDrafts = () => {}, reading = null, sourceView = null }) {
   let enabled = false, previousSession = null;
   const metadata = new Map(), rows = new Map();
   const blocked = () => {
@@ -66,7 +66,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
   title.addEventListener('pointerdown', event => { if (blocked()) event.preventDefault(); });
   title.addEventListener('click', event => { if (blocked()) event.preventDefault(); });
   function closePanels() {
-    reading?.close();
+    reading?.close(); sourceView?.close();
     for (const [, id] of panels) if (byId(id).open) byId(id).close();
     byId('document-info').open = false;
     if (media?.matches) sidebar(false);
@@ -129,7 +129,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('details-document-revision').textContent = String(current?.revision ?? '—');
     byId('details-document-count').textContent = current ? current.source.replace(/\s/gu, '').length.toLocaleString() : '—';
     byId('details-backup-card').hidden = !current?.temporary;
-    syncNavigation(); reading?.sync();
+    syncNavigation(); reading?.sync(); sourceView?.sync();
     if (!byId('test-copy-confirmation').hidden) {
       if (!confirmation.open) { closePanels(); confirmation.showModal(); }
     } else if (confirmation.open) confirmation.close();
@@ -152,9 +152,9 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('details-backup-content').append(byId('draft-backup-status'));
     byId('document-details-content').append(byId('test-copy-panel'));
     confirmation.append(byId('test-copy-confirmation'));
-    for (const id of ['composition-status', 'composition-warning', 'composition-copy-panel', 'recovery-panel']) byId('input-alerts').append(byId(id));
+    for (const id of ['composition-status', 'composition-warning', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId('input-alerts').append(byId(id));
     sidebar(!media?.matches);
     media?.addEventListener('change', () => sidebar(!media.matches));
-    reading?.configure(); sync();
+    reading?.configure(); sourceView?.configure(); sync();
   } };
 }

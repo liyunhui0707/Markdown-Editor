@@ -259,3 +259,15 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 #image-form input {border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
 #image-apply {background:var(--accent);border-color:var(--accent);color:var(--on-accent,white)}
 #format-image[aria-pressed=true] {background:var(--active);color:var(--accent)}
+
+/* Verified local images stay inside the accepted reading width. */
+.document-image-reference .document-local-image { display: block; max-width: 100%; max-height: 480px; object-fit: contain; margin: 0 auto 12px; border-radius: 5px; }
+.document-image-reference .document-local-image[hidden] { display: none; }
+
+.document-image-reference.has-preview { background: transparent; border-color: transparent; padding: 10px 0; }
+.document-image-reference.has-preview .image-reference-target,
+.document-image-reference.has-preview small { display: none; }
+.document-image-reference.has-preview .image-reference-label { font-size: .9em; font-weight: 400; color: var(--muted); }
+
+#input-pressure-panel pre {background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+#input-pressure-panel label {display:block;margin:12px 0}

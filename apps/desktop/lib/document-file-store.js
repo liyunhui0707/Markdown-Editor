@@ -195,7 +195,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
 
   // Only a synchronous, isolated test process may call this. No renderer API.
   // Use the pinned cwd's single-component name, never a resolved parent path.
-  function createCopy(name, input) {
+  function createCopy(name, input, image = false) {
     let directory, fd, owned, result, filePath, attempted = false, created = false, complete = false, verified = false;
     let bytes, verifiedMetadata, verifiedNativeMetadata;
     const verifyFile = () => {
@@ -226,7 +226,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       return current;
     };
     try {
-      if (typeof name !== 'string' || !(persistentCreateTask ? copyName(name) : /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name))
+      if (typeof name !== 'string' || !(image && persistentCreateTask ? require('./document-local-images').imageAsset(input).name === name : persistentCreateTask ? copyName(name) : /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name))
           || !Buffer.isBuffer(input) || input.length > 1048576) throw error('invalid-create-request', 'Expected bounded bytes and a synthetic Markdown filename.');
       bytes = Buffer.from(input);
       const root = createPolicy.verify(); filePath = path.join(root, name);
@@ -310,7 +310,8 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       }
     }
   }
-  return { read, check, replace, confirmDurability, createCopy, authorizeSynthetic: createPolicy.authorizeSource };
+  return { read, check, replace, confirmDurability, createCopy: (name, bytes) => createCopy(name, bytes),
+    createImageCopy: (name, bytes) => persistentCreateTask ? createCopy(name, bytes, true) : {ok:false,state:'not-created',created:false,code:'image-create-unavailable'}, authorizeSynthetic: createPolicy.authorizeSource };
 }
 
 module.exports = { createDocumentFileStore };

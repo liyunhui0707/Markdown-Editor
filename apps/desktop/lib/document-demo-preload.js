@@ -32,12 +32,13 @@ const request = async (operation, data = {}) => {
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
   }
+  const importing = operation === 'import-image';
   const managing = operation === 'manage-draft';
   if (operation === 'format' && composing) return { ok: false, code: 'composition-active' };
   if (operation === 'format' && pending) return { ok: false, code: 'document-busy' };
   if (managing && draftManagementUnknown) return { ok: false, code: 'draft-operation-unknown' };
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
-  if (creating || forking || managing || following) {
+  if (creating || forking || managing || following || importing) {
     if ((operation === 'restore-draft' || managing) && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
@@ -54,10 +55,14 @@ const request = async (operation, data = {}) => {
     if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
     if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
     unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (creating || forking || managing || following || renaming) return { ok: false, code: unknown.get(sessionId) };
+    if (creating || forking || managing || following || importing || renaming) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (creating || forking || managing || following) copies.delete(sessionId); }
+  } finally { --pending; if (creating || forking || managing || following || importing) copies.delete(sessionId); }
+  if (importing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
+      (result.sessionId !== sessionId || result.revision !== data.expectedRevision || !/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(result.href))))) {
+    unknown.set(sessionId, 'image-import-unknown'); return {ok: false, code: 'image-import-unknown'};
+  }
   if (renaming && (!result || typeof result.ok !== 'boolean' || (result.ok &&
       (result.snapshot?.sessionId !== sessionId || result.snapshot.revision !== data.expectedRevision
        || result.snapshot.temporary !== true || result.snapshot.readOnly !== false
@@ -110,7 +115,18 @@ const request = async (operation, data = {}) => {
   } else if (states.has(sessionId)) return blocked(sessionId);
   return result;
 };
+async function imagePreview(data) {
+  if (states.has(data?.sessionId)) return blocked(data.sessionId);
+  try {
+    const r = await ipcRenderer.invoke('document-demo:request', {...data, operation:'image-preview'});
+    if (states.has(data.sessionId) || !r?.ok || r.sessionId !== data.sessionId || r.revision !== data.expectedRevision
+        || r.href !== data.href || typeof r.dataUrl !== 'string' || r.dataUrl.length > 1398130
+        || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(r.dataUrl)) return {ok:false,code:'image-preview-unavailable'};
+    return r;
+  } catch { return {ok:false,code:'image-preview-unavailable'}; }
+}
 contextBridge.exposeInMainWorld('documentDemo', {
+  importImage: data => request('import-image', data), imagePreview,
   renameDraft: data => request('rename-draft', data),
   listRecents: () => request('list-recents'),
   openRecent: recentId => request('open-recent', { recentId }),

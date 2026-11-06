@@ -5,10 +5,60 @@ Electron and Tiptap. Open an original read-only, edit an independent copy, keep
 local draft backups, and explicitly export a new `.md` file. Existing files are
 never overwritten. No account or hosted backend is required.
 
-**0.54.0 installed local WIP checkpoint.** This is not
+**0.56.1 installed local WIP checkpoint.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
-## Image references — 0.54.0 installed candidate (2026-11-06)
+
+## Long articles / source view — 0.56.0 installed local WIP
+
+Filter headings in the outline and press Enter to jump to the first match;
+Escape clears the filter. The **源码** toolbar button shows the complete confirmed
+Markdown in a read-only window, including unsupported syntax. Select/copy text,
+toggle line wrapping and return to the article without changing its contents or
+history. Pending or composing input must finish first. Clipboard selection may
+normalize newlines and omits the BOM; export preserves the original file format.
+This does not enable source editing or increase document/save limits. It also
+fixes an image-lookup regression that prevented opening protected HTML blocks.
+43 focused Node checks and two Pro Electron workflows pass. The packaged app also
+passes paced typing, outline/source, Undo/Redo, restart recovery and installed
+startup; 0.55.0 is retained for rollback. Human acceptance remains pending.
+The 0.56.0 zero-delay stress failure is retained. In 0.56.1, reaching the
+64-edit queue limit pauses input and preserves the first refused supported edit.
+Open **查看未确认修改**, select/copy needed Markdown, then explicitly acknowledge
+and resume after pending operations settle. Later successful replies do not hide
+this notice. Recovery text exists only in this window; it is not backed up and
+keys after the pause are not accepted. No automatic retry or throughput guarantee.
+151 focused Node, two Pro Electron and actual-package pressure/history checks
+pass. Native IME remains NOT VERIFIED; human acceptance is still pending.
+
+## Local images — 0.55.0 installed local WIP (2026-11-06)
+
+Use the image button → **选择本地图片…** to choose a PNG/JPEG, add a description,
+then insert it. Verified images appear in the writing surface; Enter continues
+in prose and Undo/Redo retains the attachment. Up to four distinct images per
+article, each at most 1 MiB, 4096 pixels per side and 16 million pixels total.
+The original image is read only. Image clipboard/drop, SVG/GIF and remote loading
+are not supported. Other relative/http(s) addresses remain reference-only cards.
+
+Images are backed up with the same private draft snapshot as the text. Image
+snapshots require 0.55.0; plain-text snapshots remain compatible. Export creates
+new Markdown plus content-addressed image files **in the same supported folder**.
+Keep them together when moving or sharing. Existing identical verified image
+files may be reused read-only; differing files, links or unsupported metadata
+are refused. Success requires verification of the text and every attachment.
+Partial or unknown results retain the draft and possible created-file paths,
+without automatic retry or cleanup. Original-file overwrite remains prohibited.
+
+212 distinct targeted Node checks and two Pro Electron workflows pass, with
+final affected checks repeated after review corrections. Native dialogs are
+controlled in E2E. Native IME/human acceptance, independent review and full CI
+remain open. The actual 0.55.0 package also passes native image selection, preview,
+history, export/reopen and restart recovery. Installed startup passes; prior drafts
+are unchanged. The 0.54.0 app is retained for rollback, but cannot restore image
+drafts made by 0.55.0. This work is included in the 0.56.1 local WIP checkpoint,
+not release approval.
+
+## Image references — 0.54.0 checkpoint history (2026-11-06)
 
 The image toolbar button inserts a standalone Markdown image reference after the
 current paragraph (or in an empty paragraph). Select its card and use the button
@@ -16,7 +66,7 @@ to edit its description/address or remove it. Enter returns to prose; Delete or
 Backspace removes the selected reference. Undo/Redo, export/reopen and draft
 recovery retain the reference and untouched source bytes, including existing titles.
 
-**Cards say “未加载预览”: images are not loaded, validated or copied.** Relative
+**In the 0.54.0 checkpoint, cards say “未加载预览”: images are not loaded, validated or copied.** Relative
 addresses and http(s) references are stored as Markdown text only. Exporting to a
 different folder does not relocate attachments or repair relative paths. Inline,
 reference-style, nested or complex images remain protected; paste/drop of image

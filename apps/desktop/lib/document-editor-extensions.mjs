@@ -20,6 +20,6 @@ const SourceLink = Mark.create({
   }, 0]; },
 });
 const SourceCodeBlock=CodeBlock.extend({addAttributes(){return {...this.parent?.(),sourceEditable:{default:false,rendered:false}};}});
-export function documentEditorExtensions(onTaskToggle) {
-  return [DocumentImage,...documentTableNodes, StarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
+export function documentEditorExtensions(onTaskToggle, imageNodeView = null) {
+  return [DocumentImage.configure({nodeView:imageNodeView}),...documentTableNodes, StarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
 }

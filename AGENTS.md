@@ -2,7 +2,61 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-11-06) — READ FIRST
+## Current architecture (fact-checked 2026-11-07) — READ FIRST
+
+
+**Current local WIP checkpoint: 0.56.1 broader-document workflows.**
+The installed 0.56.1 runtime is unchanged. This checkpoint preserves local images,
+long-document/source navigation and input-saturation protection as one related
+batch. Reused matching source/test/package evidence; only closeout documentation
+changed. Human/native IME, independent review, full CI, SEC-01 and historical
+failure acceptance remain open. No push, merge, tag or release is authorized.
+Earlier delivery-time statements below are historical; their pending source is
+now included in this checkpoint. See the latest stage-history entry for scope.
+
+**0.56.1 input saturation protection — included in this checkpoint.**
+The 64-edit queue is unchanged. Its first refused supported edit and queued
+source are retained in existing window-local recovery records; editing pauses.
+Later acknowledgements cannot clear the notice. Explicit acknowledgement and an
+idle confirmed state are required before discarding that record and resuming.
+There is no automatic retry, persistent backup of these records or acceptance
+of keys after the pause. 151 focused Node, two Pro Electron and actual-package
+pressure/history checks pass. The synthetic packaged draft was archived; prior
+private records are unchanged. Installed startup passes; 0.56.0 is retained
+for rollback. Native IME/human acceptance, full CI, SEC-01 and
+historical failures remain open. No commit or release approval.
+
+**Previous delivery: 0.56.0 long documents / read-only source.**
+The existing outline filters headings and measures active location logarithmically.
+A renderer-only modal displays confirmed raw Markdown with selectable text,
+wrapping and line-ending/BOM metadata. It cannot edit, serialize or grant file
+access; unconfirmed/composing input blocks opening, and changed identity/revision
+closes the snapshot. Fixed 0.55.0 attachment lookup on null opaque-block mappings.
+43 focused Node and two Pro Electron checks pass. The actual 0.56.0 package
+passes paced typing, outline/source, Undo/Redo, restart recovery and installed
+startup. 0.55.0 is retained for rollback; prior draft/recent records are unchanged.
+Zero-delay burst input hits the existing 64-edit queue and drops rejected keys;
+its transient warning was insufficient. This historical stress case FAILED;
+0.56.1 adds bounded pause/recovery as described above, not unlimited throughput
+or accepted full-writing performance. Source stays uncommitted;
+no limit expansion, overwrite or release approval. Native IME/human acceptance,
+full CI, SEC-01 and historical failures remain open.
+
+**0.55.0 local PNG/JPEG attachments — included in the current WIP.**
+Main owns native image selection, bounded raster validation and document-specific
+attachment bytes. Renderer receives only verified raster data URIs; CSP allows
+`img-src data:` and still disallows network/file loading. Only explicitly imported
+images and exact content-addressed sibling attachments of opened Markdown load.
+Draft record v2 stores text and up to four 1 MiB rasters in one verified generation;
+plain text stays v1, with no migration. The existing exclusive writer creates image
+sidecars before Markdown and parent verification covers all outputs. Exact existing
+sidecars can be reused read-only; partial/unknown outcomes remain fenced and retained.
+No new overwrite/directory policy. See the latest phase record for limits/evidence.
+Actual-package native image selection/preview, history, export/reopen and restart
+recovery pass; installed startup and prior-record preservation pass. 0.54.0 is
+retained for rollback (it cannot restore v2 image drafts). Source remains uncommitted;
+native IME, human/independent acceptance and full CI remain open. Following earlier
+checkpoint descriptions are historical, not current feature limitations.
 
 **Active product: a document-first macOS ProseMirror/Tiptap editor.** The trusted
 `apps/desktop/document-app-main.js` entry starts the shared Document lifecycle in

@@ -13,7 +13,8 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
 
 function operationMessage(receipt) {
   if (!receipt || (!receipt.code && receipt.state === 'not-created')) return '';
-  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。`;
+  if (!receipt.ok && receipt.attachmentPaths?.length && receipt.created !== false) return `正文和图片附件尚未全部确认，可能已有文件创建。请保留草稿，不要重复导出；不会自动清理。\n原因：${receipt.code || receipt.state}\n${[receipt.filePath,...receipt.attachmentPaths].filter(Boolean).join('\n')}`;
+  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
   let text;
   if (receipt.created === false) {
     const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选下载或主文件夹直属的其他普通本地文件夹，仍需通过权限检查。'
@@ -58,7 +59,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
     const last = confirmedReceipts.get(c.selected);
     byId('test-copy-result').textContent = last
-      ? `最后确认的${persistent ? 'Markdown 文件' : '测试副本'} · 修订 ${last.revision}。后续编辑不会自动写回。\n${last.filePath}\nSHA-256: ${last.sha256}` : '';
+      ? `最后确认的${persistent ? 'Markdown 文件' : '测试副本'} · 修订 ${last.revision}。后续编辑不会自动写回。\n${last.filePath}\nSHA-256: ${last.sha256}${last.attachments?.length ? '\n图片附件：\n'+last.attachments.map(a=>`${a.filePath} · SHA-256: ${a.sha256}`).join('\n') : ''}` : '';
     byId('test-copy-summary').textContent = last
       ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}后续编辑保留在草稿中，不会自动写回该文件。`
       : '';

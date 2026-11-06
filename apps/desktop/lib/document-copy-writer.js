@@ -24,7 +24,7 @@ port.on('message', ({ data }) => {
         || createHash('sha256').update(bytes).digest('hex') !== data.sha256) throw Error('invalid-writer-task');
     const store = createDocumentFileStore({ persistentCreateTask: data.destination });
     attempted = true;
-    result = store.createCopy(data.name, bytes);
+    result = require('./document-image-export').createWithAttachments({store, name:data.name, bytes, attachments:data.attachments, destination:data.destination});
     if (result.ok) {
       // Recheck the authorized directory identity after creating the selected new file.
       const fs = require('node:fs');

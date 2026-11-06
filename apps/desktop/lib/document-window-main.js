@@ -1,7 +1,7 @@
 'use strict';
 // One shared document lifecycle; only trusted entry code selects product mode.
 function startDocumentWindow({ product = false } = {}) {
-const { app, BrowserWindow, ipcMain, session, dialog, Menu, utilityProcess, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, Menu, utilityProcess, shell, nativeImage } = require('electron');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createDocumentService } = require('./document-service');
@@ -45,9 +45,13 @@ for (const [name, source] of fixtures) fs.writeFileSync(path.join(root, name), s
 app.whenReady().then(async () => {
   const { projectSource, mapTextEdit } = await import('./document-source-map.mjs');
   const { mapFormatEdit } = await import('./document-format-edit.mjs');
+  const images = require('./document-local-images').createLocalImages({projectSource, validateRaster: asset => {
+    const decoded = nativeImage.createFromBuffer(asset.bytes), size = decoded.getSize();
+    return !decoded.isEmpty() && size.width === asset.width && size.height === asset.height;
+  }});
   const writer = persistentCopies ? require('./document-copy-process').createCopyProcess({ fork: utilityProcess.fork.bind(utilityProcess) }) : null;
   if (writer) app.on('before-quit', () => writer.cancelAll());
-  const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd(), ...(writer ? { persistentWriter: writer.create } : {}) } : {}); // Never unsafeExperimentalRoot.
+  const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd(), attachmentsFor: images.attachments, ...(writer ? { persistentWriter: writer.create } : {}) } : {}); // Never unsafeExperimentalRoot.
   let draftStore = null, draftError = null;
   if (drafts) {
     try {
@@ -69,7 +73,8 @@ app.whenReady().then(async () => {
     } catch { /* History unavailable: native open and drafts remain usable. */ }
   }
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, draftStore, recentFiles,
+  const manager = createDocumentSessions({ service, draftStore, recentFiles, images,
+    chooseImage: win => dialog.showOpenDialog(win, {title: '选择本地图片', properties: ['openFile', 'dontAddToRecent'], filters: [{name: 'PNG / JPEG · 每张最多 1 MiB', extensions: ['png','jpg','jpeg']}] }),
     confirmClose: readOnlyWindow ? async (win, label) => {
       const result = await dialog.showMessageBox(win, { type: 'question',
         message: `关闭“${label}”？`, detail: '关闭前会验证本地草稿。正文可从“草稿”恢复；撤销历史与文件导出回执不会随草稿恢复。原文件和已导出的文件保持不变。',
@@ -77,7 +82,7 @@ app.whenReady().then(async () => {
       return result.response === 1;
     } : null, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async (win, { suggestedName } = {}) => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: '另存为新的 Markdown 文件？',
-        detail: '请选择主文件夹直属的普通本地文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md，已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
+        detail: '请选择主文件夹直属的普通本地文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md；所选本地图片会作为同目录附件导出，移动时请一起移动。已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
         buttons: ['取消', '选择本地文件夹…'], defaultId: 0, cancelId: 0, noLink: true });
       if (accepted.response !== 1 || win.isDestroyed()) return { canceled: true };
       const selected = await dialog.showSaveDialog(win, { title: '另存为新 Markdown 文件', defaultPath: suggestCopyPath(app.getPath('downloads'), suggestedName),

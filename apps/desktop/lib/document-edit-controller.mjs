@@ -49,7 +49,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   let confirmed = structuredClone(initial), source = initial.source, code = 'opened';
   const recoveries = recoveryRecords.map(r => {
     if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== 'string'
-        || r.source.length > 131072 || ('visibleText' in r && r.visibleText !== null
+        || r.source.length > 131072 || ('queuedSource' in r && (typeof r.queuedSource !== 'string' || r.queuedSource.length > 131072)) || ('visibleText' in r && r.visibleText !== null
           && (typeof r.visibleText !== 'string' || r.visibleText.length > 131072))) throw Error('Invalid recovery record');
     return structuredClone(r);
   });
@@ -63,15 +63,22 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     try { projectSource(s.source); return true; } catch { return false; }
   };
   const atCapacity = () => recoveries.length >= 16;
+  const inputPaused = () => recoveries.some(r => r.reason === 'edit-queue-full');
+  function retainOverflow(nextSource, queuedSource = source) {
+    recoveries.push({ id: ++recoverySequence, sessionId: initial.sessionId, reason: 'edit-queue-full',
+      source: nextSource, queuedSource, confirmedSource: confirmed.source,
+      baseRevision: confirmed.revision, mainMatchesDraft: false });
+    code = 'edit-queue-full'; notify();
+  }
   function rememberDraft(reason) {
-    if (source === confirmed.source || recoveries.some(r => r.source === source)) return null;
+    if (source === confirmed.source || recoveries.some(r => r.source === source || (r.reason === 'edit-queue-full' && r.queuedSource === source))) return null;
     const record = { id: ++recoverySequence, sessionId: initial.sessionId, source, reason,
       confirmedSource: confirmed.source, baseRevision: confirmed.revision, mainMatchesDraft: false };
     recoveries.push(record); return record;
   }
   function state() { return { confirmed, source, code, recoveryDraft: recoveries.at(-1)?.source || '',
-    recoveryRecords: structuredClone(recoveries), pending: queue.length,
-    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() }; }
+    recoveryRecords: structuredClone(recoveries), pending: queue.length, inputPaused: inputPaused(),
+    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() || inputPaused() }; }
   const notify = () => { if (!disposed) onChange(state()); };
   const settle = () => { if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve(); };
   const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise(resolve => waiters.push(resolve));
@@ -111,7 +118,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   }
   function prepare(tr) {
     if (!tr.docChanged) return true;
-    if (disposed || locked || atCapacity() || historyPending || composition?.invalid || queue.length >= 64) {
+    if (disposed || locked || atCapacity() || historyPending || composition?.invalid || inputPaused()) {
       code = disposed ? 'controller-disposed' : locked ? 'sync-unknown' : atCapacity() ? 'recovery-capacity'
         : historyPending ? 'history-pending' : composition?.invalid ? 'composition-invalid' : 'edit-queue-full'; notify(); return false;
     }
@@ -122,6 +129,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       if (composition) composition.invalid = true;
       notify(); return false;
     }
+    if (!composition && queue.length >= 64) { retainOverflow(mapped.source); return false; }
     // A cleared paragraph has no source mark to inherit. Do not leave PM's
     // deleted format behind and reject the user's next ordinary keystroke.
     const at = tr.selection.$from;
@@ -138,7 +146,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (!composition) void pump();
   }
   function beginComposition() {
-    if (disposed || locked || atCapacity() || historyPending || composition) return false;
+    if (disposed || locked || atCapacity() || inputPaused() || historyPending || composition) return false;
     composition = { base: source, invalid: false }; code = 'composing-local'; notify(); return true;
   }
   function endComposition() {
@@ -157,10 +165,14 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (!mapped?.ok || mapped.source !== source) {
       rememberDraft('unsafe-composition'); source = group.base; code = 'unsafe-composition'; onReset(source); notify(); return;
     }
+    if (queue.length >= 64) {
+      const candidate = source; source = group.base; onReset(source);
+      retainOverflow(candidate, group.base); return;
+    }
     queue.push({ edit, source }); code = 'composition-queued'; notify(); void pump();
   }
   async function history(operation) {
-    if (!['undo', 'redo'].includes(operation) || disposed || locked || atCapacity() || composition || historyPending) return false;
+    if (!['undo', 'redo'].includes(operation) || disposed || locked || atCapacity() || inputPaused() || composition || historyPending) return false;
     historyPending = true; const epoch = failures; notify();
     try {
       await idle(); if (disposed || locked || failures !== epoch) return false;
@@ -180,7 +192,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     } finally { historyPending = false; notify(); }
   }
   async function format(command) {
-    if (disposed || locked || atCapacity() || composition || historyPending || confirmed.readOnly) return false;
+    if (disposed || locked || atCapacity() || inputPaused() || composition || historyPending || confirmed.readOnly) return false;
     historyPending = true; const epoch = failures; notify();
     try {
       await idle(); if (disposed || locked || failures !== epoch || recoveries.length) return false;

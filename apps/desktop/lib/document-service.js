@@ -8,8 +8,8 @@ const { record, failure, revisionError } = require('./document-contract');
 // Future document opening must authorize paths before handing out session IDs.
 function createDocumentService(options = {}) {
   // Trusted main-process construction only, never an IPC payload.
-  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot', 'persistentWriter'])) throw TypeError('Invalid service construction options');
-  const { persistentWriter, ...storeOptions } = options;
+  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot', 'persistentWriter', 'attachmentsFor'])) throw TypeError('Invalid service construction options');
+  const { persistentWriter, attachmentsFor = () => [], ...storeOptions } = options;
   if (persistentWriter !== undefined && typeof persistentWriter !== 'function') throw TypeError('Invalid writer capability');
   const store = createDocumentFileStore(storeOptions);
   const sessions = new WeakMap();
@@ -127,6 +127,10 @@ function createDocumentService(options = {}) {
     if (current.filePath !== expected.filePath || current.sha256 !== expected.sha256
         || current.bytes.length !== expected.byteLength
         || `${current.identity.dev}:${current.identity.ino}` !== expected.fileIdentity) throw Error('Confirmed copy changed');
+    for (const a of expected.attachments || []) {
+      const asset = require('./document-local-images').readImageFile(a.filePath);
+      if (asset.name !== a.name || asset.sha256 !== a.sha256 || asset.fileIdentity !== a.fileIdentity) throw Error('Confirmed attachment changed');
+    }
     return current;
   }
   function openConfirmedCopy(document, copyId, parse) {
@@ -166,8 +170,9 @@ function createDocumentService(options = {}) {
       const checked = store.check(s.snapshot);
       if (!checked.ok) return { ...checked, state: 'not-created', created: false };
       if (!valid()) return failure('copy-authorization-expired');
+      const attachments = attachmentsFor(document);
       started = true;
-      const result = await persistentWriter({ filePath: options.filePath, bytes: Buffer.from(bytes), revision: options.expectedRevision, isAuthorized: valid });
+      const result = await persistentWriter({ filePath: options.filePath, bytes: Buffer.from(bytes), attachments, revision: options.expectedRevision, isAuthorized: valid });
       if (!valid()) {
         result.ok = false; result.code = 'copy-source-changed';
         if (result.created !== false) result.state = 'created-unverified';
@@ -203,6 +208,7 @@ function createDocumentService(options = {}) {
       store.authorizeSynthetic(document.filePath);
       const checked = store.check(s.snapshot);
       if (!checked.ok) return { ...checked, state: 'not-created', created: false };
+      if (attachmentsFor(document).length) return failure('image-persistent-export-required');
       creationStarted = true;
       const result = store.createCopy(options.name, bytes);
       // The synchronous operation has no await point. Still check for reentrant
