@@ -63,7 +63,10 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   await p.keyboard.press('Escape');await expect(p.locator('#toggle-session-sidebar')).toBeFocused();
   await expect(p.locator('#toggle-session-sidebar')).toHaveAttribute('aria-expanded','false');
   // Activate a formatting command by keyboard, then undo through the real controller.
-  await p.locator('#editor p').first().click();await p.keyboard.press('Meta+ArrowLeft');await p.keyboard.press('Meta+Shift+ArrowRight');
+  // Prepare an exact browser selection; platform line-navigation shortcuts are not this test's subject.
+  await p.locator('#editor p').first().evaluate(n=>{n.closest('.tiptap').focus();const r=document.createRange();r.selectNodeContents(n);
+   const selection=getSelection();selection.removeAllRanges();selection.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
+  await expect.poll(()=>editor.evaluate(n=>{const {doc,selection}=n.editor.state;return doc.textBetween(selection.from,selection.to);})).toBe('Ordinary paragraph.');
   await expect(p.locator('#format-bold')).toBeEnabled();await p.keyboard.press('Alt+F10');await p.keyboard.press('Home');await expect(p.locator('#format-bold')).toBeFocused();await p.keyboard.press('Enter');await idle();
   expect((await snap()).source).toContain('**Ordinary paragraph.**');
   await p.keyboard.press('Meta+z');await idle();expect((await snap()).source).toBe(before.source);
@@ -77,6 +80,8 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   await p.keyboard.press('Escape');await expect(p.locator('#show-source')).toBeFocused();
   expect(await fs.readFile(original,'utf8')).toBe(source);expect(faults).toEqual([]);expect(requests).toEqual([]);
   await p.screenshot({path:info.outputPath('keyboard-workspace.png')});evidence.passed=true;
- }finally{await app.close();evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});
+ }finally{evidence.focus=await p.evaluate(()=>({active:document.activeElement?.id||document.activeElement?.className,
+   dialog:document.querySelector('dialog[open]')?.id||null,windowFocused:document.hasFocus(),selectionLength:getSelection()?.toString().length})).catch(()=>null);
+  console.log('accessibility-evidence:'+JSON.stringify(evidence));await app.close();evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});
   await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,requests,artifacts:'OS temporary synthetic files only; no Home fixtures'},null,2));}
 });

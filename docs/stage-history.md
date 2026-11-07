@@ -22,6 +22,10 @@ The first CI run passed 3,277 Node cases but exposed modal reverse-Tab differenc
 explicit button tabindex alone did not resolve it. Modal first/last Tab boundaries
 now wrap explicitly, retaining native inertness and interior control handling.
 The original assertions remain, and no system keyboard preference is modified.
+That boundary check now passes in CI. Formatting setup uses an exact browser
+selection, verified against the editor selection, rather than platform line-selection
+shortcuts; toolbar keyboard activation and Undo assertions remain unchanged.
+Bounded focus diagnostics contain no user text.
 
 The current Document installation guide replaces obsolete Vault/AI setup and
 blanket re-signing advice. It covers standalone launch, Finder association,
