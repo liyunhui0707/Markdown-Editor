@@ -42,6 +42,20 @@ export function projectSource(source) {
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
     ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
   let position = 0, previousEnd = fm;
+  // Nodes are visited in source order. Scan line boundaries once; two backward
+  // searches per paragraph become quadratic when one newline kind is absent.
+  const newline = /[\r\n]/g;
+  let boundary = newline.exec(source), lineStart = 0;
+  function lineBounds(start, end) {
+    while (boundary && boundary.index < start) {
+      lineStart = boundary.index + 1; boundary = newline.exec(source);
+    }
+    const from = lineStart;
+    while (boundary && boundary.index < end) {
+      lineStart = boundary.index + 1; boundary = newline.exec(source);
+    }
+    return [from, boundary?.index ?? source.length];
+  }
   // One cursor slot over existing whitespace, not a CommonMark empty-paragraph node.
   function emptyParagraph(at) {
     spans.push({ text: '', sourceFrom: at, sourceTo: at, bold: false,
@@ -141,8 +155,7 @@ export function projectSource(source) {
     }
     if (supported && node.type === 'paragraph' && parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
       // Keep plain-line margin spaces: remark omits them, but a split must not.
-      const a = Math.max(source.lastIndexOf('\n', start - 1), source.lastIndexOf('\r', start - 1)) + 1;
-      const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
+      const [a, b] = lineBounds(start, end);
       if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
         start = a; end = b; parts[0] = { ...parts[0], sourceFrom: a, sourceTo: b, text: source.slice(a, b) };
       }
@@ -179,7 +192,11 @@ export function projectSource(source) {
 }
 
 function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
-  const { from, to, insert } = change, plain = span => {
+  const { from, to, insert } = change;
+  // Ordinary typing is not a paragraph split/join. Refuse this candidate before
+  // filtering spans or cloning the whole document; normal edit validation follows.
+  if (!(insert === '\n\n' && from === to) && !(insert === '' && to === from + 2)) return null;
+  const plain = span => {
     const block = projection.doc.content[span.blockIndex];
     return block.type === 'paragraph' && span.textOffset === undefined && !span.bold && !span.italic && !span.code && !span.link && (block.content || []).length <= 1;
   };

@@ -1638,3 +1638,121 @@ Air NOT RUN (name resolution). Controlled composition is not native IME: native
 NOT VERIFIED, historical manual/formal FAIL and release limits remain. Existing
 Draft Management/UI V2 candidate retained, version 0.34.0, no commit. Renderer
 377/E2E1682 lines reuse existing ownership; new format helpers are 114/56/38 lines.
+
+
+## Daily-writing stabilization — 0.61.1 candidate (2026-11-07)
+
+- Baseline: local WIP `af3df23747dbbe71c15cb4f374d1dbcd37ef5ab0` (0.61.0,
+  78 exact approved files). Clean index/worktree after checkpoint; no remote action.
+  The explicitly approved `Writing-synthetic-2WJ1Zn` fixture was renamed into its
+  prior capacity evidence directory, preserving all 17 file identities, hashes
+  and permissions. Prior failed test outcome is unchanged.
+- Runtime: replace per-paragraph reverse newline searches with one forward cursor;
+  skip table source projection for ordinary keys/non-table selections; retain
+  outline DOM for unchanged heading titles/levels and update confirmed positions.
+  Stale-session/unconfirmed navigation remains refused. Every source/main/history
+  validation remains in place; no new editor/save/recovery framework or authority.
+- Same-machine profile: 485,031 UTF-16 units, 701 headings, eight controlled keys.
+  Median beforeinput-to-confirmed 694.55 → 205.10 ms; maximum 722.7 → 242.5 ms.
+  Final source and latest backup exact. Post-input summed process working sets
+  921.9 → 875.8 MiB (shared pages can be counted twice; not a heap/leak bound).
+  Near-limit typing remains perceptibly slow; this is an improvement, not smooth
+  extreme-length/native-IME acceptance. Full parsing per edit remains a cost.
+- Verification: 289 focused Node cases PASS, including newline/margin preservation,
+  tables/composition/history/source/backup and outline identity. Two new regressions
+  fail on the prior runtime and pass on this candidate. Two Electron long-writing
+  workflows (110,832 LF / 487,857 CRLF units with BOM) PASS: paced ASCII, controlled
+  Unicode, Undo/Redo, unchanged outline DOM, source view, outline jump, backup,
+  restart recovery, continued writing and unchanged original. Existing 64-queue
+  saturation/pause/recovery workflow PASS. No Home fixtures created.
+- Harness-only failed runs are retained: read-only source node assertion used in
+  editable mode; restart reused its exclusive temporary namespace; End selected
+  a visual line boundary instead of paragraph end. The final harness uses existing
+  per-launch isolation and explicit DOM paragraph selection. No failure is erased
+  or classified as a product pass. Native dialogs are controlled; native IME
+  remains NOT VERIFIED and historical manual FAIL remains open.
+- Packaging: 74 runtime files match; renderer rebuild is byte-identical; universal
+  production save helper unchanged and testing hooks refused. Actual candidate
+  startup/recent-panel check passes with private records unchanged. Local delivery
+  result and recoverable 0.61.0 bundle mapping are in the verification directory.
+- Size: source mapper is 325 lines (existing cohesive range/validation logic plus
+  14-line cursor); keep it together for this bounded performance fix. Reading/table
+  views and new E2E are below 300 lines; source-map test is 270 lines. No unrelated
+  split. Full CI, SEC-01, native IME/accessibility, sustained-memory/long-writing
+  acceptance and signed/notarized release remain open. No new commit/push/tag.
+
+Evidence: control checkout `.local/verification/daily-writing-yf5unn5a/`:
+`checkpoint-result.json`, `archive-result.json`, `baseline-profile.json`,
+`optimized-profile.json`, `node-final.log`, `e2e-complete/`, `e2e-writing/`
+(queue case), `package-verification.json`, `final-verification.json`.
+
+
+## Sustained writing — 0.61.2 candidate (2026-11-07)
+
+- Continue the approved daily-writing group from the fingerprint-matched 0.61.1
+  candidate (15 uncommitted files), retaining the 0.61.0 Git checkpoint. Ordinary
+  edits now skip the inapplicable paragraph split/join candidate before filtering
+  spans or cloning the whole projection. The accepted split/join conditions,
+  complete before/after validation, history, queue and save authority are unchanged.
+- Allocation experiment: 100 repeated warmed mappings of a 485,021-unit synthetic
+  article use 100 full-document clones instead of 200. This measures that specific
+  allocation site; it does not establish a halved App working set, a native-input
+  latency bound or novel-key parsing performance. The earlier 0.61.1 latency
+  comparison remains attributed to that version.
+- Verification: 204 focused Node cases PASS (source mapping, controller, history,
+  capacity, source editing and input pressure). Three Electron cases PASS: the two
+  existing LF/CRLF long-writing/restart workflows, plus three consecutive 485,031-unit
+  writing sessions in one process. Each session inserts 68 paced ASCII characters,
+  checks exact source and Undo/Redo, source view, latest draft backup, close-to-empty
+  and unchanged original bytes. Renderer errors/network requests are absent; all
+  five app exits are clean. Native dialogs are controlled.
+- The new repeated-session test forces renderer GC only in the harness to observe
+  retained state. After closing both documents, editor/session UI nodes are absent;
+  renderer heap is 8.59 / 8.85 / 9.25 MiB, versus 10.04 / 10.35 / 10.68 MiB while
+  editing. DOM nodes are 1194 / 1211 / 1228 after close. The workload also accumulates
+  three recoverable drafts. These short samples do not prove absence of a leak;
+  process working sets and main heap remain recorded separately. Each 68-key run
+  takes about 13.1 seconds including pacing and confirmation: near-limit typing
+  still has perceptible delay. No whole-App memory reduction is claimed.
+- One initial harness run failed before writing because `require` is unavailable
+  in Playwright's Electron evaluation context; the harness now uses the existing
+  Electron `process.getHeapStatistics()` API. The failed evidence is retained and
+  is not a successful product test. Main heap statistics and process working sets
+  use KiB; CDP renderer heap uses bytes. No Home fixtures are created: the bounded
+  synthetic documents/profiles remain in their named OS temporary directories,
+  with paths recorded in each `evidence.json`.
+- Size: mapper 329 lines; the four-line early return belongs beside the existing
+  split/join dispatch, so no unrelated split is justified. The new E2E is 52 lines.
+  Diff review finds no blocking issue in this allocation guard or test; it is a
+  Codex self-review, not an independent second-model review or release approval.
+- On 2026-11-07 the user reports the three genuine-input checks have not yet been
+  performed. Keep native IME NOT VERIFIED, human acceptance PENDING and historical
+  manual FAIL. Long-duration memory, near-limit input speed, full CI, SEC-01 and
+  signed/notarized/public release gates remain open. No commit/push/merge/tag.
+- Delivery: 74 packaged runtime files match the candidate; renderer rebuild is
+  byte-identical and the universal production save helper is unchanged. Candidate
+  and installed 0.61.2 startup/recent-panel checks PASS. Existing private draft,
+  recent and version records remain unchanged. The installed 0.61.1 bundle is
+  preserved under this run's `installation/rollback/Markdown-0.61.1.app`; recovery
+  mapping and complete bundle manifests are retained. No user-data migration.
+
+Evidence: control checkout `.local/verification/sustained-writing-0e6zbll3/`:
+`baseline-sha256.json`, `baseline-allocation.json`, `optimized-allocation.json`,
+`node-final.log`, `e2e-baseline/` (failed harness), `e2e-complete/`,
+`package-verification.json`, `candidate-gui.json`, `installation/recovery.json`,
+`installed-gui.json`, `final-verification.json`.
+
+
+## Daily-writing local checkpoint — 0.61.2 (2026-11-07)
+
+The user explicitly approved preserving the 16-file daily-writing batch as a
+local WIP before the next complete function group, and authorized subsequent
+Git/remote operations. Reused all 559 matching candidate fingerprints and the
+0.61.1/0.61.2 focused-test, package and installed evidence. Only closeout documents
+change here; runtime/tests/version stay 0.61.2. Secret-pattern and exact-scope checks
+pass. This is preservation of tested work, not a claim that critical manual QA or
+formal release acceptance is complete. Native IME NOT VERIFIED, user checks PENDING,
+historical manual FAIL, near-limit latency, long-duration memory, full CI/security
+and signed/notarized distribution remain open. Subsequent integration must pass
+current checks; historical no-remote authorizations above are superseded by this
+explicit user instruction. No version-only bump or release tag is created.

@@ -78,3 +78,13 @@ test('keyboard row append queues after pending cell text; mismatched acknowledge
  assert.equal(h.controller.state().source,h.document.text);assert.notEqual(h.document.text,before);
  assert.ok(h.document.text.includes('Last'));assert.equal(fs.readFileSync(h.file,'utf8'),'|A|\n|---|\n||');
 });
+
+
+test('ordinary typing and paragraph selection do not request a whole-source table projection',()=>{
+ const doc=schema.nodeFromJSON(projectSource('Plain paragraph.').doc),state=EditorState.create({schema,doc});
+ const c={editor:{state,view:{composing:false}},state:{confirmed:{readOnly:false},recoveryRecords:[],get source(){throw Error('unneeded full-source projection');}}};
+ const nodes=new Map(),byId=id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id);};
+ const table=createTableView({byId,context:()=>c,report(){}});
+ table.sync();assert.equal(byId('table-tools').hidden,true);
+ for(const key of ['a','ArrowLeft','Tab','Enter','Backspace','Delete'])assert.equal(table.key(c.editor.view,{key}),false);
+});

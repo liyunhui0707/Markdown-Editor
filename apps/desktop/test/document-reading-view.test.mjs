@@ -129,3 +129,18 @@ test('outline filter composition cannot jump on the candidate confirmation key',
   assert.equal(byId('outline-count').textContent,'1 / 2');
   input.onkeydown({key:'Enter',preventDefault(){}});assert.equal(scroll.calls,1);
 });
+
+
+test('body edits retain outline DOM, update positions and still refuse unconfirmed navigation',t=>{
+ const {c,byId,view,scroll}=fixture(t),first=byId('outline-list').children[0],second=byId('outline-list').children[1];
+ const source='# Original\n\nNew body text.\n\n## Second\n';
+ const doc=projected(source);c.editor.state.doc=doc;c.state.source=source;
+ second.onclick();assert.equal(scroll.calls,undefined);
+ view.sync();assert.equal(byId('outline-list').children[1],second);
+ c.state.confirmed={...c.state.confirmed,source};
+ const calls=[];c.editor.view.nodeDOM=pos=>{calls.push(pos);return {nodeName:'H2',getBoundingClientRect:()=>({top:700})};};
+ view.sync();assert.equal(byId('outline-list').children[0],first);assert.equal(byId('outline-list').children[1],second);
+ calls.length=0;second.onclick();assert.ok(calls.includes(documentHeadings(doc)[1].position));assert.equal(scroll.calls,1);
+ c.state.confirmed={...c.state.confirmed,sessionId:'other'};view.sync();second.onclick();assert.equal(scroll.calls,1);
+ assert.notEqual(byId('outline-list').children[1],second);
+});

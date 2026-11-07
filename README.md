@@ -6,9 +6,22 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.61.0 installed local WIP checkpoint.** This is not
+**0.61.2 local WIP checkpoint for daily-writing performance.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
+
+## Daily writing — 0.61.2
+
+Line-boundary mapping now scans forward once. Ordinary paragraph keys no longer
+request table projections; body edits retain outline buttons while updating their
+confirmed positions. Ordinary keys also skip the inapplicable paragraph split/join
+candidate before copying the full document. Source validation, history, backup and
+save authority are unchanged. The 0.61.1 same-machine profile of eight controlled
+keys in a 485,031-unit synthetic article
+measured a median 695 ms → 205 ms from beforeinput to confirmed state. This is a
+bounded same-machine comparison, not a universal latency guarantee; near-limit
+writing still has noticeable latency and substantial memory use. Native IME and
+human daily-writing acceptance remain pending; see `docs/test-manual.md`.
 
 ## Larger articles and images — 0.61.0
 

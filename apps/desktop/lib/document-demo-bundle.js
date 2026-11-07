@@ -16706,6 +16706,20 @@
     };
     const fm = /^---(?:\r\n|\n|\r)/.test(source) ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
     let position2 = 0, previousEnd = fm;
+    const newline3 = /[\r\n]/g;
+    let boundary = newline3.exec(source), lineStart = 0;
+    function lineBounds(start, end) {
+      while (boundary && boundary.index < start) {
+        lineStart = boundary.index + 1;
+        boundary = newline3.exec(source);
+      }
+      const from2 = lineStart;
+      while (boundary && boundary.index < end) {
+        lineStart = boundary.index + 1;
+        boundary = newline3.exec(source);
+      }
+      return [from2, boundary?.index ?? source.length];
+    }
     function emptyParagraph2(at) {
       spans.push({
         text: "",
@@ -16829,8 +16843,7 @@
         }
       }
       if (supported && node2.type === "paragraph" && parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
-        const a = Math.max(source.lastIndexOf("\n", start - 1), source.lastIndexOf("\r", start - 1)) + 1;
-        const rest = source.slice(end).search(/[\r\n]/), b = rest < 0 ? source.length : end + rest;
+        const [a, b] = lineBounds(start, end);
         if (/^ *$/.test(source.slice(a, parts[0].sourceFrom)) && /^ *$/.test(source.slice(parts[0].sourceTo, b))) {
           start = a;
           end = b;
@@ -16877,7 +16890,9 @@
     return { doc: { type: "doc", content: content5 }, spans, blocks };
   }
   function paragraphEdit(source, projection, change, verify = true, paragraphSeparator = null) {
-    const { from: from2, to, insert: insert2 } = change, plain2 = (span) => {
+    const { from: from2, to, insert: insert2 } = change;
+    if (!(insert2 === "\n\n" && from2 === to) && !(insert2 === "" && to === from2 + 2)) return null;
+    const plain2 = (span) => {
       const block = projection.doc.content[span.blockIndex];
       return block.type === "paragraph" && span.textOffset === void 0 && !span.bold && !span.italic && !span.code && !span.link && (block.content || []).length <= 1;
     };
@@ -18046,7 +18061,14 @@
     const blocked = (c) => !c.state || !c.editor || c.loading || c.invalid || c.state.confirmed.readOnly || c.state.locked || c.state.historyPending || c.state.composing || c.state.compositionInvalid || c.state.recoveryRecords.length || c.editor.view.composing;
     function locate(c) {
       if (!c.state || !c.editor) return null;
-      const p = projectSource(c.state.source), { from: from2, to } = c.editor.state.selection;
+      const { from: from2, to, $from, $to } = c.editor.state.selection;
+      const tableAt = (pos) => {
+        for (let d = pos.depth; d > 0; d--) if (pos.node(d).type.name === "table") return pos.node(d);
+        return null;
+      };
+      const table = tableAt($from);
+      if (!table || table !== tableAt($to)) return null;
+      const p = projectSource(c.state.source);
       const b = p.blocks.find((b2) => b2?.cells && from2 > b2.from && to < b2.to);
       const cell2 = b?.cells.flat().find((s) => from2 >= s.from && to <= s.to);
       return cell2 ? { block: b, cell: cell2 } : null;
@@ -18081,8 +18103,11 @@
       byId2(id2).onclick = () => void run3(id2);
     }
     function key2(view, event) {
-      const c = context(), at = locate(c);
-      if (!at || blocked(c) || event.isComposing || event.keyCode === 229) return false;
+      if (!["Tab", "Enter", "Backspace", "Delete"].includes(event.key)) return false;
+      const c = context();
+      if (blocked(c) || event.isComposing || event.keyCode === 229) return false;
+      const at = locate(c);
+      if (!at) return false;
       const { from: from2, to, empty: empty5 } = view.state.selection, { block, cell: cell2 } = at;
       const plain2 = !event.metaKey && !event.ctrlKey && !event.altKey;
       let action = null, target = null;
@@ -50836,25 +50861,33 @@
       const ready = navigable();
       filter.disabled = !ready;
       if (ready && (mappedDoc !== editor2.state.doc || mappedSession !== s.confirmed.sessionId)) {
-        if (mappedSession !== s.confirmed.sessionId) filter.value = "";
-        activeRow = null;
+        const headings = documentHeadings(editor2.state.doc), sameSession = mappedSession === s.confirmed.sessionId;
+        const reusable = sameSession && headings.length === rows.length && headings.every((item3, i) => item3.title === rows[i].item.title && item3.level === rows[i].item.level);
+        if (!sameSession) filter.value = "";
         mappedDoc = editor2.state.doc;
         mappedSession = s.confirmed.sessionId;
-        rows = documentHeadings(mappedDoc).map((item3) => {
-          const button = doc4.createElement("button");
-          button.type = "button";
-          button.textContent = item3.title;
-          button.title = item3.title;
-          button.dataset.level = String(item3.level);
-          button.setAttribute("aria-label", "\u6807\u9898 " + item3.level + "\uFF1A" + item3.title);
-          button.onpointerdown = (event) => event.preventDefault();
-          const origin = mappedDoc, session = mappedSession;
-          button.onclick = () => {
-            if (mappedDoc === origin && mappedSession === session) jump(item3);
-          };
-          return { item: item3, button };
-        });
-        byId2("outline-list").replaceChildren(...rows.map((r) => r.button));
+        if (reusable) {
+          rows.forEach((row, i) => {
+            row.item = headings[i];
+          });
+        } else {
+          activeRow = null;
+          rows = headings.map((item3, index2) => {
+            const button = doc4.createElement("button"), row = { item: item3, button };
+            button.type = "button";
+            button.textContent = item3.title;
+            button.title = item3.title;
+            button.dataset.level = String(item3.level);
+            button.setAttribute("aria-label", "\u6807\u9898 " + item3.level + "\uFF1A" + item3.title);
+            button.onpointerdown = (event) => event.preventDefault();
+            const session = mappedSession;
+            button.onclick = () => {
+              if (rows[index2] === row && mappedSession === session) jump(row.item);
+            };
+            return row;
+          });
+          byId2("outline-list").replaceChildren(...rows.map((r) => r.button));
+        }
       }
       for (const row of rows) row.button.disabled = !ready;
       filterRows();

@@ -9,7 +9,12 @@ export function createTableView({byId,context,report}) {
     ||c.state.historyPending||c.state.composing||c.state.compositionInvalid||c.state.recoveryRecords.length||c.editor.view.composing;
   function locate(c) {
     if(!c.state||!c.editor)return null;
-    const p=projectSource(c.state.source),{from,to}=c.editor.state.selection;
+    const {from,to,$from,$to}=c.editor.state.selection;
+    // Presentation/navigation prefilter only. The source mapper and main still
+    // validate every edit. Ordinary typing must not project the whole document.
+    const tableAt=pos=>{for(let d=pos.depth;d>0;d--)if(pos.node(d).type.name==='table')return pos.node(d);return null;};
+    const table=tableAt($from);if(!table||table!==tableAt($to))return null;
+    const p=projectSource(c.state.source);
     const b=p.blocks.find(b=>b?.cells&&from>b.from&&to<b.to);
     const cell=b?.cells.flat().find(s=>from>=s.from&&to<=s.to);
     return cell?{block:b,cell}:null;
@@ -38,7 +43,9 @@ export function createTableView({byId,context,report}) {
   }
   for(const id of ids){byId(id).onpointerdown=e=>e.preventDefault();byId(id).onclick=()=>void run(id);}
   function key(view,event) {
-    const c=context(),at=locate(c);if(!at||blocked(c)||event.isComposing||event.keyCode===229)return false;
+    if(!['Tab','Enter','Backspace','Delete'].includes(event.key))return false;
+    const c=context();if(blocked(c)||event.isComposing||event.keyCode===229)return false;
+    const at=locate(c);if(!at)return false;
     const {from,to,empty}=view.state.selection,{block,cell}=at;
     const plain=!event.metaKey&&!event.ctrlKey&&!event.altKey;
     let action=null,target=null;

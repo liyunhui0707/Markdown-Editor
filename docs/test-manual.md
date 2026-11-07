@@ -2504,3 +2504,32 @@ not claims of user approval:
 
 The running 0.46.0 installed app was deliberately left intact. Test the rebuilt
 0.47.0 candidate after safely closing the old app, not the previous installation.
+
+
+## 0.61.x daily-writing / native input acceptance — PENDING
+
+Use the current 0.61.x App on macOS with your normal Chinese input method. Work only in
+an independent disposable draft; record macOS/input-method name and PASS/FAIL
+for these three workflows. Automated `insertText` is not native IME evidence.
+
+1. **Candidate input and focus:** type `这是我的写作测试` using actual candidates;
+   commit once with Space and once with Enter. Start another word and cancel
+   with Escape. During an unfinished candidate, try the sidebar/document switch
+   and Save; text must not disappear, duplicate, force-save preedit or become
+   permanently stuck. Complete/cancel composition, then continue typing normally.
+   Repeat once in a table cell. Undo/Redo must restore confirmed text, not fragments.
+2. **Continuous writing and navigation:** in a disposable longer article, write
+   mixed Chinese/English, `[]` and emoji near its start/middle/end; select and
+   replace a phrase. Use outline/filter, Source and return, then continue writing
+   and Undo/Redo. No missing/duplicate characters, unexpected caret jump or wrong
+   heading target. Report visible stalls; near-capacity latency is not accepted
+   merely because contents are eventually exact.
+3. **Backup and recovery:** wait for the latest draft-backed-up state; quit normally,
+   reopen, restore the draft and compare the final paragraph. Continue writing,
+   export to a fresh supported filename and reopen it. Confirm the original is
+   unchanged and the latest confirmed text appears exactly once.
+
+Any loss/duplication, stuck composition or incorrect recovered/exported text is a
+FAIL. Preserve the draft and exact action sequence; do not erase historical FAIL
+or mark all native IME accepted from a passing subset. Full CI, SEC-01,
+accessibility, signing/notarization and general release acceptance are separate.

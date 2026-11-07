@@ -4,13 +4,24 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-07) — READ FIRST
 
-**Current local WIP checkpoint: 0.61.0 everyday document workflows.**
-This checkpoint groups Finder opening, nested local save destinations, editable
-source, version-preserving bound-file saving and practical text/image capacity.
-Installed runtime and already-verified code are unchanged during checkpoint
-closeout. Native IME NOT VERIFIED, historical manual FAIL, extreme-length
-performance, full CI, SEC-01 and public-release gates remain open. Next is the
-approved daily-writing stabilization group. No push, merge, tag or release.
+**Current local WIP checkpoint: 0.61.2 daily-writing performance.**
+The source mapper, table presentation and outline optimizations preserve full
+source/main validation, history, queue budgets and save/recovery authority.
+Matching focused Node, controlled Electron, package and installed-startup evidence
+is retained. Native IME remains NOT VERIFIED, human acceptance PENDING and
+historical manual FAIL open; near-limit latency and long-duration memory remain
+limitations. This checkpoint preserves work and is not daily-use/release acceptance.
+
+On 2026-11-07 the user authorized local checkpoints, subsequent complete function
+groups and Git/remote operations. Continue the accepted visual baseline and
+existing architecture. Next is ordinary local-file compatibility; full CI and
+security must pass before mainline integration. Public release readiness remains
+separate from authorization. Earlier authorization limits below are historical.
+
+**Previous local WIP checkpoint: 0.61.0 everyday document workflows.**
+This groups Finder opening, nested local save destinations, editable source,
+version-preserving bound-file saving and practical text/image capacity. Native
+IME, historical manual FAIL, full CI, SEC-01 and public-release gates remain open.
 
 **0.61.0 practical text/image capacity — included in this checkpoint.**
 Document capacity is centralized in `lib/document-capacity.js`; the sandboxed

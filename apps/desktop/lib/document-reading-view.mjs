@@ -168,19 +168,28 @@ export function createReadingView({ byId, context }) {
     const ready = navigable();
     filter.disabled = !ready;
     if (ready && (mappedDoc !== editor.state.doc || mappedSession !== s.confirmed.sessionId)) {
-      if (mappedSession !== s.confirmed.sessionId) filter.value = '';
-      activeRow = null; mappedDoc = editor.state.doc; mappedSession = s.confirmed.sessionId;
-      rows = documentHeadings(mappedDoc).map(item => {
-        const button = doc.createElement('button');
-        button.type = 'button'; button.textContent = item.title; button.title = item.title;
-        button.dataset.level = String(item.level); button.setAttribute('aria-label', '标题 ' + item.level + '：' + item.title);
-        button.onpointerdown = event => event.preventDefault();
-        // Capture the projection identity as well as the position; old rows cannot target a new document.
-        const origin = mappedDoc, session = mappedSession;
-        button.onclick = () => { if (mappedDoc === origin && mappedSession === session) jump(item); };
-        return { item, button };
-      });
-      byId('outline-list').replaceChildren(...rows.map(r => r.button));
+      const headings = documentHeadings(editor.state.doc), sameSession = mappedSession === s.confirmed.sessionId;
+      const reusable = sameSession && headings.length === rows.length
+        && headings.every((item, i) => item.title === rows[i].item.title && item.level === rows[i].item.level);
+      if (!sameSession) filter.value = '';
+      mappedDoc = editor.state.doc; mappedSession = s.confirmed.sessionId;
+      if (reusable) {
+        // Body edits shift positions without changing the outline. Keep DOM/focus
+        // and resolve clicks against the newly confirmed projection at click time.
+        rows.forEach((row, i) => { row.item = headings[i]; });
+      } else {
+        activeRow = null;
+        rows = headings.map((item, index) => {
+          const button = doc.createElement('button'), row = { item, button };
+          button.type = 'button'; button.textContent = item.title; button.title = item.title;
+          button.dataset.level = String(item.level); button.setAttribute('aria-label', '标题 ' + item.level + '：' + item.title);
+          button.onpointerdown = event => event.preventDefault();
+          const session = mappedSession;
+          button.onclick = () => { if (rows[index] === row && mappedSession === session) jump(row.item); };
+          return row;
+        });
+        byId('outline-list').replaceChildren(...rows.map(r => r.button));
+      }
     }
     for (const row of rows) row.button.disabled = !ready;
     filterRows();

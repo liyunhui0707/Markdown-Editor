@@ -250,3 +250,21 @@ test('repeated parsing shares no mutable projection state across text/history/st
  for(const other of ['evict 1','evict 2','evict 3'])projectSource(other);
  assert.deepEqual(projectSource(source),expected);
 });
+
+
+test('line margins remain exact across mixed newline kinds and intervening protected blocks',()=>{
+ for(const nl of ['\n','\r','\r\n']){
+  const source=['  First 中文😀  ', '', '# Heading', '', '```', 'protected', '```', '', '  Middle  ', '', '<div>opaque</div>', '', '  Last  '].join(nl);
+  const projection=projectSource(source);
+  for(const text of ['  First 中文😀  ','  Middle  ','  Last  ']){
+   const span=projection.spans.find(s=>s.text===text);assert.ok(span,text);
+   assert.equal(source.slice(span.sourceFrom,span.sourceTo),text);
+   const edit=mapTextEdit(source,{from:span.from+2,to:span.from+2,insert:'新'});
+   assert.equal(edit.ok,true);assert.equal(edit.source,source.replace(text,'  新'+text.slice(2)));
+  }
+ }
+ const mixed='  First  \n\n# Title\r\n\r\n  Second  \r\r  Third  \n\nTail';
+ assert.deepEqual(projectSource(mixed).spans.map(s=>s.text),['  First  ','Title','  Second  ','  Third  ','Tail']);
+ const soft='start\nsecond\n\n  after  ';
+ assert.deepEqual(projectSource(soft).spans.map(s=>s.text),['start','second','  after  ']);
+});
