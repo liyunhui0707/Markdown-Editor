@@ -19,6 +19,24 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
+### Development-mainline integration and long-document follow-through — 0.62.2
+
+PR #139 merged at `2575b77` after the user explicitly approved development-mainline
+integration with pending manual QA disclosed. Its exact-head full CI passed
+(3,272 Node passes, two expected performance skips, three Electron passes).
+Manual acceptance was not changed to PASS. Subsequent work uses a short branch
+from that mainline in the existing Worktree.
+
+0.62.2 targets the measured whole-document parse cost on ordinary long-document
+typing. A conservative two-revision parser reuses unchanged syntax only around
+isolated literal paragraphs, with full fallback and cold-parser differential
+coverage. Exact editing/history and six start/middle/end open-close cycles pass.
+The near-limit controlled typing sequence improved from 5.32 s to 2.62 s on the
+same machine. Long-duration memory and actual Chinese input remain unaccepted.
+Next complete the existing three genuine-input checks, then address reproducible
+input/accessibility problems and distribution readiness as one coherent group.
+Keep pending release gates separate from the user's development merge approval.
+
 ### Local compatibility follow-through — 0.62.0 (2026-11-07)
 
 Ordinary local Desktop/Documents and nested same-named folders join the checked

@@ -16578,6 +16578,76 @@
     toMarkdownExtensions.push(gfmToMarkdown(settings));
   }
 
+  // lib/document-source-parse.mjs
+  function createSourceParser(parseFull) {
+    const cached = /* @__PURE__ */ new Map();
+    const blankGap = (text5) => /^[\r\n]+$/.test(text5) && text5.replaceAll("\r\n", "\n").length >= 2;
+    const literal2 = (node2, text5) => node2?.type === "paragraph" && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === text5 && node2.position.start.column === 1 && node2.position.start.line === node2.position.end.line && text5.length > 0 && !/[\r\n\[\]<>\\`*_~|]/.test(text5);
+    function translate(value, point3) {
+      if (Array.isArray(value)) return value.map((v) => translate(v, point3));
+      if (!value || typeof value !== "object") return value;
+      return Object.fromEntries(Object.entries(value).map(([key2, v]) => [key2, key2 === "position" ? { start: point3(v.start), end: point3(v.end) } : translate(v, point3)]));
+    }
+    function local(source, previous3) {
+      if (!previous3 || source.length < 8192) return null;
+      const [before, tree] = previous3;
+      let from2 = 0, to = before.length, end = source.length;
+      while (from2 < to && from2 < end && before[from2] === source[from2]) from2++;
+      while (to > from2 && end > from2 && before[to - 1] === source[end - 1]) {
+        to--;
+        end--;
+      }
+      const index2 = tree.children.findIndex((node3) => node3.position.start.offset <= from2 && node3.position.end.offset >= to);
+      if (index2 < 0) return null;
+      const node2 = tree.children[index2], start = node2.position.start.offset, stop = node2.position.end.offset;
+      const raw = before.slice(start, stop), delta = source.length - before.length;
+      if (!literal2(node2, raw)) return null;
+      if (index2 ? !blankGap(before.slice(tree.children[index2 - 1].position.end.offset, start)) : start !== 0) return null;
+      if (index2 + 1 < tree.children.length ? !blankGap(before.slice(stop, tree.children[index2 + 1].position.start.offset)) : !/^[\r\n]*$/.test(before.slice(stop))) return null;
+      const nextRaw = source.slice(start, stop + delta);
+      if (!nextRaw || /[\r\n\[\]<>\\`*_~|]/.test(nextRaw)) return null;
+      const fragment = parseFull(nextRaw);
+      if (fragment.children.length !== 1 || !literal2(fragment.children[0], nextRaw)) return null;
+      const replacement = translate(fragment.children[0], (p) => ({
+        ...p,
+        offset: p.offset + start,
+        line: p.line + node2.position.start.line - 1
+      }));
+      const shift2 = (p) => ({
+        ...p,
+        offset: p.offset + delta,
+        column: p.column + (p.line === node2.position.end.line ? delta : 0)
+      });
+      return {
+        ...tree,
+        children: [
+          ...tree.children.slice(0, index2),
+          replacement,
+          ...tree.children.slice(index2 + 1).map((child) => translate(child, shift2))
+        ],
+        position: { start: tree.position.start, end: shift2(tree.position.end) }
+      };
+    }
+    return (source) => {
+      if (cached.has(source)) {
+        const tree2 = cached.get(source);
+        cached.delete(source);
+        cached.set(source, tree2);
+        return tree2;
+      }
+      const tree = local(source, [...cached].at(-1)) || parseFull(source), pending = [tree];
+      while (pending.length) {
+        const value = pending.pop();
+        if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
+        for (const child of Object.values(value)) pending.push(child);
+        Object.freeze(value);
+      }
+      cached.set(source, tree);
+      if (cached.size > 2) cached.delete(cached.keys().next().value);
+      return tree;
+    };
+  }
+
   // lib/document-structured-source.mjs
   var import_document_capacity3 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS3 } = import_document_capacity3.default;
@@ -16675,25 +16745,7 @@
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS4 } = import_document_capacity4.default;
   var spanBlock = (projection, span) => span.itemIndex === void 0 ? span.quoteIndex === void 0 ? projection.doc.content[span.blockIndex] : projection.doc.content[span.blockIndex].content[span.quoteIndex] : listNodeAt(projection.doc.content[span.blockIndex], span.itemPath ?? [span.itemIndex]).content[0];
   var parser = unified().use(remarkParse).use(remarkGfm);
-  var parsed = /* @__PURE__ */ new Map();
-  function parse2(source) {
-    if (parsed.has(source)) {
-      const tree2 = parsed.get(source);
-      parsed.delete(source);
-      parsed.set(source, tree2);
-      return tree2;
-    }
-    const tree = parser.parse(source), pending = [tree];
-    while (pending.length) {
-      const value = pending.pop();
-      if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
-      for (const child of Object.values(value)) pending.push(child);
-      Object.freeze(value);
-    }
-    parsed.set(source, tree);
-    if (parsed.size > 2) parsed.delete(parsed.keys().next().value);
-    return tree;
-  }
+  var parse2 = createSourceParser((source) => parser.parse(source));
   var unsafe = () => ({ ok: false, code: "unsafe-source-range" });
   var validText2 = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
   var splits2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
@@ -20849,9 +20901,9 @@
         });
         return slice2;
       }
-      let parsed2 = view.someProp("clipboardTextParser", (f) => f(text5, $context, plainText, view));
-      if (parsed2) {
-        slice2 = parsed2;
+      let parsed = view.someProp("clipboardTextParser", (f) => f(text5, $context, plainText, view));
+      if (parsed) {
+        slice2 = parsed;
       } else {
         let marks2 = $context.marks();
         let { schema } = view.state, serializer = DOMSerializer.fromSchema(schema);
@@ -52386,8 +52438,8 @@
     const filteredAttrs = attrs ? Object.fromEntries(Object.entries(attrs).filter(([key2]) => validAttrKeys.includes(key2))) : {};
     let node2;
     if (content5) {
-      const parsed2 = createNodeFromContent(content5, editor2.schema);
-      node2 = defaultType.createAndFill(filteredAttrs, parsed2);
+      const parsed = createNodeFromContent(content5, editor2.schema);
+      node2 = defaultType.createAndFill(filteredAttrs, parsed);
     } else node2 = defaultType.createAndFill(filteredAttrs);
     if (!node2) return false;
     if (dispatch) {
@@ -59153,8 +59205,8 @@ ${prefix}
       const start = fromAlpha(marker);
       return start > 0 ? start : 1;
     }
-    const parsed2 = parseInt(marker, 10);
-    return Number.isNaN(parsed2) ? 1 : parsed2;
+    const parsed = parseInt(marker, 10);
+    return Number.isNaN(parsed) ? 1 : parsed;
   }
   function startToMarker(type, start) {
     if (type === "numeric") return String(start);
@@ -59657,8 +59709,8 @@ ${prefix}
             content: inlineContent
           });
         } else {
-          const parsed2 = helpers.parseChildren([itemToken]);
-          if (parsed2.length > 0) content5.push(...parsed2);
+          const parsed = helpers.parseChildren([itemToken]);
+          if (parsed.length > 0) content5.push(...parsed);
         }
       });
       return {

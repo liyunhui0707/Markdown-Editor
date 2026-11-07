@@ -7,6 +7,7 @@ import { mapInlineRange } from './document-inline-source.mjs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
+import {createSourceParser} from './document-source-parse.mjs';
 import { projectSimpleList, listNodeAt } from './document-list-source.mjs';
 import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
@@ -15,21 +16,7 @@ export const spanBlock = (projection, span) => span.itemIndex === undefined ? (s
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
 const parser = unified().use(remarkParse).use(remarkGfm);
-// Edits repeatedly project the same before/after text. Retain only two immutable
-// parse trees; every call still builds fresh mutable projection/validation data.
-const parsed = new Map();
-function parse(source) {
-  if (parsed.has(source)) {
-    const tree=parsed.get(source); parsed.delete(source); parsed.set(source,tree); return tree;
-  }
-  const tree=parser.parse(source), pending=[tree];
-  while(pending.length) {
-    const value=pending.pop(); if(!value||typeof value!=='object'||Object.isFrozen(value))continue;
-    for(const child of Object.values(value))pending.push(child); Object.freeze(value);
-  }
-  parsed.set(source,tree); if(parsed.size>2)parsed.delete(parsed.keys().next().value);
-  return tree;
-}
+const parse = createSourceParser(source => parser.parse(source));
 const unsafe = () => ({ ok: false, code: 'unsafe-source-range' });
 const validText = s => typeof s === 'string' && !/[\0\r\n]/.test(s)
   && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);

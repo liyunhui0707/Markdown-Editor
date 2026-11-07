@@ -2508,7 +2508,7 @@ The running 0.46.0 installed app was deliberately left intact. Test the rebuilt
 
 ## 0.61.x daily-writing / native input acceptance — PENDING
 
-Use the current 0.61.x App on macOS with your normal Chinese input method. Work only in
+Use the current 0.62.2 App on macOS with your normal Chinese input method. Work only in
 an independent disposable draft; record macOS/input-method name and PASS/FAIL
 for these three workflows. Automated `insertText` is not native IME evidence.
 
@@ -2539,3 +2539,18 @@ accessibility, signing/notarization and general release acceptance are separate.
 Pending human acceptance: use an existing ordinary local folder below Home (or local Desktop/Documents when not synced), export a uniquely named synthetic document, reopen it, edit and explicitly save the bound file. Verify content and retained previous version. On iCloud Desktop/Documents, expect a cloud-location refusal with the draft retained; do not disable sync to make a test pass. Existing targets must not be overwritten by Save As.
 
 Native IME remains NOT VERIFIED; the three daily-input checks remain PENDING and historical manual FAIL is not closed by automation.
+
+
+## 0.62.2 long-document writing acceptance — PENDING
+
+Use the three existing daily-writing/native-input checks above with a disposable
+long Markdown copy. Include ordinary typing and Chinese candidate commit/cancel
+at the beginning, middle and end; type spaces and Markdown punctuation as well
+as letters. Check selection replacement, Undo/Redo, source/outline navigation and
+quit/recovery. Complex structures should retain their existing protection and
+source-editing behavior. Report noticeable pauses and the specific location.
+
+Automation passed cold-parser differential checks, full projections, three
+Electron workflows and six open/edit/close cycles. It does not replace physical
+IME acceptance or clear historical failures. Mainline merge approval likewise
+is not manual QA PASS or public-release approval.

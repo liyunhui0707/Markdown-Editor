@@ -68,8 +68,18 @@ test('Stage 11.11/F.2: EditorState round-trips through toJSON/fromJSON with mark
 
   // Decoration build remains stable across the round trip — same shape, same
   // ranges. This is the proof that note-local state caching is safe.
-  const before = collectMarks(buildHeadingDecorations(state, cm6));
-  const after  = collectMarks(buildHeadingDecorations(restored, cm6));
+  // Initial parsing has a time budget and can stop at different offsets under
+  // load. Compare complete trees, not independently scheduled partial parses.
+  // ensureSyntaxTree returns the completed tree; pass it explicitly to the
+  // builder because syntaxTree(state) may still refer to the partial tree.
+  const completeMarks = editorState => {
+    const tree = ensureSyntaxTree(editorState, editorState.doc.length, 30_000);
+    assert.ok(tree, 'Markdown parsing must complete before comparing marks');
+    assert.equal(tree.length, editorState.doc.length);
+    return collectMarks(buildHeadingDecorations(editorState, { Decoration, syntaxTree: () => tree }));
+  };
+  const before = completeMarks(state);
+  const after  = completeMarks(restored);
   assert.equal(after.length, before.length,
     'decoration count must match before and after EditorState round-trip');
   assert.deepEqual(after.map((m) => ({ from: m.from, to: m.to, c: m.class })),

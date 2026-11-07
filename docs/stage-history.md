@@ -1786,3 +1786,66 @@ Full CI on preceding f8a2fd1 passes both dependency audit gates, full Node basel
 Artifact inspection found that the explicit Document runtime exclusion did not exclude electron-builder's separately collected production dependencies: Toast UI's distributed files still shipped, although the Document entry never loaded them. Add a single package exclusion for `node_modules/@toast-ui/**`, using the builder's actual dependency matcher in a regression test. Retain historical source, dependencies and Git history. This resolves that package inclusion; it does not fix the old embedded sanitizer for developers launching the legacy Vault runtime, so repository-wide SEC-01 remains scoped/open.
 
 New matcher assertion RED on 0.62.0, then 18 packaging/launch/Finder tests PASS. Actual ASAR confirms no Toast UI entries; 75 project runtime files, renderer rebuild and universal production helper match 0.62.0. Package startup and the packaged directory helper pass with prior private records unchanged. Full CI passed 0.62.0 at 1164309; rerun on this packaging fix. Native IME NOT VERIFIED, human acceptance PENDING and historical FAIL remain. No signed/notarized/public release.
+
+
+## Development integration and bounded long-document parsing — 0.62.2 (2026-11-07)
+
+- User explicitly approved PR #139 merge with outstanding manual acceptance
+  disclosed. Merge commit `2575b7720823a4c9a85ad58535b919fe896d3a00` preserves all
+  reviewed commit identities; its tree equals the tested 0.62.1 head. No branch
+  deletion, tag or release. New work uses `fix/document-writing-latency` in the
+  existing Worktree. Manual PENDING / native IME NOT VERIFIED and historical FAIL
+  remain unchanged; the approval is for a development mainline checkpoint.
+- Profile: 485,021-unit synthetic source, 40 novel edits, mapper mean 99.47 ms.
+  Full Markdown parsing dominated CPU. Extract the existing bounded two-entry
+  parser cache into `document-source-parse.mjs`; reuse unchanged AST nodes only
+  for isolated single-line literal paragraphs, after normal fragment parsing.
+  Brackets/escapes, structure, multiline content, ambiguous gaps, normalized
+  text, references and autolinks retain full-parse fallback. Shift exact UTF-16
+  positions without mutating prior trees. All projections remain fresh; full
+  projection equality and independent main validation remain mandatory.
+- Five new tests include 240 sequential mixed-context cold-parser comparisons,
+  LF/CRLF/CR positions, Unicode, start/EOF, cache immutability/eviction and fallback.
+  Initial missing-implementation RED is retained. 402 focused Node tests PASS.
+  Three Electron workflows PASS: normal/near-limit writing, exact history and
+  restart recovery, plus six open/edit/close cycles at start/middle/end. All
+  originals unchanged. Controlled Unicode is not native IME acceptance.
+- Same-machine mapper mean 13.72 ms after change (40 novel edits). Controlled
+  25-key typing/confirmation 5,321 ms -> 2,622 ms; long tasks 27 -> 8, but worst
+  task 132 -> 142 ms, so not all stalls are eliminated. Six 68-key cycles take
+  4.89–5.02 s each including 20 ms/key automation. Closed renderer heap after
+  test-only GC is 9.9–11.2 MiB with six retained drafts; Tab working set fluctuates
+  about 302–387 MiB. This is bounded repeated-session evidence, not a long-duration
+  leak or universal performance claim. No cache/history/capacity limits increased.
+- New parser is under 100 lines; existing source mapper remains just above 300
+  lines and keeps cohesive source-edit validation together. No unrelated split.
+  Test/profile outputs live in control checkout `.local/verification/daily-writing-followthrough-ju5bo2mh/`;
+  synthetic documents/drafts stay in named OS temporary directories, with paths
+  in each E2E evidence file. No Home fixtures or historical data were changed.
+- Actual 0.62.2 package: 76 runtime files match the candidate, renderer rebuild
+  matches, universal production helper is unchanged and rejects test hooks.
+  Startup/recent-panel check PASS without opening documents; existing private
+  draft/catalog/version records unchanged. Initial isolated build used physical
+  dependency path labels; rebuilt with the established preserve-symlinks setting.
+  Executable text differs only by module labels, recorded before reusing E2E
+  evidence. The first package is retained locally and was never installed.
+
+
+### Post-merge CI parsing determinism and installed check (2026-11-08)
+
+Main push CI run `42387580015` failed the legacy CM6 F.2 state round-trip test
+with 17 versus 14 decorations, although the identical pre-merge tree passed.
+Initial CM6 parsing is time-budgeted; independently created states can expose
+different partial trees under load. The test now obtains and explicitly passes
+complete trees for both states before comparing the unchanged count, range and
+class assertions. This follows the existing long-document test in the same file.
+All seven targeted readiness tests PASS. No legacy product code or CI gate changed;
+full CI must validate the final head. This test-only follow-up requires no extra
+version bump beyond 0.62.2.
+
+Installed 0.62.2 startup/recent-panel checks PASS with no user documents opened
+and no changes to existing draft/catalog/version records. ASAR SHA-256:
+`f911ff2e0362c58b971e8d4cd2f78be78786872b6914f4b3bd3c4cd3e4b4271e`.
+The previous App is retained in the same verification run's installation/rollback
+directory with identity manifests and recovery mapping. Native IME remains
+NOT VERIFIED; real-input acceptance PENDING and historical FAIL remain.
