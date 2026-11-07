@@ -4,7 +4,11 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-07) — READ FIRST
 
-**Current candidate: 0.62.0 ordinary local-folder compatibility.**
+**Current candidate: 0.62.1 local-folder compatibility and package hygiene.**
+The Document package excludes `node_modules/@toast-ui/**`; retain historical
+Vault development dependencies and SEC-01's legacy status. Do not restore these
+unused bundled dependencies to the shipped Document app. All 75 project runtime
+files and the native helper are unchanged from the tested 0.62.0 candidate.
 Desktop/Documents components beneath Home now use a bounded read-only Foundation
 location check, then all existing ancestor/metadata/APFS checks. iCloud-managed
 folders remain refused. Export workers repeat capture; native coordinated saving

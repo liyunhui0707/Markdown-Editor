@@ -6,9 +6,13 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.62.0 local WIP candidate for ordinary local folder compatibility.** This is not
+**0.62.1 local WIP candidate for local-folder compatibility and package hygiene.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
+
+The Document installation excludes the retired Toast UI dependency files, including
+its old embedded sanitizer. Historical Vault source/dependencies remain available
+for development; this is not a claim that their SEC-01 issue is fixed.
 
 ## Local Desktop and Documents — 0.62.0
 
