@@ -58,5 +58,9 @@ export function createAccessibilityView({byId,context}) {
     if(readOnly){node.removeAttribute('aria-multiline');node.removeAttribute('aria-readonly');}
     else{attribute(node,'aria-multiline','true');attribute(node,'aria-readonly',String(!editor.isEditable));}
   }
-  return {sync,configure(){enabled=true;sync();}};
+  return {sync,configure(){
+    // Explicit Tab stops keep modal buttons reachable across macOS keyboard settings.
+    for(const button of doc.querySelectorAll('dialog button'))attribute(button,'tabindex','0');
+    enabled=true;sync();
+  }};
 }

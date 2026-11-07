@@ -276,6 +276,7 @@
       }
     }
     return { sync, configure() {
+      for (const button of doc4.querySelectorAll("dialog button")) attribute(button, "tabindex", "0");
       enabled = true;
       sync();
     } };
