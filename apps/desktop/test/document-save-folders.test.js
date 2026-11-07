@@ -36,7 +36,7 @@ for(const kind of ['symlink','writable','readonly']) test('unsafe ancestor/targe
  assert.throws(()=>captureCopyDestination(path.join(c,'new.md')),{code:'unsupported-copy-directory'});
  assert.equal(fs.existsSync(path.join(c,'new.md')),false);
 });
-for(const component of ['.hidden','Library','Desktop','Documents','OneDrive - Work','Dropbox']) test('excluded component stays blocked at any nesting depth: '+component,()=>{
+for(const component of ['.hidden','Library','OneDrive - Work','Dropbox']) test('excluded component stays blocked at any nesting depth: '+component,()=>{
  assert.throws(()=>captureCopyDestination(path.join(batch.dir,component,'nested','new.md')),{code:'unsupported-copy-directory'});
 });
 test('home itself, outside-home paths, dot traversal, oversized depth and target symlinks remain refused',()=>{

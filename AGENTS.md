@@ -4,7 +4,15 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-07) — READ FIRST
 
-**Current local WIP checkpoint: 0.61.2 daily-writing performance.**
+**Current candidate: 0.62.0 ordinary local-folder compatibility.**
+Desktop/Documents components beneath Home now use a bounded read-only Foundation
+location check, then all existing ancestor/metadata/APFS checks. iCloud-managed
+folders remain refused. Export workers repeat capture; native coordinated saving
+rechecks the location proof. No cloud permission, ACL change or arbitrary path
+write is added. Build the production helper before running these workflows.
+Native IME NOT VERIFIED, manual PENDING and historical FAIL remain open.
+
+**Previous local WIP checkpoint: 0.61.2 daily-writing performance.**
 The source mapper, table presentation and outline optimizations preserve full
 source/main validation, history, queue budgets and save/recovery authority.
 Matching focused Node, controlled Electron, package and installed-startup evidence

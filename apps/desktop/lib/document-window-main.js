@@ -101,11 +101,11 @@ app.whenReady().then(async () => {
       return result.response === 1;
     } : null, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async (win, { suggestedName } = {}) => {
       const accepted = await dialog.showMessageBox(win, { type: 'warning', message: '另存为新的 Markdown 文件？',
-        detail: '请选择主文件夹内的普通本地文件夹及其子文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。主文件夹本身、桌面、文稿、资源库、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md；所选本地图片会作为同目录附件导出，移动时请一起移动。已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
+        detail: '请选择主文件夹内的普通本地文件夹及其子文件夹，例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。本地且未同步的桌面、文稿也需通过检查。主文件夹本身、资源库、应用程序、隐藏及同步目录不受支持。仅在确认该目录未被其他应用同步时继续。只创建新的 .md；所选本地图片会作为同目录附件导出，移动时请一起移动。已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
         buttons: ['取消', '选择本地文件夹…'], defaultId: 0, cancelId: 0, noLink: true });
       if (accepted.response !== 1 || win.isDestroyed()) return { canceled: true };
       const selected = await dialog.showSaveDialog(win, { title: '另存为新 Markdown 文件', defaultPath: suggestCopyPath(app.getPath('downloads'), suggestedName),
-        message: '请选择主文件夹内的普通本地 APFS 文件夹及其子文件夹；仍需通过权限检查。支持通过检查的下载目录；其他额外权限仍可能被拒绝。主文件夹、桌面、文稿、资源库及同步目录不受支持。只创建新文件，不覆盖。',
+        message: '请选择主文件夹内的普通本地 APFS 文件夹及其子文件夹；仍需通过权限检查。支持通过检查的下载目录；其他额外权限仍可能被拒绝。支持通过检查的本地桌面、文稿；iCloud 同步的桌面、文稿仍不支持。主文件夹、资源库、应用程序及同步目录不受支持。只创建新文件，不覆盖。',
         nameFieldLabel: '新文件名：', filters: [{ name: 'Markdown', extensions: ['md'] }],
         properties: ['showOverwriteConfirmation', 'dontAddToRecent'], securityScopedBookmarks: false });
       if (!win.isDestroyed()) win.focus();

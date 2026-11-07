@@ -2,6 +2,7 @@
 const nativeFs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { inspectDirectoryLocation } = require('./document-directory-location');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const deny = code => { throw Object.assign(Error(code.replaceAll('-', ' ')), { code, status: 'blocked' }); };
@@ -154,7 +155,7 @@ const copyName = name => typeof name === 'string' && name.isWellFormed()
   && !/[\\/:\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/u.test(name)
   && Buffer.byteLength(name, 'utf8') <= 255;
 const unsupportedFolder = name => name.startsWith('.')
-  || /^(?:Desktop|Documents|Library|Applications)$/i.test(name)
+  || /^(?:Library|Applications)$/i.test(name)
   || /^(?:Dropbox|OneDrive|Google[ -]?Drive|iCloud|Box(?:[ -]|$)|Nextcloud|Syncthing)/i.test(name);
 function persistentDirectory(root) {
   const home = nativeFs.realpathSync(os.homedir());
@@ -171,7 +172,9 @@ function persistentDirectory(root) {
     if (!s.isDirectory() || s.isSymbolicLink() || s.dev !== homeStat.dev
         || Number(s.uid) !== process.getuid() || (s.mode & 0o022n) !== 0n
         || !(s.mode & 0o100n) || (location === root && (s.mode & 0o300n) !== 0o300n)) return deny('unsupported-copy-directory');
-    return { path: location, identity: directoryIdentity(s),
+    const locationProof = location !== home && /^(Desktop|Documents)$/i.test(path.basename(location))
+      ? { location: inspectDirectoryLocation(location) } : {};
+    return { path: location, identity: directoryIdentity(s), ...locationProof,
       metadata: inspectMacMetadata(location, { newFileDirectory: true }) };
   });
   nativeFs.accessSync(root, nativeFs.constants.W_OK | nativeFs.constants.X_OK);

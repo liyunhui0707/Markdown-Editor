@@ -2533,3 +2533,9 @@ Any loss/duplication, stuck composition or incorrect recovered/exported text is 
 FAIL. Preserve the draft and exact action sequence; do not erase historical FAIL
 or mark all native IME accepted from a passing subset. Full CI, SEC-01,
 accessibility, signing/notarization and general release acceptance are separate.
+
+## 0.62.0 local-folder acceptance (2026-11-07)
+
+Pending human acceptance: use an existing ordinary local folder below Home (or local Desktop/Documents when not synced), export a uniquely named synthetic document, reopen it, edit and explicitly save the bound file. Verify content and retained previous version. On iCloud Desktop/Documents, expect a cloud-location refusal with the draft retained; do not disable sync to make a test pass. Existing targets must not be overwritten by Save As.
+
+Native IME remains NOT VERIFIED; the three daily-input checks remain PENDING and historical manual FAIL is not closed by automation.

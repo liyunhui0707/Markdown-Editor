@@ -7,7 +7,7 @@ test('nested save: edit original copy, export, reopen, refusal and cancellation 
  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-')));
  const original=path.join(root,'Original.md'),bytes=Buffer.from('\ufeff# Nested folders\r\n\r\nSynthetic original.\r\n');
  await fs.writeFile(original,bytes,{flag:'wx',mode:0o600});
- const destination=path.join(batch.dir,'文章','第三层');await fs.mkdir(destination,{recursive:true,mode:0o700});
+ const destination=path.join(batch.dir,'Documents','文章','Desktop');await fs.mkdir(destination,{recursive:true,mode:0o700});
  const target=path.join(destination,'另存新文件.md');
  const env={PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8'};for(const k of ['TMPDIR','TMP','TEMP'])if(process.env[k])env[k]=process.env[k];
  let app,exit,closed=false,result;const faults=[],requests=[];

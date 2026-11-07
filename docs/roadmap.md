@@ -19,6 +19,17 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
+### Local compatibility follow-through — 0.62.0 (2026-11-07)
+
+Ordinary local Desktop/Documents and nested same-named folders join the checked
+Home-descendant save scope. iCloud-managed locations remain blocked with an
+explicit reason; ACL/xattr and identity checks are preserved. Export, reopen,
+bound-file saving, conflict retention and restart recovery form one verification
+group. Complete CI/security gates before integrating PR #139; the genuine-input
+checklist remains PENDING. Next prioritize actual input acceptance and measured
+long-document performance, followed by distribution readiness. This batch does
+not promise network, third-party sync or external-volume semantics.
+
 ### Phase 3 — daily-writing stabilization, first batch (2026-11-07)
 
 The 0.61.0 checkpoint is `af3df23747dbbe71c15cb4f374d1dbcd37ef5ab0`.

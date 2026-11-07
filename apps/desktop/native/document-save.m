@@ -110,7 +110,13 @@ static NSDictionary *transaction(NSDictionary *r) {
   for(NSNumber *number in @[@(candidate),@(original),@(target),@(recovery)])if(number.intValue>=0)close(number.intValue);
   return receipt;
 }
-int main(void){@autoreleasepool {
+int main(int argc,const char **argv){@autoreleasepool {
+  if(argc==3&&!strcmp(argv[1],"--inspect-directory")){
+    NSDictionary *result=inspectDirectoryLocation([NSString stringWithUTF8String:argv[2]]);
+    NSData *output=[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
+    fwrite(output.bytes,1,output.length,stdout);putchar('\n');return 0;
+  }
+  if(argc!=1)return 64;
   // Newline framed input leaves test-only checkpoint acknowledgements unread.
   NSMutableData *data=[NSMutableData data];int c;
   while((c=getchar())!='\n'&&c!=EOF){if(data.length>=DOCUMENT_MAX_REQUEST_BYTES)return 64;unsigned char b=c;[data appendBytes:&b length:1];}

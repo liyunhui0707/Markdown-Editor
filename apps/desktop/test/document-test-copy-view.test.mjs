@@ -199,3 +199,13 @@ test('detail cards separate last confirmed file from later failed or uncertain o
   assert.equal(h.text('test-copy-result'), last); assert.equal(h.byId('create-test-copy').disabled, true);
   h.select('B'); assert.equal(h.byId('confirmed-copy-card').hidden, true); assert.equal(h.byId('latest-copy-card').hidden, true);
 });
+
+test('cloud and unavailable folder checks retain writing and the last confirmed receipt', async()=>{
+ for(const code of ['cloud-directory','directory-location-unavailable']){
+  const h=harness();await h.attempt(confirmed());const before=structuredClone(h.documents.get('A').state.confirmed);
+  await h.attempt(refused(code));
+  assert.match(h.text('copy-operation-alert'),code==='cloud-directory'?/iCloud/:/无法确认/);
+  assert.match(h.text('test-copy-result'),/\/synthetic\/A.md/);
+  for(const key of ['source','revision','dirty','canUndo'])assert.deepEqual(h.documents.get('A').state.confirmed[key],before[key]);
+ }
+});

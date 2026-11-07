@@ -29,6 +29,7 @@ static BOOL same(NSDictionary *a, NSDictionary *b, NSArray *keys) {
   for(NSString *key in keys)if(![a[key] isEqual:b[key]])return NO;return YES;
 }
 static NSArray *posixKeys(void){return @[@"dev",@"ino",@"mode",@"uid",@"gid"];}
+#import "document-directory-location.h"
 static NSData *readBytesLimit(int fd, size_t limit) {
   struct stat s;if(fstat(fd,&s)||!S_ISREG(s.st_mode)||s.st_nlink!=1||(unsigned long long)s.st_size>limit||s.st_size<0)refuse(@"unsupported-file");
   NSMutableData *d=[NSMutableData dataWithLength:(NSUInteger)s.st_size];size_t offset=0;
@@ -91,6 +92,10 @@ static void verifyAncestors(NSArray *ancestors) {
     int fd=open(p.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(fd<0)refuse(@"directory-changed");
     BOOL match=NO;
     @try {match=same(identity(fd),a[@"identity"],posixKeys());BOOL acl=NO;NSDictionary *attrs=nativeAttributes(fd,YES,&acl);
+      if(a[@"location"]){
+        if(![a[@"location"] isEqual:@{@"ubiquitous":@NO}])refuse(@"invalid-directory-location");
+        verifyLocalDirectory(p);
+      }
       if(a[@"metadata"]){if(![attrs isEqual:a[@"metadata"][@"xattrs"]]||acl!=[a[@"metadata"][@"acl"] isKindOfClass:NSString.class])refuse(@"directory-metadata-changed");}
       else if(acl||attrs.count)refuse(@"directory-metadata-changed");
     }@finally{close(fd);}

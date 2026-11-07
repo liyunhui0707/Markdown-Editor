@@ -4,7 +4,7 @@ const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs
 test('original save: consent, repeat, undo, conflict, restart recovery and save-as binding',async({},info)=>{
  test.setTimeout(120000);if(!process.env.E2E_ELECTRON_EXECUTABLE)throw Error('isolated runtime required');
  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-original-workflow-')));
- await fs.mkdir(info.outputDir,{recursive:true});const fixture=createSaveFolderFixture(info.outputDir),folder=path.join(fixture.dir,'Nested');await fs.mkdir(folder,{mode:0o700});
+ await fs.mkdir(info.outputDir,{recursive:true});const fixture=createSaveFolderFixture(info.outputDir),folder=path.join(fixture.dir,'Documents','Desktop');await fs.mkdir(folder,{recursive:true,mode:0o700});
  const original=path.join(folder,'Original.md'),target=path.join(folder,'New copy.md'),bytes=Buffer.from('\ufeff# Original\r\n\r\nFirst synthetic paragraph.\r\n\r\n');await fs.writeFile(original,bytes,{mode:0o600,flag:'wx'});
  const versions=path.join(root,'versions'),env={PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8'};for(const k of ['TMPDIR','TMP','TEMP'])if(process.env[k])env[k]=process.env[k];
  let app,exit,result;const faults=[],requests=[],exits=[];

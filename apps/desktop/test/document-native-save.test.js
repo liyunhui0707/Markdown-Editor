@@ -133,3 +133,12 @@ native('aggregate overflow rejects assets before creating any sidecar or changin
  const bytes=Buffer.from('x'),sha256=hash(bytes);f.request.assets[4]={name:`markdown-image-${sha256}.png`,body:bytes.toString('base64'),sha256};
  const r=await run(f);assert.equal(r.ok,false);assert.equal(r.committed,false);assert.equal(r.code,'invalid-assets');assert.deepEqual(fs.readdirSync(f.dir),['原文.md']);assert.deepEqual(fs.readFileSync(f.file),original);
 });
+
+native('coordinated save rechecks the local-directory proof and rejects malformed authority',async()=>{
+ for(const ubiquitous of [false,true]){
+  const f=fixture();f.request.ancestors[0].location={ubiquitous};const result=await run(f);
+  assert.equal(result.ok,!ubiquitous,JSON.stringify(result));
+  assert.deepEqual(fs.readFileSync(f.file),ubiquitous?original:edited);
+  if(ubiquitous){assert.equal(result.committed,false);assert.equal(result.code,'invalid-directory-location');}
+ }
+});

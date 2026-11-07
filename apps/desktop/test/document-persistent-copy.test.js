@@ -274,7 +274,7 @@ test('save as new: unsupported locations and unsafe names fail before creation',
   for (const name of ['新文档 😀.md', 'Another copy.md', 'UPPER.MD']) assert.equal(copyName(name), true, name);
   for (const name of ['../escape.md', 'a/b.md', 'a\\b.md', '.hidden.md', 'trailing.md ', 'a:b.md', 'line\nname.md', 'a\u202ename.md', 'a\ud800.md', '中'.repeat(85) + '.md']) assert.equal(copyName(name), false, JSON.stringify(name));
   // Reserved locations are refused before metadata/content reads; no real files accessed.
-  for (const name of ['Desktop','Documents','Library','Dropbox','OneDrive - Work','Google Drive','iCloud Drive','.hidden']) {
+  for (const name of ['Library','Dropbox','OneDrive - Work','Google Drive','iCloud Drive','.hidden']) {
     assert.throws(() => captureCopyDestination(path.join(os.homedir(), name, 'new.md')), { code: 'unsupported-copy-directory' });
   }
   const d = ordinaryDestination('plain.md');

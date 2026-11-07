@@ -6,9 +6,19 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.61.2 local WIP checkpoint for daily-writing performance.** This is not
+**0.62.0 local WIP candidate for ordinary local folder compatibility.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
+
+## Local Desktop and Documents — 0.62.0
+
+Ordinary local `Desktop` / `Documents` folders beneath Home, including nested
+folders with these names, can now pass the same save checks as other local
+folders. This applies to new-file export and explicitly bound-file saving.
+iCloud-managed Desktop/Documents remain refused with a specific explanation.
+If macOS cannot confirm the location, nothing is created. The app does not change
+sync settings or folder permissions. Home itself, system/hidden/provider folders,
+network and external volumes remain outside the supported save scope.
 
 ## Daily writing — 0.61.2
 
@@ -107,8 +117,7 @@ and metadata checks. This export action creates only a new filename and never re
 targets. Saving back uses the separate bound-file action described above. Failed/cancelled exports retain the draft and
 last confirmed receipt. Imported image attachments use the same destination.
 
-This does not mean any disk or directory is supported. Home itself, Desktop,
-Documents, Library, Applications, hidden/system and known cloud/sync components,
+This does not mean any disk or directory is supported. Home itself, Library, Applications, hidden/system and known cloud/sync components,
 symlinked paths, other filesystems and unsupported permissions remain refused.
 The app never changes folder permissions; confirm that no other app syncs your
 chosen folder. Saving back uses the separate bound-file action described above.
@@ -460,8 +469,8 @@ no composition state is cleared by a timer or by hiding its status.
 The installed app and `npm run dev` include the restricted **另存新文件…** flow.
 
 Choose an existing ordinary local APFS folder within your home folder, including subfolders,
-owned by you and not writable by others. Home itself, Desktop, Documents,
-Library, hidden and known sync folders are unsupported. Downloads is supported
+owned by you and not writable by others. Local Desktop/Documents are supported after checks; iCloud-managed ones remain refused.
+Home itself, Library, Applications, hidden and known sync folders are unsupported. Downloads is supported
 when it passes these checks: its non-inheriting everyone deny-delete protection
 and opaque `com.apple.macl` directory metadata are accepted and fingerprinted;
 other ACLs/xattrs remain refused. The dialog suggests Downloads only after checks
