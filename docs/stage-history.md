@@ -1829,3 +1829,23 @@ New matcher assertion RED on 0.62.0, then 18 packaging/launch/Finder tests PASS.
   dependency path labels; rebuilt with the established preserve-symlinks setting.
   Executable text differs only by module labels, recorded before reusing E2E
   evidence. The first package is retained locally and was never installed.
+
+
+### Post-merge CI parsing determinism and installed check (2026-11-08)
+
+Main push CI run `42387580015` failed the legacy CM6 F.2 state round-trip test
+with 17 versus 14 decorations, although the identical pre-merge tree passed.
+Initial CM6 parsing is time-budgeted; independently created states can expose
+different partial trees under load. The test now obtains and explicitly passes
+complete trees for both states before comparing the unchanged count, range and
+class assertions. This follows the existing long-document test in the same file.
+All seven targeted readiness tests PASS. No legacy product code or CI gate changed;
+full CI must validate the final head. This test-only follow-up requires no extra
+version bump beyond 0.62.2.
+
+Installed 0.62.2 startup/recent-panel checks PASS with no user documents opened
+and no changes to existing draft/catalog/version records. ASAR SHA-256:
+`f911ff2e0362c58b971e8d4cd2f78be78786872b6914f4b3bd3c4cd3e4b4271e`.
+The previous App is retained in the same verification run's installation/rollback
+directory with identity manifests and recovery mapping. Native IME remains
+NOT VERIFIED; real-input acceptance PENDING and historical FAIL remain.
