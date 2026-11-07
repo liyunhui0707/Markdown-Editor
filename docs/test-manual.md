@@ -1,5 +1,27 @@
 # Manual Test Checklist
 
+## Keyboard accessibility — 0.63.0 (manual acceptance pending)
+
+Controlled Electron verifies region/toolbar navigation, modal focus confinement
+and return, light/dark palette pairs and composition focus retention. It does not
+exercise VoiceOver or a physical Chinese input method. The existing three genuine
+input checks remain PENDING; native IME NOT VERIFIED and historical FAIL remain.
+
+On a disposable article, use F6 / Shift+F6 through the regions and Option+F10 into
+formatting (Fn may be needed). Tab leaves each toolbar; arrow keys/Home/End move
+within it. Confirm visible focus, the narrow sidebar's Escape return, reading
+settings' modal Tab cycle and source-return focus. During real Chinese preedit,
+these region shortcuts must not commit text or strand the caret.
+
+With VoiceOver enabled, check document/editor names and reading order, selected
+format states, toolbar buttons and dialog titles. Status should remain meaningful
+without repeating unchanged messages. Record OS, input method and observed result;
+do not promote automated DOM role checks to a screen-reader PASS.
+
+Installation/update/rollback steps are in [the installation guide](install.md).
+Keep the previous bundle and records; testing a downgrade must not discard drafts.
+
+
 ## Practical capacity — 0.61.0 (manual acceptance pending)
 
 Use a disposable article and local PNG/JPEGs. Open a longer article, create a

@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-07)
+## Current direction (2026-11-08)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -18,6 +18,23 @@ limits have already been removed.
 | 1. Native Mac file opening | Open `.md` via Finder Open With; after the user chooses Markdown as default, double-click opens it. Cold/warm launch, repeat opens, Unicode paths and pending input behave predictably. | 0.57.0 installed local candidate implements association, main-owned queued read intent, unchanged-session reuse and deferred opening. Existing originals stay read-only; no default handler is changed automatically. 109 focused Node checks, three source Electron workflows and actual-package cold/warm/repeated LaunchServices opens pass; no unrestricted filesystem or release claim. |
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
+
+### Phase 3 — keyboard accessibility and delivery, 0.63.0
+
+PR #140 merged the bounded 0.62.2 performance work at `a89762b`; its mainline CI
+passed. This group keeps the visual baseline and adds region/toolbar keyboard
+navigation, named editor modes, visible focus and improved text contrast, with
+one controlled Electron regression in CI. Composition retains focus; persistence,
+source mapping and original-file authorization do not change.
+
+The current Document install/update/rollback guide replaces the obsolete Vault
+instructions. A local arm64 App and ZIP are verified against source, helper and
+version; this is development delivery, not a public Release. Next complete the
+pending genuine-input and VoiceOver checks plus sustained real writing; fix
+observed failures together. Then prepare Developer ID signing/notarization and
+public update/rollback acceptance once distribution prerequisites are available.
+No new editor framework, feature family or automatic updater is needed now.
+Historical manual FAIL and native IME NOT VERIFIED remain explicit.
 
 ### Development-mainline integration and long-document follow-through — 0.62.2
 

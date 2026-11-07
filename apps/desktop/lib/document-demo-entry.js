@@ -1,3 +1,4 @@
+import {createAccessibilityView} from './document-accessibility-view.mjs';
 import { createNativeOpenView } from './document-native-open-view.mjs';
 import { createInputPressureView } from './document-input-pressure-view.mjs';
 import {createImagePreviews} from './document-image-preview.mjs';
@@ -43,6 +44,7 @@ const sourceView = createSourceView({ byId, createEditor:createSourceEditor, con
   sourceSelection:()=>{const at=editor.state.selection.from,span=projectSource(controller.state().source).spans.find(s=>at>=s.from&&at<=s.to);return span?span.sourceFrom+at-span.from:0;},
   restoreSelection:at=>{const source=controller.state().source,span=projectSource(source).spans.find(s=>at>=s.sourceFrom&&at<=s.sourceTo);if(span)resetSource(source,{from:span.from+at-span.sourceFrom,to:span.from+at-span.sourceFrom});}
 }) });
+const accessibility = createAccessibilityView({byId,context:()=>({editor,state:controller?.state(),loading})});
 const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
@@ -195,7 +197,7 @@ function render(s) {
     else if (s.code === 'memory-edited') viewerStatus(current.originalSave?.available ? '修改保留在草稿中，点击保存后写回文件。' : '修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); show();
+  inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); accessibility.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -396,7 +398,8 @@ async function finishDocumentClose(id) {
   void draftView.refresh(); void recentView.refresh();
 }
 function viewerStatus(message, notice = false) {
-  byId('viewer-status').textContent = message;
+  const node=byId('viewer-status');
+  if(node.textContent!==message)node.textContent=message; // Avoid re-announcing unchanged status on every render.
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
 async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null) {
@@ -496,6 +499,6 @@ api.onReady(data => {
     byId('documents').hidden = true; byId('documents').setAttribute('aria-label', '切换已打开文档');
     writingShell.configure(); findView.configure(); closeView.configure(); recentView.configure(data);
     byId('open-file').disabled = false; document.title = 'Markdown';
-    nativeOpenView.configure();
+    nativeOpenView.configure(); accessibility.configure();
   } else byId('connect').disabled = false;
 });

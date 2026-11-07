@@ -1,5 +1,54 @@
 # Stage History
 
+## Keyboard access and delivery — 0.63.0 local WIP (2026-11-08)
+
+PR #140 merged 0.62.2 at `a89762b`; its mainline Desktop CI passed. This group
+keeps the accepted visual workspace and adds F6 / Shift+F6 region navigation,
+Option+F10 formatting access, roving toolbar focus with arrow/Home/End keys,
+separate editor/read-only accessible names and roles, sidebar focus return and
+visible focus in both rich/source editing. Unchanged status text is not rewritten
+on each render. Muted text is adjusted in light/dark palettes; no layout redesign,
+source mapping, session authority, file permission or recovery-format change.
+
+37 focused Node checks and one controlled Electron workflow PASS. The latter
+covers navigation without source/revision changes, modal Tab confinement/return,
+narrow sidebar dismissal, controlled composition focus retention and Undo,
+source-return focus, keyboard formatting/Undo, unchanged original and no network/page errors. Four palette
+pairs per theme meet 4.5:1; this is bounded contrast coverage, not WCAG certification.
+The new regression joins the existing Desktop CI Electron step. The test first
+failed on the old missing role, then exposed two palette pairs; all final checks
+pass. Intermediate failures remain evidence, not successful test results.
+The first CI run passed 3,277 Node cases but exposed modal reverse-Tab differences;
+explicit button tabindex alone did not resolve it. Modal first/last Tab boundaries
+now wrap explicitly, retaining native inertness and interior control handling.
+The original assertions remain, and no system keyboard preference is modified.
+That boundary check now passes in CI. Formatting setup uses an exact browser
+selection, verified against the editor selection, rather than platform line-selection
+shortcuts; toolbar keyboard activation and Undo assertions remain unchanged.
+Bounded focus diagnostics contain no user text.
+
+The current Document installation guide replaces obsolete Vault/AI setup and
+blanket re-signing advice. It covers standalone launch, Finder association,
+keyboard use, update/rollback, private-record locations and ZIP integrity.
+The local arm64 package contains 77 matching project runtime files, reproducible
+renderer output, correct version/association and the unchanged universal production
+save helper with test hooks rejected. Actual package and installed startup pass with existing
+private records unchanged. The ZIP extraction preserves every file hash, permission
+and symbolic-link target (529 entries). The complete prior 0.62.2 App is retained for rollback;
+no user-data migration is introduced. The ZIP uses macOS ditto because the optional
+builder 7zip download did not finish; the completed App was retained unchanged.
+Evidence is in control-checkout `.local/verification/accessibility-delivery-jt7aqvsi/`.
+Synthetic test files stay in OS temporary evidence directories; no Home fixtures,
+user documents or historical artifacts are created, moved or deleted.
+
+The new accessibility module and E2E are below 100 lines. Existing renderer
+orchestration remains over 300 lines; only bounded wiring changes were added there
+rather than splitting lifecycle ownership. Native IME NOT VERIFIED, three genuine
+input checks PENDING, historical manual FAIL, VoiceOver acceptance and sustained
+real-use testing remain. No public Release, tag, signing/notarization or automatic
+updater is included. Development integration is not daily-use/release acceptance.
+
+
 ## Everyday document workflows — 0.61.0 local WIP checkpoint (2026-11-07)
 
 The user authorized one local checkpoint of the 78-file candidate accumulated

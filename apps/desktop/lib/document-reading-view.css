@@ -7,7 +7,7 @@ body[data-document-viewer] {
 }
 body[data-document-viewer][data-reading-theme=dark] {
   color-scheme:dark; --paper:#222723; --panel:#1d221e; --surface:#2b312c;
-  --ink:#e0e5dd; --muted:#a0aa9e; --line:#394239; --accent:#b0c5a5;
+  --ink:#e0e5dd; --muted:#a5afa3; --line:#394239; --accent:#b0c5a5;
   --active:#354333; --selection:#496044; --code-ink:#bac5b5;
   --warning-bg:#3b3023; --warning-ink:#e6bd88; --warning-line:#b28d57; --on-accent:#20281e;
 }
@@ -100,7 +100,7 @@ body[data-document-viewer] #source-wrap[aria-pressed=true] {background:var(--act
 #source-editor .cm-line {padding:0 18px}
 #source-editor .cm-gutters {background:var(--surface);color:var(--muted);border-right:1px solid var(--line)}
 #source-editor .cm-activeLine {background:color-mix(in srgb,var(--accent) 5%,transparent)}
-#source-editor .cm-focused {outline:none}
+#source-editor .cm-focused {outline:2px solid var(--accent);outline-offset:-2px}
 #source-dialog .source-actions {flex-wrap:wrap;gap:8px}
 #source-dialog .source-footer {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-top:1px solid var(--line)}
 #source-dialog .source-footer p {margin:0;padding:0}

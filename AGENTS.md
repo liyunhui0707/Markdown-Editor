@@ -2,13 +2,22 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-11-07) — READ FIRST
+## Current architecture (fact-checked 2026-11-08) — READ FIRST
 
-**Current candidate: 0.62.2 bounded long-document typing optimization.**
+**Current candidate: 0.63.0 keyboard access and delivery readiness.**
+PR #140 merged 0.62.2 at `a89762b`; exact mainline CI passed. Continue on
+`feat/document-accessibility-delivery` in the existing Worktree. Keyboard region
+and toolbar focus, accessible editor names, contrast/focus styles and current
+installation/rollback documentation form this group. No storage or source-map
+permission changes. Local App/ZIP verification is not signing, notarization,
+VoiceOver or native IME acceptance. Existing genuine-input PENDING, native IME
+NOT VERIFIED and historical manual FAIL remain; release gates stay separate
+from approved development Git operations.
+
+**Previous candidate: 0.62.2 bounded long-document typing optimization.**
 PR #139 merged the 0.62.1 development checkpoint into main at `2575b77` with
 explicit user approval after disclosure of pending manual QA. This does not clear
-native IME NOT VERIFIED, historical FAIL or public-release acceptance. Continue
-on `fix/document-writing-latency` in the existing Worktree; no new Worktree.
+native IME NOT VERIFIED, historical FAIL or public-release acceptance. That group used `fix/document-writing-latency`; it is now merged.
 `document-source-parse.mjs` reuses unchanged immutable AST nodes only around an
 isolated single-line literal paragraph with unambiguous blank-line boundaries.
 Its changed paragraph is parsed normally; uncertain Markdown falls back to full
