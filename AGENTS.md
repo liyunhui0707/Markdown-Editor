@@ -4,7 +4,20 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-07) — READ FIRST
 
-**Current candidate: 0.62.1 local-folder compatibility and package hygiene.**
+**Current candidate: 0.62.2 bounded long-document typing optimization.**
+PR #139 merged the 0.62.1 development checkpoint into main at `2575b77` with
+explicit user approval after disclosure of pending manual QA. This does not clear
+native IME NOT VERIFIED, historical FAIL or public-release acceptance. Continue
+on `fix/document-writing-latency` in the existing Worktree; no new Worktree.
+`document-source-parse.mjs` reuses unchanged immutable AST nodes only around an
+isolated single-line literal paragraph with unambiguous blank-line boundaries.
+Its changed paragraph is parsed normally; uncertain Markdown falls back to full
+parsing. Two cached revisions only. Complete projection equality, main-owned
+independent validation, source bytes/history and all persistence limits remain.
+Do not generalize this path to references, multiline or structural edits without
+cold-parser differential evidence. Native/manual acceptance remains pending.
+
+**Previous checkpoint: 0.62.1 local-folder compatibility and package hygiene.**
 The Document package excludes `node_modules/@toast-ui/**`; retain historical
 Vault development dependencies and SEC-01's legacy status. Do not restore these
 unused bundled dependencies to the shipped Document app. All 75 project runtime

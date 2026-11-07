@@ -27,13 +27,17 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;
    const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();evidence.empty=await sample();
-  for(let cycle=0;cycle<3;cycle++){
+  for(let cycle=0;cycle<6;cycle++){
    await p.locator('#empty-open').click();await p.locator('#edit-copy').click();
-   const para=p.locator('#editor .tiptap > p').first();await para.click();await p.keyboard.press('End');await idle();
+   const paragraphIndex=[0,350,700][cycle%3],para=p.locator('#editor .tiptap > p').nth(paragraphIndex);
+   await para.click();await para.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);range.collapse(false);
+    const selection=getSelection();selection.removeAllRanges();selection.addRange(range);});await idle();
+   const marker=paragraphIndex===0?'Opening paragraph.':`## Chapter ${paragraphIndex-1}\n\n${'Synthetic paragraph 中文 🌿. '.repeat(25)}`;
+   const sourceEnd=source.indexOf(marker)+marker.length;expect(sourceEnd).toBeGreaterThan(marker.length);
    const text=(' abcdefghijklmnop').repeat(4),start=Date.now();await p.keyboard.type(text,{delay:20});await idle();
-   const typed=source.replace('Opening paragraph.','Opening paragraph.'+text);expect((await snap()).source).toBe(typed);
+   const typed=source.slice(0,sourceEnd)+text+source.slice(sourceEnd);expect((await snap()).source).toBe(typed);
    const typingMs=Date.now()-start;
-   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap()).source===typed.slice(0,typed.indexOf(text)+text.length-1)+typed.slice(typed.indexOf(text)+text.length)).toBe(true);
+   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap()).source===typed.slice(0,sourceEnd+text.length-1)+typed.slice(sourceEnd+text.length)).toBe(true);
    await p.locator('#format-redo').click();await expect.poll(async()=>(await snap()).source===typed).toBe(true);
    await p.locator('#show-source').click();await expect(p.locator('#source-editor .cm-content')).toBeVisible();await p.keyboard.press('Escape');
    await expect.poll(async()=>{const s=await snap();return s.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
@@ -42,7 +46,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
    const open=await sample();await p.locator('#close-current-document').click();await expect(p.locator('#edit-copy')).toBeVisible();
    expect((await snap()).source).toBe(source);await p.locator('#close-current-document').click();await expect(p.locator('#empty-open')).toBeVisible();
    await expect(p.locator('#documents option')).toHaveCount(0);await expect(p.locator('#editor .tiptap')).toHaveCount(0);
-   evidence.cycles.push({cycle,typingMs,open,closed:await sample()});expect(hash(await fs.readFile(original))).toBe(hash(bytes));
+   evidence.cycles.push({cycle,paragraphIndex,typingMs,open,closed:await sample()});expect(hash(await fs.readFile(original))).toBe(hash(bytes));
   }
   expect(faults).toEqual([]);expect(network).toEqual([]);evidence.passed=true;
  }finally{

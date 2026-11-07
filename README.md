@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.62.1 local WIP candidate for local-folder compatibility and package hygiene.** This is not
+**0.62.2 local WIP candidate for long-document typing performance.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -24,7 +24,24 @@ If macOS cannot confirm the location, nothing is created. The app does not chang
 sync settings or folder permissions. Home itself, system/hidden/provider folders,
 network and external volumes remain outside the supported save scope.
 
-## Daily writing — 0.61.2
+## Daily writing — 0.62.2
+
+Long-document edits inside an isolated single-line literal paragraph now reparse
+that paragraph and reuse unchanged syntax. Markdown structure, references,
+multiline text and uncertain boundaries fall back to complete parsing. Complete
+projection comparison, independent main-process validation, exact source patches,
+history and save protections remain in place. The cache still holds at most two
+immutable revisions.
+
+On the same 485k-unit synthetic article, the focused mapper mean fell from
+99.5 ms to 13.7 ms; a controlled 25-key typing/confirmation sequence fell from
+5.32 s to 2.62 s. These are bounded same-machine measurements, not universal
+latency guarantees. Six open/edit/close cycles at the start, middle and end pass
+exact history and original-file checks. Closed renderer heap measured 9.9–11.2 MiB
+while six synthetic drafts were retained; process working sets fluctuated.
+This short run does not establish long-duration memory or native IME acceptance.
+
+Earlier 0.61.2 improvements remain:
 
 Line-boundary mapping now scans forward once. Ordinary paragraph keys no longer
 request table projections; body edits retain outline buttons while updating their
