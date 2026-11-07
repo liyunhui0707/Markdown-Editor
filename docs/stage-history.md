@@ -1768,3 +1768,7 @@ italic-text round trips and saved/dirty bound-document identity assertions. No
 production code or dependency/version change. The two affected files pass locally;
 full CI is rerun on the resulting commit. Initial CI had 3242 passes, 2 failures,
 22 skips; both dependency audits passed. Native IME/manual/release gates remain open.
+
+### CI native save coverage — 2026-11-07
+
+Full Node assertions passed, but the unchanged skip ceiling caught 20 native tests without their binaries. CI now builds the production helper and a separate test-only helper before Node tests, supplying the existing opt-in paths; neither skip limits nor production controls change. Local isolated native tests: 28 PASS, zero skips. Initial sandbox coordination denial is retained separately; the authorized native run passed outside that sandbox. No app behavior/version change. Native IME and human daily-input QA remain unverified.

@@ -39,7 +39,17 @@ jobs:
       - name: Audit complete dependency tree
         run: npm run audit:full
 
+      - name: Build native save verification helpers
+        run: |
+          npm run build:document-save
+          xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations \
+            -DDOCUMENT_SAVE_TESTING -framework Foundation \
+            -o "$RUNNER_TEMP/document-save-testing" native/document-save.m
+
       - name: Run tests and enforce baseline
+        env:
+          DOCUMENT_NATIVE_SAVE_TEST_BINARY: ${{ runner.temp }}/document-save-testing
+          DOCUMENT_NATIVE_SAVE_PRODUCTION_BINARY: ${{ github.workspace }}/apps/desktop/build/document-save
         run: npm run test:ci
 
       - name: Verify generated assets
