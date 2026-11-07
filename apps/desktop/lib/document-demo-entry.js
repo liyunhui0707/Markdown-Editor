@@ -1,3 +1,4 @@
+import { createNativeOpenView } from './document-native-open-view.mjs';
 import { createInputPressureView } from './document-input-pressure-view.mjs';
 import {createImagePreviews} from './document-image-preview.mjs';
 import {createImageView} from './document-image-view.mjs';
@@ -5,6 +6,7 @@ import {createTableView} from './document-table-view.mjs';
 import { createNameView } from './document-name-view.mjs';
 import { createCloseView } from './document-close-view.mjs';
 import { createFindPlugin, createFindView } from './document-find-view.mjs';
+import { createSourceEditor } from './document-source-editor.mjs';
 import { createSourceView } from './document-source-view.mjs';
 import { createReadingView } from './document-reading-view.mjs';
 import { createFormatView } from './document-format-view.mjs';
@@ -14,6 +16,7 @@ import { Plugin, TextSelection, NodeSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { projectSource } from './document-source-map.mjs';
 import { createCopyActionsView } from './document-copy-actions-view.mjs';
+import { createOriginalSaveView } from './document-original-save-view.mjs';
 import { createTestCopyView } from './document-test-copy-view.mjs';
 import { createEditController } from './document-edit-controller.mjs';
 import { pastePlainText } from './document-plain-paste.mjs';
@@ -36,7 +39,10 @@ const imagePreviews=createImagePreviews({api,context:()=>({state:controller?.sta
 const imageView=createImageView({api,byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-const sourceView = createSourceView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+const sourceView = createSourceView({ byId, createEditor:createSourceEditor, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid(),
+  sourceSelection:()=>{const at=editor.state.selection.from,span=projectSource(controller.state().source).spans.find(s=>at>=s.from&&at<=s.to);return span?span.sourceFrom+at-span.from:0;},
+  restoreSelection:at=>{const source=controller.state().source,span=projectSource(source).spans.find(s=>at>=s.sourceFrom&&at<=s.sourceTo);if(span)resetSource(source,{from:span.from+at-span.sourceFrom,to:span.from+at-span.sourceFrom});}
+}) });
 const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
@@ -48,6 +54,15 @@ const nameView = createNameView({ api, byId,
     const option = [...byId('documents').options].find(o => o.value === id); if (option) option.textContent = label;
     void draftView.refresh(); void recentView.refresh();
   }
+});
+const nativeOpenView = createNativeOpenView({ api, byId,
+  canOpen: () => {
+    const s = controller?.state();
+    return readOnlyWindow && !loading && !switching && !activeInvalid() && !editor?.view.composing
+      && !document.querySelector('dialog[open]') && !s?.pending && !s?.composing && !s?.compositionInvalid
+      && !s?.locked && !s?.historyPending && !s?.recoveryRecords.length;
+  },
+  open: id => openDocument(false, false, null, null, null, id),
 });
 function persistentCopyNote(receipt) {
   if (receipt?.ok === true && receipt.state === 'created-confirmed' && receipt.created === true
@@ -117,10 +132,13 @@ const testCopyView = createTestCopyView({ api, byId,
   busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
   focus: () => { if (editor?.isEditable) editor.view.focus(); },
 });
+const originalSaveView = createOriginalSaveView({api,byId,
+  context:()=>({controller,selected,loading,invalid:activeInvalid()}),busy:value=>{loading=value;},
+  rerender:()=>{if(controller)render(controller.state());},focus:()=>{if(editor?.isEditable)editor.view.focus();}});
 const closeView = createCloseView({ api, byId,
   context: () => ({ controller, selected, loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
   busy: value => { loading = value; }, report: viewerStatus, closed: finishDocumentClose,
-  rerender: () => { if (controller) render(controller.state()); else { writingShell.sync(); recentView.sync(); closeView.sync(); show(); } },
+  rerender: () => { if (controller) render(controller.state()); else { writingShell.sync(); recentView.sync(); closeView.sync(); nativeOpenView.sync(); show(); } },
 });
 const lifecycleCode = id => lifecycles.get(id) === 'invalidated' ? 'unknown-session' : lifecycles.get(id);
 function show(code) {
@@ -163,21 +181,21 @@ function render(s) {
     byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
     byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
     byId('document-name').textContent = current.label; byId('document-full-name').textContent = current.label;
-    byId('document-location').textContent = temporary ? '独立编辑副本 · 不会写回原文件' : current.location;
+    byId('document-location').textContent = temporary ? (current.originalSave?.available ? '保存目标：'+current.originalSave.filePath : '独立编辑副本 · 尚未关联文件') : current.location;
     byId('document-info').querySelector('summary').title = current.label;
     byId('readonly-badge').textContent = temporary ? '本地草稿' : '原文只读';
-    byId('readonly-badge').title = temporary ? '本地备份与另存文件是不同状态，请查看旁边的备份提示。' : '原文件只读，编辑副本不会改写原文件。';
-    byId('document-info-note').textContent = temporary ? (current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : '原文件只读。暂不支持的 Markdown 格式按原文显示。';
+    byId('readonly-badge').title = temporary ? '本地备份与另存文件是不同状态，请查看旁边的备份提示。' : '原文只读；编辑副本可通过保存按钮写回支持的本地文件。';
+    byId('document-info-note').textContent = temporary ? (current.originalSave?.available ? '已关联文件。只有点击保存才会写回；旧版本保留，可在草稿面板查看。另存新文件仍不会覆盖已有目标。' : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : '原文件只读。暂不支持的 Markdown 格式按原文显示。';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
     document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
     if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus('');
     else if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 块保持只读。', true);
-    else if (s.code === 'memory-edited') viewerStatus('修改保留在当前草稿中，原文件未改写。');
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 可通过「源码」编辑。', true);
+    else if (s.code === 'memory-edited') viewerStatus(current.originalSave?.available ? '修改保留在草稿中，点击保存后写回文件。' : '修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  inputPressure.sync(); draftView.render(s); testCopyView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); show();
+  inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -229,7 +247,7 @@ function install(snapshot) {
   controller?.dispose(); selected = snapshot.sessionId;
   compositionView = null; copyPanelOpen = false; copyMessage = ''; ++copyEpoch;
   controller = createEditController(snapshot, {
-    send: (operation, data) => api[operation](data), onChange: render, onReset: resetSource,
+    send: (operation, data) => operation==='source-edit'?api.sourceEdit(data):api[operation](data), onChange: render, onReset: resetSource,
     recoveryRecords: drafts.get(selected) || [],
   });
   if (!editor) {
@@ -365,7 +383,7 @@ async function finishDocumentClose(id) {
   compositionView = null; copyPanelOpen = false; copyMessage = ''; ++copyEpoch;
   navigationError = ''; failedSession = null; pendingSession = null;
   for (const name of ['document-info', 'edit-copy', 'create-test-copy', 'temporary-notice', 'writing-status',
-    'copy-summary-compact', 'copy-operation-alert', 'confirmed-copy-actions', 'composition-warning',
+    'original-save-status', 'save-original', 'copy-summary-compact', 'copy-operation-alert', 'confirmed-copy-actions', 'composition-warning',
     'composition-status', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId(name).hidden = true;
   for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
   document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
@@ -381,7 +399,7 @@ function viewerStatus(message, notice = false) {
   byId('viewer-status').textContent = message;
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null) {
+async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null) {
   const state = controller?.state();
   if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
   const original = state?.confirmed;
@@ -394,25 +412,26 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
   for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = true;
   if (controller) render(controller.state()); else writingShell.sync(); recentView.sync();
   viewerStatus(editingCopy ? '正在创建独立编辑副本…' : temporary ? '正在新建草稿…' : '正在打开…');
-  let candidate = null;
+  let candidate = null, reused = false;
   try {
-    const r = await (recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+    const r = await (nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
     if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) throw Error('Source session invalidated');
     if (!r.ok) {
       const messages = { 'recent-file-unavailable': '最近文档已变化、被移动或无法验证，请通过「打开…」重新选择。', 'recents-unavailable': '最近列表暂不可用，请通过「打开…」选择文件。', 'confirmed-copy-unavailable': '文件已移动、被修改或无法验证，请通过「打开…」重新选择检查。', 'copy-action-unknown': '打开结果尚未确认，请勿重复操作；当前草稿与文件回执仍保留。', 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': '已取消打开。', 'file-unavailable': '所选文件已不存在。',
         'read-failed': '无法读取所选文件。', 'unsupported-encoding': '目前仅支持 UTF-8 Markdown。',
-        'unsupported-size': '文件超过当前大小限制。', 'parse-failed': '内容超过当前预览限制。',
+        'unsupported-size': '文件超过 2 MiB 上限，无法打开。', 'parse-failed': '内容无法解析或超过约 52 万字符的正文上限。',
         'unsupported-path': '请选择一个受支持的 .md 文件。', 'unsupported-file': '请选择普通文件，符号链接暂不支持。',
         'edit-copy-outcome-unknown': '副本创建结果未知，请勿重复创建；原文件仍为只读。',
         'temporary-create-failed': '无法创建独立编辑副本。', 'copy-session-invalidated': '原文会话已不可用。',
         'source-hash-mismatch': '无法验证已打开的内容。', 'stale-revision': '已打开的文档修订发生变化。',
         'external-change': '文件在读取期间发生变化。', 'session-limit': '当前窗口已达到八份文档上限。' };
       viewerStatus((messages[r.code] || '无法打开所选文件。') + ' 当前文档未改变。', true);
-      return;
+      return r;
     }
+    reused = r.reused === true;
     candidate = r.snapshot;
-    if (!candidate || (recentId && r.recentId !== recentId) || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
+    if (!candidate || (nativeRequestId && r.requestId !== nativeRequestId) || (recentId && r.recentId !== recentId) || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
         || lifecycles.has(candidate.sessionId) || typeof candidate.label !== 'string') throw Error('Invalid read-only snapshot');
     if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom
         || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error('Invalid copy snapshot');
@@ -422,10 +441,11 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     const previous = controller?.state().confirmed;
     navigationError = '';
     const option = document.createElement('option'); option.value = candidate.sessionId; option.textContent = candidate.label;
-    byId('documents').append(option); install(candidate);
+    if (![...byId('documents').options].some(o => o.value === candidate.sessionId)) byId('documents').append(option);
+    install(candidate);
     byId('document-info').hidden = false; writingShell.closePanels();
     byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; window.scrollTo(0, 0);
-    if (!editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
+    if (!nativeRequestId && !editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
       try {
         const closed = await api.close({ sessionId: previous.sessionId, expectedRevision: previous.revision });
         if (closed.ok) [...byId('documents').options].find(o => o.value === previous.sessionId)?.remove();
@@ -433,11 +453,13 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
     viewerStatus(draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。撤销历史从此处重新开始；当前为独立草稿。' : '已恢复本地草稿为独立副本。撤销历史从此处重新开始；当前为独立草稿。') : editingCopy ? '已创建独立编辑副本，原文件保持只读；磁盘上的后续变化不会自动导入。' : temporary ? '草稿已就绪。另存新文件后才能在 Finder 中找到。' : '原文只读；点击「编辑副本」开始修改。');
+    return { ok: true };
   } catch {
-    if (candidate && selected !== candidate.sessionId) {
+    if (!reused && candidate && selected !== candidate.sessionId) {
       try { await api.close({ sessionId: candidate.sessionId, expectedRevision: candidate.revision }); } catch { /* main revokes on window close */ }
     }
     viewerStatus('Unable to display the selected file. 当前文档未改变。', true);
+    return { ok: false, code: 'display-failed' };
   } finally {
     loading = false; for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = false;
     if (controller) render(controller.state()); else writingShell.sync(); recentView.sync();
@@ -445,13 +467,21 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => { if (!linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen()) return openDocument(false); };
+const openReadOnly = () => { if (!linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;
 byId('empty-open').onclick = openReadOnly;
 api.onOpenRequest(openReadOnly);
+const saveCurrent=()=>{
+  if(sourceView.isOpen()){byId('apply-source').click();return;}
+  if(document.querySelector('dialog[open]'))return;
+  if(controller?.state().confirmed.originalSave?.available)void originalSaveView.save();
+  else byId('create-test-copy').click();
+};
+api.onSaveRequest(saveCurrent);
 window.addEventListener('keydown', event => {
+  if(readOnlyWindow&&(event.metaKey||event.ctrlKey)&&!event.altKey&&event.key.toLowerCase()==='s'&&!sourceView.isOpen()){event.preventDefault();saveCurrent();return;}
   if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'o') {
     event.preventDefault(); void openReadOnly();
   }
@@ -466,5 +496,6 @@ api.onReady(data => {
     byId('documents').hidden = true; byId('documents').setAttribute('aria-label', '切换已打开文档');
     writingShell.configure(); findView.configure(); closeView.configure(); recentView.configure(data);
     byId('open-file').disabled = false; document.title = 'Markdown';
+    nativeOpenView.configure();
   } else byId('connect').disabled = false;
 });

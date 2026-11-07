@@ -1,4 +1,144 @@
-# Manual Test Checklist  
+# Manual Test Checklist
+
+## Practical capacity — 0.61.0 (manual acceptance pending)
+
+Use a disposable article and local PNG/JPEGs. Open a longer article, create a
+copy, edit ordinary paragraphs and source, Undo/Redo, insert an image over 1 MiB,
+then export, reopen, save an edit and restart/recover. Compare text, image display
+and the original BOM/newlines. Keep Markdown and exported image sidecars together.
+Check real Chinese IME and sustained typing separately; controlled test input is
+not native acceptance. At extreme document length, record visible pauses.
+
+Limits: 2 MiB / 524,288 UTF-16 units; 16 images / 4 MiB each / 16 MiB and 32 million
+pixels total. Over-limit input must leave existing content intact and must not
+claim a successful backup/export. Whole-source replacements can reduce Undo depth
+under the 8 MiB document-history budget. Older Apps can reject these larger drafts;
+retain the new bundle/records and export needed work before any rollback.
+
+## Bound-file save — 0.60.0 (manual acceptance pending)
+
+Use a disposable local Markdown file in a supported directory. Open it, choose
+编辑副本, make an edit and wait for backup. Cancel the first 保存 prompt and check
+that nothing changed; then accept it. Confirm the disk content and saved message.
+Continue editing: the previous success remains visible while the new edit is
+unsaved. Save again, then use Undo/Redo and verify the saved-state distinction.
+
+While the draft is open, edit the disposable original externally. Saving must
+report conflict and retain both the local draft and external content; it must not
+retry. In 草稿 → 保存版本, inspect the previous/draft versions. Restart and restore
+the draft: text returns but original-write authority does not. Native dialog
+interaction and real Chinese IME must be recorded separately from automated checks.
+Do not test races against personal documents.
+
+## Complete source editing — 0.59.0
+
+Automated checks cover raw edits, history and IPC fences, mixed line endings,
+original-file protection, source/rich editing, backup/restart and new-file export.
+Controlled composition events are not native IME acceptance.
+
+Optional focused acceptance on a disposable document:
+
+1. Open an original, create an editing copy, then open **源码**. Change a heading
+   and a YAML/HTML region, search with ⌘F, and try local Undo/Redo.
+2. Choose **返回** with unapplied edits: **继续编辑** must retain the text;
+   **放弃修改** must leave the document unchanged. Unapplied text is not backed up.
+3. Choose **应用并返回**; verify the visual result and document Undo/Redo.
+   Unsupported blocks remain protected visually, without changing their source.
+4. Wait for backup, restart/recover, then export a new file. The edits must remain;
+   the original and earlier exports must not change. Existing save limits apply.
+5. Native Chinese IME: type, select a candidate, cancel composition and switch
+   views. Record this separately; previous historical FAIL/NOT VERIFIED is not
+   cleared by automated checks or prior limited basic passes.
+
+
+## Save subfolders — 0.58.0 installed local WIP
+
+Automated evidence: 121 targeted Node checks and one Pro Electron workflow pass.
+Native dialogs in that GUI regression are controlled; physical picker use and
+comprehensive native IME are not inferred from these results.
+
+Optional next real-use checks, without overwriting an existing target:
+
+1. Edit a copy, then choose a new filename in an ordinary local subfolder of
+   `~/Liyunhui` or `~/Downloads`. Confirm the displayed receipt path and reopen it.
+2. Cancel a later export, or choose the existing filename. The draft, history and
+   previous confirmed receipt must remain; no existing file changes.
+3. Choose an unsupported/synced/hidden location. The App should clearly report
+   refusal and retain writing. No permission changes or automatic retry occur.
+
+Earlier native IME NOT VERIFIED and historical failures remain as recorded below.
+
+## Finder opening — 0.57.0 (2026-11-07)
+
+Automated evidence: 109 focused Node checks, three Pro Electron workflows and
+actual-package macOS cold/warm/repeated LaunchServices opens PASS. The unchanged
+file is reused, active draft/history survives switching, composing/modal requests
+wait for explicit completion, changed/replaced files and unsupported inputs are
+refused. Private draft/recent records were preserved and recovered exactly.
+No default file handler was changed; generated composition events do not establish
+native IME acceptance. Earlier limited human 0.56.1 experience remains applicable
+only to its recorded scope; historical native failures are not automatically closed.
+
+Optional focused human acceptance on the installed 0.57.0 (not yet reported):
+
+- [ ] Right-click a disposable `.md` → Open With → Markdown, once with the App
+  closed and once running. Correct original opens; an already open unchanged file
+  returns to its existing row. No original file is modified.
+- [ ] With a draft being edited, request another file from Finder. The draft stays
+  in the sidebar with its text and history. During real Chinese composition the
+  request waits; finish input, then use **打开文件**. Record the input method/result.
+- [ ] If desired, use Finder Get Info → Open with → Markdown → Change All, then
+  double-click a disposable `.md`. This is the user's optional system preference,
+  not a setting applied by the installer or a prerequisite for Open With.
+
+Files still need to be accessible regular UTF-8 `.md` within current limits.
+Writable-source, wider save folders, safe original-file saving and larger image/
+document capacity remain phase 2 development, not acceptance implied by Finder.
+
+
+## Current combined acceptance — installed 0.56.1 (2026-11-07)
+
+**Human result: LIMITED BASIC PASS (user-reported, 2026-11-07).** The user reported:
+“我在APP里做了简单的测试，看着基本没问题，三项基本通过。” This covers the
+three requested experience areas: basic Chinese input/history, image export/reopen,
+and long-document outline/source navigation. No new problem was reported.
+
+This is a simple experience check, not evidence that every detailed substep below,
+every input method or all edge cases were exercised. The exact IME configuration
+was not supplied. Basic input has positive human evidence; comprehensive native
+IME acceptance remains NOT VERIFIED. Historical manual/formal failures remain
+recorded until their specific reproductions are retested. Full CI, SEC-01 and
+release gates are unchanged. Do not ask the user to repeat these three basic checks
+without a new regression or a specific uncovered risk.
+
+Older dated checklists below are history. For future targeted checks, use a scratch article;
+a synthetic long article and small PNG are prepared in control-checkout evidence
+`.local/verification/broader-writing-acceptance-3kh_j2q5/manual-fixture/`.
+No need to type the long fixture or manually force queue saturation.
+
+1. Open the scratch article, create an editing copy and use macOS Chinese Pinyin
+   in its first paragraph. Choose a candidate, cancel a second preedit, finish
+   two sentences, then Undo/Redo and continue typing. Expected: exact completed
+   text without lost/duplicated characters, a stable caret, and no persistent
+   disabled state after composition ends. Synthetic Unicode insertion is not
+   evidence for this native check.
+2. Use the image button to choose the prepared PNG (or a small disposable PNG/JPEG).
+   Confirm preview, description and Undo/Redo. Export to a supported local folder
+   with a fresh filename, then use the export receipt to reopen. Expected: both
+   text and image match; original files stay unchanged. Keep Markdown and its
+   image sidecar together. Subsequent copy edits must not change the exported file.
+3. Filter the outline for `Chapter 160`, press Enter, view **源码**, then Escape
+   back and continue editing. Expected: correct target, readonly source, retained
+   article position, and normal later editing/Undo. Report any unexpected jump,
+   lag or layout obstruction during ordinary use.
+
+The user has returned a basic pass for all three areas. Future failures should
+identify the exact step; a limited pass does not automatically clear historical
+IME failures, full CI or release gates. If creation is partial/unknown or input
+pauses, retain the window/evidence and needed text; do not blindly retry or delete.
+The new combined Pro regression passes controlled text/history, image export and
+reopen, source navigation and restart recovery. Automation and the user report
+are distinct evidence. The installed runtime and version are unchanged.
 
 ## Input saturation correction — 0.56.1 (2026-11-07)
 

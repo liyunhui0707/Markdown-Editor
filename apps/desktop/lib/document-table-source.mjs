@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 export const TABLE_ROWS = 32, TABLE_COLUMNS = 8;
 const inline = text => text ? [{type:'text',text}] : [];
 export const tableCell = (text,header,align=null) => ({type:header?'tableHeader':'tableCell',attrs:{align},content:[{type:'paragraph',content:inline(text)}]});
@@ -46,7 +48,7 @@ export function mapTableText(source,projection,change,project) {
   const cell=spans.find(s=>from>=s.from&&to<=s.to);
   if(!cell||!valid(insert)||splitSurrogate(cell.text,from-cell.from)||splitSurrogate(cell.text,to-cell.from))return reject();
   const a=cell.sourceFrom+from-cell.from,b=cell.sourceFrom+to-cell.from;
-  const next=source.slice(0,a)+insert+source.slice(b);if(next.length>131072)return reject();
+  const next=source.slice(0,a)+insert+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
   const expected=structuredClone(projection.doc),text=cell.text.slice(0,from-cell.from)+insert+cell.text.slice(to-cell.from);
   expected.content[cell.blockIndex].content[cell.tableRow].content[cell.tableCol].content[0].content=inline(text);
   const result=project(next);if(JSON.stringify(result.doc)!==JSON.stringify(expected))return reject();

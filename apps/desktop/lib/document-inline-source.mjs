@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {listNodeAt,sameListParent} from './document-list-source.mjs';
 // Bounded edits to one plain/bold/italic paragraph or adjacent projected simple-list items.
 // Existing source tokens are retained;
@@ -56,7 +58,7 @@ export function mapInlineRange(source, projection, change, project) {
   const a=first.a+start,b=first.a+end,text=replacement.slice(start,nextEnd);
   if(b-a>4096||text.length>4096)return reject();
   const next=source.slice(0,a)+text+source.slice(b);
-  if(next.length>131072)return reject();
+  if(next.length>MAX_SOURCE_UNITS)return reject();
   const expected=structuredClone(projection.doc),nodes=[];
   const add=s=>{
     if(!s.text)return;

@@ -4,8 +4,40 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-07) — READ FIRST
 
+**Current local WIP checkpoint: 0.61.0 everyday document workflows.**
+This checkpoint groups Finder opening, nested local save destinations, editable
+source, version-preserving bound-file saving and practical text/image capacity.
+Installed runtime and already-verified code are unchanged during checkpoint
+closeout. Native IME NOT VERIFIED, historical manual FAIL, extreme-length
+performance, full CI, SEC-01 and public-release gates remain open. Next is the
+approved daily-writing stabilization group. No push, merge, tag or release.
 
-**Current local WIP checkpoint: 0.56.1 broader-document workflows.**
+**0.61.0 practical text/image capacity — included in this checkpoint.**
+Document capacity is centralized in `lib/document-capacity.js`; the sandboxed
+preload and native header have parity tests. Text is bounded by 524,288 UTF-16
+units / 2 MiB. Images are bounded by count, encoded bytes and decoded pixels;
+backup/export/native saving enforce the same limits. Two immutable parse trees
+are cached; each projection remains independent. Main document history retains
+at most 64 entries / 8 MiB of inverse+redo text. Larger source replacements can
+reduce the available Undo depth. Do not remove aggregate budgets or claim full
+long-document/native IME acceptance from controlled automation. Older bundles
+may not recover enlarged drafts; preserve the current bundle/records on rollback.
+See the latest stage-history entry for measured limits and remaining gates.
+
+**0.60.0 bound-file saving — retained in this candidate.**
+The user approved the explicit replacement contract described in the latest
+save-hardening and stage-history records. The fixed product entry can save a
+main-bound editing copy or confirmed export through native file coordination
+and version-preserving exchange. This does not establish inode-CAS safety: a
+racing target can already change before a conflict is reported. Legacy save
+stays `coordination-required`; no arbitrary renderer paths or recovered write
+authority. Build the macOS helper with `npm run build:document-save` before
+local GUI testing; pack/dist commands build it automatically. Never package a
+`DOCUMENT_SAVE_TESTING` binary. Prior checkpoint/installed descriptions below
+are historical; current delivery and remaining gates are in stage-history.
+
+
+**Previous local WIP checkpoint: 0.56.1 broader-document workflows.**
 The installed 0.56.1 runtime is unchanged. This checkpoint preserves local images,
 long-document/source navigation and input-saturation protection as one related
 batch. Reused matching source/test/package evidence; only closeout documentation

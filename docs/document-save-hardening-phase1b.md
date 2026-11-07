@@ -557,6 +557,141 @@ private directory permissions or cwd pinning alone do not meet that condition.
 No native coordination framework or File Store rewrite is started. Existing-file
 overwrite and `coordination-required` stay unchanged.
 
+## Coordinated original save — 0.60.0 candidate (2026-11-07)
+
+The user's “按你的建议执行” accepts the changed contract proposed below. This does
+not retroactively pass Controlled In-Place Save V1's stricter guarantee. Legacy
+`save()` / `coordination-required` and the closed ordinary-rename counterexamples
+remain intact. The bounded native route is only available to a main-bound edit
+copy or confirmed new-file export, after current draft backup and first-use
+native consent. Restored drafts, read-only sessions, arbitrary renderer paths,
+stale revisions and unsettled input cannot grant a write.
+
+One Foundation NSFileCoordinator replacement operation pins the ordinary local
+APFS target parent and a private recovery directory, validates ancestors and
+supported metadata, writes/fsyncs exclusive baseline/draft/candidate records,
+then uses RENAME_SWAP. Baseline bytes, target bytes, identities, metadata and
+revision are checked, files/directories synchronized, and an append-only outcome
+is written. Main independently rereads the result and records acceptance before
+advancing the saved baseline. Unknown/partial results retain evidence, dirty
+state and the last confirmed path/revision/hash; no retry, deletion or automatic
+rollback. Attachments use bounded exclusive creation or exact reuse. An asset
+failure can leave new attachments without updating Markdown; those are retained.
+
+This is not compare-and-swap or protection against arbitrary same-user writers.
+A final-boundary outside replacement can be exchanged into the private store
+before detection. The pathname may already have changed. A final symlink or
+directory replacement can itself be retained as `exchanged.md`; its referent or
+children are not traversed. Another fd holder can keep writing the displaced
+inode. Immutable `baseline.md` / `draft.md` and, on verified success, `previous.md`
+remain available independently. A crash before a terminal record or main
+acceptance is unresolved on restart. No malicious-process or power-loss guarantee.
+
+Records live in the product profile's `Original Save Versions/`, private mode
+0700, with exclusive 0600 journal/content files (the displaced inode retains its
+original metadata). At 128 transactions, new original saves stop without pruning.
+“草稿 → 保存版本” lists confirmed and uncertain records and opens their folder in
+Finder. Recovery is explicit copy-to-new-location, never an automatic target
+restore. Main-created snapshots preserve source/BOM/endings and Undo; recovery
+of a draft does not restore write authority. Package builds compile a production
+universal helper without test hooks; native fault controls exist only in the
+separate evidence binary.
+
+Targeted evidence is recorded with this stage in stage-history. Controlled GUI
+and synthetic input do not clear native IME NOT VERIFIED, historical manual QA
+FAIL, SEC-01 or release restrictions. Earlier DeepSeek PARTIAL applies to its
+historical scope, not this implementation. No new DeepSeek call or Git publication.
+
+## Original-save native feasibility — 0.59.0, BLOCKED (2026-11-07)
+
+This resumes the approved phase-2 original-save group, using the closed October
+counterexample rather than rerunning its four experiments. No production writer,
+IPC authority, dirty-state contract, installed App or version is changed.
+
+### Concrete native boundary
+
+- `NSFileCoordinator` coordinates access by participating coordinators and file
+  presenters. It is useful for a Mac save implementation, but is not an inode-
+  conditional rename or protection from an arbitrary uncoordinated POSIX writer.
+  See Apple's [file coordination guide](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileCoordinators/FileCoordinators.html).
+- Apple's XNU source gates `F_SETLEASE` on the private entitlement
+  `com.apple.private.vfs.file-leases`; ordinary third-party distribution cannot
+  assume it. See [allow_setlease / vnode_setlease](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/vfs/vfs_subr.c).
+  A bounded local macOS 27.2 / SDK 27.2 probe returned `EPERM`; the synthetic
+  file's inode, permissions and SHA-256 were unchanged. No privileged retry,
+  entitlement change or OS configuration change was attempted. This establishes
+  the tested lease route is unavailable, not that every future OS solution is
+  impossible.
+- The installed SDK `rename(2)` documents `RENAME_SWAP` as an atomic exchange,
+  including unlike file types, not a compare-and-swap against expected identity.
+  Its missing-target case fails with `ENOENT`. These are materially different
+  guarantees from the old ordinary rename path.
+
+Four new **primitive checks**, not four production-save passes, completed:
+
+| Probe | Observed result |
+| --- | --- |
+| Ordinary process requests a file lease | `EPERM`; original unchanged. |
+| Normal atomic exchange | New inode at target; old inode/content retained under staging name; directory fsync returned success. |
+| Separate process replaces target after baseline capture, before exchange | External replacement inode/content retained under staging name, local revision at target. This must be conflict-after-exchange, never saved-confirmed. |
+| Target removed before exchange | `ENOENT`; original at its moved name and candidate both retained unchanged. |
+
+Thus exchange avoids deleting the displaced inode in the tested replacement
+case, but **does change the target name's contents before detecting the conflict**.
+It does not satisfy the existing no-external-replacement invariant. No automated
+rollback or cleanup was attempted. Continuous writes through an existing fd,
+target-type/ancestor changes, crash recovery, metadata and durability still need
+coverage before this could be a production transaction; a retained inode alone
+is not an immutable snapshot. No protection against malicious same-user access
+or power-loss durability is established.
+
+### Reviewable next implementation, requiring a changed contract
+
+Recommended direction for a practical native save is coordinated access with
+version preservation and explicit conflicts. This is a **proposal**, not an
+approved relaxation of `coordination-required`:
+
+1. Main binds the original read snapshot, selected target, independent draft and
+   confirmed revision. Source buffers, IME and queued edits must be settled.
+   Renderer paths or recovered draft records cannot grant write authority.
+2. Within one bounded native coordination operation, revalidate the ordinary
+   local APFS target/ancestors and prepare verified baseline/draft recovery
+   records before commit. Reuse File Store, Service, existing backup and exclusive
+   attachment creation; no second document/save framework.
+3. Use a version-preserving commit primitive only after target-type, path and
+   recovery behavior are verified. A displaced version must remain recoverable;
+   unexpected results stop saving with the draft retained. Never automatically
+   swap back over a path another process may have changed again.
+4. Only verified target bytes/identity, revision, metadata and synchronization
+   can produce confirmed success. Dirty clears only for that confirmed revision;
+   later edits stay dirty. Conflict, ambiguous commit, partial assets or uncertain
+   durability retain drafts and recovery records, with distinct user-visible
+   outcomes and no automatic retry. This deliberately differs from the old
+   experimental Service's baseline advancement on uncertain directory sync.
+5. Cover normal repeated saves, concurrent cooperating and uncoordinated writers,
+   same-inode edits, deletion/replacement/symlinks/directories/parent changes,
+   disk/metadata/sync failures, helper termination and restart recovery as one
+   complete functional group, then package and verify. Stop on an unhandled case.
+
+The decision required is whether a detected narrow race may leave the new version
+at the original path while retaining the displaced version for explicit recovery.
+The current contract forbids that replacement; the proposed contract prevents
+silent loss by retaining/reconciling versions within its tested scope. It cannot
+promise immunity to arbitrary uncoordinated modifications. User acceptance of this
+tradeoff would authorize implementation/testing, **not** waive those exit checks.
+Plan verdict: **REVISE for production; bounded primitive exploration accepted**.
+This is Codex self-review, not DeepSeek or an independent review.
+
+Evidence is in the control checkout's ignored
+`.local/verification/original-save-feasibility-26m64vq1/`: source/binary,
+`primitive-results.json`, environment, file fingerprints and preserved synthetic
+versions. The existing default-service guard test also passes (1 focused Node
+check), confirming zero rename calls, original bytes and dirty retained. All
+fixtures remain under this evidence directory; none were created in Home or
+Downloads. Prior feature tests are reused, not rerun. Original-save remains
+BLOCKED; native IME NOT VERIFIED, historical QA FAIL, SEC-01 and release limits
+remain. No Air, DeepSeek, installation, commit, push, merge, tag or release.
+
 ## Save As New File V1 — bounded product implementation (0.29.0, uncommitted)
 
 This supersedes only Persistent Copy V1's destination-name/empty-folder and

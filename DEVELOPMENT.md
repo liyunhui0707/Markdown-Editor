@@ -36,8 +36,8 @@ work, especially commands that remove and regenerate output directories.
 
 ## Synthetic Home fixtures
 
-Persistent-copy tests still create fresh directories directly under Home to exercise
-that real destination-policy boundary. The successful cases in
+Persistent-copy tests exercise the real Home destination boundary inside one fresh
+Home container per test process; nested cases stay inside that container. The successful cases in
 `test/document-persistent-copy.test.js` and `e2e/document-p1-regressions.spec.cjs`
 use `test/helpers/home-fixture.cjs` to reclaim only fixtures created by that test.
 Cleanup runs after all assertions and writer/reader processes have completed;
@@ -61,9 +61,24 @@ For cleanup-only regressions, run from `apps/desktop`:
 mise exec -- node --test test/home-fixture-cleanup.test.js
 ```
 
-Use a private `TMPDIR` and output directory when running focused tests. Negative
-Home-fixture tests still require deliberate evidence retention; a passing suite
-is not permission to delete their output or historical evidence.
+Use a private `TMPDIR` and output directory when running focused tests. A passing
+suite is not permission to delete negative output or historical evidence.
+`test/helpers/save-folder-fixture.cjs` wraps the existing ownership helper for
+nested saves. After all writer processes close, it moves its own fresh container
+intact to the run evidence folder, records identities, content hashes, symlink
+text and restore mapping, and verifies the move. Success-only reclamation still
+uses `home-fixture.cjs`; failures, partial writes and race pairs are preserved.
+Set `MARKDOWN_TEST_EVIDENCE_ROOT` to the run's existing private `.local/verification/`
+folder for Node tests; the new Electron test uses its Playwright output folder.
+Without an override the evidence goes to a unique OS temporary directory.
+
+Prefer this container for new save tests. Keep only explicit Home-boundary tests
+at the top level; do not add a Home sweep or adopt older/manual fixtures. If a
+process has not exited, identity differs, archive storage is on another device,
+or a move/check fails, retain the location and report it. Before handing back a
+batch, account for each fixture created by that batch: reclaimed, archived, or
+explicitly blocked. Abrupt process/machine termination can still leave a container;
+do not infer it is safe to delete from its name alone.
 
 ## Local Document application
 

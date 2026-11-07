@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_DOCUMENT_BYTES} = require('./document-capacity');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
 const { captureCopyDestination, inspectMacMetadata } = require('./document-save-policy');
@@ -13,7 +14,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
     let target, child, assets;
     const authorized = () => { try { return typeof isAuthorized === 'function' && isAuthorized() === true; } catch { return false; } };
     try {
-      if (!Buffer.isBuffer(bytes) || bytes.length > 1048576 || !Number.isSafeInteger(revision)
+      if (!Buffer.isBuffer(bytes) || bytes.length > MAX_DOCUMENT_BYTES || !Number.isSafeInteger(revision)
           || revision < 0 || typeof isAuthorized !== 'function' || !authorized()) throw Object.assign(Error(), { code: 'copy-authorization-expired' });
       assets = decodeAttachments(attachments);
       target = captureCopyDestination(filePath);
@@ -78,7 +79,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
                     || createHash('sha256').update(JSON.stringify(actual)).digest('hex') !== response.fileMetadataSha256) throw Error('created attributes changed');
               };
               verifyNativeMetadata();
-              const read = createDocumentFileStore().read(filePath, 1048576);
+              const read = createDocumentFileStore().read(filePath, MAX_DOCUMENT_BYTES);
               if (`${read.identity.dev}:${read.identity.ino}` !== response.fileIdentity || read.identity.mode !== 0o600
                   || read.identity.uid !== target.state.identity.uid || read.identity.gid !== target.state.identity.gid
                   || read.sha256 !== sha256 || !read.bytes.equals(bytes)) throw Error('created file changed');

@@ -1,6 +1,6 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.56.1",
+  "version": "0.61.0",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "document-app-main.js",
   "scripts": {
@@ -29,10 +29,11 @@
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
     "pack": "npm run pack:document",
     "dist": "npm run dist:mac",
-    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir zip",
+    "dist:mac": "npm run build:document-save && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir zip",
     "dev:document": "electron document-app-main.js",
-    "pack:document": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
-    "dev:legacy": "electron main.js"
+    "pack:document": "npm run build:document-save && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
+    "dev:legacy": "electron main.js",
+    "build:document-save": "node tools/build-document-save.cjs"
   },
   "author": "",
   "license": "MIT",

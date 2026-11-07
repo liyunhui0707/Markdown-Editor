@@ -346,7 +346,7 @@ test('1B-3R normal composition and invalid copy requests are not recovery comman
   assert.equal(h.document.revision, 1); assert.equal(h.controller.state().recoveryRecords.length, 0);
   invalidComposition(h);
   assert.equal(h.controller.retainCompositionCopy({ text: 'bad' }).code, 'invalid-copy-input');
-  assert.equal(h.controller.retainCompositionCopy('x'.repeat(131073)).code, 'copy-too-large');
+  assert.equal(h.controller.retainCompositionCopy('x'.repeat(524289)).code, 'copy-too-large');
   assert.equal(h.controller.state().recoveryRecords.length, 0);
   h.controller.dispose();
   assert.equal(h.controller.retainCompositionCopy('late').code, 'controller-disposed');

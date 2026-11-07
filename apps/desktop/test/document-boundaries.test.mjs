@@ -67,9 +67,9 @@ test('boundaries refuse item/source/patch overflow without truncating content',(
   assert.equal(command(full,'split-list','Row0',2).ok,false);
   const large='**A**\n\n__'+'B'.repeat(4100)+'__';
   assert.equal(command(large,'join-paragraph','B'.repeat(4100)).ok,false);
-  const exact='A'.repeat(131064)+' **B**';
-  assert.equal(command(exact,'split-paragraph','B',1).source.length,131072);
-  const maximum='A'.repeat(131066)+' **B**';
+  const exact='A'.repeat(524280)+' **B**';
+  assert.equal(command(exact,'split-paragraph','B',1).source.length,524288);
+  const maximum='A'.repeat(524282)+' **B**';
   assert.equal(command(maximum,'split-paragraph','B',1).ok,false);
 });
 

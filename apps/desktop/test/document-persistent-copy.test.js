@@ -12,8 +12,18 @@ const { createHomeFixture } = require('./helpers/home-fixture.cjs');
 const hash = b => createHash('sha256').update(b).digest('hex');
 const text = 'First 中文 😀\n\nSecond paragraph.';
 const baselineCwd = process.cwd();
+const batch = require('./helpers/save-folder-fixture.cjs').createSaveFolderFixture();
+const children = [];
+test.after(async () => {
+  process.chdir(baselineCwd);
+  await Promise.all(children.map(child => child.closed || new Promise((resolve,reject) => {
+    const timer=setTimeout(()=>reject(Error('writer still active; retain Home evidence')),5000);
+    child.once('close',()=>{clearTimeout(timer);resolve();});
+  })));
+  console.log('persistent-fixtures:'+JSON.stringify(batch.archive({quiescent:true})));
+});
 function destination({ cleanup = false } = {}) {
-  const owned = createHomeFixture('Markdown-Persistent-Test-V1-');
+  const owned = createHomeFixture('Markdown-Persistent-Test-V1-', {parent:batch.dir});
   if (!cleanup) owned.keep('negative-or-uncertain-test-evidence');
   return { dir: owned.dir, filePath: path.join(owned.dir, 'copy.md'), owned };
 }
@@ -49,6 +59,7 @@ function nodeFork(hooks = {}) {
       process.parentPort={on:(n,f)=>process.on(n,data=>f({data})),postMessage:m=>{${hooks.omitMetadataProof ? 'delete m.result.fileMetadataSha256;' : ''}${hooks.fault === 'missing' ? 'process.exit(0)' : hooks.fault === 'hang' ? 'void m' : 'process.send(m)'}}};
       require(${JSON.stringify(entry)});
     `], { ...options, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+    children.push(child); child.once('close',()=>{child.closed=true;});
     child.postMessage = data => {
       if (data.ack && hooks.beforeAck) hooks.beforeAck();
       if (!data.ack && hooks.beforeTask) hooks.beforeTask();
@@ -97,7 +108,7 @@ for (const kind of ['existing','symlink','writable-by-others','tmp','wrong-name'
   if (kind === 'symlink') fs.symlinkSync('missing.md', file);
   if (kind === 'writable-by-others') fs.chmodSync(d.dir,0o777);
   if (kind === 'tmp') file = path.join(os.tmpdir(),'copy.md');
-  if (kind === 'wrong-name') file = path.join(d.dir,'../escape.md');
+  if (kind === 'wrong-name') file = path.join(d.dir,'.hidden.md');
   assert.throws(()=>captureCopyDestination(file));
   if (kind === 'existing') assert.equal(fs.readFileSync(file,'utf8'),'SENTINEL');
   if (kind === 'symlink') assert.equal(fs.readlinkSync(file),'missing.md');
@@ -216,7 +227,7 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
 
 // Save As New File V1: only synthetic folders/files are created by these tests.
 function ordinaryDestination(name = '新文档 😀.md', { cleanup = false } = {}) {
-  const owned = createHomeFixture('Writing-synthetic-'), dir = owned.dir;
+  const owned = createHomeFixture('Writing-synthetic-', {parent:batch.dir}), dir = owned.dir;
   const sentinel = path.join(dir, 'untouched.md');
   fs.writeFileSync(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
   if (cleanup) owned.recordFile('untouched.md', Buffer.from('UNTOUCHED'));
@@ -446,4 +457,17 @@ test('existing wrong or linked attachment rejects before writing the Markdown ta
 test('parent catches a sidecar replaced after child verification, and keeps the result unresolved',async()=>{
  const d=destination(),f=fixture(createCopyProcess({fork:nodeFork({beforeAck:()=>{const imagePath=path.join(d.dir,imageName);fs.renameSync(imagePath,imagePath+'.evidence');fs.writeFileSync(imagePath,imageBytes,{mode:0o600});}})}).create,imageAttachments);
  const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.state,'created-unverified');assert.equal(r.code,'copy-post-verification-failed');assert.equal(f.document.dirty,true);
+});
+
+for (const phase of ['beforeTask','beforeAck']) test('nested ancestor replacement '+phase+' refuses confirmation even when leaf identity survives',async()=>{
+ const d=destination(),parent=path.join(d.dir,'parent'),leaf=path.join(parent,'leaf');fs.mkdirSync(leaf,{recursive:true,mode:0o700});
+ const filePath=path.join(leaf,'nested.md'),inode=fs.statSync(leaf).ino;
+ const writer=createCopyProcess({fork:nodeFork({[phase]:()=>{
+  fs.renameSync(parent,parent+'-moved');fs.mkdirSync(parent,{mode:0o700});fs.renameSync(path.join(parent+'-moved','leaf'),leaf);
+ }})});
+ const r=await writer.create({filePath,bytes:Buffer.from(text),revision:1,isAuthorized:()=>true});
+ assert.equal(fs.statSync(leaf).ino,inode);assert.equal(r.ok,false);
+ assert.equal(r.state,phase==='beforeTask'?'not-created':'created-unverified');
+ if(phase==='beforeTask')assert.equal(fs.existsSync(filePath),false);
+ else assert.equal(fs.readFileSync(filePath,'utf8'),text);
 });

@@ -124,8 +124,8 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       previousSession = current?.sessionId;
     }
     byId('details-document-name').textContent = current?.label || '未打开文档';
-    byId('details-document-kind').textContent = current?.temporary ? '独立草稿 · 未存为文件' : '原文件 · 只读';
-    byId('details-document-location').textContent = current?.temporary ? '正文保存在当前编辑会话中，原文件不会被改写。' : current?.location || '';
+    byId('details-document-kind').textContent = current?.temporary ? (current.originalSave?.lastConfirmed ? (current.dirty?'文件草稿 · 修改未保存':'文件草稿 · 正文已保存') : '独立草稿') : '原文件 · 只读';
+    byId('details-document-location').textContent = current?.temporary ? (current.originalSave?.filePath || '独立草稿，尚未关联文件。') : current?.location || '';
     byId('details-document-revision').textContent = String(current?.revision ?? '—');
     byId('details-document-count').textContent = current ? current.source.replace(/\s/gu, '').length.toLocaleString() : '—';
     byId('details-backup-card').hidden = !current?.temporary;
@@ -143,14 +143,14 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('header-end').prepend(byId('writing-actions'));
     byId('writing-workspace').prepend(byId('document-header'));
     byId('writing-toolbar').prepend(byId('format-toolbar'));
-    byId('document-scroll').append(byId('copy-summary-compact'), byId('confirmed-copy-actions'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
+    byId('document-scroll').append(byId('native-open-panel'), byId('original-save-status'), byId('copy-summary-compact'), byId('confirmed-copy-actions'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
     byId('writing-footer').prepend(byId('writing-status'));
     byId('document-switcher').append(byId('documents'));
     byId('draft-dialog-content').append(byId('draft-recovery-panel'));
     byId('draft-recovery-panel').open = true;
     byId('details-writing-help').append(byId('temporary-notice'));
     byId('details-backup-content').append(byId('draft-backup-status'));
-    byId('document-details-content').append(byId('test-copy-panel'));
+    byId('document-details-content').append(byId('original-save-receipt'),byId('test-copy-panel'));
     confirmation.append(byId('test-copy-confirmation'));
     for (const id of ['composition-status', 'composition-warning', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId('input-alerts').append(byId(id));
     sidebar(!media?.matches);

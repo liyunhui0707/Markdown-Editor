@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {projectInlineLeaf,inlineTextNode} from './document-inline-leaf.mjs';
 const inline=text=>text?[{type:'text',text}]:[];
 export const literalBlockPrefix=text=>/^(?:>|`{1,2}|```[A-Za-z0-9_+-]{0,32})$/.test(text);
@@ -53,7 +55,7 @@ export function mapCodeText(source,p,{from,to,insert},project){
  const offset=n=>{let logical=0,raw=0;for(const part of source.slice(body.from,body.to).matchAll(/\r\n|[\s\S]/g)){if(logical===n)break;logical++;raw+=part[0].length;}return body.from+raw;};
  const start=offset(a),end=offset(b),text=insert.replace(/\n/g,body.nl)+(!body.separator&&insert?body.nl:'');
  if(text.length>4096||end-start>4096)return reject();
- const next=source.slice(0,start)+text+source.slice(end);if(next.length>131072)return reject();
+ const next=source.slice(0,start)+text+source.slice(end);if(next.length>MAX_SOURCE_UNITS)return reject();
  const expected=structuredClone(p.doc);expected.content[s.blockIndex].content=inline(s.text.slice(0,a)+insert+s.text.slice(b));
  const projection=project(next);if(JSON.stringify(expected)!==JSON.stringify(projection.doc))return reject();
  return {ok:true,source:next,projection,change:{from:start,to:end,insert:text},inverseSource:{from:start,to:start+text.length,insert:source.slice(start,end)},selection:{from:from+insert.length,to:from+insert.length}};

@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {projectImage} from './document-image-source.mjs';
 import {projectTable,mapTableText} from './document-table-source.mjs';
 import { projectInlineLeaf, inlineTextNode } from './document-inline-leaf.mjs';
@@ -13,14 +15,29 @@ export const spanBlock = (projection, span) => span.itemIndex === undefined ? (s
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
 const parser = unified().use(remarkParse).use(remarkGfm);
+// Edits repeatedly project the same before/after text. Retain only two immutable
+// parse trees; every call still builds fresh mutable projection/validation data.
+const parsed = new Map();
+function parse(source) {
+  if (parsed.has(source)) {
+    const tree=parsed.get(source); parsed.delete(source); parsed.set(source,tree); return tree;
+  }
+  const tree=parser.parse(source), pending=[tree];
+  while(pending.length) {
+    const value=pending.pop(); if(!value||typeof value!=='object'||Object.isFrozen(value))continue;
+    for(const child of Object.values(value))pending.push(child); Object.freeze(value);
+  }
+  parsed.set(source,tree); if(parsed.size>2)parsed.delete(parsed.keys().next().value);
+  return tree;
+}
 const unsafe = () => ({ ok: false, code: 'unsafe-source-range' });
 const validText = s => typeof s === 'string' && !/[\0\r\n]/.test(s)
   && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
 const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
 
 export function projectSource(source) {
-  if (typeof source !== 'string' || source.length > 131072) throw Error('Unsupported source');
-  const tree = parser.parse(source), content = [], spans = [], blocks = [];
+  if (typeof source !== 'string' || source.length > MAX_SOURCE_UNITS) throw Error('Unsupported source');
+  const tree = parse(source), content = [], spans = [], blocks = [];
   const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
     ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
@@ -190,7 +207,7 @@ function paragraphEdit(source, projection, change, verify = true, paragraphSepar
   } else return null;
   paragraphSeparator ??= text;
   const next = source.slice(0, a) + text + source.slice(b);
-  if (next.length > 131072) return unsafe();
+  if (next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   if (verify) {
@@ -230,7 +247,7 @@ function paragraphReplace(source, projection, change, separator, verify = true) 
   const expected = structuredClone(projection.doc);
   expected.content.splice(left.blockIndex, range.length, ...texts.map(text => ({ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] })));
   const text = parts.join(delimiter), next = source.slice(0, a) + text + source.slice(b);
-  if (text.length > 4096 || next.length > 131072) return unsafe();
+  if (text.length > 4096 || next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   const inverse = { from, to: from + insert.length, insert: inverseInsert };
@@ -280,7 +297,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
       || span.bold || span.italic || span.code || span.link || spanBlock(projection, span).content.length > 1)) return unsafe();
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
-  if (next.length > 131072) return unsafe();
+  if (next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
   const expected = structuredClone(projection.doc);
   if (span.textOffset !== undefined) {

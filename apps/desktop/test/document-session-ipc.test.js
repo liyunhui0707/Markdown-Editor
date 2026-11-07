@@ -660,3 +660,22 @@ test('local image preload ignores stale preview after session revocation', async
  const preview=f.api.imagePreview(q);f.events.emit('document-demo:invalidated',{}, {sessionId:q.sessionId});
  f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:1,href:q.href,dataUrl:'data:image/png;base64,AAAA'});assert.equal((await preview).ok,false);
 });
+
+test('source-edit preload fences composition, pending IPC and prior unknown outcome',async()=>{
+ const f=preloadFixture(),q={sessionId:'source',expectedRevision:0,from:0,to:0,insert:'raw'};
+ f.dom.emit('compositionstart');assert.equal((await f.api.sourceEdit(q)).code,'composition-active');f.dom.emit('compositionend');
+ const pending=f.api.sourceEdit(q);assert.equal(f.pending[0].payload.operation,'source-edit');assert.equal((await f.api.sourceEdit(q)).code,'document-busy');
+ f.pending[0].reject(Error('synthetic transport loss'));await assert.rejects(pending);
+ assert.equal((await f.api.sourceEdit(q)).code,'ipc-outcome-unknown');assert.equal(f.pending.length,1);
+});
+
+test('image preload accepts the full image byte budget and refuses oversized or stale data URLs',async()=>{
+ const {MAX_IMAGE_BYTES,base64Limit}=require('../lib/document-capacity');
+ for(const [length,accepted]of [[MAX_IMAGE_BYTES,true],[MAX_IMAGE_BYTES+32,false]]){
+  const f=preloadFixture(),q={sessionId:'capacity-image',expectedRevision:2,href:'markdown-image-'+'a'.repeat(64)+'.png'};
+  const result=f.api.imagePreview(q),dataUrl='data:image/png;base64,'+Buffer.alloc(length).toString('base64');
+  f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:2,href:q.href,dataUrl});assert.equal((await result).ok,accepted);
+ }
+ const source=fs.readFileSync(path.join(__dirname,'../lib/document-demo-preload.js'),'utf8');
+ assert.match(source,new RegExp(`MAX_IMAGE_DATA_URL = ${base64Limit(MAX_IMAGE_BYTES)+26}`));
+});

@@ -84,7 +84,7 @@ test('protected paths, symlinks and non-md inputs are rejected before file-body 
 });
 test('bounded open rejects oversize and source-limit input, while hostile markup stays inert text',async()=>{
   const f=fixture(),large=path.join(f.root,'large.md'),long=path.join(f.root,'long.md'),html=path.join(f.root,'html.md');
-  fs.writeFileSync(large,'x'.repeat(524289));fs.writeFileSync(long,'x'.repeat(131073));
+  fs.writeFileSync(large,'x'.repeat(2097153));fs.writeFileSync(long,'x'.repeat(524289));
   assert.equal((await f.open(large)).code,'unsupported-size');assert.equal((await f.open(long)).code,'parse-failed');
   const raw='<script>synthetic()</script>\n\n![x](file:///not-authorized.png)\n\n[bad](javascript:synthetic())';fs.writeFileSync(html,raw);
   const result=await f.open(html);assert.equal(result.ok,true);assert.equal(result.snapshot.source,raw);

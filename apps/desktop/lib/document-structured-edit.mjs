@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 const reject=()=>({ok:false,code:'unsafe-format-range'});
 const inline=text=>text?[{type:'text',text}]:[];
 const paragraph=content=>({type:'paragraph',content});
@@ -69,7 +71,7 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
  if(cuts(old,right)||cuts(text,end)){right++;end++;}
  b=a+right;a+=left;text=text.slice(left,end);
  if(text.length>4096||b-a>4096)return reject();
- const next=source.slice(0,a)+text+source.slice(b);if(next.length>131072)return reject();
+ const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
  const projection=project(next);if(JSON.stringify(expected)!==JSON.stringify(projection.doc))return reject();
  const target=projection.blocks[targetIndex],pos=(targetRow===null?target?.from+1:target?.quoteRows?.[targetRow]?.from)+offset;
  if(!Number.isSafeInteger(pos)||pos>=target.to)return reject();

@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 const reject = () => ({ok:false,code:'unsafe-format-range'});
 const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
@@ -111,7 +113,7 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
   if(cutsPair(old,end)||cutsPair(text,nextEnd)){end++;nextEnd++;}
   b=a+end;a+=start;text=text.slice(start,nextEnd);
   if(text.length>4096||b-a>4096)return reject();
-  const next=source.slice(0,a)+text+source.slice(b);if(next.length>131072)return reject();
+  const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
   const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject();
   const target=projection.blocks[targetIndex];
   const position=(targetItem===null?target?.from+1:target?.items?.[targetItem]?.from)+offset;

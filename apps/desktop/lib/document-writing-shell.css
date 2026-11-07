@@ -271,3 +271,17 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 
 #input-pressure-panel pre {background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
 #input-pressure-panel label {display:block;margin:12px 0}
+
+/* Pending native opens keep the current writing surface intact. */
+[data-document-viewer] #native-open-panel { margin: 18px 0; padding: 12px 16px; border: 1px solid var(--line, #ddd); border-radius: 8px; font-size: 14px; color: var(--muted, #626a66); overflow-wrap: anywhere; }
+[data-document-viewer] #native-open-panel button { font: inherit; }
+
+/* Bound file save: quiet success, distinct unresolved outcome. */
+#original-save-status { color: var(--text-muted, #53695b); margin: 16px auto; max-width: var(--reading-width, 820px); }
+#original-save-status p { margin: 0 0 8px; }
+#original-save-status[data-tone="error"] { padding: 14px 18px; border-left: 3px solid #b77b43; background: #b77b4315; }
+#save-original { color: white; background: #506d59; border-color: #506d59; }
+.save-version-row { border-top: 1px solid #8883; padding: 12px 0; overflow-wrap: anywhere; }
+#save-versions p { font-size: 13px; line-height: 1.7; }
+
+#original-save-receipt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }

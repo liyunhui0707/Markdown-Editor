@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {projectSource,spanBlock} from './document-source-map.mjs';
 const reject=code=>({ok:false,code:code||'unsafe-link-range'});
 const splits=(s,n)=>/[\uD800-\uDBFF]/.test(s[n-1]||'')&&/[\uDC00-\uDFFF]/.test(s[n]||'');
@@ -48,7 +50,7 @@ export function mapLinkEdit(source,command){
  for(const n of parent.content){const last=merged.at(-1);if(last&&JSON.stringify(last.marks)===JSON.stringify(n.marks))last.text+=n.text;else merged.push(n);}
  parent.content=merged;
  if(insert.length>4096||b-a>4096)return reject();
- const next=source.slice(0,a)+insert+source.slice(b);if(next.length>131072)return reject();
+ const next=source.slice(0,a)+insert+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
  const projection=projectSource(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject('unsafe-link-content');
  return {ok:true,source:next,projection,change:{from:a,to:b,insert},inverseSource:{from:a,to:a+insert.length,insert:source.slice(a,b)},selection:{from:selectionFrom,to:selectionFrom+label.length}};
 }

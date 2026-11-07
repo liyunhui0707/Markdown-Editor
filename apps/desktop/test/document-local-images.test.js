@@ -6,17 +6,17 @@ const {createDraftStore}=require('../lib/document-draft-store');
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64');
 test('local image names bind exact PNG bytes; rejects SVG, oversize and unreasonable dimensions',()=>{
  const a=imageAsset(png);assert.match(a.name,/^markdown-image-[a-f0-9]{64}\.png$/);assert.equal(a.mime,'image/png');
- assert.throws(()=>imageAsset(Buffer.from('<svg/>')));assert.throws(()=>imageAsset(Buffer.alloc(1048577)));
+ assert.throws(()=>imageAsset(Buffer.from('<svg/>')));assert.throws(()=>imageAsset(Buffer.alloc(4194305)));
  const huge=Buffer.from(png);huge.writeUInt32BE(50000,16);assert.throws(()=>imageAsset(huge));
  assert.throws(()=>decodeAttachments([{name:a.name,base64:Buffer.from('changed').toString('base64')}]));
- assert.throws(()=>decodeAttachments(Array(5).fill({name:a.name,base64:png.toString('base64')})));
+ assert.throws(()=>decodeAttachments(Array(17).fill({name:a.name,base64:png.toString('base64')})));
  assert.throws(()=>decodeAttachments([{name:'../escape.png',base64:png.toString('base64')}]));
 });
 test('selected image reads are bounded, no-follow and preserve source bytes',()=>{
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'document-image-read-'))),file=path.join(root,'selected.png');
  fs.writeFileSync(file,png,{mode:0o600});assert.deepEqual(readImageFile(file).bytes,png);
  fs.symlinkSync(file,path.join(root,'link.png'));assert.throws(()=>readImageFile(path.join(root,'link.png')));
- fs.writeFileSync(path.join(root,'large.png'),Buffer.alloc(1048577));assert.throws(()=>readImageFile(path.join(root,'large.png')));
+ fs.writeFileSync(path.join(root,'large.png'),Buffer.alloc(4194305));assert.throws(()=>readImageFile(path.join(root,'large.png')));
 });
 test('draft generations retain exact attachment bytes, management and old plain snapshots stay compatible',()=>{
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'document-image-draft-'))),store=createDraftStore(path.join(root,'drafts'));
@@ -43,7 +43,7 @@ test('main owns image capabilities: import does not mutate text; copies/recovery
  fs.writeFileSync(path.join(root,name),'changed');images.open(opened);assert.throws(()=>images.preview(opened,name));
  assert.throws(()=>images.preview(doc,'../../secret.png'));
  assert.throws(()=>images.validateChange(foreign,'![x](markdown-image-'+ 'f'.repeat(64)+'.png)'));
- const names=Array.from({length:5},(_,i)=>'markdown-image-'+String(i).repeat(64)+'.png');
+ const names=Array.from({length:17},(_,i)=>'markdown-image-'+i.toString(16).padStart(64,'0')+'.png');
  assert.throws(()=>images.validateChange(doc,names.map(n=>'![x]('+n+')').join('\n\n')));
 });
 test('aggregate export keeps partial/unknown states and never reports success for missing attachment proof',()=>{

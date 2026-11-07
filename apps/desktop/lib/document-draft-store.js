@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_SOURCE_UNITS, MAX_DOCUMENT_BYTES, MAX_RECORD_BYTES} = require('./document-capacity');
 // Application-owned recovery snapshots only. This grants no Markdown save authority.
 const nativeFs = require('node:fs'), path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
@@ -9,8 +10,8 @@ const filename = /^([a-f0-9-]{36})\.(\d{1,10})\.json$/;
 const fail = code => { throw Object.assign(Error(code), { code }); };
 const stamp = s => [s.dev, s.ino, s.mode, s.uid, s.gid, s.nlink, s.size, s.mtimeNs, s.ctimeNs].join(':');
 const {decodeAttachments} = require('./document-local-images');
-// Four bounded rasters share the same verified generation as the text.
-const MAX_RECORD = 7 * 1024 * 1024;
+// Bounded raster attachments share the same verified generation as the text.
+const MAX_RECORD = MAX_RECORD_BYTES;
 function createDraftStore(root, { fs = nativeFs } = {}) {
   if (!path.isAbsolute(root)) fail('draft-directory-unavailable');
   try { fs.mkdirSync(root, { mode: 0o700 }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
@@ -48,8 +49,8 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
           || (r.archived !== undefined && typeof r.archived !== 'boolean')) fail('invalid-draft');
       const bytes = Buffer.from(r.body, 'base64');
       const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-      if (bytes.length > 524288 || bytes.toString('base64') !== r.body || hash(bytes) !== r.contentHash
-          || text.length > 131073 || text.includes('\0')) fail('invalid-draft');
+      if (bytes.length > MAX_DOCUMENT_BYTES || bytes.toString('base64') !== r.body || hash(bytes) !== r.contentHash
+          || text.length > (MAX_SOURCE_UNITS + (text.startsWith("\ufeff") ? 1 : 0)) || text.includes('\0')) fail('invalid-draft');
       decodeAttachments(r.attachments);
       verifyRoot(); return { ...r, attachments: r.attachments || [], bytes, token: name, identity: stamp(before) };
     } finally { if (fd !== undefined) fs.closeSync(fd); }
@@ -92,8 +93,10 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
   function writeRecord({ id, token = null, fingerprint = null, label, revision, bytes, attachments = [] }, management = null) {
     let fd, directory, created = false, attempted = false;
     try {
-      if (!uuid.test(id) || !Buffer.isBuffer(bytes) || bytes.length > 524288 || typeof label !== 'string' || label.length > 512
+      if (!uuid.test(id) || !Buffer.isBuffer(bytes) || bytes.length > MAX_DOCUMENT_BYTES || typeof label !== 'string' || label.length > 512
           || !Number.isSafeInteger(revision) || revision < 0) fail('invalid-draft');
+      const text = new TextDecoder('utf-8', {fatal:true,ignoreBOM:true}).decode(bytes);
+      if (text.length > MAX_SOURCE_UNITS + (text.startsWith('\ufeff') ? 1 : 0) || text.includes('\0')) fail('invalid-draft');
       decodeAttachments(attachments);
       const all = names(), previous = group(id, all);
       if ((previous[0] || null) !== token) fail('draft-conflict');

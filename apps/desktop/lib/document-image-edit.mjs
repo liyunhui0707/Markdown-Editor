@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {projectSource} from './document-source-map.mjs';
 import {imageNode,validImageLabel,validImageTarget} from './document-image-source.mjs';
 const reject=code=>({ok:false,code:code||'unsafe-image-range'});
@@ -32,7 +34,7 @@ export function mapImageEdit(source,command){
   a=b;text=nl+nl;prose=true;target++;expected.content.splice(target,0,empty());
  }
  if(text.length>4096||b-a>4096)return reject();
- const next=source.slice(0,a)+text+source.slice(b);if(next.length>131072)return reject();
+ const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
  const projection=projectSource(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject();
  const chosen=projection.blocks[target];if(!chosen)return reject();
  const from=prose?chosen.from+1:chosen.from,to=prose?from:chosen.to;

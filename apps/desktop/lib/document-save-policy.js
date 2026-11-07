@@ -142,7 +142,8 @@ function createIsolatedCreatePolicy({ fs = nativeFs, isolatedCreateRoot } = {}) 
 }
 
 
-// Save As New File V1: explicitly selected ordinary local folders directly under home.
+// Save As New File: explicitly selected ordinary local folders beneath home.
+// Each ancestor is bound into the grant; the writer still creates relative to its pinned cwd.
 // No automatic chmod, deletion or overwrite. Known cloud/system locations fail closed;
 // arbitrary third-party sync agents cannot be detected, so selection also requires user confirmation.
 const directoryIdentity = s => ({ dev: String(s.dev), ino: String(s.ino),
@@ -158,11 +159,21 @@ const unsupportedFolder = name => name.startsWith('.')
 function persistentDirectory(root) {
   const home = nativeFs.realpathSync(os.homedir());
   if (process.platform !== 'darwin' || typeof root !== 'string' || !path.isAbsolute(root)
-      || path.dirname(root) !== home || unsupportedFolder(path.basename(root))
+      || root !== path.normalize(root) || !root.startsWith(home + path.sep)) return deny('unsupported-copy-directory');
+  const parts = root.slice(home.length + 1).split(path.sep);
+  if (parts.length > 32 || parts.some(unsupportedFolder)
       || nativeFs.realpathSync(root) !== root) return deny('unsupported-copy-directory');
-  const s = nativeFs.lstatSync(root, { bigint: true });
-  if (!s.isDirectory() || s.isSymbolicLink() || s.dev !== nativeFs.statSync(home, { bigint: true }).dev || Number(s.uid) !== process.getuid()
-      || (s.mode & 0o022n) !== 0n || (s.mode & 0o300n) !== 0o300n) return deny('unsupported-copy-directory');
+  const homeStat = nativeFs.lstatSync(home, { bigint: true });
+  const locations = [home];
+  for (const part of parts) locations.push(path.join(locations.at(-1), part));
+  const ancestors = locations.map(location => {
+    const s = nativeFs.lstatSync(location, { bigint: true });
+    if (!s.isDirectory() || s.isSymbolicLink() || s.dev !== homeStat.dev
+        || Number(s.uid) !== process.getuid() || (s.mode & 0o022n) !== 0n
+        || !(s.mode & 0o100n) || (location === root && (s.mode & 0o300n) !== 0o300n)) return deny('unsupported-copy-directory');
+    return { path: location, identity: directoryIdentity(s),
+      metadata: inspectMacMetadata(location, { newFileDirectory: true }) };
+  });
   nativeFs.accessSync(root, nativeFs.constants.W_OK | nativeFs.constants.X_OK);
   const run = (exe, args) => {
     const r = spawnSync(exe, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 131072,
@@ -173,8 +184,13 @@ function persistentDirectory(root) {
   const rows = run('/bin/df', ['-P', root]).trim().split('\n');
   const mount = rows.length === 2 && /^\S+\s+\d+\s+\d+\s+\d+\s+\d+%\s+(.+)$/.exec(rows[1])?.[1];
   if (!mount || !run('/sbin/mount', []).split('\n').some(line => line.includes(` on ${mount} (apfs, local`))) return deny('unsupported-filesystem');
-  const state = { identity: directoryIdentity(s), filesystem: nativeFs.statfsSync(root).type, metadata: inspectMacMetadata(root, { newFileDirectory: true }) };
-  if (!equalDirectory(state.identity, directoryIdentity(nativeFs.lstatSync(root, { bigint: true })))) return deny('copy-directory-changed');
+  const leaf = ancestors.at(-1);
+  const state = { identity: leaf.identity, filesystem: nativeFs.statfsSync(root).type,
+    metadata: leaf.metadata, ancestors };
+  // Detect replacement of any parent during inspection, even if the selected
+  // leaf was moved into a new ancestor and retained its own inode.
+  if (nativeFs.realpathSync(root) !== root || ancestors.some(item =>
+    !equalDirectory(item.identity, directoryIdentity(nativeFs.lstatSync(item.path, { bigint: true }))))) return deny('copy-directory-changed');
   return state;
 }
 // A dialog suggestion only. The selected destination must still be freshly
@@ -217,4 +233,4 @@ function createPersistentCreatePolicy(task) {
   return { verify, authorizeSource() { return deny('synthetic-copy-required'); } };
 }
 module.exports = { createSavePolicy, createIsolatedCreatePolicy, inspectMacMetadata,
-  captureCopyDestination, createPersistentCreatePolicy, copyName, suggestCopyPath };
+  captureCopyDestination, createPersistentCreatePolicy, copyName, suggestCopyPath, persistentDirectory };

@@ -50,7 +50,7 @@ test('combining characters and ZWJ emoji keep UTF-16 source positions without no
   assert.equal(r.ok, true); assert.equal(r.source, '# é 👨‍💻 新文\r\n');
 });
 test('source-size limit rejects expansion as an ordinary unsafe edit', () => {
-  const s = 'a'.repeat(131070), p = projectSource(s).spans[0];
+  const s = 'a'.repeat(524286), p = projectSource(s).spans[0];
   assert.equal(mapTextEdit(s, { from: p.from + 1, to: p.from + 1, insert: 'xxxx' }).ok, false);
 });
 
@@ -239,4 +239,14 @@ test('typed margin spaces in mixed paragraphs remain visible until the next word
     const source=original+' ',s=projectSource(source).spans.at(-1);assert.equal(s.text,' ');
     const r=mapTextEdit(source,{from:s.to,to:s.to,insert:'next'});assert.equal(r.ok,true);assert.equal(r.source,source+'next');
   }
+});
+
+test('repeated parsing shares no mutable projection state across text/history/structured callers',()=>{
+ const source='# Heading\n\n- Item **bold**\n  - Nested\n\n> Quote\n\n| A | B |\n| - | - |\n| x | y |\n\n```js\nx\n```\n';
+ const expected=projectSource(source),mutated=projectSource(source);
+ mutated.doc.content.length=0;mutated.spans[0].text='corrupted';mutated.blocks.length=0;
+ assert.deepEqual(projectSource(source),expected);
+ projectSource('different');assert.deepEqual(projectSource(source),expected);
+ for(const other of ['evict 1','evict 2','evict 3'])projectSource(other);
+ assert.deepEqual(projectSource(source),expected);
 });

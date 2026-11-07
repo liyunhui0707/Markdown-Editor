@@ -2,7 +2,13 @@
 // Bounded local raster attachments. No URL loading or renderer filesystem authority.
 const fs = require('node:fs'), path = require('node:path');
 const {createHash} = require('node:crypto');
-const MAX_IMAGE = 1048576, MAX_IMAGES = 4;
+const {MAX_IMAGE_BYTES:MAX_IMAGE,MAX_IMAGES,MAX_ATTACHMENT_BYTES,MAX_ATTACHMENT_PIXELS,
+  MAX_SESSION_IMAGES,MAX_SESSION_IMAGE_BYTES,MAX_SESSION_IMAGE_PIXELS,base64Limit} = require('./document-capacity');
+function budget(assets, session = false) {
+  if (assets.length > (session ? MAX_SESSION_IMAGES : MAX_IMAGES)) fail(session ? 'image-session-capacity' : 'image-count-limit');
+  if (assets.reduce((n,a)=>n+a.bytes.length,0) > (session ? MAX_SESSION_IMAGE_BYTES : MAX_ATTACHMENT_BYTES)) fail(session ? 'image-session-capacity' : 'image-total-size-limit');
+  if (assets.reduce((n,a)=>n+a.width*a.height,0) > (session ? MAX_SESSION_IMAGE_PIXELS : MAX_ATTACHMENT_PIXELS)) fail(session ? 'image-session-capacity' : 'image-total-pixel-limit');
+}
 const managedName = /^markdown-image-([a-f0-9]{64})\.(png|jpg)$/;
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const fail = code => { throw Object.assign(Error(code), {code}); };
@@ -31,13 +37,13 @@ function imageAsset(bytes) {
 }
 function decodeAttachments(value = []) {
   if (!Array.isArray(value) || value.length > MAX_IMAGES) fail('image-count-limit');
-  const seen = new Set();
+  const seen = new Set(), assets = [];
   return value.map(item => {
     if (!item || Object.keys(item).sort().join(',') !== 'base64,name' || !managedName.test(item.name)
-        || typeof item.base64 !== 'string' || item.base64.length > 1398104 || seen.has(item.name)) fail('invalid-image-attachment');
+        || typeof item.base64 !== 'string' || item.base64.length > base64Limit(MAX_IMAGE) || seen.has(item.name)) fail('invalid-image-attachment');
     const a = imageAsset(Buffer.from(item.base64,'base64'));
     if (a.name !== item.name || a.bytes.toString('base64') !== item.base64) fail('invalid-image-attachment');
-    seen.add(a.name); return a;
+    assets.push(a); budget(assets); seen.add(a.name); return a;
   });
 }
 function readImageFile(file) {
@@ -59,8 +65,15 @@ function readImageFile(file) {
   } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 function createLocalImages({projectSource, validateRaster}) {
-  const documents = new WeakMap();
-  const refs = document => [...new Set(projectSource(document.text).blocks.filter(b=>b?.image && managedName.test(b.image.src)).map(b=>b.image.src))];
+  const documents = new WeakMap(), references = new WeakMap();
+  // Preview requests for every image share one parse. Only immutable names are
+  // cached; source-map projections used by edit validation remain independent.
+  const refs = (document, source = document.text) => {
+    const cached = references.get(document); if (cached?.source === source) return cached.names;
+    const names = [...new Set(projectSource(source).blocks.filter(b=>b?.image && managedName.test(b.image.src)).map(b=>b.image.src))];
+    references.set(document,{source,names}); return names;
+  };
+  const selected = (document,names) => names.map(name=>documents.get(document)?.get(name)).filter(Boolean);
   const verified = a => { if (typeof validateRaster !== 'function' || !validateRaster(a)) fail('unsupported-image'); return a; };
   function attach(document, source = null, recovery = null) {
     const assets = new Map();
@@ -72,23 +85,25 @@ function createLocalImages({projectSource, validateRaster}) {
     attach(document); const names = refs(document); if (names.length > MAX_IMAGES) return;
     for (const name of names) {
       try { const a = verified(readImageFile(path.join(path.dirname(document.filePath),name)));
-        if (a.name === name) documents.get(document).set(name,a);
+        if (a.name === name) { budget([...documents.get(document).values(),a]); documents.get(document).set(name,a); }
       } catch { /* Missing/replaced attachments remain visible placeholders; never bless them. */ }
     }
   }
   function importFile(document,file) {
     const assets = documents.get(document); if (!assets) fail('image-session-unavailable');
     const a = verified(readImageFile(file));
-    if (!assets.has(a.name) && assets.size >= 16) fail('image-session-capacity'); // Includes undo/cancel references.
+    budget([...assets.values()].filter(value=>value.name!==a.name).concat(a),true); // Includes undo/cancel references.
     assets.set(a.name,a); return a.name;
   }
   function validateChange(document, source) {
-    const names = refs({text:source}), before = refs(document);
+    const before = refs(document), names = refs(document,source);
     if (names.length > MAX_IMAGES) fail('image-count-limit');
     if (names.some(name => !before.includes(name) && !documents.get(document)?.has(name))) fail('image-attachment-unavailable');
+    budget(selected(document,names));
   }
   function attachments(document) {
     const names = refs(document); if (names.length > MAX_IMAGES) fail('image-count-limit');
+    budget(selected(document,names));
     return names.map(name => {
       const a = documents.get(document)?.get(name); if (!a) fail('image-attachment-unavailable');
       return {name,base64:a.bytes.toString('base64')};

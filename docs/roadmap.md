@@ -2,31 +2,98 @@
 
 ## Current direction (2026-11-07)
 
-The Document writing workspace is now the default and available as a local
-`Markdown.app`. Preserve the accepted visual baseline and existing file-safety
-boundaries. The default-entry/installation closeout and Git integration are
-complete: PR #138 merged as `0ccd941` on `main`, with dependency CI passing.
-Use short feature branches in the existing Worktree; no long-lived develop
-branch or release/tag is implied.
+The product goal is a complete, attractive, simple, independent local Mac
+Markdown editor: open a standard file from Finder, write in the accepted visual
+workspace, save predictably, and recover work. The accepted layout remains the
+visual baseline; do not return to Vault/AI/plugin platform work or rebuild the
+editor framework. Group related changes into complete user workflows, with
+focused tests inside each batch rather than a new approval cycle for each control.
 
-Local checkpoint `dd0eef4` (0.48.0, `feat/document-close`) preserves common inline
-formatting and the complete link panel. The **0.49.0 local WIP checkpoint `d8a3f25`** adds
-single-level quotes and basic fenced code as one writing workflow: creation,
-editing, exit to prose, history and export/reopen. The common-authoring closeout
-now passes a mixed-document workflow, packaged restart/recovery and installed
-startup: that checkpoint installed 0.49.0, with 0.46.0 preserved for rollback. 351 targeted
-Node cases, five source Electron workflows and one product-package workflow pass.
-Native IME, full CI and independent review are not established by this batch.
-General overwrite remains blocked by `coordination-required`.
+The user approved the following **three delivery phases**, including all five
+remaining product limits. They are development commitments, not claims that the
+limits have already been removed.
 
-The **0.56.1 local WIP checkpoint** preserves the installed broader-document
-batch without a further version/runtime change. The immediate next step is a
-bounded real-writing acceptance pass: input/history, image export/reopen and long
-article navigation/source. Pending native IME, historical failures, full CI and
-SEC-01 remain explicit; this checkpoint does not start existing-file overwrite
-or claim daily-use release readiness.
+| Phase | Complete user outcome | Exit criteria / current position |
+| --- | --- | --- |
+| 1. Native Mac file opening | Open `.md` via Finder Open With; after the user chooses Markdown as default, double-click opens it. Cold/warm launch, repeat opens, Unicode paths and pending input behave predictably. | 0.57.0 installed local candidate implements association, main-owned queued read intent, unchanged-session reuse and deferred opening. Existing originals stay read-only; no default handler is changed automatically. 109 focused Node checks, three source Electron workflows and actual-package cold/warm/repeated LaunchServices opens pass; no unrestricted filesystem or release claim. |
+| 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
+| 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Delivery goals (updated after user feedback, 2026-11-05)
+### Phase 2 — explicit work and safety gates
+
+1. **Save destinations:** support user-selected ordinary writable local folders,
+   including nested folders, through the native dialog. Validate ancestor/target
+   identity, symlinks, ownership, metadata and exclusive creation. Keep arbitrary
+   overwrite closed. Network/sync behavior needs its own evidence; do not call a
+   folder safe merely because its path is outside known provider directories.
+2. **Editable source and complex Markdown — 0.59.0 installed candidate:** source editing of the full
+   confirmed Markdown on an independent draft with history, recovery and exact
+   untouched bytes. Switching to/from WYSIWYG must preserve unsupported syntax,
+   BOM/newlines and selection where supportable. Expand common rich structures
+   in coherent groups; source mode must be a usable route when rich editing cannot
+   safely represent a construct, rather than leaving the entire document blocked.
+   Implemented with explicit Apply/return, local source history/search and
+   discard protection. Unapplied edits are memory-only; native IME acceptance
+   and broader performance limits remain open.
+3. **Save back to the original:** design a finite implementation around the known
+   external-replacement counterexample. Main must own target identity and revision
+   authorization, recheck content/metadata, coordinate the final write, report
+   conflicts/partial or uncertain outcomes accurately, and preserve drafts.
+   `coordination-required` stays enforced until the precise supported write
+   conditions are demonstrated; removing the guard is not a solution. Do not
+   introduce a second save framework. State any remaining native coordination
+   blocker with evidence instead of claiming success.
+   **Nov 7 result at 0.59.0: BLOCKED under the current guarantee.** Native file
+   coordination does not constrain arbitrary POSIX writers; the file-lease route
+   requires a private Apple entitlement and returned EPERM locally. A bounded
+   atomic-exchange probe retained the displaced version, but changed the target
+   before detecting conflict, so it does not meet the old guarantee. A concrete
+   coordinated/version-preserving save proposal and its required contract decision
+   are recorded in the [save phase record](document-save-hardening-phase1b.md#original-save-native-feasibility--0590-blocked-2026-11-07).
+   That investigation did not enable production writes. **The user subsequently
+   approved the changed contract**: native coordination, retained versions and
+   explicit conflict/uncertainty, including the narrow pathname-change race.
+   **0.60.0 local candidate** implements that bounded workflow through the existing
+   services: bound target/revision, backup-before-save, native exchange and retained
+   baseline/draft/displaced versions, exact readback, stable success receipt,
+   conflict stop and restart-visible recovery records. Legacy `save()` still returns
+   `coordination-required`; renderer paths and restored drafts gain no write authority.
+   This is bounded local evidence, not universal overwrite safety or release sign-off.
+   The following capacity group reuses this implementation; no new editor
+   framework or closed rename experiments are needed.
+4. **Practical capacity:** measure parsing/editing/history/backup/export memory and
+   latency on representative larger text and images, then raise consistent limits
+   across the complete path. Support more/larger images with bounded decoding and
+   portable attachments. No infinite document/image guarantee and no isolated
+   constant increase that bypasses IPC, recovery or export budgets.
+   **0.61.0 implemented locally:** 524,288 UTF-16 units / 2 MiB; 16 PNG/JPEGs,
+   4 MiB each, 16 MiB / 32 million decoded pixels aggregate. IPC, native helper,
+   source editing, backup/recovery and export share the limits. History has an
+   8 MiB text budget as well as its 64-entry cap. A 491k-unit / 701-heading /
+   16-image workflow passes exact export, save and restart recovery. Measured
+   opening 0.40 s, saving 0.26 s; controlled edit/confirmation 2.13 s including
+   automation. Node-only 490k projection ~81 ms, validation ~91 ms, backup ~11 ms;
+   cumulative measurement-process RSS ~260 MiB is not whole-app/peak memory.
+   This completes bounded functional capacity, not smooth extreme-length writing.
+
+The 0.61.0 local WIP checkpoint groups phases 1–2 above on `feat/document-close`;
+installed code and matching evidence are preserved. No remote operation is included.
+
+**Next complete group:** phase-3 daily-writing stabilization: native Chinese IME
+and historical failure retests, representative sustained editing/large-document
+latency and full-app memory, then accessibility and full CI/security readiness.
+Keep the accepted visuals and existing file protections. No new feature family,
+public release, push or merge starts automatically from this capacity delivery.
+
+The current source/installed baseline before phase 1 is the **0.56.1 local WIP
+checkpoint `c402e65`** on `feat/document-close`. The combined Pro regression passed,
+and the user reported simple input/history, image export/reopen and long-article
+navigation/source experience as basically passing. This is LIMITED BASIC PASS,
+not comprehensive native IME acceptance. Historical failures, full CI and SEC-01
+remain explicit. PR #138 previously integrated the earlier mainline baseline;
+this development authorization does not authorize another push, merge or release.
+
+### Historical delivery goals and cumulative evidence (through 0.56.1)
 
 The goal is a local-first Mac Markdown app: write continuously in one WYSIWYG
 surface, retain standard `.md` files and recover work reliably. Preserve the
@@ -41,7 +108,7 @@ small changes internally without asking for a separate user approval per button.
 | Document workspace and protection | Installed app, accepted visual workspace, open/copy/switch/find/close, draft recovery and new-file export | Baseline available; remaining limitations stay explicit |
 | Everyday Markdown authoring | Write an ordinary article from blank: headings, paragraphs, emphasis, links, lists, quotes and basic code blocks; consistent selection, paste, keyboard input and Undo/Redo | Implemented and locally installed; mixed-document/export/recovery checks pass within supported syntax; native IME and broader acceptance remain open |
 | Everyday file workflow | Clear saved/draft states, convenient reopen/close/recovery and supported save destinations; controlled existing-file saving only after coordination/conflict requirements are proven | 0.51.0 locally checkpointed and installed: recent documents, resume writing, draft naming and export-name continuity; bounded checks pass, human acceptance remains open; overwrite protection remains |
-| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | 0.56.1 installed local WIP checkpoint includes local PNG/JPEG import/export/recovery, filtered outline, read-only source and bounded input-pressure recovery; prior tasks/tables/reference baseline retained; focused human acceptance remains open |
+| Broader documents | Tasks/nesting, tables, images, long documents and the necessary source/preview escape hatches | 0.56.1 installed local WIP checkpoint includes local PNG/JPEG import/export/recovery, filtered outline, read-only source and bounded input-pressure recovery; prior tasks/tables/reference baseline retained; combined regression passes and the user reports all three basic experience areas pass; comprehensive acceptance remains open |
 | Daily-use release | Native IME acceptance, accessibility/performance, dependency/security gates, installation/update/rollback and limited real-use trial | Before public daily-use claim; no date/1.0 promise |
 
 The everyday-authoring implementation and bounded installed closeout are complete;

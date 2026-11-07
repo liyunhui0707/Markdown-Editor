@@ -2,14 +2,124 @@
 
 A local macOS Markdown editor with a document-first writing workspace, built with
 Electron and Tiptap. Open an original read-only, edit an independent copy, keep
-local draft backups, and explicitly export a new `.md` file. Existing files are
-never overwritten. No account or hosted backend is required.
+local draft backups, explicitly export a new `.md` file, and save back to a
+bound local file while retaining previous versions. New-file export never replaces
+an existing target. No account or hosted backend is required.
 
-**0.56.1 installed local WIP checkpoint.** This is not
+**0.61.0 installed local WIP checkpoint.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
-## Long articles / source view — 0.56.0 installed local WIP
+## Larger articles and images — 0.61.0
+
+The complete open/edit/history/backup/recovery/export/save path now accepts up to
+**524,288 UTF-16 units of Markdown** (excluding the initial BOM) and **2 MiB of
+UTF-8 file bytes**; both limits apply. PNG/JPEG attachments allow **16 distinct
+images**, **4 MiB each**, **16 MiB total** and **32 million decoded pixels total**.
+Each image still has a 4096-pixel side / 16-million-pixel limit. Unknown or
+oversized data is refused; missing attachments remain placeholders, not verified
+exports. Import/Undo retains at most 32 images / 32 MiB / 64 million pixels per
+session. This does not grant access to additional paths or file types.
+
+Document Undo keeps up to 64 entries and 8 MiB of inverse/redo text; large whole-
+source replacements may retain fewer steps. Recent steps remain exact. The source
+window has its own local edit history. Existing drafts need no migration, but a
+larger new draft may exceed older App versions' limits: retain the 0.61.0 App and
+its records before rolling back; export needed work using this version first.
+
+A controlled Electron workflow passed with roughly 491,000 UTF-16 units,
+701 headings and 16 images, including a real 1.13 MiB PNG, through export, save
+back and restart recovery. Opening measured 0.40 s and saving 0.26 s; a controlled
+edit/confirmation flow took 2.13 s, including automation overhead. This is bounded
+functional evidence, **not** smooth extreme-length typing or native IME acceptance.
+Long-document latency and full-app memory profiling remain daily-use gates.
+
+## Save back to a local file — 0.60.0
+
+Open a file, choose **编辑副本**, edit, wait for the draft backup, then choose
+**保存** (⌘S). The first save asks for confirmation of the bound target. A newly
+exported file also becomes the draft's save target. Later changes require another
+explicit save; there is no automatic overwrite. **另存新文件…** remains exclusive
+creation. Inside **源码**, ⌘S still applies the source buffer to the draft only.
+
+Confirmed saves retain the previous content and clear the saved revision's dirty
+state without resetting Undo. Later edits remain unsaved. An external change or
+uncertain outcome stops this draft's subsequent original saves and preserves the
+last successful receipt separately. Keep the draft and inspect the file/version
+records; no automatic retry or rollback occurs. This uses native coordination
+and version preservation, **not** an inode-conditional replacement: an arbitrary
+outside writer can still race the final exchange. In that case the pathname may
+already contain the new version; the displaced object is retained, and detected
+conflicts are not reported as successful saves.
+
+Use **草稿 → 保存版本 → 在 Finder 查看** to inspect retained versions, even after
+restart. Copy a needed `baseline.md` / `draft.md` / `previous.md` to a new location
+before reopening; `exchanged.md` retains the displaced object and can still be
+changed by another process holding it open. Recovery never automatically writes
+back or restores save authority. The private local store stops at 128 records;
+it never automatically deletes them. It is not a backup against disk loss.
+
+The same ordinary local Home-descendant APFS directory policy applies. Unknown
+ACLs/attributes, synced/network/external-volume locations and unsupported files
+remain refused. Current text/image limits remain. Building on macOS now compiles
+a small Foundation helper (`npm run build:document-save`); packaging includes its
+production arm64/x86_64 binary. Native IME, broader OS acceptance, full CI/security
+and signed/notarized release gates remain separate.
+
+## Edit complete Markdown source — 0.59.0
+
+On an independent draft, **源码** opens an editable Markdown window with line
+numbers, syntax highlighting, search, line wrapping and local Undo/Redo. You can
+edit YAML, HTML and other structures that the visual editor protects. Originals
+remain read-only: choose **编辑副本** first.
+
+Choose **应用并返回** (⌘S or ⌘Enter inside the source window) to apply the buffer
+as one document history step and include it in the existing local draft backup.
+This does not save over a file. Unapplied changes stay only in this window;
+returning asks whether to discard them. Complete composition before applying.
+A stale or uncertain result retains the source for copying rather than retrying.
+
+Untouched Markdown, the file's BOM and original line endings are retained through
+application, document Undo/Redo, backup/recovery and new-file export. New line
+breaks follow the nearby source style; the editor/clipboard displays LF. Unsupported
+rich constructs remain protected visually and can be edited here as source; raw
+HTML is not executed. Current document/image limits still apply.
+
+## Save into local subfolders — 0.58.0
+
+**另存新文件…** now accepts ordinary local APFS folders beneath your home,
+including nested folders such as `~/Liyunhui/Inbox` or `~/Downloads/Articles`.
+The selected folder and all ancestors must pass ownership, permissions, identity
+and metadata checks. This export action creates only a new filename and never replaces existing
+targets. Saving back uses the separate bound-file action described above. Failed/cancelled exports retain the draft and
+last confirmed receipt. Imported image attachments use the same destination.
+
+This does not mean any disk or directory is supported. Home itself, Desktop,
+Documents, Library, Applications, hidden/system and known cloud/sync components,
+symlinked paths, other filesystems and unsupported permissions remain refused.
+The app never changes folder permissions; confirm that no other app syncs your
+chosen folder. Saving back uses the separate bound-file action described above.
+
+## Finder opening — 0.57.0
+
+Markdown declares `.md` support for macOS **Open With**. Cold and running-app
+opens use the same bounded, read-only file service. Repeated opens reuse an
+unchanged original; changed/replaced files retain the old snapshot and ask for
+explicit reopening. Current drafts and their history stay available in the sidebar.
+While composing, waiting for an edit or using a modal, a Finder request stays in
+**Finder 打开请求**; finish the operation, then choose **打开文件** or skip it.
+At most 16 pending requests and eight open documents are held; over-capacity
+requests are reported. Failed/unsupported files never replace the active draft.
+
+The app does not change your default handler. After installing this version,
+use Finder → select an `.md` → Get Info → Open with → Markdown → Change All
+if you want ordinary double-click to use this app. This choice is optional.
+Files still need to be readable regular UTF-8 `.md` files within the current
+size limits; association does not grant overwrite or other filesystem authority.
+Remaining save locations, safe original-file saving, richer visual structures and
+practical capacity are tracked in [the three-phase roadmap](docs/roadmap.md).
+
+## Long articles / source view — 0.56.0 baseline (source editing added in 0.59.0)
 
 Filter headings in the outline and press Enter to jump to the first match;
 Escape clears the filter. The **源码** toolbar button shows the complete confirmed
@@ -17,7 +127,8 @@ Markdown in a read-only window, including unsupported syntax. Select/copy text,
 toggle line wrapping and return to the article without changing its contents or
 history. Pending or composing input must finish first. Clipboard selection may
 normalize newlines and omits the BOM; export preserves the original file format.
-This does not enable source editing or increase document/save limits. It also
+The original-file source view remains read-only; draft source editing is described
+above. Document/save limits are unchanged. The 0.56.0 baseline also
 fixes an image-lookup regression that prevented opening protected HTML blocks.
 43 focused Node checks and two Pro Electron workflows pass. The packaged app also
 passes paced typing, outline/source, Undo/Redo, restart recovery and installed
@@ -35,8 +146,9 @@ pass. Native IME remains NOT VERIFIED; human acceptance is still pending.
 
 Use the image button → **选择本地图片…** to choose a PNG/JPEG, add a description,
 then insert it. Verified images appear in the writing surface; Enter continues
-in prose and Undo/Redo retains the attachment. Up to four distinct images per
-article, each at most 1 MiB, 4096 pixels per side and 16 million pixels total.
+in prose and Undo/Redo retains the attachment. Current 0.61.0 limits are 16 distinct images per
+article, 4 MiB each, 16 MiB / 32 million pixels aggregate; each image remains
+limited to 4096 pixels per side and 16 million pixels.
 The original image is read only. Image clipboard/drop, SVG/GIF and remote loading
 are not supported. Other relative/http(s) addresses remain reference-only cards.
 
@@ -47,7 +159,7 @@ Keep them together when moving or sharing. Existing identical verified image
 files may be reused read-only; differing files, links or unsupported metadata
 are refused. Success requires verification of the text and every attachment.
 Partial or unknown results retain the draft and possible created-file paths,
-without automatic retry or cleanup. Original-file overwrite remains prohibited.
+without automatic retry or cleanup. New-file export does not overwrite; bound-file saving is described above.
 
 212 distinct targeted Node checks and two Pro Electron workflows pass, with
 final affected checks repeated after review corrections. Native dialogs are
@@ -228,7 +340,7 @@ unconfirmed backups retain the current body and name. **另存新文件…** sug
 name with `.md`; you can still choose a different new filename in the native dialog.
 Naming does not rename original/exported files, change text or reset Undo/Redo.
 Recovery keeps the name and confirmed body, without restoring old history or
-export receipts. Existing-file overwrite and destination restrictions remain unchanged.
+export receipts. That source operation grants no file-write authority; the separate bound-file save and destination restrictions are described above.
 
 **Installed WIP candidate (`feat/document-close`):** click the header
 × or press **Cmd+W** to close only the current document. Read-only originals close
@@ -334,14 +446,14 @@ no composition state is cleared by a timer or by hiding its status.
 
 The installed app and `npm run dev` include the restricted **另存新文件…** flow.
 
-Choose an existing ordinary local APFS folder directly under your home folder,
+Choose an existing ordinary local APFS folder within your home folder, including subfolders,
 owned by you and not writable by others. Home itself, Desktop, Documents,
 Library, hidden and known sync folders are unsupported. Downloads is supported
 when it passes these checks: its non-inheriting everyone deny-delete protection
 and opaque `com.apple.macl` directory metadata are accepted and fingerprinted;
 other ACLs/xattrs remain refused. The dialog suggests Downloads only after checks
 pass, then revalidates the selected destination before creation. The app does not
-change folder permissions. Nested folders are not yet supported. Native MACL and last-used
+change folder permissions. Every ancestor is bound into the destination authorization. Native MACL and last-used
 attributes on newly created files are retained and checked across writer/main
 verification. The first native metadata probe precedes the strict stat/byte
 baseline so initial macOS metadata setup is not mistaken for a later change;
@@ -395,11 +507,10 @@ sessions while viewing real files. The eight-session limit is a development
 constraint. Native macOS IME remains unaccepted; this is not daily-writing or
 release sign-off.
 
-This restricted preview formats headings, paragraphs, bold, italic, single-backtick code, simple inline links and flat lists. Other syntax,
-including HTML, images, reference/nested links and tables, is displayed as literal text; it does
-not load external resources. Only UTF-8 regular, non-linked `.md` files up to
-512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,
-not Finder integration or release acceptance. See the
+The writing surface supports the bounded common-authoring, task/list, table and
+local-image workflows described above. Other syntax is retained as protected
+source; remote resources are not loaded. Only UTF-8 regular, non-linked `.md` files up to
+2 MiB and 524,288 UTF-16 code units (excluding the initial BOM) are accepted. Finder opening uses this same read boundary; it is not release acceptance. See the
 [scope and verification](docs/document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
 
 ## Historical Vault reference

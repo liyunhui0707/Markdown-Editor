@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {mapImageEdit} from './document-image-edit.mjs';
 import {tableActions,mapTableEdit} from './document-table-edit.mjs';
 import {mapListEdit} from './document-list-edit.mjs';
@@ -110,7 +112,7 @@ export function mapFormatEdit(source, command) {
   }
   if(typeof text!=='string'||text.length>4096||b-a>4096) return reject();
   const next=source.slice(0,a)+text+source.slice(b);
-  if(next.length>131072) return reject();
+  if(next.length>MAX_SOURCE_UNITS) return reject();
   const projection=projectSource(next);
   if(JSON.stringify(projection.doc)!==JSON.stringify(expected)) return reject();
   const target=projection.blocks[targetIndex];

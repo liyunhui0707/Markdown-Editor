@@ -1,5 +1,363 @@
 # Stage History
 
+## Everyday document workflows — 0.61.0 local WIP checkpoint (2026-11-07)
+
+The user authorized one local checkpoint of the 78-file candidate accumulated
+since 0.56.1: Finder opening, nested destinations, complete source editing,
+version-preserving bound-file saving, practical text/image capacity and their
+focused tests/docs. All 557 candidate file hashes match the accepted delivery.
+Only these closeout docs change; app/runtime/test bytes and version 0.61.0 remain
+unchanged. Reuse the matching Node/native/Electron/package and installed-startup
+evidence from the dated entries below. The source map gets a final import/regression
+smoke check. The known 26 generated-bundle whitespace warnings are reproducible
+output, not hand-edited. No secret-pattern hits or unrelated candidate files.
+
+This is a recoverable WIP, not merge/public-release approval. Native IME remains
+NOT VERIFIED, historical manual FAIL remains, and extreme-length responsiveness,
+full CI, SEC-01 and broader human acceptance remain open. Current failed fixture
+`Writing-synthetic-2WJ1Zn` is outside Git and its separately approved archival
+decision does not change historical test outcomes. Next: daily-writing stability,
+long-document profiling and genuine input acceptance. No push, merge, tag/release.
+
+## Practical text/image capacity — 0.61.0 installed local candidate (2026-11-07)
+
+This completes the bounded capacity group within the approved everyday-document
+phase. Shared JS limits and tested native/preload mirrors cover open, rich/source
+editing, IPC, document history, draft backup/recovery, exclusive export and
+version-preserving original saving. Text permits 524,288 UTF-16 units (BOM excluded)
+and 2 MiB; local PNG/JPEG permits 16 images, 4 MiB each, 16 MiB / 32 million decoded
+pixels aggregate. Retained import/Undo assets have separate session budgets.
+Missing/oversized attachments remain unverified. No path authority, sync support,
+overwrite contract or editor framework changed.
+
+Main document history keeps up to 64 entries / 8 MiB of inverse+redo text; large
+source replacements retain fewer exact recent steps. Two immutable remark trees
+and per-document image-reference names avoid repeated parsing without sharing
+mutable edit projections. New budget modules stay below 300 lines. Existing
+orchestration remains in place (entry 501, file store 330, IPC 423 lines); source
+map is 312 lines including the local parse cache. Splitting these integration
+points would broaden this capacity change; dedicated limit/history modules avoid
+adding another framework. Test fixture bounds now admit the same verified raster
+size, while identity/hash checks and recoverable archive behavior remain required.
+
+Evidence in `.local/verification/capacity-u_zh_b8v/`: final targeted Node run has
+487 cases, 486 PASS and one production-only skip; the skipped production check
+PASS separately against the built helper. The persistent-create follow-up has no
+failures; 30 final source-map checks PASS after cache review. All 19 native helper
+checks PASS, including maximum text/16-image request and aggregate overflow
+before sidecar creation, plus existing race/conflict cases. Two Pro Electron
+workflows PASS: full 491,583-unit / 701-heading / 16-image editing, source/history,
+export/save/reopen/restart recovery; and original-save conflict/receipt regression.
+The larger real PNG is 1,180,588 bytes; text, BOM/mixed newlines and attachment hashes
+remain exact. Unit header-only images test budgets, not real raster acceptance.
+
+Measured open 399 ms, controlled edit/confirmation 2126 ms and save 262 ms.
+These timings include automation and do not prove smooth continuous typing.
+Node-only 490k projection/validation/backup measured roughly 81/91/11 ms; cumulative
+RSS 260 MiB is not peak or full-app memory. Extreme-length latency and full-app
+memory profiling remain phase-3 work, alongside native IME NOT VERIFIED,
+historical manual FAIL, broader human QA, full CI, SEC-01 and signed/notarized
+release acceptance. No Air or DeepSeek call, Git commit, push, merge or tag.
+
+The actual arm64 App uses Electron 43.8.7 and a universal production native helper.
+All 74 packaged project runtime files match, the renderer reproduces exactly,
+file association remains `.md` / Editor / Alternate, and production test hooks
+are rejected. Candidate and installed startup/recent-panel checks PASS, with
+all prior draft/recent/version records unchanged. Installed 0.61.0 is available
+at `~/Applications/Markdown.app`; the complete previous 0.60.0 bundle is retained
+under this batch's `installation/rollback/`. No draft migration occurs. Older
+versions can reject larger new records: preserve this bundle and records, and
+export needed enlarged drafts before rollback.
+
+Intermediate harness failures are retained and not counted as passes. Successful
+Home fixtures were verified and recoverably archived after process exit. One
+failed-run directory, `~/Writing-synthetic-2WJ1Zn`, remains unchanged pending the
+specific archive authorization: two runs generated matching synthetic content,
+and automatic approval rejected choosing one by timestamp. Its exact 17-file
+identity/hash inventory and destination mapping are in `retained-fixture-plan.json`.
+No historical fixture or user document was moved/deleted. Next: daily-writing
+stabilization and acceptance, rather than another feature family.
+
+
+## Coordinated original save — 0.60.0 installed local candidate (2026-11-07)
+
+The user accepted the changed version-preserving contract following the bounded
+feasibility result. The existing Document Service/File Store now bind an editing
+copy or confirmed export to its target; a backup and first-use native consent
+precede the explicit 保存 / Cmd-S action. A small native Foundation helper retains
+baseline, draft and displaced versions around coordinated atomic exchange. Exact
+readback and main acceptance clear only the confirmed revision, preserving history.
+External or unknown outcomes stop repeat saves and retain the last successful
+receipt. Restart-visible version records provide Finder access and explicit
+copy-to-new-location recovery. No automatic overwrite retry, rollback or pruning.
+
+The old strict no-replacement guarantee remains BLOCKED; this is its explicitly
+approved alternative, not a newly proven CAS primitive. Legacy save stays gated.
+A racing target may already have changed before conflict detection, with the
+displaced object retained. Save-directory, metadata and capacity restrictions
+remain. Records stop at 128; private local versions do not protect against disk
+loss. Native IME NOT VERIFIED / historical manual FAIL, SEC-01, full CI and public
+release gates remain. No DeepSeek call, commit, push, merge or tag.
+
+New native source, broker, view and focused tests stay below 300 lines each.
+Existing orchestration files already exceed the guideline: the small integration
+hooks remain there to avoid splitting session/lifecycle authority during this
+change. Package builds compile a universal production helper without test hooks.
+175 focused Node checks and 17 native transaction checks PASS. Native cases cover
+cooperating writers, external replacement/write/delete, a displaced symlink or
+directory, parent/ancestor changes, metadata and attachment refusals, interrupted
+exchange and uncertain durability. One final Pro Electron workflow PASS covers
+consent/cancellation, repeated save, Undo/Redo, conflict retention, receipt details,
+restart recovery and rebinding after exclusive export. The existing source-edit
+Electron regression also PASS. Native dialogs/composition are controlled; these
+are not human/native IME acceptance.
+
+Self-review and deterministic checks found and fixed directory metadata rechecks,
+uncertain helper/ack outcomes, Cmd-S routing and the recovery-location IPC payload.
+Intermediate failed harness runs remain evidence. Home export fixtures were
+recoverably archived after their processes exited; native race fixtures remain
+under this batch's evidence. No historical fixture was reused or deleted.
+
+The final packaged renderer reproduces exactly, all 72 project runtime files
+match, and the arm64/x86_64 production helper rejects test-only protocol fields.
+Candidate and installed startup/recent-panel checks pass with prior private
+records unchanged. These packaged checks do not claim a human native save-dialog
+test. The installed App is 0.60.0; the complete previous 0.59.0 bundle and recovery
+mapping are retained under installation/rollback. No dependency upgrade. Evidence:
+control checkout `.local/verification/original-save-v1-vvvd4x53/`; only
+`package-final` is the delivered verified bundle. Source remains uncommitted.
+
+## Original-save feasibility — 0.59.0, BLOCKED (2026-11-07)
+
+The next approved functional group evaluated native coordination against the
+previously established external-replacement counterexample, without rerunning
+the old four experiments. Apple documentation/source and one local probe show
+the file-lease route needs a private entitlement and returns EPERM. Three
+synthetic atomic-exchange checks retain displaced versions or fail unchanged
+when the target is absent. Exchange can preserve a competing version but changes
+the target before conflict detection, so it cannot meet the existing guarantee.
+
+Four primitive checks and one focused existing no-overwrite Node guard PASS;
+these are **not original-save acceptance**. All synthetic files and evidence stay
+inside control `.local/verification/original-save-feasibility-26m64vq1/`; no Home
+fixtures, user-file changes or GUI run. The [save phase record](document-save-hardening-phase1b.md#original-save-native-feasibility--0590-blocked-2026-11-07)
+contains a concrete coordinated/version-preserving proposal and the safety
+contract decision needed before implementation. Production plan verdict REVISE.
+
+Only three stage/roadmap documents change. Runtime, tests, package, dependencies
+and installed 0.59.0 remain unchanged; no version bump for this investigation.
+`coordination-required`, native IME NOT VERIFIED/historical QA FAIL, SEC-01 and
+release limits remain. No independent review or Git/publication operations.
+
+## Complete source authoring — 0.59.0 installed local candidate (2026-11-07)
+
+Phase 2 now includes a usable full-source route for complex Markdown. The existing
+source window stays read-only for original files and uses the existing CodeMirror
+6 dependencies for independent drafts. It has line numbers, Markdown highlighting,
+search, wrap and local history, with explicit Apply/return (Cmd-S/Cmd-Enter).
+Rich editing remains ProseMirror; no replacement framework or serializer was added.
+
+Main validates exact raw patches, revision, session and attachment constraints
+before mutation. Applying is one document-history step and uses existing backup,
+recovery and exclusive-new-file export. BOM and untouched mixed CRLF/LF/CR survive.
+Local source history stores compact inverse patches and applies all grouped
+inverses, rather than a whole-document snapshot per key. Unsupported YAML/HTML and
+other protected visual constructs are editable as source, without executing HTML.
+
+Unapplied source is memory-only. Returning with changes requires an explicit
+Discard/continue decision; native window close also warns of unapplied source.
+Composition and pending application fence the controls. Stale, refused or unknown
+results retain the source buffer for copying, with no automatic retry. Source
+editing grants no path authority or original-file overwrite permission.
+
+253 targeted Node checks PASS. Three Pro Electron workflows PASS: complete source
+editing/confirmation/history/discard/export/restart recovery, 201-heading long
+navigation and dark/narrow source, and image/long-writing/export/recovery regression.
+Tests reproduced and fixed a focus event dismissing the discard row and grouped
+Undo restoring an inconsistent raw buffer. Two intermediate GUI harness failures
+(query input lacking keyup and a transient copying snapshot) were corrected; their
+logs are retained. All new Home export containers are recoverably archived with
+identity/content manifests after test processes exit; no historical fixture is
+adopted or removed. Dialog responses and composition events are controlled, not
+native picker/IME acceptance.
+
+The packaged renderer is reproducible and all 70 project runtime files match.
+Candidate/installed startup and recent-panel checks retain all existing draft and
+recent records unchanged. The previous 0.58.0 App is retained under this batch's
+installation/rollback, with full bundle inventory and recovery mapping. Evidence:
+control checkout `.local/verification/source-edit-vwrqkt3o/`. Only the final
+`package-v2` matches the delivered source; the preliminary package is not a
+verified delivery artifact.
+
+New modules remain small. Existing large controller, lifecycle, renderer entry
+and IPC files are extended only at existing command/history/view seams; splitting
+those files would expand this feature and is deferred. No dependency upgrade.
+Original-save coordination-required, practical text/image limits, native IME NOT
+VERIFIED and historical QA FAIL, full CI/SEC-01 and signed/notarized delivery remain
+open. No DeepSeek review, Git commit, push, merge, tag or release in this batch.
+
+
+## Local save subfolders and fixture hygiene — 0.58.0 installed local WIP (2026-11-07)
+
+User approved save-directory expansion and asked to clear recent Home test clutter
+before continuing. Nine synthetic directories and one paired absolute symlink were
+recoverably moved into the control checkout `.local/archives/home-fixtures-20261107-c4bv85yw/`.
+Eight regular files (12,221 bytes), original/-moved pairs, partial-image output and
+failed test states are preserved. The permission fixture initially refused rename;
+after exact user approval its root alone was temporarily 0500→0700, then restored
+to 0500 immediately after moving. Hashes, inode/mode/ACL/xattr checks and restoration
+mapping are in `.local/organization/home-fixtures-20261107-c4bv85yw/manifest.json`.
+Absolute symlink text stays unchanged; do not traverse it while archived. No
+historical result becomes PASS and no file/branch/worktree was deleted.
+
+Save As New File now permits ordinary Home-descendant local APFS folders instead
+of only direct Home children. Authorization records identities and metadata of
+Home and every ancestor (bounded to 32 components), rechecks them at existing
+parent/child write and verification boundaries, and still pins the writer cwd.
+Even moving the original leaf into a replaced ancestor invalidates authority.
+O_EXCL, source revision/hash, content/metadata verification, uncertain outcomes,
+last-success receipts and original overwrite `coordination-required` remain.
+Main still owns native selection; renderer cannot supply a destination path.
+Desktop/Documents/Library/Applications, hidden or known sync components, unsafe
+permissions, symlinks and nonlocal/non-APFS targets remain outside this batch.
+
+121 distinct targeted Node checks PASS: 119 initial relevant checks and two added
+actual-writer ancestor-replacement timing cases. One Pro Electron nested Unicode
+export/reopen workflow PASS, covering BOM/CRLF, editing-copy history, cancellation,
+existing-file refusal and unchanged original. This uses controlled native-dialog
+responses, not native picker or IME acceptance. The RED run reproduced old nested
+policy refusal. The first sandbox-only invocation could not create its fixture;
+the authorized run completed and archived its own output.
+
+The persistent-copy suite now nests cases in one fresh Home container. Confirmed
+successful files retain existing reclamation; after writer close, new test helper
+archives remaining synthetic evidence and race groups intact with mappings.
+New nested-save tests use the same lifecycle. No global sweeper or historical
+adoption. Abrupt interruption can leave a container and remains reportable.
+Existing large lifecycle/test files are extended at their current seams; the new
+fixture helper and test modules stay small. No unrelated refactor or new save stack.
+
+The packaged renderer rebuild is byte-identical and all 67 project runtime files
+match the candidate. Candidate and installed 0.58.0 startup/recent-panel checks
+pass with all existing draft/recent records unchanged. The former 0.57.0 App is
+retained with file manifests and a rollback mapping; no private-data migration.
+These startup checks do not add native-picker or IME acceptance.
+
+Evidence: control checkout `.local/verification/save-folders-kx88nbh1/`.
+Codex A bounded self-review is not independent model review. Native IME historical
+retests, full CI, SEC-01, signing/notarization and release acceptance stay open.
+No Git commit/push/merge/tag/release; current development Worktree remains required.
+
+
+## Native Finder opening — 0.57.0 local candidate (2026-11-07)
+
+The user approved a three-phase product plan and explicitly included broader save
+locations, original-file saving, editable source, complex Markdown and practical
+image/document capacity. `docs/roadmap.md` now records these as phase 2 outcomes.
+This batch implements phase 1 only; none of those five limits is claimed removed.
+
+- The product bundle declares `.md`, Editor role, Alternate rank. No default
+  application preference is changed. Finder Open With / macOS LaunchServices
+  can deliver cold and running-app file requests before/after renderer readiness.
+- A main-owned queue holds up to 16 read intents. Renderer sees opaque IDs and
+  labels only; trusted frame/URL checks gate consumption. Opens reuse the existing
+  bounded read service, never grant write authority, and keep separate drafts.
+- An unchanged open original is reused after rereading file identity and exact
+  bytes. Metadata-only changes do not make a read-only snapshot stale; this rule
+  is separate from every write baseline check. Changed/replaced content is refused
+  with an explicit-reopen prompt, preserving the old snapshot and all drafts.
+- Native requests while composing, pending, locked/recovering or in a modal are
+  deferred visibly; finish the operation then open or skip. Native opens retain
+  other original sessions and edits/history. Capacity and unsupported/missing-file
+  failures remain visible; no silent overwrite, unknown-outcome retry or cleanup.
+
+**Evidence:** 109 targeted Node checks PASS (native queue/IPC/preload plus existing
+readonly, sessions, launch/package policy, close and recent-file cases). Three Pro
+Electron workflows PASS: the new cold-event/warm-open/draft-history/composition-
+deferral flow, recent restart/reopen and individual document close. Controlled
+composition events are not native IME. The final actual package passes native
+macOS cold/warm/repeated Open With-equivalent requests using `/usr/bin/open -a`.
+No Finder double-click/default-change human acceptance is claimed. All 67 packaged
+runtime files match candidate sources and the renderer rebuild is byte-identical.
+Electron remains 43.8.7; no dependency changes.
+
+The initial GUI harness used a hidden selector and assumed multi-character
+insertText was one Undo step; both harness assumptions were corrected. The native
+harness exposed repeated-open metadata sensitivity and a debug-close wait that
+left a pending JavaScript promise. Read-only reuse now compares identity plus
+bytes; timeout-bounded harness shutdown and explicit profile restoration passed.
+Early unsuccessful attempts are retained, not converted into PASS. Original recent
+records were temporarily moved out of the way for the exact native-package tests,
+then restored with original identity, permissions and SHA-256; all pre-existing
+private draft records remained unchanged. Synthetic records are retained locally.
+
+Evidence: original checkout `.local/verification/finder-open-t26no5ii/`, including
+`node-final.log`, `e2e-final/`, `package-clean-verification.json`,
+`native-installed/native-package-result.json`, native-profile restore maps and the
+recoverable installation manifests. The isolated dependency symlink initially
+leaked relative build paths into generated module labels/comments. A direct
+Worktree rebuild matches the normalized bundle byte-for-byte; the exact 162 path
+substitutions are recorded in `bundle-path-normalization.json`, with no behavioral
+change. The normalized installed bundle also passes cold/warm/repeat opening. 0.57.0 is installed locally with 0.56.1 preserved
+for rollback; installed startup/record checks are recorded separately. No Home
+fixture cleanup, Air transfer, external review, Git commit, push, merge or release.
+
+Codex A performed bounded self-review; this is not a second-model review. The
+integration entry/session files remain over 300 lines as existing lifecycle
+orchestrators; queue/view behavior is split into two small focused modules rather
+than refactoring unrelated code. Comprehensive native IME and historical failure
+retests, full CI, SEC-01, signing/notarization and release acceptance remain open.
+Existing-file `coordination-required` and all save/export protections are unchanged.
+
+
+## Limited human experience result — 0.56.1 (2026-11-07)
+
+The user reported simple testing in the App: “看着基本没问题，三项基本通过。”
+Record LIMITED BASIC PASS for the three requested areas: Chinese input/history,
+local image export/reopen, and long-document outline/source/continued editing.
+No new defect was reported. Do not infer completion of every checklist substep,
+a particular input-method configuration, stress coverage or a full native IME
+matrix. Basic input now has positive human evidence; comprehensive native IME
+acceptance remains NOT VERIFIED and historical failure cases remain recorded
+pending their specific retests. Full CI, SEC-01 and release gates remain open.
+
+This closes the requested basic experience pass. Further tests should address
+actual regressions or specific uncovered risks, not repeat this acceptance loop.
+Only current acceptance records/roadmap changed; no product, version, installed
+App, automated test rerun, fixture cleanup or Git commit/publication this turn.
+The existing combined regression remains uncommitted with these records.
+
+
+## Broader-writing integration check — 0.56.1 (2026-11-07)
+
+After local checkpoint `c402e65`, added one combined Pro Electron regression:
+201 headings / 71,880-byte BOM+CRLF synthetic article; controlled Chinese text
+and Undo/Redo; local PNG import/preview/history; filtered heading navigation;
+read-only exact source/selection/wrapping and return to the same scroll/revision;
+exclusive Markdown+attachment export, read-only reopen and independent later
+edits; then restart, exact image-bearing draft recovery and continued writing.
+Original article/image bytes remain unchanged, later edits do not change the
+export, recovery grants no old Undo history or export receipt, and no HTTP request
+or renderer error was observed. The light-layout screenshot was inspected.
+
+One isolated Electron workflow PASS using the existing verified 43.8.7 runtime
+and 65 runtime-file hashes matching the installed package evidence. This is a
+source integration check, not a new installed-package/native-dialog acceptance.
+The initial run aborted on a test-only premature snapshot dereference during
+save; the test now waits through unavailable snapshots. No product change was
+needed. Its new fixture remains retained with an unconfirmed outcome; no reuse,
+cleanup or successful-save claim. The successful fresh fixture's two files were
+identity/content-checked and reclaimed only after both Electron runs exited.
+
+Only a regression test and acceptance documentation changed; version and installed
+App remain 0.56.1. No Node rerun, dependency changes, Air, Reviewer, Git commit or
+publication. Existing test evidence is retained. Native IME remains NOT VERIFIED;
+human acceptance, historical manual/formal FAIL, SEC-01 and full CI stay open.
+See the three-step current manual checklist; no new feature scope is started.
+Evidence, screenshots, source fingerprints, failed-fixture mapping and synthetic
+manual inputs: control checkout `.local/verification/broader-writing-acceptance-3kh_j2q5/`.
+
+
 ## Broader-document workflows — 0.56.1 local WIP checkpoint (2026-11-07)
 
 Preserves one related batch: local PNG/JPEG import/preview, draft retention and

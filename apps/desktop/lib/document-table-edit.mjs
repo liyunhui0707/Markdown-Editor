@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 import {TABLE_ROWS,TABLE_COLUMNS,tableCell} from './document-table-source.mjs';
 const reject=()=>({ok:false,code:'unsafe-format-range'});
 export const tableActions=['insert-table','table-add-row','table-delete-row','table-add-column','table-delete-column','table-exit'];
@@ -60,7 +62,7 @@ export function mapTableEdit(source,p,{action,from,to},project) {
   if(splits(old,end)||splits(text,last)){end++;last++;}
   b=a+end;a+=start;text=text.slice(start,last);
   if(text.length>4096||b-a>4096)return reject();
-  const next=source.slice(0,a)+text+source.slice(b);if(next.length>131072)return reject();
+  const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
   const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject();
   const target=projection.blocks[targetIndex],pos=prose?target?.from+1:target?.cells?.[targetRow]?.[targetCol]?.from;
   if(!Number.isSafeInteger(pos))return reject();

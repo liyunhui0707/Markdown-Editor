@@ -1,3 +1,6 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
+import sourceEdits from './document-source-edit.js';
 import { mapFormatEdit } from './document-format-edit.mjs';
 import { projectSource, mapTextEdit } from './document-source-map.mjs';
 
@@ -49,8 +52,8 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   let confirmed = structuredClone(initial), source = initial.source, code = 'opened';
   const recoveries = recoveryRecords.map(r => {
     if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== 'string'
-        || r.source.length > 131072 || ('queuedSource' in r && (typeof r.queuedSource !== 'string' || r.queuedSource.length > 131072)) || ('visibleText' in r && r.visibleText !== null
-          && (typeof r.visibleText !== 'string' || r.visibleText.length > 131072))) throw Error('Invalid recovery record');
+        || r.source.length > MAX_SOURCE_UNITS || ('queuedSource' in r && (typeof r.queuedSource !== 'string' || r.queuedSource.length > MAX_SOURCE_UNITS)) || ('visibleText' in r && r.visibleText !== null
+          && (typeof r.visibleText !== 'string' || r.visibleText.length > MAX_SOURCE_UNITS))) throw Error('Invalid recovery record');
     return structuredClone(r);
   });
   if (new Set(recoveries.map(r => r.id)).size !== recoveries.length) throw Error('Duplicate recovery identity');
@@ -215,6 +218,28 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       onReset(source, mapped.selection); return true;
     } finally { historyPending = false; notify(); }
   }
+  async function applySource(candidate) {
+    if(disposed||locked||atCapacity()||inputPaused()||composition||historyPending||queue.length||flight
+        ||recoveries.length||confirmed.readOnly||confirmed.temporary!==true) return false;
+    const mapped=sourceEdits.sourceDifference(confirmed.source,candidate);
+    if(!mapped.ok){code=mapped.code;notify();return false;}
+    try {projectSource(candidate);} catch {code='invalid-source-edit';notify();return false;}
+    historyPending=true;notify();const revision=confirmed.revision;
+    try {
+      let reply;
+      try {reply=await send('source-edit',{sessionId:initial.sessionId,expectedRevision:revision,...mapped.change});}
+      catch {await reconcile(null,'ipc-failed');return false;}
+      if(disposed)return false;
+      if(!reply?.ok) {
+        if(valid(reply?.snapshot)&&reply.snapshot.source===confirmed.source&&reply.snapshot.revision===revision){code=reply.code;return false;}
+        await reconcile(reply,reply?.code||'ack-mismatch');return false;
+      }
+      if(!valid(reply.snapshot)||reply.snapshot.source!==candidate||reply.snapshot.revision!==revision+Number(candidate!==confirmed.source)) {
+        await reconcile(null,'ack-mismatch');return false;
+      }
+      confirmed=structuredClone(reply.snapshot);source=confirmed.source;code='source-applied';onReset(source);return true;
+    } finally {historyPending=false;notify();}
+  }
   async function reload() {
     if (disposed || flight || queue.length || composition || historyPending) return false;
     historyPending = true; notify();
@@ -242,7 +267,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (disposed) return { ok: false, code: 'controller-disposed' };
     if (!composition?.invalid && code !== 'unsafe-composition') return { ok: false, code: 'composition-copy-unavailable' };
     if (visibleText !== null && typeof visibleText !== 'string') return { ok: false, code: 'invalid-copy-input' };
-    if (source.length > 131072 || (visibleText !== null && visibleText.length > 131072)) return { ok: false, code: 'copy-too-large' };
+    if (source.length > MAX_SOURCE_UNITS || (visibleText !== null && visibleText.length > MAX_SOURCE_UNITS)) return { ok: false, code: 'copy-too-large' };
     const existing = recoveries.find(r => r.reason === 'composition-copy' && r.source === source
       && r.confirmedSource === confirmed.source && r.baseRevision === confirmed.revision && r.visibleText === visibleText);
     if (existing) return { ok: true, record: structuredClone(existing) };
@@ -260,6 +285,6 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (index < 0) return false;
     recoveries.splice(index, 1); code = 'recovery-discarded'; notify(); return true;
   }
-  return { state, prepare, accept, beginComposition, endComposition, history, format, reload, refresh, idle, discardRecovery, retainCompositionCopy,
+  return { state, prepare, accept, beginComposition, endComposition, history, format, applySource, reload, refresh, idle, discardRecovery, retainCompositionCopy,
     dispose() { disposed = true; queue.length = 0; locked = true; for (const resolve of waiters.splice(0)) resolve(); } };
 }

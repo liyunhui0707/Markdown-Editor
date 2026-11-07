@@ -1,3 +1,5 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
 const rejectListEdit=()=>({ok:false,code:'unsafe-format-range'});
 const cutsListSurrogate=(s,n)=>/[\uD800-\uDBFF]/.test(s[n-1]||'')&&/[\uDC00-\uDFFF]/.test(s[n]||'');
 const listMarkType=p=>p.bold?'bold':p.italic?'italic':p.code?'code':null;
@@ -114,7 +116,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
   while(end>start&&nextEnd>start&&original[end-1]===text[nextEnd-1]){end--;nextEnd--;}if(cutsListSurrogate(original,end)||cutsListSurrogate(text,nextEnd)){end++;nextEnd++;}
   a+=start;b=block.sourceFrom+end;text=text.slice(start,nextEnd);
   if(text.length>4096||b-a>4096)return rejectListEdit();
-  const next=source.slice(0,a)+text+source.slice(b);if(next.length>131072)return rejectListEdit();
+  const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return rejectListEdit();
   const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return rejectListEdit();
   const flattened=[];const flatten=l=>{for(const v of l.items){flattened.push(v);if(v.child)flatten(v.child);}};flatten(tree);
   const pos=target?projection.blocks[index]?.items?.[flattened.indexOf(target)]?.from+offset:projection.blocks[targetIndex]?.from+1;

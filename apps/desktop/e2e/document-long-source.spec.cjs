@@ -63,7 +63,7 @@ test('long article: filtered outline, readonly exact source and return to writin
     await page.locator('#editor h1').click(); await page.keyboard.press('Home'); await page.keyboard.type('X');
     await expect(page.locator('#source')).toContainText('X');
     const edited=await snapshot(); const editStart=Date.now();
-    await page.locator('#show-source').click(); expect(await page.locator('#source-text').textContent()).toBe(edited.source);
+    await page.locator('#show-source').click(); await expect(page.locator('#source-editor .cm-content')).toBeVisible();
     metrics.sourceOpenMs=Date.now()-editStart;
     await page.keyboard.press('Escape'); await page.locator('#format-undo').click();
     await expect.poll(async()=> (await snapshot()).source).toBe(source);

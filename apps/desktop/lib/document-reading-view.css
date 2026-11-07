@@ -92,3 +92,20 @@ body[data-document-viewer] #source-wrap[aria-pressed=true] {background:var(--act
 /* Keep reading tools reachable when the writing controls exceed a narrow row. */
 #format-toolbar {min-width:0;overflow-x:auto;flex-shrink:1}
 #format-toolbar>* {flex-shrink:0}
+
+#source-editor {flex:1;min-height:0;overflow:hidden;background:var(--surface)}
+#source-editor .cm-editor {height:100%;color:var(--ink)}
+#source-editor .cm-scroller {overflow:auto;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}
+#source-editor .cm-content {padding:16px 0;caret-color:var(--accent)}
+#source-editor .cm-line {padding:0 18px}
+#source-editor .cm-gutters {background:var(--surface);color:var(--muted);border-right:1px solid var(--line)}
+#source-editor .cm-activeLine {background:color-mix(in srgb,var(--accent) 5%,transparent)}
+#source-editor .cm-focused {outline:none}
+#source-dialog .source-actions {flex-wrap:wrap;gap:8px}
+#source-dialog .source-footer {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-top:1px solid var(--line)}
+#source-dialog .source-footer p {margin:0;padding:0}
+#source-status {color:var(--accent);font-size:13px}
+#source-discard:not([hidden]) {display:flex;gap:12px;align-items:center;padding:12px 24px;background:var(--active)}
+#source-dialog #apply-source {flex-shrink:0;background:var(--accent);color:var(--paper)}
+
+#source-editor .cm-panels {background:var(--panel);color:var(--ink);border-color:var(--line)}

@@ -37,7 +37,7 @@ export function createImageView({api,byId,context,report}){
    const r=await api.importImage({sessionId:context().state.confirmed.sessionId,expectedRevision:c.revision});
    if(!current()){error.textContent='文档状态已变化，请取消后重新选择。';return;}
    if(r?.ok){href.value=r.href;local=true;error.textContent='图片已读取。点击插入后会随草稿备份，另存时携带附件。';}
-   else if(r?.code!=='image-cancelled')error.textContent=`无法使用此图片（${r?.code||'image-import-failed'}）。仅支持每张不超过 1 MiB、4096 像素边长的 PNG/JPEG，每篇最多 4 张。正文未改变。`;
+   else if(r?.code!=='image-cancelled')error.textContent=`无法使用此图片（${r?.code||'image-import-failed'}）。仅支持每张不超过 4 MiB、4096 像素边长的 PNG/JPEG，每篇最多 16 张（合计 16 MiB / 3200 万像素）。正文未改变。`;
   }catch{error.textContent='图片选择未确认，正文未改变。';}
   finally{busy=false;sync();}
  }

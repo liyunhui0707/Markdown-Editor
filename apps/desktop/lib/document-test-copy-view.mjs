@@ -17,7 +17,9 @@ function operationMessage(receipt) {
   if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
   let text;
   if (receipt.created === false) {
-    const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选下载或主文件夹直属的其他普通本地文件夹，仍需通过权限检查。'
+    const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选下载或主文件夹内的其他普通本地文件夹或子文件夹，仍需通过权限检查。'
+      : receipt.code === 'unsupported-copy-directory' ? '该位置不受支持。请选择主文件夹内归你所有的普通本地文件夹或其子文件夹；隐藏、同步、桌面、文稿和资源库目录暂不支持。'
+      : receipt.code === 'copy-directory-changed' ? '文件夹或其上级目录发生变化，请重新选择位置。'
       : receipt.code === 'target-exists' ? '同名目标已存在，没有覆盖它；请使用新文件名。'
       : receipt.code === 'create-cancelled' ? '操作已取消。'
       : '目标位置或创建操作未通过检查，请查看原因并选择受支持的位置。';
@@ -43,7 +45,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     byId('create-test-copy').textContent = persistent ? '另存新文件…' : '创建测试副本';
     byId('confirm-test-copy').textContent = persistent ? '选择位置…' : '创建测试副本';
     byId('test-copy-description').textContent = persistent
-      ? '选择主文件夹直属的普通本地 APFS 文件夹，例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。主文件夹本身、桌面、文稿、资源库、隐藏与同步目录不受支持；仅支持防止删除目录自身的默认权限（ACL），其他额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
+      ? '选择主文件夹内的普通本地 APFS 文件夹及其子文件夹，例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。主文件夹本身、桌面、文稿、资源库、隐藏与同步目录不受支持；仅支持防止删除目录自身的默认权限（ACL），其他额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
       : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;
