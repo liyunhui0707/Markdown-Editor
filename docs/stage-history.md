@@ -19,8 +19,9 @@ The new regression joins the existing Desktop CI Electron step. The test first
 failed on the old missing role, then exposed two palette pairs; all final checks
 pass. Intermediate failures remain evidence, not successful test results.
 The first CI run passed 3,277 Node cases but exposed modal reverse-Tab differences;
-dialog buttons now have explicit Tab stops. The original confinement/return
-assertions are retained, and no system keyboard preference is modified.
+explicit button tabindex alone did not resolve it. Modal first/last Tab boundaries
+now wrap explicitly, retaining native inertness and interior control handling.
+The original assertions remain, and no system keyboard preference is modified.
 
 The current Document installation guide replaces obsolete Vault/AI setup and
 blanket re-signing advice. It covers standalone launch, Finder association,

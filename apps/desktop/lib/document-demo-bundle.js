@@ -232,7 +232,19 @@
       } };
     });
     doc4.addEventListener("keydown", (event) => {
-      if (!enabled || blocked() || event.defaultPrevented || event.isComposing || event.keyCode === 229 || doc4.querySelector("dialog[open]")) return;
+      if (!enabled || blocked() || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      const dialog = doc4.querySelector("dialog[open]");
+      if (dialog) {
+        if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          const stops = [...dialog.querySelectorAll("button,input,select,textarea,summary,a[href],[tabindex]")].filter((node2) => visible(node2) && node2.tabIndex >= 0);
+          const boundary = event.shiftKey ? stops[0] : stops.at(-1);
+          if (boundary && doc4.activeElement === boundary) {
+            event.preventDefault();
+            (event.shiftKey ? stops.at(-1) : stops[0]).focus();
+          }
+        }
+        return;
+      }
       if (event.key === "F10" && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
         if (visible(byId2("format-inline-tools"))) {
           event.preventDefault();
@@ -276,7 +288,6 @@
       }
     }
     return { sync, configure() {
-      for (const button of doc4.querySelectorAll("dialog button")) attribute(button, "tabindex", "0");
       enabled = true;
       sync();
     } };

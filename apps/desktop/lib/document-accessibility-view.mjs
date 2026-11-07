@@ -28,8 +28,21 @@ export function createAccessibilityView({byId,context}) {
     return {sync,focus(){const items=sync();(items.find(n=>n.tabIndex===0)||items[0])?.focus();}};
   });
   doc.addEventListener('keydown',event=>{
-    if(!enabled||blocked()||event.defaultPrevented||event.isComposing||event.keyCode===229
-        ||doc.querySelector('dialog[open]'))return;
+    if(!enabled||blocked()||event.defaultPrevented||event.isComposing||event.keyCode===229)return;
+    const dialog=doc.querySelector('dialog[open]');
+    if(dialog){
+      // Native modal inertness stays authoritative; make the two Tab boundaries explicit.
+      // Interior keys (including CodeMirror's handled Tab) retain their own behavior.
+      if(event.key==='Tab'&&!event.altKey&&!event.ctrlKey&&!event.metaKey){
+        const stops=[...dialog.querySelectorAll('button,input,select,textarea,summary,a[href],[tabindex]')]
+          .filter(node=>visible(node)&&node.tabIndex>=0);
+        const boundary=event.shiftKey?stops[0]:stops.at(-1);
+        if(boundary&&doc.activeElement===boundary){
+          event.preventDefault();(event.shiftKey?stops.at(-1):stops[0]).focus();
+        }
+      }
+      return;
+    }
     if(event.key==='F10'&&event.altKey&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey){
       if(visible(byId('format-inline-tools'))){event.preventDefault();bars[0].focus();}return;
     }
@@ -58,9 +71,5 @@ export function createAccessibilityView({byId,context}) {
     if(readOnly){node.removeAttribute('aria-multiline');node.removeAttribute('aria-readonly');}
     else{attribute(node,'aria-multiline','true');attribute(node,'aria-readonly',String(!editor.isEditable));}
   }
-  return {sync,configure(){
-    // Explicit Tab stops keep modal buttons reachable across macOS keyboard settings.
-    for(const button of doc.querySelectorAll('dialog button'))attribute(button,'tabindex','0');
-    enabled=true;sync();
-  }};
+  return {sync,configure(){enabled=true;sync();}};
 }
