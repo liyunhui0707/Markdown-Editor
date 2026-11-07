@@ -354,13 +354,13 @@ test('same-byte rewrite after fsync cannot reuse the earlier synchronization evi
 });
 
 
-async function copyIpc({ enabled = true, readOnly = false, revealFile = null } = {}) {
+async function copyIpc({ enabled = true, readOnly = false, revealFile = null, recentFiles = null } = {}) {
   const f = fixture(Buffer.from('first\r\n\r\n第二段😀'));
   const { projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs');
   const wc = new EventEmitter(), win = new EventEmitter(), frame = { url: 'file:///synthetic/copy.html' };
   Object.assign(wc, { mainFrame: frame, isDestroyed: () => false, getURL: () => frame.url, send: () => {} });
   Object.assign(win, { webContents: wc, isDestroyed: () => false });
-  const manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => win, allowTestCopies: enabled, revealFile });
+  const manager = createDocumentSessions({ service: f.service, projectSource, mapTextEdit, windowFor: () => win, allowTestCopies: enabled, revealFile, recentFiles });
   manager.grant(win, frame.url);
   const id = manager.provision(win, f.document, 'Synthetic', readOnly ? { readOnly: true } : { temporary: true });
   const event = { sender: wc, senderFrame: frame };
@@ -423,14 +423,18 @@ test('test copy IPC serializes reentrant edits and refuses a revoked response', 
 
 
 test('confirmed file actions use the saved revision, preserve edits/history and never grant write access', async () => {
-  const shown = [], f = await copyIpc({ revealFile: file => shown.push(file) });
+  const shown = [], remembered = [], f = await copyIpc({
+    revealFile: file => shown.push(file), recentFiles: { remember: doc => remembered.push(doc.filePath) }
+  });
   const original = fs.readFileSync(f.seed), receipt = f.copy().copy;
   assert.match(receipt.copyId, /^[a-f0-9-]{36}$/);
   assert.equal(f.call('edit', { expectedRevision: 0, from: 1, to: 1, insert: 'later ' }).ok, true);
   const before = f.call('snapshot').snapshot, q = { expectedRevision: 1, copyId: receipt.copyId };
   assert.equal(before.confirmedCopy.copyId, receipt.copyId);
   assert.equal(f.call('reveal-confirmed-copy', q).ok, true); assert.deepEqual(shown, [receipt.filePath]);
+  assert.deepEqual(remembered, []);
   const opened = f.call('open-confirmed-copy', q);
+  assert.deepEqual(remembered, [receipt.filePath]);
   assert.equal(opened.ok, true); assert.equal(opened.snapshot.readOnly, true);
   assert.notEqual(opened.snapshot.sessionId, f.id); assert.equal(opened.snapshot.source, original.toString());
   for (const operation of ['edit', 'save']) assert.equal(f.call(operation, { sessionId: opened.snapshot.sessionId, expectedRevision: 0, ...(operation === 'edit' ? { from: 1, to: 1, insert: 'BAD' } : {}) }).code, 'read-only-document');

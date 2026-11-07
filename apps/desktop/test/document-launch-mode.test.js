@@ -37,3 +37,13 @@ test('document package includes shared runtime and excludes legacy and private t
     'e2e/test.cjs', 'lib/session-viewer/private.js']) assert.equal(has(file), false, file);
   assert.equal(config.extraMetadata.main, 'document-app-main.js');
 });
+
+test('Document dependency rules exclude retired Toast UI while retaining its current parser',()=>{
+ const path=require('node:path'),{getNodeModuleFileMatcher}=require('app-builder-lib/out/fileMatcher');
+ const config=require('../electron-builder.document.cjs'),root=path.resolve(__dirname,'..');
+ const info={config,projectDir:root,buildResourcesDir:'build',isPrepackedAppAsar:false,debugLogger:{isEnabled:false}};
+ const filter=getNodeModuleFileMatcher(root,path.join(root,'dist/document-policy-test'),v=>v,config.mac,info).createFilter();
+ const has=file=>filter(path.join(root,file),{isDirectory:()=>false});
+ for(const f of ['node_modules/@toast-ui/editor/dist/toastui-editor.js','node_modules/@toast-ui/editor/dist/esm/index.js','node_modules/@toast-ui/toastmark/dist/toastmark.js'])assert.equal(has(f),false,f);
+ for(const f of ['node_modules/unified/index.js','node_modules/remark-parse/index.js','node_modules/remark-gfm/index.js'])assert.equal(has(f),true,f);
+});

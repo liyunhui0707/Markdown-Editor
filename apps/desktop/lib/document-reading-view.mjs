@@ -16,16 +16,29 @@ export function documentHeadings(doc) {
   return headings;
 }
 
+// Rendered top-level headings occur in source order. Measure only O(log n) targets.
+export function activeHeadingIndex(count, topAt, threshold) {
+  if (!count) return -1;
+  let low = 0, high = count;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (topAt(middle) <= threshold) low = middle + 1;
+    else high = middle;
+  }
+  return Math.max(0, low - 1);
+}
+
 export function createReadingView({ byId, context }) {
   let enabled = false, preferences = { ...defaultReading }, opened = false;
-  let mappedDoc = null, mappedSession = null, rows = [], scheduled = false;
+  let mappedDoc = null, mappedSession = null, rows = [], scheduled = false, activeRow = null, filterComposing = false;
   const system = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
   const narrow = globalThis.matchMedia?.('(max-width: 1179px)');
   const app = byId('writing-app'), doc = app.ownerDocument, scroll = byId('document-scroll');
+  const filter = byId('outline-filter');
   const dialog = byId('reading-settings-dialog');
   const busy = () => {
-    const { state: s, loading } = context();
-    return loading || s?.pending > 0 || s?.historyPending || s?.composing || s?.compositionInvalid;
+    const { state: s, loading, editor } = context();
+    return editor?.view.composing || loading || s?.pending > 0 || s?.historyPending || s?.composing || s?.compositionInvalid;
   };
   const navigable = () => {
     const { state: s, editor, invalid } = context();
@@ -38,7 +51,7 @@ export function createReadingView({ byId, context }) {
     app.dataset.outline = visible ? 'open' : 'closed';
     byId('document-outline').hidden = !visible;
     byId('toggle-document-outline').setAttribute('aria-expanded', String(visible));
-    if (visible) updateActive();
+    if (visible) scheduleActive();
   }
   function apply() {
     const dark = preferences.theme === 'dark' || preferences.theme === 'system' && system?.matches;
@@ -81,7 +94,7 @@ export function createReadingView({ byId, context }) {
   }
   function target(item) {
     const { editor, state } = context();
-    if (!navigable() || state.confirmed.sessionId !== mappedSession || editor.state.doc !== mappedDoc) return null;
+    if (!navigable() || doc.querySelector('dialog[open]') || state.confirmed.sessionId !== mappedSession || editor.state.doc !== mappedDoc) return null;
     const node = editor.view.nodeDOM(item.position);
     return node?.nodeName === 'H' + item.level && editor.view.dom.contains(node) ? node : null;
   }
@@ -94,15 +107,39 @@ export function createReadingView({ byId, context }) {
     else updateActive();
   }
   function updateActive() {
-    if (!enabled || !opened || !navigable()) return;
-    let active = rows[0];
-    for (const row of rows) {
-      const node = target(row.item);
-      if (node && node.getBoundingClientRect().top <= scroll.getBoundingClientRect().top + 32) active = row;
-    }
-    if (scroll.scrollTop > 0 && scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2) active = rows.at(-1);
-    for (const row of rows) row.button.setAttribute('aria-current', row === active ? 'location' : 'false');
+    if (!enabled || !opened || !navigable() || doc.querySelector('dialog[open]')) return;
+    const threshold = scroll.getBoundingClientRect().top + 32;
+    const index = scroll.scrollTop > 0 && scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2
+      ? rows.length - 1 : activeHeadingIndex(rows.length, i => target(rows[i].item)?.getBoundingClientRect().top ?? Infinity, threshold);
+    const next = rows[index];
+    if (next === activeRow) return;
+    activeRow?.button.setAttribute('aria-current', 'false');
+    next?.button.setAttribute('aria-current', 'location'); activeRow = next;
   }
+  function filterRows() {
+    const query = filter.value.trim().toLocaleLowerCase();
+    let count = 0;
+    for (const row of rows) {
+      row.button.hidden = !row.item.title.toLocaleLowerCase().includes(query);
+      if (!row.button.hidden) count++;
+    }
+    byId('outline-empty').hidden = count > 0;
+    byId('outline-empty').textContent = query ? '没有匹配的标题。' : '添加标题后，大纲会显示在这里。';
+    byId('outline-count').textContent = query ? `${count} / ${rows.length}` : String(rows.length);
+  }
+  filter.onpointerdown = guardPointer;
+  filter.oninput = () => { if (!filterComposing) filterRows(); };
+  filter.oncompositionstart = () => { filterComposing = true; };
+  filter.oncompositionend = () => { filterComposing = false; filterRows(); };
+  filter.onkeydown = event => {
+    if (event.isComposing || event.keyCode === 229 || filterComposing || !navigable()) return;
+    if (event.key === 'Enter') {
+      event.preventDefault(); const first = rows.find(row => !row.button.hidden); if (first) jump(first.item);
+    } else if (event.key === 'Escape' && filter.value) {
+      event.preventDefault(); event.stopPropagation(); filter.value = ''; filterRows();
+    }
+  };
+
   function scheduleActive() {
     if (!enabled || scheduled) return;
     scheduled = true;
@@ -124,24 +161,38 @@ export function createReadingView({ byId, context }) {
     byId('show-reading-settings').disabled = !!busy();
     byId('toggle-document-outline').disabled = !!busy() || !s?.confirmed;
     byId('close-document-outline').disabled = !!busy();
+    if (!s?.confirmed) {
+      rows = []; activeRow = null; mappedDoc = null; mappedSession = null; filter.value = '';
+      byId('outline-list').replaceChildren();
+    }
     const ready = navigable();
+    filter.disabled = !ready;
     if (ready && (mappedDoc !== editor.state.doc || mappedSession !== s.confirmed.sessionId)) {
+      const headings = documentHeadings(editor.state.doc), sameSession = mappedSession === s.confirmed.sessionId;
+      const reusable = sameSession && headings.length === rows.length
+        && headings.every((item, i) => item.title === rows[i].item.title && item.level === rows[i].item.level);
+      if (!sameSession) filter.value = '';
       mappedDoc = editor.state.doc; mappedSession = s.confirmed.sessionId;
-      rows = documentHeadings(mappedDoc).map(item => {
-        const button = doc.createElement('button');
-        button.type = 'button'; button.textContent = item.title; button.title = item.title;
-        button.dataset.level = String(item.level); button.setAttribute('aria-label', '标题 ' + item.level + '：' + item.title);
-        button.onpointerdown = event => event.preventDefault();
-        // Capture the projection identity as well as the position; old rows cannot target a new document.
-        const origin = mappedDoc, session = mappedSession;
-        button.onclick = () => { if (mappedDoc === origin && mappedSession === session) jump(item); };
-        return { item, button };
-      });
-      byId('outline-list').replaceChildren(...rows.map(r => r.button));
+      if (reusable) {
+        // Body edits shift positions without changing the outline. Keep DOM/focus
+        // and resolve clicks against the newly confirmed projection at click time.
+        rows.forEach((row, i) => { row.item = headings[i]; });
+      } else {
+        activeRow = null;
+        rows = headings.map((item, index) => {
+          const button = doc.createElement('button'), row = { item, button };
+          button.type = 'button'; button.textContent = item.title; button.title = item.title;
+          button.dataset.level = String(item.level); button.setAttribute('aria-label', '标题 ' + item.level + '：' + item.title);
+          button.onpointerdown = event => event.preventDefault();
+          const session = mappedSession;
+          button.onclick = () => { if (rows[index] === row && mappedSession === session) jump(row.item); };
+          return row;
+        });
+        byId('outline-list').replaceChildren(...rows.map(r => r.button));
+      }
     }
     for (const row of rows) row.button.disabled = !ready;
-    byId('outline-empty').hidden = rows.length > 0;
-    byId('outline-count').textContent = String(rows.length);
+    filterRows();
     showOutline(opened); scheduleActive();
   }
   return { sync, configure() {

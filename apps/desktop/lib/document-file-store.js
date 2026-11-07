@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES} = require('./document-capacity');
 const nativeFs = require('node:fs');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
@@ -25,8 +26,8 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
   const policy = createSavePolicy({ fs, unsafeExperimentalRoot });
   if (persistentCreateTask && isolatedCreateRoot !== undefined) throw error('invalid-create-policy', 'Conflicting create authority.');
   const createPolicy = persistentCreateTask ? createPersistentCreatePolicy(persistentCreateTask) : createIsolatedCreatePolicy({ fs, isolatedCreateRoot });
-  function read(requestedPath, maxBytes = Infinity) {
-    if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576)) throw error('unsupported-size', 'Invalid read limit.');
+  function read(requestedPath, maxBytes = MAX_DOCUMENT_BYTES) {
+    if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_DOCUMENT_BYTES)) throw error('unsupported-size', 'Invalid read limit.');
     if (typeof requestedPath !== 'string' || !path.isAbsolute(requestedPath)
         || !/\.md$/i.test(requestedPath) || isSessionLocation(requestedPath)) {
       throw error('unsupported-path', 'Expected an authorized absolute Markdown file path.');
@@ -70,7 +71,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       const current = read(expected.requestedPath);
       if (sameSnapshot(expected, current)) return { ok: true, status: 'unchanged' };
     } catch (cause) {
-      if (!['ENOENT', 'ENOTDIR', 'ELOOP', 'external-change', 'unsupported-file'].includes(cause.code)) {
+      if (!['ENOENT', 'ENOTDIR', 'ELOOP', 'external-change', 'unsupported-file', 'unsupported-size'].includes(cause.code)) {
         return { ok: false, status: 'error', code: 'read-failed', error: 'Unable to check the current disk file.' };
       }
     }
@@ -195,7 +196,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
 
   // Only a synchronous, isolated test process may call this. No renderer API.
   // Use the pinned cwd's single-component name, never a resolved parent path.
-  function createCopy(name, input) {
+  function createCopy(name, input, image = false) {
     let directory, fd, owned, result, filePath, attempted = false, created = false, complete = false, verified = false;
     let bytes, verifiedMetadata, verifiedNativeMetadata;
     const verifyFile = () => {
@@ -226,8 +227,8 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       return current;
     };
     try {
-      if (typeof name !== 'string' || !(persistentCreateTask ? copyName(name) : /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name))
-          || !Buffer.isBuffer(input) || input.length > 1048576) throw error('invalid-create-request', 'Expected bounded bytes and a synthetic Markdown filename.');
+      if (typeof name !== 'string' || !(image && persistentCreateTask ? require('./document-local-images').imageAsset(input).name === name : persistentCreateTask ? copyName(name) : /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md$/.test(name))
+          || !Buffer.isBuffer(input) || input.length > (image ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES)) throw error('invalid-create-request', 'Expected bounded bytes and a synthetic Markdown filename.');
       bytes = Buffer.from(input);
       const root = createPolicy.verify(); filePath = path.join(root, name);
       directory = fs.openSync('.', fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
@@ -310,7 +311,20 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       }
     }
   }
-  return { read, check, replace, confirmDurability, createCopy, authorizeSynthetic: createPolicy.authorizeSource };
+  async function replaceCoordinated(expected, bytes, { writer, revision, isAuthorized, attachments }) {
+    const checked=check(expected);
+    if(!checked.ok)return {...checked,state:'not-saved',committed:false};
+    const result=await writer.replace({expected,bytes,revision,isAuthorized,attachments});
+    if(!result.ok)return result;
+    try {
+      if(result.state!=='saved-confirmed'||result.committed!==true||result.revision!==revision||result.sha256!==hash(bytes))throw Error();
+      const current=read(expected.requestedPath,MAX_DOCUMENT_BYTES);
+      if(!sameMetadata(current.identity,result.identity)||!current.bytes.equals(bytes)||!isAuthorized())throw Error();
+      return {...result,snapshot:current};
+    }catch{return {...result,ok:false,state:'save-unverified',code:'save-post-verification-failed'};}
+  }
+  return { read, check, replace, replaceCoordinated, confirmDurability, createCopy: (name, bytes) => createCopy(name, bytes),
+    createImageCopy: (name, bytes) => persistentCreateTask ? createCopy(name, bytes, true) : {ok:false,state:'not-created',created:false,code:'image-create-unavailable'}, authorizeSynthetic: createPolicy.authorizeSource };
 }
 
 module.exports = { createDocumentFileStore };

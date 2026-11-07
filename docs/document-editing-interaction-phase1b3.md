@@ -2175,3 +2175,1652 @@ Electron flows on 43.8.7. The new math smoke failed because its selector expecte
 `.katex-mfrac`, whereas the actual 0.19.1 output uses `.katex-html .mfrac`. The
 MathML fraction/exponent assertions already passed. Corrected only that test
 selector, retained all layout/font/security assertions, and reran the full CI.
+
+
+### Final dependency CI and mainline integration (2026-11-04)
+
+[CI 41850357782](https://github.com/liyunhui0707/Markdown-Editor/actions/runs/41850357782)
+at final head `68f3e51b0bc23f63b283e9e5740c063989a41b14` passed every step:
+2,821 Node passes / 2 existing skips / zero failures, three affected Electron
+43.8.7 workflows, both unchanged audit gates, generated resources and unsigned
+0.37.1 packaging. [PR #138](https://github.com/liyunhui0707/Markdown-Editor/pull/138)
+merged preserving history as `0ccd941e500d60c438ac271942114153e9359ab9`.
+Local main was fast-forwarded; five fully contained historical local branches
+were removed with `git branch -d`, with SHA mapping retained in
+`/private/tmp/markdown-dependency-fix-l0tz8snn/evidence/retired-branch-refs.json`.
+Recovery checkout/history and remote historical branches remain. Sole remote is
+`liyunhui0707/Markdown-Editor`; no second-account repository was updated.
+
+## Individual document close V1 — source candidate (2026-11-04)
+
+Uncommitted `feat/document-close` uses the existing phase1b3 Worktree, from the
+merged main above. No new Worktree, framework, save policy, Reviewer or installed
+app update. Version remains 0.37.1; propose 0.38.0 with a future approved feature
+checkpoint. This is bounded automated acceptance, not full product release QA.
+
+Header × and Cmd+W request closure of only the current main-owned session.
+Read-only originals need no confirmation/write. Temporary copies offer Cancel or
+Keep draft and close. Main checks owner, revision, resolved copy/save state and
+latest exact-byte/token/identity/revision backup. It revokes only on success.
+Empty untouched writing needs no body backup. Dirty/history status is not changed
+to Saved; closing is explicit, and the dialog explains history/export-receipt loss.
+Recovery restores confirmed body in a new independent session. No draft/file is
+deleted or automatically archived. Other documents and their histories remain;
+closing the last returns to welcome and clears its search and outline.
+
+Renderer/preload reject composition, pending edits, retained unconfirmed recovery
+and unknown IPC outcomes. Matched refusal releases only its live close fence;
+revocation wins over cancellation. Lost/mismatched outcomes keep content fenced.
+A refusal also carries the latest backup snapshot, fixing stale backup display
+when backup completed while the confirmation was open. If disk revalidation
+fails, mark the backup unverified and stop its automatic writes; retain both live
+text/history and uncertain disk records. Whole-window close/quit guards remain.
+
+Evidence in `/private/tmp/markdown-dependency-fix-l0tz8snn/evidence/`:
+
+- `close-final-node-v2.tap`: 146 targeted Node cases PASS (close, IPC/preload,
+  backups/drafts, find/outline/shell, launch and packaging policy). Earlier red
+  tests reproduced missing cancellation backup state and stale backed-up status
+  after disk mutation; fixes pass without weakening identity/content checks.
+- `close-final-e2e.log`: readonly open, verified export/reopen and normal close
+  passed. The negative close test initially assumed multiple keystrokes were a
+  single Undo unit. Changed its additional edit to one character, retaining exact
+  pre-edit body and Undo/Redo checks; this was a test assumption, not a close bug.
+- `close-final-e2e-v2.log`: both close scenarios PASS. Cancel retains text/history;
+  confirmed close restores exact draft content, removes stale find/outline, frees
+  sessions and returns to welcome. Replaced backup directory refuses close, shows
+  unconfirmed backup, retains editing/Undo and original bytes. Owned processes
+  exit normally, with no watchdog or remaining child processes.
+- Local GUI runtime is **43.4.1**, not matching-lock 43.8.7. The previous dependency
+  CI passes on 43.8.7 do not cover this uncommitted feature. Dialog choices are
+  stubbed; native Chinese IME, real native close confirmation and installed-build
+  acceptance remain NOT VERIFIED. Historical formal/manual FAIL stays recorded.
+- Successful Home export fixture `Writing-synthetic-rDwXKf` was identity/content
+  checked and reclaimed by the existing helper. New close fixtures are OS-temp
+  only; failed/uncertain backup-directory pairs remain together, including
+  `document-close-failure-U8Zg0O/{drafts,drafts-moved}` under this run's macOS temp
+  directory. No archived history, user drafts or user files were touched.
+
+Local diff self-review found no unresolved P0/P1 within this change. It is not an
+independent model review. Existing source-map/read-only/exclusive-create and
+coordination-required protections remain. Known limits: no discard-without-backup
+closure for nonempty writing, no automatic resolution of unknown IPC/create
+outcomes, no recovery of old Undo/export authority. New policy/view modules are
+small; keep the existing 303-line session dispatcher, 427-line renderer entry and
+shared E2E harness rather than expand scope into lifecycle/test-framework refactors.
+
+
+### Individual close — locked-runtime delivery candidate (2026-11-04)
+
+The initial source candidate above is unchanged in runtime and tests. Only the
+two version files advance to **0.38.0**, plus current documentation/evidence.
+Dependency resolutions are identical to merged 0.37.1. No commit, push, merge,
+tag, release or installation occurs; installed Markdown.app remains 0.37.0.
+
+Evidence root: `/private/tmp/markdown-close-delivery-jt0d_z0y/`.
+
+- Reuse the prior 146 targeted Node passes: all 17 runtime/test candidate hashes
+  still match `close-candidate-sha256.json`. No unrelated Node suite is repeated.
+- `evidence/e2e-43.8.7.log`: **5 PASS** on the exact locked Electron 43.8.7:
+  sanitized dependency rendering, readonly opening, export/reopen shortcuts,
+  close/cancel/recovery/welcome, and replaced-backup-directory refusal with
+  continued editing/Undo. Original/export hashes remain unchanged; owned Electron
+  processes exit normally without watchdog or remaining children. Dialog choices
+  and Finder calls remain controlled; these are not native interaction passes.
+- Air's existing runtime was 43.4.1. A bounded runtime fetch failed without
+  transferring project code or changing its installed tools. Local official
+  download timed out; the complete npm-mirror archive was accepted only after its
+  SHA-256 matched the locked Electron package's checksum:
+  `e09665902c46a648800b998e4271052a7819bd48ad02dc22d8c1452d248bfa09`.
+  No persistent mirror setting or Worktree dependency installation changed.
+- `evidence/package-v2.log` / `package-verification.json`: unsigned arm64 package
+  **PASS**; manifest covers 430 source files; all 36 packaged project runtime
+  files match their source. Version/Info.plist are 0.38.0, bundled Electron is
+  43.8.7. No unexpected project/private entries. ASAR SHA-256:
+  `8c3cc529c61c532bcb875a731c4b018d85206b71ca9ff8dec6cc1439916db683`.
+  The initial build correctly refused an external dependency symlink. Rebuilding
+  with a real APFS-cloned dependency copy passed without relaxing package policy.
+- Real native close confirmation **NOT VERIFIED**. The first isolated harness
+  timed out before an action; the retry could not operate its window because the
+  native GUI pipe failed to start, then timed out. Preserve both logs/results;
+  neither is a functional PASS or evidence of a close implementation failure.
+  No permission/environment investigation follows. No current user window was
+  operated. Native IME and historical formal/manual FAIL remain unchanged.
+- Ordinary packaged GUI launch **NOT RUN**: this candidate has a fixed product
+  profile, so launching it could open existing user drafts. The source GUI checks
+  plus package byte/runtime verification do not substitute for installed QA or
+  feature CI. The candidate stays at `package-v2/mac-arm64/Markdown.app`.
+- Successful Home fixture `Writing-synthetic-PmOKZU` was verified and reclaimed
+  by the existing helper. Failure pair `document-close-failure-z6qjGS/{drafts,
+  drafts-moved}` stays together in the run's macOS temp directory. Native probe
+  files remain under this evidence root. No historical/user files were cleaned.
+
+The source/package candidate and precise checkpoint scope are prepared. No new
+confirmed P0/P1 was found by bounded local self-review; this is not independent
+review. Native close confirmation is an acceptance gap, so full stage/merge or
+release readiness is not claimed. The next product slice remains ordinary
+cross-paragraph editing after this closeout; overwrite stays coordination-blocked.
+
+
+### Individual close — installed native follow-up (2026-11-05)
+
+The user confirmed normal quit. Installation then moved the previous 0.37.0
+bundle intact to rollback and moved the verified 0.38.0 candidate to
+`~/Applications/Markdown.app`. All 528 file/mode/symlink entries match; ASAR remains
+`8c3cc529c61c532bcb875a731c4b018d85206b71ca9ff8dec6cc1439916db683`.
+Installation did not move/change the application draft profile. Rollback and
+`RESTORE.md` are under original-checkout
+`.local/verification/document-close-native-nge_4fs0/installation/`.
+
+Installed GUI observations: ordinary welcome launch; synthetic `Native close QA`
+input; Cmd+W displays the real Cancel / Keep draft and close prompt; welcome and
+then a matching synthetic draft restore action/window were observed. The Cancel
+attempt returned a stale-window/user-changed error. Subsequent stale AX/window
+errors prevented reliable verification of Cancel and exact restored content.
+These are **NOT VERIFIED**, not native PASS or a confirmed close-product bug.
+The installed process remained alive when its window could not be located; no
+forced quit or environment-permission investigation followed. Only the synthetic
+draft was operated; existing unrelated draft bodies were not inspected.
+
+Earlier isolated native harness failures remain in `attempt1-native-close-*` and
+`native-close-*`: initial noncanonical test-root setup, then GUI wait timeout.
+They are not functional PASS. The accepted 146 Node / five locked-runtime E2E
+results stay recorded separately. `close-baseline/` preserves all 25 candidate
+files and their hashes before the next feature. No Git checkpoint was made.
+
+### Ordinary paragraph range editing V1 (2026-11-05, source candidate)
+
+The approved next slice reuses `paragraphReplace` (formerly paragraph-paste),
+Document Service, controller and main-owned revision/history. Replace/delete or
+paste over up to 32 adjacent single-source-line plain paragraphs. Each splice
+must match the existing paragraph separator, preserve full projection, and have
+a byte-exact inverse. Undo may restore empty selection edges using main-owned
+separator metadata; IPC still rejects renderer-supplied separator/leaf fields.
+4096-unit insertion/removal and 131072-unit source bounds remain (UTF-16). Original BOM, final
+newline, opaque blocks and all untouched bytes remain unchanged. No File Store,
+save authorization, overwrite, dependency or visual-baseline change.
+
+First real Electron range-input test failed despite mapper/controller passes:
+Chromium's DOM-derived transaction extended beyond the selected paragraph range
+and reparsed the neighboring opaque CRLF code block. The controller correctly
+refused it. A narrow `document-paragraph-input.mjs` adapter now handles cancelable
+insertText/selection-deletion before DOM mutation, only when DOM/PM/target ranges
+agree. It dispatches through the same filter/controller; it does not bypass
+mapping, read-only, input-state, revision or history checks. Composition, paste,
+spellchecking and other input types retain their existing handlers.
+
+Final evidence: original-checkout
+`.local/verification/document-close-native-nge_4fs0/paragraph-range/`.
+
+- `node-final.tap`: **205 PASS**, 0 fail/skip, Node 24.20.0. Exact range/inverse
+  matrix covers 225 accepted combinations across LF/CRLF/CR, Unicode boundaries,
+  source gaps, protected structures, size/count bounds, one-edit history,
+  continuous typing/Enter/Backspace, stale/lost IPC and composition refusal.
+- `e2e-final.log`: **3 PASS**, Electron 43.8.7. Backward DOM selection + Chinese
+  text replacement, further typing, split/join, selected Backspace, multiline
+  paste, protected-code refusal, subsequent safe editing, original/copy switching,
+  exclusive test-copy creation and reopening after creator process exit. Both
+  existing close regressions also pass; four clean child-process exits.
+- Original SHA-256 `6ed39ccedd4523882ffa2a878a59e76d15f56f1477e1b4645cc2ef0a1a0a845c`;
+  exported SHA-256 `635f61df4c29fee513842ccebb69ffe45a555679c3f8960520c049944391d5fd`.
+  Original/export bytes include preserved BOM/CRLF. New file equals the confirmed
+  revision; editing remains dirty and no original-file save authority is granted.
+- `e2e-1.log` and `e2e-diagnostic.log` retain the browser failure; `e2e-2.log`
+  records the first fixed pass. Test expectation for full-range deletion was
+  corrected because the existing whitespace cursor slot supports exact recovery.
+  Initial build invocation incorrectly treated native esbuild as JS; the corrected
+  locked-dependency build passed. Neither setup issue is a product failure.
+- Inputs and clipboard events are controlled; native open choices are stubbed.
+  **Native IME NOT VERIFIED**, earlier manual/formal FAIL and SEC-01 remain.
+  Cross-paragraph composition and Enter over an existing range are not enabled.
+  Soft-wrapped/formatted/protected crossings and ambiguous separators remain refused.
+- No Home test directories created. All new fixtures use OS temporary directories;
+  successful new files and failed fixtures remain available with paths in logs.
+  Backup replacement pairs remain intact as race evidence. No historical cleanup.
+
+Bounded Codex local self-review found no new unresolved P0/P1; this is not an
+independent model review. No Reviewer call, full CI, commit, push, merge, tag or
+release. Installed 0.38.0 is the pre-range close candidate; the new range code and
+rebuilt bundle are source-only. Version remains 0.38.0 pending a separate approved
+checkpoint; a separate user-visible range checkpoint would propose 0.39.0.
+
+
+### Paragraph range — 0.39.0 WIP package/install delivery (2026-11-05)
+
+The user requested the next delivery step. Package and lock versions advance to
+0.39.0 for the new user-visible range feature; runtime and existing Node tests
+remain byte-identical to the 205-pass/three-E2E candidate. Only the existing
+`e2e/document-app.spec.cjs` gains a packaged backward-range replacement and exact
+Undo/Redo check before its established export/reopen/recovery sequence.
+
+Evidence: original-checkout `.local/verification/paragraph-range-delivery-prbshom1/`.
+
+- Offline unsigned arm64 build: PASS. All 432 snapshot files and 37 packaged
+  project runtime files match; no private or unexpected project entries. Bundled
+  Electron is 43.8.7. ASAR SHA-256:
+  `fe83fd6b4998a4c3ef1bcb1082780395507edd7f4994f5d9042daf9caf456346`.
+- One packaged Electron regression PASS (three clean product-process exits plus
+  a clean single-instance invocation). Range replacement/Undo/Redo, further
+  typing, exclusive export, duplicate refusal, readonly reopen and exact draft
+  recovery after restart pass. Original SHA-256 remains
+  `3b4794c601dd176241a594cdc8839874aba0122e96a8316a65bdf2d07589ddf0`;
+  confirmed export is `e109cdbd262713535c424bb26e46e8d4200f89d9f78c6831b5592ae44a3a4978`.
+- Installed `~/Applications/Markdown.app`: all 528 entries (bytes/modes/link
+  text) verified. Installed welcome startup/version/appPath and normal exit PASS.
+  Prior 0.38.0 retained under `installation/rollback/`; `installation/RESTORE.md`
+  and manifests provide the exact mapping. Installation leaves user drafts alone.
+- Only this test's synthetic draft was archived through the existing app API;
+  its successful one-file Home fixture was reclaimed with an explicit cleanup
+  receipt in `e2e.log`. Original synthetic input remains in the OS temporary
+  test directory. Historical evidence and unrelated user data were not cleaned.
+- Native dialog choices were stubbed; Chinese text injection is not native IME.
+  Native IME, native close Cancel and complete physical-input acceptance remain
+  NOT VERIFIED. Earlier formal/manual FAIL, SEC-01, unsupported range refusals,
+  limited export destinations and coordination-required overwrite block remain.
+
+No new product defect found in this delivery check. No full CI/reviewer rerun,
+commit, push, merge, tag or release. The combined candidate is 32 files, index
+empty; the pre-range 25-file baseline remains available for review/split decisions.
+This installs a WIP for experience, not a complete feature or release sign-off.
+
+
+### 0.39.0 local WIP checkpoint authorization (2026-11-05)
+
+User approved the proposed sequence: preserve this delivered slice before mixed
+plain/bold paragraph editing. All 32 candidate fingerprints match the prior
+evidence; bounded local diff/readiness review found no new blocker to retaining
+a WIP. Reuse 205 Node, three isolated Electron and one packaged workflow passes;
+only current documentation is corrected before commit. Version remains 0.39.0.
+Native IME, native close Cancel/full physical acceptance and release restrictions
+remain open. This local checkpoint is not PR/merge/release readiness, and no
+remote action is authorized or performed. The 25-file pre-range baseline remains
+available; the combined checkpoint preserves the already installed candidate.
+
+
+### Plain/bold selection editing — 0.40.0 WIP (2026-11-05)
+
+Checkpoint `b12e2fdda8980319db6d76d3d261439257ed1e69` preserves the approved
+32-file 0.39.0 candidate on `feat/document-close`; the worktree was clean after
+commit. No push/merge/tag/release. The new feature below remains uncommitted.
+
+Scope: in one ordinary, single-source-line paragraph containing plain/bold text,
+replace/delete a selection or paste a single line. Starting text marks determine
+replacement marks, independent of drag direction. Collapsed boundary insertion
+uses left marks, matching ProseMirror. Delete whole plain/bold leaves and continue
+typing. Existing adjacent plain-paragraph ranges remain supported. Cross-heading,
+list, code, soft-line and formatted-paragraph ranges, multiline mixed paste and
+structural cross-mark composition remain safely refused; no generic Markdown
+conversion or mixed-paragraph split/join is added.
+
+Implementation: a 55-line inline-token source mapper creates one minimal source
+patch, reparses the whole projection and stores exact inverse bytes. Main IPC
+reuses the existing format-patch history path, verifying before/after SHA-256 and
+revision for Undo/Redo. Inverses/leaf/sourcePatch fields are not accepted from
+renderer requests. The existing native-beforeinput adapter also captures matching
+same-paragraph mixed selections before Chromium mutates DOM; composition, focus,
+selection and session guards remain. Original sessions, file creation, destination
+policy, metadata checks and coordination-required overwrite block are unchanged.
+
+Evidence root: original checkout `.local/verification/inline-editing-5xh4vsiv/`.
+
+- RED: five new source-mapping tests: four failed and one refusal test passed
+  before implementation. Final targeted
+  Node: **216 PASS**, no skips/failures (`node-regression-2.tap`). Covers source
+  matrices for both bold delimiters, surrogate/structural refusals, real PM/main
+  history, stale revision/lost acknowledgment recovery, session and close guards.
+  Three old refusal expectations were narrowly updated for the newly allowed
+  mixed edits; protected cross-block and untrusted-payload refusals remain tested.
+- Controlled source Electron: **three distinct workflows PASS**, format/ordinary
+  range plus mixed-range edit/export/reopen, six successful app-process exits.
+  `e2e-1.log` retains an initial mixed test failure: an endpoint inside a readonly
+  code block was clamped by the browser. The corrected test selects across the
+  code to an editable tail and asserts actual PM selection before attempting the
+  edit; whole-operation refusal and subsequent editing PASS in `e2e-2.log`.
+  Source original SHA-256 stays
+  `f6a5234bf79fba3f58a41db47fe693808d2b6186a7f803c8f7e59d5137e0ec34`;
+  reopened export hash is
+  `46ee4f726406e0b1a5442127609121d94b522fe59ff8092b15fc4017c38c6c94`.
+- **One packaged workflow PASS** (`packaged-e2e.log`, `packaged-results/`): both
+  plain-paragraph and mixed-inline replacement/Undo/Redo, continued typing,
+  exclusive export, existing-target refusal, read-only reopen and exact draft
+  recovery after restart; three clean launches and the single-instance invocation.
+  Original SHA-256 remains
+  `45266ca1e3b9bf6a6dbddacea4d5ce4c7087c7f39c65d1801daf00c208b6d9ca`;
+  export is `030166d7e20cc32bcadc1552d1ea6fbd62326fadd47e4a77d6f750571ff755b8`.
+- Offline unsigned arm64 package, Electron 43.8.7: 434 source snapshot files and
+  38 packaged project runtime files match; no unexpected/private project entries.
+  ASAR SHA-256 `6783701456909c181ac9241782f182fa0a39282f2522f43b8f9edb79679cf0cf`.
+  Version/package-lock/Info.plist are 0.40.0 for this user-visible feature.
+- Installed `~/Applications/Markdown.app`: all 528 bundle entries verified.
+  Welcome startup, installed path/version and normal exit PASS. Old 0.39.0 is
+  intact under `installation/rollback/Markdown-0.39.0.app`; manifests and
+  `installation/RESTORE.md` record recovery. User draft storage is not moved.
+- Successful Home fixtures `Writing-synthetic-E2E-NFKPt1` (format regression)
+  and `Writing-synthetic-E2E-9TxbEQ` (packaged test) were verified/reclaimed by the
+  existing helper. Only the packaged test's own synthetic draft was archived via
+  the existing API. OS-temp originals, source exports and initial failed-test
+  evidence remain; no historical/user files were cleaned.
+
+Bounded Codex self-review: no new confirmed unresolved P0/P1; not an independent
+second-model review. Test runner/renderer input and native dialog choices were
+controlled; this is not native IME or human acceptance. Native IME, native close
+Cancel, complete physical-input acceptance, historical formal/manual FAIL and
+SEC-01 remain scoped/open. Full CI/Air/Reviewer NOT RUN; no new remote action.
+Next suggested slice is paragraph/simple-list boundaries, not overwrite saving
+or a visual redesign. This delivery is a local WIP, not full feature sign-off.
+
+
+### Paragraph/list boundaries — 0.41.0 WIP (2026-11-05)
+
+The user approved the next continuous-writing slice. The prior uncommitted
+0.40.0 candidate's 20 files and all baseline fingerprints were checked before
+work; its snapshot remains unchanged at `.local/verification/inline-editing-5xh4vsiv/`
+in the original checkout. New evidence: `.local/verification/writing-boundaries-m8g4d1zg/`.
+
+Supported collapsed-caret actions: split/join plain/bold paragraphs and flat tight
+list items; first-item Backspace lifts only that item to a paragraph; first/last
+empty-item Enter exits; the format selector starts a list from an empty paragraph
+when the resulting source reprojects exactly. Mid-list empty exit is refused:
+blank whitespace alone parses as one loose list, not two lists plus an empty
+paragraph. No hidden markers or silently altered neighboring structure are added.
+Code, headings, soft lines, nested/task/loose lists and ambiguous gaps remain
+protected. Cross-format composition is still paused/refused, not force-committed.
+
+`document-boundary-edit.mjs` (114 lines) owns only these source patches. The
+existing `format` command/controller/main history/revision/hash gates are reused.
+Every result must match the expected full projection and exact inverse bytes;
+32-item, 4096-unit patch and 131072-unit source limits remain. The source command
+mapper becomes 90 lines; format keys 65; the 430-line renderer only moves native
+Backspace selection synchronization before the format command dispatch. Existing
+large tests retain their shared harness (controller 989, boundary 116, E2E 2374/150).
+
+- RED: initial 13 boundary tests: 12 FAIL / one safe-refusal PASS. Final regression
+  `node-regression-1.tap`: 236 PASS. One extra capacity case was then added; its
+  first fixture equaled the permitted size, not an overflow. Corrected exact-limit
+  success/overflow refusal checks pass in `node-limits-final.tap` (16 boundary
+  tests). Total distinct tests: **237 PASS**, no final skips/failures. No runtime
+  change was made for that fixture correction.
+- `e2e.log`: **four source Electron workflows PASS**, eight clean app exits,
+  covering new keyboard boundaries, prior formatting and both range features.
+  New original SHA-256 remains
+  `7560f7eea1e595105450effa80e5efef08887c9303e1681d0e20d710983dc2a7`;
+  exact export/reopen SHA-256 is
+  `7616cac1a63632a28b4c957cc5b8fa7c93c189fc31c6271063dc9ff2c875b90d`.
+- `packaged-e2e.log`: **one actual ASAR workflow PASS**, three clean launches and
+  single-instance exit. Paragraph/list Enter/Backspace, original/range Undo/Redo,
+  exclusive export, existing-target refusal, readonly reopen and restart/draft
+  recovery pass. Original hash remains
+  `45266ca1e3b9bf6a6dbddacea4d5ce4c7087c7f39c65d1801daf00c208b6d9ca`;
+  export hash `b9057e44faa080a859f20faaf3bb9a5960d8dbe10845f6640444ea13e1456012`.
+- Offline unsigned arm64/Electron 43.8.7 packaging: 436 source and 39 packaged
+  runtime files match; no unexpected/private project entries. ASAR SHA-256:
+  `5115683609e9169c85336b47b1420c3774a27498462ad60805f00976cd2f649a`.
+  Version/package-lock/Info.plist are 0.41.0. Installed startup and normal exit PASS;
+  all 528 bundle entries match. Preserve 0.40.0 under `installation/rollback/`;
+  `installation/RESTORE.md` and manifests record recovery, without moving drafts.
+- Successful Home fixtures `Writing-synthetic-E2E-JTkQD8` and
+  `Writing-synthetic-E2E-r7FgTE` were verified/reclaimed by the existing helper.
+  Only the packaged test's own synthetic draft was archived via the app API.
+  OS-temp inputs/exports and verification logs remain; no historical/user cleanup.
+
+Bounded Codex self-review found no new confirmed unresolved P0/P1; this is not an
+independent model review. Native dialogs were stubbed; controlled input is not
+native IME. Native IME, native close Cancel/full physical QA, historical formal/
+manual FAIL and SEC-01 remain scoped/open. Full CI, Air and Reviewer NOT RUN.
+Original readonly/exclusive create/Not saved semantics, destination restrictions
+and coordination-required overwrite protection remain unchanged. Both the 0.40
+and 0.41 feature slices are uncommitted on `feat/document-close`, HEAD `b12e2fd`;
+no new Git checkpoint, push, merge, tag or release.
+
+
+### 0.41.0 local WIP checkpoint closeout (2026-11-05)
+
+User approved continuing the proposed closeout/checkpoint sequence. All 25
+candidate hashes match the delivered version before documentation-only status
+updates; runtime, tests, generated bundle, package and lock remain unchanged.
+The installed ASAR still matches the recorded 0.41.0 hash. Bounded Codex local
+review found no new confirmed unresolved P0/P1; this is not independent review.
+Reuse 237 distinct focused Node, four source Electron workflows, one packaged
+workflow and installed startup passes. No unrelated tests or GUI runs repeated.
+Version remains 0.41.0. Both writing slices form one coherent WIP checkpoint on
+`feat/document-close`; exact scope and evidence mapping are in original checkout
+`.local/verification/writing-checkpoint-20261105/`. Native IME, native close Cancel,
+full physical/manual acceptance and historical formal failures remain open.
+Original files stay read-only, new-file creation remains exclusive, and overwrite
+is still blocked by `coordination-required`. No push/merge/tag/release or Reviewer.
+
+### Single-list-item selection editing V1 (2026-11-05, 0.42.0 uncommitted)
+
+Baseline `ca5d927` / 0.41.0 was clean. Extend the existing inline source mapper
+to one projected simple-list item and preserve whole-document projection checks,
+revision authorization and main-owned inverse history. Plain/bold selections can
+be replaced, deleted or pasted over with one line. Unmodified list markers,
+numbering, BOM, LF/CRLF/CR and surrounding blocks stay byte-exact. A rejected or
+uncertain request retains the existing recovery behavior; no retry is invented.
+
+Regression exposed stale ProseMirror bold marks after deleting all text in an
+all-bold item. Clear stored marks only after a validated deletion produces an
+empty list paragraph; further typing is plain and Undo restores original bytes.
+Cross-item selection, multiline list paste, nested/task/loose lists and source
+forms that cannot represent the requested projection remain safely refused.
+For example an intraword `__` boundary is not silently rewritten to `**`.
+
+267 focused Node tests PASS, including forward/reverse ranges, full deletion,
+continued typing, Undo/Redo, Unicode, three newline styles, refusal, composition
+gates and stale/lost IPC recovery. Four source Electron workflows PASS: list-item
+ranges plus existing paragraph ranges, mixed ranges and boundary keys. One real
+packaged-app workflow PASS covers list paste/Undo/Redo, export, target-exists
+refusal, readonly reopen and restart/draft recovery. Native dialog choices and
+clipboard are controlled. Installed welcome startup PASS with normal process exit;
+no user document opened. 437 source files match the tested snapshot; 39 packaged
+runtime files and all 528 installed entries match. Installed ASAR SHA-256:
+`c8d89aac942484baf6c9dce4ac2c5b5dd67b0c800d48d28614990fc5526c999e`.
+The exact old 0.41.0 app is retained in this run's `installation/rollback/`;
+recovery mapping and manifests are in `installation/`. No user draft migration.
+
+Evidence: original checkout `.local/verification/list-item-editing-d4it3xn4/`,
+including source hashes, Node/Electron logs, screenshot and packaged evidence.
+New source workflow original SHA-256
+`b903de0176ecb63b0e802604f7751d604191fb3843f5ae62727ce798a6d60671`
+remains unchanged; exported SHA-256
+`4ea6389835185de7636671b415db677d2299646067e850bbc2acf7cdab97f710`
+matches intended content after exit/reopen. The packaged successful Home fixture
+was verified and removed by the existing fixture helper; failed/unknown historical
+artifacts were not touched. Temporary evidence and isolated drafts are retained.
+
+Codex bounded diff self-review found no new blocker; it is not independent review.
+Initial sandbox GUI launch was blocked by environment; the permitted isolated run
+passed. Native IME, native close Cancel/full physical QA, prior formal/manual FAIL
+and SEC-01 remain open/scoped. Full CI, Air and external Reviewer NOT RUN.
+Original readonly, exclusive new-file export, Not saved, destination restrictions
+and coordination-required overwrite protection are unchanged. No Git checkpoint,
+push, merge, tag or release in this feature task.
+
+
+### Adjacent list-item selection editing V1 (2026-11-05, 0.43.0 uncommitted)
+
+The preceding 19-file 0.42.0 candidate matched its recorded hashes; HEAD remains
+`ca5d927`. Extend its existing source mapper to adjacent items in one projected
+flat/tight list. A verified splice merges selected items while preserving unselected
+text, marks, untouched source bytes and surrounding blocks. Exact main-owned
+inverse patches retain original numbering and delimiters; no renderer source-patch
+permission or File Store change. Multi-item deletion retains one empty item, using
+an exact text-range transaction instead of PM's expanding deleteSelection heuristic.
+Replacement at an item's end follows PM marksAcross and starts plain.
+
+Confirmed new boundary defect: in real Electron, a selection extending into a
+readonly code block had PM/DOM positions [10,46], while beforeinput targetRanges
+reported [10,44]. The old mismatch path returned false, allowing Chromium's partial
+replacement to continue. Now a verified PM/DOM selection with a mismatched or
+unreadable target is cancelled before mutation with an explicit message. Regression
+checks unchanged source/revision, no edit IPC and subsequent safe editing. No IME
+state timeout/forced completion was added. This is not a native IME acceptance claim.
+
+301 focused Node tests PASS: forward/reverse ranges, plain/bold/Unicode, three
+newline styles, markers/numbering, empty edges, all-item deletion, 32-item and size
+bounds, exact Undo/Redo, continued split/join, stale/lost acknowledgments and atomic
+refusal. Four controlled source Electron workflows PASS on the final code, including
+whole-list Backspace and Delete, clipboard refusals, protected-range refusal,
+original/copy switching and export/reopen. One actual packaged workflow PASS with
+cross-item replacement/Undo/Redo, exclusive create, target-exists refusal, readonly
+reopen and restart/draft recovery. Native dialogs and clipboard were controlled.
+Installed welcome startup PASS with normal exit and no user document opened.
+438 source files and 39 packaged runtime files match the tested snapshot; all
+528 installed entries verified. ASAR SHA-256:
+`38016a24682070085e07cda89dc12f2c1b31fdab39ee71096d35ca2c0fe0284c`.
+Exact 0.42.0 rollback and recovery mapping are in this run's `installation/`.
+No new user/manual/native-IME acceptance.
+
+Evidence: original checkout `.local/verification/list-cross-editing-x0zabrwi/`.
+Original synthetic SHA-256 remains
+`b903de0176ecb63b0e802604f7751d604191fb3843f5ae62727ce798a6d60671`;
+new export SHA-256
+`dc351e38112ede3a6563c35f41d45f8efa1d521b313fe64e2be7ff3daf41fe84`
+matched content after exit/reopen. The successful packaged Home fixture
+`Writing-synthetic-E2E-zB0meg` was verified and removed by the existing helper;
+isolated source fixtures, failed-run evidence and the synthetic archived draft are
+retained. No historical archive, protected Home fixture or user document touched.
+
+Codex bounded self-review found no new unresolved blocker; not independent review.
+Full CI, Air and external Reviewer NOT RUN. Native IME, full physical QA, native
+close Cancel, SEC-01 and earlier formal/manual failures remain open/scoped.
+Source originals stay readonly, export stays exclusive, editing copies stay Not
+saved, and overwrite stays blocked by coordination-required. Prior work preserved;
+no commit, push, merge, tag or release in this feature task.
+
+
+### List selection editing local WIP closeout (2026-11-05, 0.43.0)
+
+The user authorized a local WIP checkpoint before italic editing. All 21 candidate
+files match the previous final fingerprints; reuse 301 focused Node, four source
+Electron and one packaged workflow plus installed welcome PASS. No code/test or
+version changes are needed for closeout. Codex readiness self-check found no new
+blocker or unrelated files; this is not independent review. Native IME, full
+physical QA, SEC-01, prior formal/manual failures and release acceptance remain
+open/scoped. Existing-file overwrite remains coordination-required. Full CI and
+Air are NOT RUN; no push, merge, tag or release is authorized by this checkpoint.
+
+
+### Selected italic editing V1 (2026-11-05, 0.44.0 uncommitted)
+
+User authorized the local 0.43.0 checkpoint followed by italic editing. Commit
+`01a4d7a` contains the prior 21 verified files; worktree was clean afterward.
+This candidate reuses source projection, bounded format/range/boundary mappers,
+the existing toolbar and main-owned revision/history. Add `I` / Cmd+I; preserve
+existing `*` or `_` delimiters, BOM, line endings and unmodified bytes. One plain
+leaf may become italic; cancellation requires its entire italic leaf. Nested
+bold/italic, partial unformatting, links, soft-wrapped emphasis and complex blocks
+remain protected. No session/IPC authority or File Store/save path change.
+
+A controlled PM test reproduced a cleared paragraph retaining deleted italic
+stored marks, rejecting subsequent plain input. Extend the existing verified
+empty-list-item reset to empty paragraphs; source is already empty when marks
+are cleared. No composition state bypass, timeout or forced editable change.
+
+RED/GREEN evidence: new format/projection tests fail on baseline; 323 focused
+Node tests pass after implementation, including PM comparison, Unicode, newline
+variants, inverse bytes, stale/lost formatting acknowledgments and guards.
+Four controlled source Electron cases pass: new italic workflow and existing
+mixed ranges, list ranges and writing boundaries. Eight clean child exits, no
+watchdog/fault/remaining process. Toolbar/shortcut, typing, deletion/retyping,
+paste, split/join, original/copy switching, export and fresh-process readonly
+reopen pass. Original SHA-256 stays
+`15b5e7dd41a589e9ae2a184fe65505d780f3278bbd6742b74eb6e332180f27cf`;
+export SHA-256 is
+`227aef70b7d47e64e11213ab8cc346f43fdd44a166b592a7311bbfb4434e5a28`.
+
+Evidence: original checkout `.local/verification/italic-editing-fle6dgai/`.
+Dialogs and clipboard are controlled; Chinese test strings are NOT native IME.
+Codex bounded diff self-review found no new unresolved blocker; not independent
+review. Native IME, full physical acceptance, native close Cancel, SEC-01 and
+historical formal/manual failures remain open/scoped. Full CI, Air and external
+Reviewer NOT RUN. Original readonly, exclusive new-file export, Not saved and
+coordination-required stay unchanged. Source fixtures/evidence stay isolated;
+no historical archive or user document cleanup. No new feature commit or remote
+action beyond the explicitly authorized preceding 0.43.0 local checkpoint.
+
+
+Packaged follow-up: one actual 0.44.0 ASAR workflow PASS, including italic
+button/Cmd+I, Undo, exclusive export, target-exists refusal, read-only reopen,
+restart/draft recovery and single-instance behavior. Installed welcome startup
+PASS with clean exit. 439 app source files, 39 packaged runtime files and all 528
+installed entries match. Installed ASAR SHA-256:
+`aa40c47f08ce40b03a56c914f1dca108b7630f37b4f47200b6d3c612c57a7c47`.
+0.43.0 rollback and recovery instructions are in this run's `installation/`.
+The successful Home fixture `Writing-synthetic-E2E-oSjl5M` (one known file) was
+verified and removed by the existing helper; synthetic draft archived through
+the existing API. User documents/drafts and historical fixtures were not cleaned.
+
+### Inline code editing V1 (2026-11-05, 0.45.0 uncommitted)
+
+Add `</>` / Cmd+E using the existing format command and main-owned history. Exact
+single-backtick code is projected in ordinary paragraphs, headings and flat list
+items; code content stays literal. Multi-backtick, padding-normalized, multiline,
+nested marks and fenced blocks remain protected. Full-span unformatting only;
+operations that would change Markdown structure are refused atomically. Plain,
+bold, italic and code marks remain distinct across range edits and split/join.
+A small shared exact-leaf projector removes duplicate paragraph/list logic.
+Original bytes, BOM/newlines and untouched regions are retained; inverse patches
+restore exact bytes. No session authorization, File Store, overwrite or export
+policy change. Not saved and coordination-required remain in effect.
+
+RED/GREEN: 15 new cases fail before implementation. 340 targeted Node tests PASS,
+including real PM selection comparisons, Unicode, newline styles, exact inverses,
+code delimiters, protected structures, toolbar/composition/readonly guards and
+lost format acknowledgements. Two source Electron workflows PASS (italic and
+inline code); four clean exits, no watchdog/fault/residual. Actual 0.45.0 packaged
+workflow PASS: code button/Cmd+E, Undo, export, existing-target refusal, readonly
+reopen, restart/draft recovery and single-instance behavior. Only synthetic data;
+dialog choices/clipboard are controlled. NOT native IME acceptance.
+Original source SHA-256: 06413d186bfac95466d75ef56e1b7502f825a47350a5b9e5b335c7d9322004e7.
+Export SHA-256: eaf4816e062b725a160ac4ef73064e0b2067fd2aff6f92262b44142f893fba2c.
+Evidence: original checkout `.local/verification/inline-code-wdharfpn/`.
+The successful Home fixture Writing-synthetic-E2E-t42w49 was identity-checked and
+removed by the existing helper; only its synthetic draft was archived via app API.
+Temporary source fixtures and evidence retained; no historical cleanup.
+
+Air SSH identity and Node 24.20.0 match, but CGSSessionScreenIsLocked=Yes was
+observed: GUI BLOCKED; no package sent or GUI launched there. First sandboxed Pro
+launch was blocked; the scoped approved Pro launch passed. Codex limited diff
+self-review finds no new unresolved blocker; this is not independent review.
+DeepSeek was not invoked (no changed file-writing/authority path); full CI,
+native IME/full physical QA remain NOT RUN/NOT VERIFIED. Historical manual and
+formal failures, SEC-01, native close Cancel and release restrictions remain.
+No commit, push, merge, tag or release. Prior 0.44.0 uncommitted work preserved.
+Core helpers remain below 300 lines; controller tests 1148 and shared E2E 2554
+reuse the established harness without an unrelated test-framework refactor.
+
+
+Air follow-up after the user's explicit unlock: two source Electron workflows
+PASS in 3.8s with Node 24.20.0 / Electron 43.8.7, macOS 26.6.2 arm64. Four exits 0,
+no watchdog/fault/residual. Original/export hashes equal the Pro evidence above.
+47 exact project files plus private dependency/runtime copies; 19,957 manifest
+entries verified before and after. No installs, system settings or real documents.
+Runtime/profile/synthetic files stay in the private run directory, not Home top
+level. Input tar SHA-256:
+4c9c660374e3ba0f27f2039b6f627011c26af9308ff1e678aded3710763eef11.
+Retrieved evidence archive SHA-256:
+050d09dff68e271b6b07733575db0f9f955f0f65ea0242785a9648c38727b16b.
+Screenshots from both hosts inspected; toolbar/layout remains the visual baseline.
+Remote run: ~/Library/Application Support/personal-device-ops/air-testing/runs/markdown-inline-code-wdharfpn/.
+
+Installed 0.45.0 welcome startup PASS, clean exit; 441 source files, 40 packaged
+runtime files and 528 installed bundle entries match. ASAR SHA-256:
+e468e5ff0802b95dc2b4c1a9b1ea741261daead527279b1898de2cae25a36715.
+Exact 0.44.0 rollback is in this run's installation/rollback with RESTORE.md.
+No user drafts moved or changed during installation. Controlled dialogs and
+Chinese strings remain distinct from native IME/manual acceptance.
+
+
+### Existing link text V1 (2026-11-05, 0.46.0 uncommitted)
+
+Edit the display text of existing single-line inline links in ordinary paragraphs,
+ATX headings and simple flat list items. Exact source-leaf splices preserve target,
+title, delimiters, BOM/newlines and untouched regions. Full-label nonempty
+replacement and single-line paste are supported; exact main-owned history and
+session/readonly protections are reused. No File Store, writer, IPC payload or
+save authorization change; overwrite remains coordination-required.
+
+A small shared Tiptap configuration replaces the default active link extension
+with an inert span mark. URLs are data attributes, never href/event handlers;
+no automatic linking, URL navigation or remote content loading. Even an existing
+javascript/data target stays inert. No new URL insertion or address editing UI.
+Empty/full-label deletion, cross-span operations in a link-containing paragraph
+or item, link+format nesting, references/autolinks/normalized labels and
+split/join of link-containing paragraphs/items remain refused. Safe text input
+in other leaves/paragraphs continues after refusal. Existing block conversions
+retain link syntax, with exact inverse validation.
+
+Evidence under original checkout `.local/verification/link-text-ic_ubf51/`:
+- RED: 14 new projection/source tests fail on the previous candidate.
+- GREEN: 360 focused Node PASS, including actual PM-schema comparison, LF/CRLF/CR,
+  Unicode boundaries, target/title byte preservation, exact inverses, controlled
+  composition, IPC response loss/recovery, session and close regressions.
+- Two Pro source Electron workflows PASS (existing code, new link labels), four
+  clean successful exits; no watchdog/fault/residual. Initial link E2E expected
+  one Undo to undo five individually typed characters; corrected the test to
+  use one explicit insertion. The failed synthetic run is retained as evidence.
+- Packaged Electron PASS: label editing, Undo/Redo, exclusive export, existing
+  target refusal, readonly reopening, restart/draft recovery, single instance.
+- Original synthetic SHA-256:
+  01308780293a346d96e648e548da883b73da46ac1feb9c4f83390d411c8d0904.
+  Export SHA-256:
+  1d25699c0cdf82ed34229d59a0e60d12a3c0207549566e375473963b9ce03886.
+  Original mode 0400 and bytes verified unchanged. Screenshot visually checked.
+- Successful Home fixture Writing-synthetic-E2E-AWkrtt was identity-checked and
+  removed by the existing helper; only its synthetic draft was archived by the
+  application API. Temporary fixtures retained; no historical cleanup.
+
+Codex bounded diff self-review: no new unresolved blocker found; this is not
+independent model review. No DeepSeek/Air/full CI this slice. Native IME/manual
+acceptance remains NOT VERIFIED; historical formal/manual FAIL, SEC-01 and release
+limits are not globally cleared. No commit/push/merge/tag/release. The preceding
+0.44/0.45 work is retained. Entry 432, controller test 1168, shared E2E 2610 lines
+reuse current ownership/harness; the new configuration is 20 lines and source
+mapping helpers remain below 300. No unrelated framework refactor.
+
+Installed 0.46.0 welcome startup PASS with a clean exit and no user document
+opened. 443 app source files, 41 packaged project runtime files and 528 installed
+bundle entries match; independently rebuilt renderer bundle is byte-identical.
+ASAR SHA-256:
+f977c27757010de7fa9dff0b3c6c9da6d8dd9d17c2229648004fa5a542a9b106.
+Exact 0.45.0 rollback and restore instructions are retained in this run's
+installation/rollback and installation/RESTORE.md. Installation moved no drafts.
+
+
+### Heading/list typing workflow (2026-11-05, 0.47.0 uncommitted)
+
+User feedback exposed a core authoring gap: a bare `#` in a new draft was refused.
+Deliver a coherent typing workflow instead of a separate mini-stage per format.
+Bare `#`…`######`, bullet markers and numeric markers remain visible until Space.
+Space uses a main-validated format command and synchronous optimistic PM update,
+queued with subsequent text edits under the existing session/revision/history
+owner. Exact source patch, expected projection and inverse checks remain in force;
+no whole-document Markdown serializer, file-write policy or IPC payload expansion.
+Heading levels 4–6 are enabled in the existing menu. Empty headings accept text,
+Enter returns to a paragraph and Backspace at a heading start removes the format.
+A bare marker on read-only open is displayed literally without rewriting bytes.
+
+Evidence: original checkout `.local/verification/block-input-lrhucw93/`.
+- RED: new cases reproduce prior prefix/shortcut/empty-heading failures.
+- GREEN: 378 targeted Node cases pass together; final focused run passes 19
+  shortcut cases including 3 added numeric boundaries (381 unique total).
+- Two Pro source Electron workflows PASS: new blank-draft heading/list/continuous
+  typing/Undo/Redo/export/exit/reopen, and existing link-text protection regression.
+  Controlled dialogs/Chinese insertions do not establish native IME acceptance.
+- Export bytes and SHA-256 match; reopened documents are read-only. Existing
+  link regression verifies original bytes and mode 0400 remain unchanged.
+- Package content, source hashes, version and Electron runtime checked. The
+  current installed 0.46.0 process remains running; no replacement, packaged
+  product GUI launch or installed-app acceptance is claimed for this candidate.
+- All new GUI fixtures are isolated temporary synthetic data. No new Home
+  fixture, historical cleanup, remote transfer or user-document access.
+
+Bounded Codex self-review found no unresolved blocking finding in this slice;
+not an independent model review. Native IME NOT VERIFIED; historical formal QA
+FAIL, SEC-01, unrestricted saving and public-release gates remain open. Task
+lists, nested lists/marks, quotes/fences and automatic inline syntax are not added.
+No commit/push/merge/tag/release. Existing 0.43–0.46 candidate work is preserved.
+
+### Link creation and address editing workflow (2026-11-05, 0.48.0 uncommitted)
+
+The link toolbar / Cmd+K opens one panel for a plain selection/caret or an
+existing simple inline link. Insert, edit label/address, Cancel/Escape and remove
+link while retaining text are implemented together with main-owned Undo/Redo.
+Supported hosts are plain paragraphs, headings and simple flat list items.
+Cross-leaf/cross-block ranges, nested marks, references and title editing remain
+outside scope. Labels are bounded to 512 UTF-16 units and addresses to 2048;
+only plain single-line labels and validated http(s), mailto, relative/fragment
+targets are accepted. No automatic linking, URL navigation or resource loading.
+
+`set-link` / `remove-link` reuse the existing format command, source range,
+expected projection and exact inverse. Main accepts only the additional
+label/href fields for format requests and rechecks sender, session, readonly
+status and revision. Source coordinates, paths and authority cannot be supplied
+by this panel. Unchanged addresses, existing titles, BOM/newlines and surrounding
+source retain their bytes. Explicit address edits replace only that target.
+File Store/save authorization and coordination-required are unchanged.
+
+The panel captures the current session/revision and keeps form input on refusal.
+Pending/composing/recovery states block application; Escape returns focus and the
+original selection when still valid. A stale main revision reconciles through
+the existing controller without retrying the edit. A lost successful response is
+also reconciled without replay; Undo remains owned by main.
+
+Evidence: original checkout `.local/verification/link-panel-owz9kpw6/`.
+- RED: new source tests reproduce missing create/address/remove behavior on
+  the preceding candidate. GREEN: 399 focused Node cases PASS, including source
+  inverses across LF/CRLF/CR, payload rejection, readonly/session/revision gates,
+  dropped-response recovery and existing heading/list/inline/close regressions.
+- Three Pro source Electron workflows PASS: new complete link panel plus link
+  text and heading/list typing regressions. Six clean successful exits, no
+  watchdog/fault/residual. Screenshot inspected against the visual baseline.
+- New link workflow covers reversed selection, invalid URL refusal, controlled
+  input composition, Escape, address/title preservation, remove/Undo/Redo,
+  stale revision with retained form input, continued plain editing, inert links,
+  exclusive export and a fresh-process readonly reopen.
+- Original synthetic SHA-256:
+  224525817f2f9029e153343a3e2f57852daf7858a9141e12c4c964cfd94a843a.
+  Export SHA-256:
+  2b7c00e6385a4d75ce7c04edafed2aee80f127a8fa4d26d031786443864994c1.
+  Original bytes and mode 0400 remain unchanged.
+- Fixtures are isolated temporary synthetic data; no new Home directory, user
+  document access, remote transfer or historical cleanup. Logs retain paths.
+
+Bounded Codex diff self-review found no new unresolved blocker in this slice;
+this is not independent review. No DeepSeek/Air/full CI this batch. Native IME
+remains NOT VERIFIED; historical manual FAIL and SEC-01/release gates remain
+open. Current installed 0.46.0 is running and is not stopped/replaced; installed
+and packaged-product GUI acceptance of this candidate remain pending. No Git
+commit/push/merge/tag/release. The next coherent authoring package is quotes and
+basic fenced code, with create/edit/exit/Undo/export/reopen as one workflow.
+
+Unsigned candidate package verification PASS: 448 app source fingerprints,
+44 packaged project runtime files and 10,357 ASAR entries checked; no private or
+unexpected project entries. Renderer rebuild is byte-identical. Package/plist
+version 0.48.0 and bundled arm64 Electron 43.8.7 match. ASAR SHA-256:
+ddb5243a7b8116e9e5c5cbd2bdc353a15efc5baed594af980644b3a6c93d263e.
+The existing installed 0.46.0 bundle and its active process were left untouched.
+
+
+### Quote/code writing workflow — 0.49.0 candidate (2026-11-06)
+
+The preceding accumulated inline work is preserved by user-authorized local commit
+`dd0eef475ce92480f312235f9f0225fa79382628` (0.48.0, 42 files). No push/merge/tag.
+This new batch is uncommitted. It adds quote and closed basic-code creation from
+menu/natural prefixes, text editing, plain quote split/join, code Enter/Tab and
+multiline paste, Cmd+Enter exit to prose, main history and export/reopen. Source
+ranges retain quote markers, fences/language, BOM and existing LF/CRLF/CR bytes.
+Only code display normalizes newline positions; writing patches exact raw ranges.
+The existing source gate rechecks full expected projection and bounded patches.
+Opaque code-shaped nodes default to noneditable; a forged editable attribute is
+rejected by controller/source validation. No File Store, save authority, renderer
+path or original readonly policy changes; `coordination-required` stays in force.
+
+Evidence: original checkout `.local/verification/quote-code-gxkzlu3u/`.
+- RED source tests exposed missing quote/code behavior. A real controller regression
+  exposed invalid redo caret coordinates after code paste; fixed by returning PM
+  selection with the exact source inverse. LF/CRLF history tests now cover it.
+- 383 unique targeted Node cases PASS across mapping, format, controller, session
+  and history; includes delayed commands, dropped acknowledgements without replay,
+  composition guards, surrogate safety, fence escape and opaque-attribute refusal.
+- Five source Electron workflows PASS: quote/code creation/history/export/reopen,
+  loaded CRLF quote/code edits and rejection/continued editing, plus existing
+  heading/list, link-panel and protected-block formatting regressions. Nine clean exits, no watchdog/fault/
+  residual. Screenshot inspected against the accepted writing workspace.
+- Synthetic original BOM/CRLF bytes and mode 0400 unchanged. Creation export hash:
+  262265c1be46b7f7423be21a20c51ac23388f5c9e96ee21ecdde944de9ce1f18.
+  Loaded-code export hash:
+  4ad622fd7ed7a2058f456a4e1c5b345248cb83d141b8200e00e02b550cbf3d78.
+  Fresh-process reopen verifies the creation export. Dialog paths are controlled
+  test substitutions; clipboard and composition checks are not native IME QA.
+- New quote/code fixtures live in isolated system temporary directories. The
+  existing protected-block regression created one Home fixture and successfully
+  reclaimed it with its identity-checked helper (Writing-synthetic-E2E-MUjG0M, one
+  file). No archived/user data was touched. Logs retain exact evidence paths.
+
+Limits: explicit single-level quote paragraphs only, no lazy/wrapped/nested quotes
+or splitting marked quote text. Fences must be closed, unindented, 3–16 markers,
+with optional simple language (up to 32 characters), no metadata. Mixed line endings
+inside a block, cross-block selections, code execution and highlighting remain
+unsupported. Code-to-prose conversion accepts one line; Cmd+Enter exits multiline
+code without changing it. No general Markdown acceptance is claimed.
+
+Bounded Codex self-review found no unresolved blocker in this batch; this is not
+independent review. Air/DeepSeek/full CI/native IME were not run. Native IME remains
+NOT VERIFIED, historical manual QA FAIL is not globally cleared, SEC-01 and other
+release limits remain. Installed 0.46.0 is not stopped or replaced. Installed and
+packaged-product GUI acceptance remain pending; no new Git commit is authorized.
+
+The outline regression now uses the actual editor schema and recognizes supported
+link headings; its old minimal schema predated link support. Find/outline 16 cases
+PASS. The older opaque-code fixture now has unsupported fence metadata, preserving
+its protection assertion while basic closed fences are intentionally editable.
+
+Unsigned candidate package verification PASS: 451 app source fingerprints,
+46 packaged project runtime files and 10,359 ASAR entries checked. No private or
+unexpected project entries. Renderer rebuild is byte-identical; package/plist
+0.49.0 and bundled arm64 Electron 43.8.7 match. ASAR SHA-256:
+89bb7ebb3415d77493cbb2bad3affb98eb5e20fda97b300048f42cbef91e10b3.
+The installed application is unchanged. Candidate app is retained only in the
+local verification directory; it has not been installed or GUI-accepted as a package.
+
+
+### Common-authoring closeout and installation — 0.49.0 (2026-11-06)
+
+The user authorized this stage closeout and confirmed the old app had exited before
+replacement. Evidence: original checkout `.local/verification/authoring-closeout-80efopr8/`.
+This supersedes the earlier candidate's pending installation status; the version
+stays 0.49.0 because this fixes the same uncommitted feature candidate.
+
+The new shared mixed-writing E2E exposed four genuine integration gaps, each with
+RED/GREEN evidence: a separately typed heading or mixed-paragraph space was trimmed from projection;
+Enter after a linked paragraph was rejected; a bare fence before the original
+terminal newline was treated as opaque; and fast structural keys were discarded
+while text IPC was pending. Fixes preserve explicit source spans, insert only a
+paragraph separator after a linked paragraph, retain the terminal newline, and
+reuse the existing optimistic command queue. Main still checks sender/session,
+revision and the complete intended projection. No writer, save policy or overwrite
+permission changed. Local bounded self-review found no remaining blocker in this
+closeout diff; this is Codex self-review, not independent review.
+
+- 351 targeted Node cases PASS on the final source (`node-delivery.log`). Delayed acknowledgement, lost response,
+  Undo/Redo, exact LF/CRLF/CR and untouched original bytes are covered.
+- Five distinct source Electron workflows PASS: mixed writing/export/recovery,
+  heading/list prefixes, loaded quote/code, paragraph/list boundaries and list
+  ranges. Nine clean process exits. Evidence is in `source-e2e-queue.log`
+  (three passing cases) and `boundary-e2e-final.log` (two passing cases). The final
+  mixed-writing run, including per-key typing after formatted text, passes in
+  `mixed-e2e-complete.log` and supersedes the earlier mixed run. The two
+  earlier failures in the former log are resolved by the latter: preserve the
+  specific empty-list exit hint, and update the old opaque-code fixture to use
+  unsupported metadata now that ordinary closed fences intentionally are editable.
+- Real product ASAR workflow PASS (`package-e2e-complete.log`): mixed authoring,
+  original BOM/CRLF preservation, exclusive export, target-exists refusal, readonly
+  reopen, later edits without export mutation, three starts with draft recovery,
+  and a second ordinary invocation reusing the app instance. Export SHA-256:
+  762cf0e3fcf76e4a4278b01be1a19b71fbf966b2dc43f2ab85937111c02a3d69.
+  Tests explicitly preserve the original terminal newline and accept an absent
+  optional export-receipt field after recovery; neither correction changes product
+  state semantics. Dialog choices and clipboard are controlled; not native IME QA.
+- Package checks: 452 source fingerprints, 46 packaged project runtime files,
+  10,359 ASAR entries; no private/unexpected project entries. Electron 43.8.7 arm64,
+  package/plist 0.49.0. Final ASAR SHA-256:
+  e1598edee9f61cca57da7ee09bf90c2ad962381e42ca1dcaad76da367713826c.
+- Installed `~/Applications/Markdown.app` matches that package. All 528 bundle
+  entries (file hashes, symlink text and modes) verified. 0.46.0 retained intact at
+  `installation/rollback/Markdown-0.46.0.app` under the evidence directory; mappings,
+  manifests and instructions in `installation/`. The intermediate 0.49.0 bundle
+  is also retained under `installation-final/rollback/`; final installation hashes
+  and recovery mapping are in `installation-final/`. Installed startup to welcome
+  and exit code 0 PASS (`installed-startup-final.json`); no user document opened and no user draft migration.
+- Successful Home fixtures `Writing-synthetic-E2E-BcvgdU` (intermediate) and
+  `Writing-synthetic-E2E-WZmcck` (final) were reclaimed by the
+  existing identity-checking helper. Two empty failed-run fixtures were moved
+  intact to `retained-home-fixtures/`, with inode/path mapping; no failure evidence
+  was deleted. Successful synthetic product draft was archived via the app API;
+  failed-run draft evidence remains retained. Other synthetic originals/exports
+  remain in isolated temporary directories recorded by logs. No historical cleanup.
+
+Remaining boundaries: complex/nested Markdown, splitting link contents, marked
+quote splitting and existing-file overwrite stay restricted. `coordination-required`
+is unchanged. Native IME remains NOT VERIFIED and the historical manual FAIL is
+not globally cleared. Air/DeepSeek/full CI were not run; no release sign-off or
+new Git commit/push/merge/tag was performed. Preserve the accepted visual baseline.
+The next major direction is everyday file workflow, starting with recent documents
+and a clear resume-writing entry, not another series of individual formatting stages.
+
+### Local checkpoint preparation — 0.49.0 (2026-11-06)
+
+User approved the proposed local checkpoint before the next file-workflow batch.
+The 35 candidate files and 452 source fingerprints matched the closeout evidence;
+only current documentation status changed for this checkpoint. Version remains
+0.49.0. Reuse the 351 Node, five source Electron, product-package and installed
+startup results above. This is a local WIP, not merge or release acceptance.
+Native IME/historical QA, full CI, independent-review and overwrite limits remain.
+
+
+### Recent documents and resume writing — 0.50.0 candidate (2026-11-06)
+
+The authorized preceding checkpoint was completed as `d8a3f25e2543161a05af8dcea21762dc805611cb`
+(`feat(desktop): checkpoint common Markdown authoring`), version 0.49.0, 35 files.
+The tree/index were clean afterward. This new file-workflow slice is uncommitted
+0.50.0; no push, merge, tag or release. The installed application remains 0.49.0.
+
+Welcome now shows three draft entries and six recent files; the sidebar panel
+shows up to 12 recent files, Refresh and Clear list. Only successful explicit
+readonly opens (native selection, recent entry or verified exported-file shortcut)
+enter the catalog. Temporary copies do not. Resume uses the existing draft service
+and retains the body, not old Undo/Redo history or file-saving authority.
+
+Main owns the recent ID/path mapping. Renderer submits only an ID; main reopens
+through the existing bounded File Store/Service, checking original-byte SHA-256,
+device and inode before provisioning a new read-only session. Missing, changed,
+replaced and symlink targets are refused while the active document is preserved.
+The user can explicitly select the changed file through native Open. No directory
+scan, overwrite authority or Save As policy change; `coordination-required` remains.
+Preload/renderer pause recent actions during pending or unconfirmed input, and
+lost/malformed IPC replies retain the unknown-result fence.
+
+A separate `Recent Documents` directory below the product's private userData uses
+the existing draft-store protocol (0700 root, 0600 verified snapshots). It stores
+paths/identities/hashes/times, not document bodies. At most 12 entries and two
+verified generations are retained. Clear writes an empty current catalog; it does
+not delete Markdown files/drafts or securely erase the previous path snapshot.
+Catalog damage disables shortcuts and retains evidence without blocking native
+Open. No existing user draft schema or backup writer was changed.
+
+Evidence under control checkout `.local/verification/recent-documents-o27o05_z/`:
+
+- `recents-node-final.log`: 147 targeted Node cases PASS across recent metadata,
+  read-only open, IPC/preload, draft persistence/view, close/view, writing shell
+  and launch-mode tests. `confirmed-actions-final.log`: one additional confirmed
+  export-open history test PASS (148 total). The earlier differently named filter
+  matched no case; `confirmed-recent-test.log` is not acceptance evidence.
+- Existing hostile-markup readonly test was stale after 0.49 link support; its
+  baseline failure was reproduced. Corrected only the expectation: blocked HTML
+  and images stay opaque; a dangerous link renders an inert span with no href.
+  No production link/navigation policy was relaxed.
+- `recents-gui-final.log`: Pro source workflow PASS, three clean exits; original
+  BOM/CRLF retained, restart draft recovery, readonly reopen, changed-target
+  refusal and clear-list persistence. Earlier root-alias and hidden-window resize
+  failures were test-fixture issues, corrected; their logs remain.
+- `air-evidence/run.log` and `result.json`: same workflow PASS on Air after the
+  user confirmed its desktop available. Three clean exits, no watchdog or remaining
+  test processes. 54 project files plus bounded runner/manifests; copied isolated
+  dependencies, no installation or shared writable profile. Node 24.20.0,
+  Electron 43.8.7 arm64; source/tool hashes unchanged. Input manifest SHA-256
+  `cdfa56b35e69d9a020617fa7791fb18ec9e28df6136bd5d61d4adba345acd9cb`.
+  Returned archive SHA-256
+  `285486da73feb5aec22662b5b238f0e2a28ed5ace9416646b56f9e0e7b0432bc`.
+  Normal/narrow screenshots were visually checked. This is controlled Electron
+  interaction, not native IME or physical dialog acceptance.
+- `package-verification.json`: 456 source fingerprints, 48 packaged project runtime
+  files, no unexpected/private project entries; package/plist 0.50.0. ASAR SHA-256
+  `5ff8d5aa9035f00eb7dea3cf7a7b32dfe9adbf9eb430655a1de8999f32a2b38f`.
+  `package-runtime-smoke.log` verifies actual packaged source-map projection and
+  format/service/session/recent imports. Builder dependency-reference warnings
+  remain in `package.log`; this bounded import check is not a full packaged GUI
+  test. The new app has not replaced the user's installed 0.49.0 bundle.
+- All test documents/catalogs/drafts were synthetic and isolated in temporary
+  roots recorded by the evidence. No Home-top-level test directory was created.
+  Air run retained at its private `air-testing/runs/markdown-recents-o27o05_z/`;
+  its synthetic fixture is `/private/tmp/document-recents-e2e-1leWmS`. Failed Pro
+  fixtures/logs were preserved; no historical cleanup or user-data migration.
+
+Bounded Codex self-review found no remaining blocking issue in this slice; it is
+not independent model review. New modules 62/78 lines, new tests 63/51; central
+IPC327/renderer442 reuse existing paths rather than creating a second architecture.
+Native IME remains NOT VERIFIED, historical manual/formal FAIL is not globally
+cleared, full CI and independent review were not run. Existing-file overwrite,
+complex Markdown and release limits remain. Next direction: draft naming and
+export-name continuity, after accepting this candidate; no new slice started here.
+
+
+### Draft naming and export-name continuity — 0.51.0 candidate (2026-11-06)
+
+Continues the approved everyday file-workflow direction on `feat/document-close`,
+HEAD `d8a3f25`. The previous 22-file 0.50.0 candidate is preserved. Source/package
+version is now 0.51.0; installed app remains 0.49.0. No commit, push, merge, tag,
+release, user-data migration or change to existing-file overwrite protection.
+
+The title menu opens a bounded naming form for independent drafts. Main accepts
+only label metadata, a session ID, expected revision and expected previous label;
+no renderer path or body. Sender/session checks and pending/unknown input fences
+remain. A verified write through the existing draft store updates the live name.
+Failure keeps the prior name/body; unknown backup results stop retry. A failed
+pending body backup does not cause an automatic second write during rename.
+Recovery now uses the stored name unchanged; pre-existing labels are not migrated.
+Named empty drafts get a backup. Original files, content revisions, Undo/Redo and
+previous export receipts are unchanged. Save As supplies a main-owned filename
+suggestion only; native destination validation and exclusive create are unchanged.
+
+Evidence: control checkout `.local/verification/draft-names-g_gbqjlq/`:
+
+- `names-red.log` records the initial missing-feature test failure.
+  `names-node-final.log`: 130 targeted cases PASS across draft names, draft store,
+  session/preload, close and save-directory metadata. This is bounded regression,
+  not a full CI claim.
+- `pro-e2e-051.log` and `pro-e2e-051/`: final candidate workflow PASS, two clean
+  process exits. Checks cancel/invalid names, controlled composition, exact source/
+  revision/history preservation, suggested filename, new-file SHA-256, existing
+  target refusal, unchanged original/export, and named restart recovery. Normal
+  and narrow screenshots inspected. Native dialog selections were controlled;
+  native Chinese IME remains NOT VERIFIED.
+- Earlier Pro harness failures remain recorded: the first launch supplied the
+  wrong isolated-create root prefix and was correctly refused before writing;
+  the second checked cancellation on a persistent receipt instead of the separate
+  operation status. Both test defects were corrected without relaxing protections.
+  Their Home fixtures were retained by the existing conservative cleanup helper:
+  `Writing-synthetic-E2E-hSyrWq` is empty; the other retained fixture and its one
+  synthetic export are mapped by `pro-e2e-2/*/fixture-cleanup.json`. Successful
+  Pro runs reclaimed only their verified fresh fixture/file after both processes
+  exited (`pro-e2e-final/` and `pro-e2e-051/`). No historical artifacts were touched.
+- Air: preflight initially confirmed the desktop, Node24.20.0 and target identity.
+  After explicit approval, 57 project files plus runner/manifests were transferred
+  to `air-testing/runs/markdown-draft-names-g_gbqjlq/`. Input manifest SHA-256:
+  `0adc9fc0f53e18a46a69296810215e962d9f4c762f0f54f390569023c4c10810`.
+  The runner verified input and copied tool hashes (Electron43.8.7), then detected
+  a locked screen before launching Playwright/Electron. **BLOCKED**, zero GUI tests;
+  no blind retry, privacy changes or new Home fixture. `air-console.log` preserves
+  the failure, `air-final-state.json` confirms lock. Its sole process-text match is
+  the short-lived read-only inspection command itself, not a test application.
+  Transferred input/tool copies remain in that private run directory.
+- `package-verification.json`: 50 packaged project runtime files match source,
+  version/plist 0.51.0, no unexpected/private project entries. ASAR SHA-256:
+  `a32ff946980c0cd55c3f203e38e61130360b8542e520001daced9330b59f2709`.
+  `package-runtime-smoke.log` confirms actual packaged names, source projection,
+  format/session/draft/service/recent imports with Electron43.8.7. Builder dependency
+  reference warnings remain in `package.log`; this does not claim full packaged GUI
+  or installed acceptance. The user's installed app/profile were not replaced.
+
+Bounded Codex self-review found no remaining blocking finding in this slice; this
+is not independent model review. The existing storage format/writer and save
+policy are reused. Historical manual/formal FAIL, native IME, full CI, independent
+review and release gates remain distinct. Next: review and close the combined
+file-workflow candidate, then safely update the installed app when authorized.
+
+
+### File-workflow local checkpoint and installation — 0.51.0 (2026-11-06)
+
+User accepted the proposed closeout: preserve the combined recent-documents and
+draft-naming batch as one local WIP and safely update the app. The exact 29-file
+candidate and all 501 source fingerprints matched prior evidence. No product or
+test implementation changed during closeout; only current documentation status
+changed. Version stays 0.51.0 (feature SemVer already applied in package and lock).
+Codex local self-review found no new blocking issue; no independent review was run.
+The changed-file credential scan found no high-confidence secret pattern. This is
+local commit readiness, not merge/publication or complete user acceptance.
+
+Evidence: control checkout `.local/verification/file-workflow-closeout-20261106/`.
+Reuse the prior 130 Node and Pro naming/export/recovery workflow with matching
+0.51.0 fingerprints, and retain the separate 0.50.0 Pro/Air and 148 Node results
+as dated slice evidence. `recents-051.log` adds five passing recent-file cases on
+the combined candidate: readonly identity, changed/replaced/symlinked targets,
+catalog protection, clear-list semantics and unaffected files.
+
+`candidate-gui.json`: actual packaged 0.51.0 startup, recent panel, empty scratch
+draft name validation/cancel PASS; exact source/revision/label/history unchanged.
+`installed-gui.json`: installed 0.51.0 startup and recent panel PASS. Both processes
+exited normally (code 0). No user document was opened, no valid name was committed
+and no Markdown was exported by these two checks. Existing draft/catalog record
+identities, hashes and modes matched before/after. The runtime's blank scratch
+and session directories remain only in its usual private temporary roots; no new
+Home-top-level fixture was made. The naming screenshot was visually inspected.
+These are bounded product-entry checks, not a full packaged writing/recovery or
+native-dialog test. Prior synthetic source E2E supplies the persistence coverage.
+
+`bundle-rebuild.json`: independent rebuild from the original snapshot root is
+byte-identical. Building from the live Worktree instead changes esbuild dependency
+location labels because the snapshot links its node_modules; exact replacement
+of that one relative prefix accounts for the entire difference. No runtime drift
+or source/bundle change was needed; location-independent output is not claimed.
+The installed ASAR remains
+`a32ff946980c0cd55c3f203e38e61130360b8542e520001daced9330b59f2709`.
+
+`installation/result.json` verifies 528 entries in both the new and old bundles
+(file hashes, modes/ownership and link targets). The exited 0.49.0 bundle was moved
+unchanged to `installation/rollback/Markdown-0.49.0.app`; new 0.51.0 is installed at
+`~/Applications/Markdown.app`. Recovery paths and instructions are in
+`installation/recovery.json`. No deletion or user-profile migration occurred.
+
+Only the 29 approved candidate paths enter the local WIP commit; manifests,
+screenshots, packages and recovery material stay ignored under `.local/` in the
+control checkout. No remote operation, push, merge, tag or release. Native IME
+remains NOT VERIFIED; historical manual/formal FAIL, SEC-01, full CI and human
+workflow acceptance are not cleared. Air naming GUI remains BLOCKED by its prior
+lock check. Original overwrite remains prohibited by `coordination-required`;
+new-file export restrictions and uncertain-write fencing remain unchanged.
+
+
+## Structured writing — tasks and nested lists (2026-11-06, source candidate)
+
+Approved scope: one task/nested-list workflow after installed 0.51.0 preflight.
+The preflight's name/edit/export/readonly-reopen/recovery check passed on Pro;
+the script's first attempt had an outdated restored-name assertion, corrected
+without changing the product. Installed app/ASAR remains 0.51.0. Synthetic preflight
+drafts are retained as recovery evidence; no user document was opened.
+
+The candidate recursively projects tight, one-line-per-item lists (six levels,
+32 total items) and retains original source offsets/markers. New task controls,
+`- [ ] ` shortcut, Enter continuation (new tasks unchecked), Tab subtree indent,
+Shift+Tab lift, nested empty-task lift, first/last top-level exit and same-parent
+leaf-range replacement/deletion/single-line paste use the existing controller,
+main revision validation and exact source history. Ordered sublists start at 1
+where Markdown requires it. Full projection equality gates each structural edit.
+No new persistence system, file target authority or overwrite capability is added.
+
+A GUI-reproduced list Enter issue used the stale PM caret after native line-end
+movement. The existing native-selection helper now reconciles list structural
+keys only for a collapsed caret in an unchanged list paragraph owned by the
+current PM view, outside pending or composed input. This covers both native
+line-end moves and clicking from another paragraph before selectionchange.
+The latter was reproduced by the final nested-export test; its deterministic
+Node regression failed before the fix and passed afterwards; the final GUI
+workflow also passed.
+
+Verification: 396 relevant Node tests PASS; three Pro Electron workflows PASS
+(task/nested lists, previous same-level range editing, mixed authoring closeout).
+Original BOM/CRLF bytes, readonly controls, export SHA-256, reopen and restart
+recovery are verified. Dialog choices and clipboard/composition are controlled;
+native IME remains NOT VERIFIED. Historical manual/formal FAIL and SEC-01 remain.
+Air, full CI and independent second-model review were not run. Codex self-review
+used strict diff criteria; no unresolved confirmed P0/P1 was found in this scope.
+Checkbox alignment was inspected and corrected without changing the visual baseline.
+
+Known boundaries: loose/multiline items, mixed/ambiguous source boundaries,
+subtree/cross-parent selections, multiline list paste, splitting/joining link-bearing
+items and whole structured-list conversion remain refused. An empty ordinary
+nested bullet may be ambiguous with a Setext underline/non-interrupting list; type content before indenting it. This
+is a bounded writing candidate, not complete Markdown or release acceptance.
+
+Local evidence: control checkout `.local/verification/structured-lists-czq6fioh/`
+contains baseline hashes, installed-workflow record, Node output, final GUI
+screenshots/evidence and candidate file hashes. Failed diagnostic fixture
+`Writing-synthetic-E2E-WPotzs` (outdated test assertion) and
+`Writing-synthetic-E2E-6e8xUE` (test did not wait for draft backup) are retained,
+without treating failed test completion as safe cleanup. Successful Home fixtures
+are reclaimed by the existing ownership/hash mechanism; all other evidence remains
+in local/temp verification areas. No historical archives/fixtures were touched.
+
+The active branch remains `feat/document-close`, based on `755c751` (0.51.0).
+Version is unchanged; propose minor 0.52.0 when a local checkpoint is authorized.
+No commit, installation replacement, push, merge, tag or release in this batch.
+
+
+## 0.52.0 structured-list local delivery (2026-11-06)
+
+The user approved continuing the proposed candidate-build/install step. This
+closeout preserves all 29 prior candidate files at their verified baseline before
+version/documentation updates; functional source, tests and bundle are unchanged.
+Package and lock use 0.52.0 (feature minor). AGENTS/current docs describe the
+installed bounded task/nested-list behavior. No Git commit was requested or made.
+
+Evidence: control checkout `.local/verification/structured-lists-delivery-mkv6frr2/`.
+- The preceding 396 focused Node / three Pro source workflows are reused with
+  matching source hashes. Nine entry/packaging policy checks additionally PASS.
+- Independent renderer rebuild is byte-identical: SHA-256
+  `89953920234634153842be04261f2ce02ef798e7f54d2aac7cf8a4cf1c0a66f4`.
+- Offline unsigned arm64 package uses the existing config and cached Electron
+  43.8.7. All 505 snapshot files and 52 packaged project runtime files match;
+  private/unexpected project entries are absent. ASAR SHA-256:
+  `dc8dd87293299682a273a360c5a656415bdf978cdb16d1c2db111370be656d3d`.
+- Actual packaged-product GUI PASS: task creation, nested child, checkbox history,
+  exclusive export/hash and restart/recovery with checked/nested state retained.
+  Two clean exits; no existing user file opened. Native dialog choices are
+  controlled; this is not native IME or human interaction acceptance.
+- Installed 0.52.0 startup and recent-panel checks PASS. Existing draft/catalog
+  record identities, modes and hashes remain unchanged. The candidate test adds
+  one explicitly synthetic draft; its Home export fixture is safely reclaimed.
+  Recent history is unchanged. No historical fixture or evidence is removed.
+- Installation manifests verify 528 entries for both old/new bundles. Old
+  0.51.0 is retained at `installation/rollback/Markdown-0.51.0.app`;
+  `installation/recovery.json` maps its safe restoration. No profile migration.
+
+Git remains `feat/document-close` at `755c751`; local main is not ahead of this
+branch (six local commits ahead, without a remote fetch). Targeted diff/credential
+checks found no extra files or high-confidence secret pattern. Final acceptance
+and commit readiness still require the focused list interaction confirmation;
+this installation is a local candidate, not final feature or public-release PASS.
+Native IME NOT VERIFIED, historical manual/formal FAIL, SEC-01 and original-file
+overwrite prohibition remain. No Air, new Reviewer, full CI, push, merge, tag or
+release in this closeout. Next product batch: basic GFM table authoring after
+this list candidate's acceptance, using the existing model and source patch path.
+
+
+## 0.53.0 basic GFM tables — coherent candidate batch (2026-11-06)
+
+User authorized the next table workflow from the preserved 0.52.0 list candidate;
+no Git checkpoint or inferred manual PASS was introduced. New source projection,
+source patch commands, rendering-only PM nodes and a contextual toolbar implement
+creation, plain-cell edit/one-line paste, navigation, rows/columns, Undo/Redo and
+export/recovery. Main still validates session/sender/revision and computes source
+ranges itself. Renderer cannot provide save paths or source patches. The existing
+native caret reconciliation also accepts unchanged table-cell paragraphs before
+structural keys. No file store, save permission or dependency policy changed.
+
+Limits: rectangular outer-pipe tables, 8 columns and 32 rows including the header;
+delimiter cells have at least three hyphens. Source padding is editable literal
+cell text; untouched alignment, cell spelling and line endings remain exact.
+Rich/escaped/ragged/multiline cells, cross-cell range replacement, spreadsheet
+paste, merged cells and formulas are refused. Header/final-column deletion is
+refused; other deletion is undoable. Table Enter/Tab append a row when necessary,
+starting in its first cell; Cmd+Enter returns to a following supported paragraph
+or creates an empty prose slot. Structure changes stay fenced during composition.
+
+Verification in control checkout `.local/verification/basic-tables-5xbh2pfl/`:
+- TDD: seven initial feature tests failed before implementation; all now pass.
+- 421 focused Node checks PASS, including 15 new table mapping/controller cases:
+  all row/column positions, LF/CRLF/CR inverses, capacity/range limits, protected
+  syntax, surrogate boundaries, read-only/revision fences, queued typing, main
+  history, controlled composition and acknowledgement mismatch recovery.
+- Two Pro source Electron workflows PASS: the full table workflow and existing
+  task/nested-list regression. BOM/CRLF original unchanged; new-file SHA-256,
+  readonly reopening and two-start draft recovery verified. Screenshots inspected.
+- Actual unsigned 0.53.0 arm64 package PASS: cell typing, row creation, Undo/Redo,
+  exclusive export/hash and restart recovery. Prior private draft records and
+  recent catalog unchanged; one clearly named synthetic table draft is retained.
+- Installed 0.53.0 startup/recent-panel check PASS; prior draft/catalog identity,
+  mode and hashes unchanged, normal exit. First automation attempt ended with
+  `Resulting promise was garbage collected`; the window-ready recheck passed.
+  Both attempts are retained; no product source was changed to bypass the check.
+- Installation verified 528 entries for each bundle. Previous 0.52.0 is retained
+  at `installation/rollback/Markdown-0.52.0.app`; `installation/recovery.json`
+  records restoration. ASAR SHA-256 is
+  `ab0bba2991ce9d898e9527618101496e34cb7880c218eba829ead4b8c3c4ab7c`.
+  No user document opened or profile migration performed.
+- Package verified: 512 source files / 56 runtime project entries, no private or
+  unexpected project entries, existing Electron 43.8.7. No dependency installation.
+- Successful Home export fixtures `Writing-synthetic-E2E-cZk7ts`,
+  `Writing-synthetic-E2E-3KYETb` and `Writing-synthetic-E2E-YhWWQH` reclaimed by the
+  existing identity/hash cleanup after all processes exited. No failed Home
+  fixture this batch; old fixtures/evidence remain untouched. Other synthetic
+  inputs/recovery data remain in local or temporary verification directories.
+
+Codex strict Diff self-review found no unresolved confirmed P0/P1 in this scope;
+this is not an independent review. Native dialogs are controlled; IME NOT VERIFIED,
+prior manual/formal FAIL, pending human list/table acceptance, SEC-01 and release
+limits remain. No Air, Reviewer, full CI, commit/push/merge/tag/release claim.
+Version/package-lock advance to 0.53.0 for the feature candidate. Exact added and
+modified file fingerprints and the preceding 505-file baseline are retained locally.
+
+
+## Structured-writing mixed-document closeout (2026-11-06)
+
+One additional regression in `e2e/document-tables.spec.cjs` reuses the existing
+mixed-authoring helper and isolated draft/fixture mechanisms. It covers heading,
+bold/italic/code/link authoring, list-to-quote-to-fence transitions, task nesting,
+table text/Unicode paste/column history, real sidebar switching and 860×740 layout.
+Exact new-file content/SHA-256 is checked; later edits leave that file unchanged.
+Fresh-process recovery keeps the later edits with no old Undo or export authority.
+Backup acknowledgement must match the current revision before restart.
+
+Evidence: control checkout `.local/verification/structured-closeout-fmq44aa1/`.
+The final Pro run `gui-final.log` PASS has two normal exits and zero page errors;
+its screenshot was inspected. The preceding corrected workflow also passed, not
+a distinct second test. Earlier attempts failed at mixed-edit timing, hidden
+legacy controls or screenshot capture of a resized hidden window. The last two
+are confirmed harness issues. A local preload probe proves that polling snapshot
+IPC can block concurrent format requests; it does not prove the cause of every
+earlier timing failure. The final test passively observes the renderer's confirmed
+source during typing, uses the visible sidebar/task controls and shows only its
+isolated synthetic window for capture. No safety gate was changed. Temporary
+controller diagnostics were removed; restored controller and rebuilt bundle
+match the previous candidate exactly. No new product defect was confirmed.
+
+Both successful synthetic Home exports (`Writing-synthetic-E2E-vbsj8B` and
+`Writing-synthetic-E2E-M2LQd8`) were reclaimed only after clean process exit and
+identity/content verification. Earlier failures occurred before export and
+created no Home fixture; isolated temporary profiles/drafts and diagnostic logs
+remain evidence. No user document, installed app or real private catalog changed.
+
+All 512 baseline source fingerprints matched before this work. Previous 421
+focused Node / source and package evidence is reused for unchanged runtime;
+no unrelated Node, full CI, Air, Reviewer or native-dialog/IME pass is claimed.
+This is Codex local Diff self-review, not independent review. Version stays
+0.53.0 because only tests/docs changed. The table E2E remains under 150 lines.
+Human table/list QA and native IME NOT VERIFIED, historical manual/formal FAIL,
+SEC-01, original readonly and `coordination-required` remain. No commit/push/
+merge/tag/release; the next gate is bounded human experience and an explicitly
+authorized local checkpoint.
+
+
+## Image-reference authoring — 0.54.0 source candidate (2026-11-06)
+
+The user authorized continuing development from the 0.53.0 candidate, not a Git
+checkpoint or a human-acceptance PASS. The bounded image slice adds standalone
+`![description](address)` cards, insert/edit/remove, Enter back to prose, history,
+export/reopen and draft recovery. Existing titles, untouched bytes and line endings
+are preserved. Cards contain DOM text only and state “未加载预览”; `img-src 'none'`
+and `connect-src 'none'` are unchanged. No image file read, fetch, import, copy or
+new persistence authority is introduced. Relative addresses remain literal and
+may need adjustment when exporting to a different folder. Inline/reference-style,
+nested and complex image syntax remains protected. This is not full image support.
+
+Verification lives under the control checkout's
+`.local/verification/image-references-8_6dxh3h/`:
+
+- `node-red.log` preserves initial missing-feature failures; `node-final.log`
+  records 316 PASS / 0 FAIL, including image mapping, IPC/history, stale/revoked
+  contexts, composition, failed transport and prior source/list/table checks.
+- `e2e-images-final.log` and its `evidence.json` record the Pro GUI image workflow:
+  cancel/invalid inputs, edit/remove/history, prose continuation, exact exported
+  source/SHA-256, readonly reopen and fresh-start draft recovery. Two clean exits;
+  zero observed HTTP requests. Light/dark/narrow screenshots reviewed.
+- `e2e-mixed-regression.log` records the existing mixed-authoring workflow PASS
+  on the image candidate, with two clean exits. No prior pass is reclassified as
+  native IME acceptance. Dialog choices and composition are controlled.
+- The renderer rebuild matches SHA-256
+  `a32a9d621f14dd288f927835f6b4035b94479ab1af7710b3a3ca082689600dc4`.
+  Self-review checked only this batch and necessary dependencies; it is not an
+  independent second-model review. No new confirmed P0/P1 was found.
+- Three successful GUI runs (first image pass, theme follow-up, mixed regression)
+  created one synthetic Home export each; all three were reclaimed after process
+  exit and identity/content confirmation. Temp-only synthetic inputs, isolated
+  drafts and verification outputs remain as evidence. No user file was opened.
+
+Version/lock 0.54.0 is an uncommitted source candidate. Installed Markdown stays
+0.53.0; this batch does not claim packaging/installed acceptance, Air testing,
+DeepSeek review, full CI, native IME or human acceptance. Original overwrite stays
+blocked by `coordination-required`; unknown outcomes retain drafts and are not
+retried. Historical formal/manual FAIL, SEC-01 and release limits remain open.
+
+
+## Structured-document delivery — 0.54.0 installed (2026-11-06)
+
+This closeout changes documentation only. It reuses the prior 316 focused Node
+and two source Electron results after matching all 519 candidate fingerprints;
+version remains 0.54.0 and runtime code/tests are unchanged. Evidence root in the
+control checkout: `.local/verification/structured-delivery-054-tcd63dai/`.
+
+- `package-verification.json`: 519 source fingerprints and 60 packaged project
+  runtime files match; arm64 Electron 43.8.7, version 0.54.0 and Document entry
+  confirmed. No unexpected project or private-data entries in the ASAR. The
+  existing builder dependency-location warnings are retained in `package.log`;
+  actual package/runtime checks below passed. No new dependency install was used.
+- `candidate-gui.json`: actual package, combined headings/tasks/nesting/table/
+  image-reference creation and history, prose continuation, exclusive new-file
+  export/SHA-256, later draft edits isolated from that export, and restart recovery
+  PASS; two normal exits. Native dialog selections are controlled. No existing
+  user document was opened. This does not repeat native IME or human acceptance.
+- `installed-gui.json`: actual installed 0.54.0 startup and recent-panel PASS;
+  one normal exit. ASAR SHA-256 for package and installed bundle is
+  `f02cfa89a1848c6c9d30a83132f7f1123816d8dc43db3eb4ed382d2ea78cfdf6`.
+- Before/after comparisons preserve all existing draft/catalog record identities,
+  permissions and hashes. One named `Synthetic structured 0.54 …` recovery draft
+  remains as test evidence. The one Home export fixture was reclaimed after
+  process exit, exact identity/content confirmation and successful verification.
+- `installation/result.json`, `candidate-manifest.json`, `rollback-manifest.json`
+  and `recovery.json` retain installation checks and restore mapping. The old
+  0.53.0 bundle is under `installation/rollback/Markdown-0.53.0.app`; no permanent
+  deletion or profile migration occurred. To recover, exit the app, retain the
+  current bundle at an unused location, then restore the old bundle to
+  `~/Applications/Markdown.app` and verify its manifest. Never overwrite a bundle
+  or delete/migrate private profiles during recovery.
+
+Image preview/import/attachment copying remains unimplemented. Original-file
+saving is still blocked by `coordination-required`. Native IME NOT VERIFIED,
+historical manual/formal FAIL, focused human list/table/image QA, SEC-01 and
+release gates remain open. No new Air, independent Reviewer, full CI or public
+release pass is claimed. No Git commit, push, merge, tag or release was performed.
+
+
+## Structured-authoring local WIP checkpoint — 0.54.0 (2026-11-06)
+
+The user accepted the proposed next step of closing out the installed candidate
+as a local checkpoint. Scope is the same 47 files: 25 runtime files (including the
+required generated renderer), 14 test files, six documents and two version files.
+The source version already reflects the three feature slices, from checkpoint
+0.51.0 to candidate 0.54.0; no extra bump is warranted for preservation.
+
+All 519 source fingerprints match `structured-delivery-054-tcd63dai` before the
+checkpoint wording updates. The generated renderer matches the previously rebuilt
+artifact byte-for-byte. Reused evidence: 316 focused Node checks; image and mixed
+source Electron workflows; 60 actual-package runtime matches; package structured
+writing/history/exclusive export/restart recovery; installed startup/recent-panel
+checks. No tests or GUI were repeated, and no new fixtures were created.
+
+Bounded local self-review covered the changed source mappers, editor integration,
+selection/composition/history guards, inert DOM rendering and existing main-owned
+command boundary. No new confirmed P0/P1 was found. The bounded credential scan's
+only hit is an intentional fake credential-bearing URL rejection fixture, not a
+credential. No dependency change beyond package/lock version fields. Handwritten
+diff whitespace checks pass; the unchanged generated bundle retains the previously
+recorded third-party whitespace diagnostics. No independent reviewer was invoked.
+
+This is a WIP preservation commit, not acceptance or release. Focused human
+list/table/image QA, native IME NOT VERIFIED, historical formal/manual FAIL, SEC-01
+and full-CI/release gates remain open. No image preview/import/attachment copying,
+original overwrite, save-policy expansion, push, merge or tag. Installed App,
+rollback bundle and private drafts/catalog are untouched. Exact scope, before/after
+hashes and Git result: control checkout `.local/verification/structured-checkpoint-054-x3cww68z/`.
+
+
+## Local image workflow — 0.55.0 candidate (2026-11-06)
+
+Native selection grants one main-owned image capability to one document. No
+renderer path/bytes or general file-read IPC. Reads require regular no-follow
+single-link files, bounded bytes, stable file/directory identity, supported raster
+header/dimensions and native decoder acceptance. Source image bytes are never
+rewritten. Preview supplies validated PNG/JPEG data URIs only, rechecks session,
+revision and referenced name, and does not hold the editor mutation fence.
+Remote URLs and ordinary unmanaged relative references remain unloaded cards.
+
+Up to four distinct images, each 1 MiB / 4096 pixels per side / 16M pixels. Names
+bind the full SHA-256; at most 16 image capabilities retained per live document
+for canceled selections and Undo. No separate persistent image library. Draft
+record v2 includes exact images alongside text; the shared exclusive snapshot
+writer verifies them before confirming backup. Plain v1 drafts are unchanged;
+old app versions must not be used to recover v2 image drafts. Record bound is
+7 MiB, with existing 32-active/128-record limits and verified-generation retention.
+
+The existing utility writer and approved Home-child local APFS destination policy
+remain. Create sidecars exclusively, then Markdown, and confirm all content,
+SHA-256, identity and metadata in child and parent. Existing exact verified
+sidecars can be reused read-only. No overwrite, network loading, new save roots,
+whole-file serialization, or second save framework. Multi-file export is not an
+atomic transaction: partial/unknown results keep all potential paths and block
+blind retries. Draft/dirty state and last confirmed export receipt remain separate.
+Exported Markdown and its sibling attachments must move together.
+
+Evidence in control checkout `.local/verification/local-images-qmut5gpk/`:
+- `node-directed.log`: 211 targeted checks PASS; `node-final-state.log` and
+  `node-final-editing-2.log` rerun affected state/editing checks; one additional
+  attachment-substitution regression makes 212 distinct checked cases.
+- `node-image-writer-final.log`: real isolated child attachment creation/reuse,
+  partial writing, collision and post-child replacement checks PASS.
+- `e2e-final-state.log` + `e2e-final/`: two distinct Pro Electron workflows PASS;
+  local PNG/JPEG preview, BOM/CRLF, exact original bytes, Undo/Redo, exclusive export,
+  same-folder sidecar reuse, readonly reopen and draft recovery across clean restarts.
+  Dialog selections are controlled, not native-dialog/human/IME acceptance.
+- Initial test polling failure and negative/unknown write evidence retained, with
+  recovery mappings; successful synthetic Home fixtures reclaimed by existing helper.
+
+Review: Codex A self-review only. Corrections cover exact attachment receipt
+verification, image-count/capability enforcement and draft-version compatibility.
+No new confirmed unresolved P0/P1 found within inspected scope. 0.55.0 candidate
+is uncommitted; installed 0.54.0 stays unchanged. Native IME NOT VERIFIED, historical
+manual/formal FAIL, independent review, full CI, SEC-01 and release limits remain.
+
+
+## Local image delivery closeout — installed 0.55.0 (2026-11-06)
+
+All 524 feature-source fingerprints matched before delivery; the prior 212 Node
+and two source Electron workflows were reused. Actual-package test adds native
+macOS PNG picker acceptance via CUA, body preview/history, exact Markdown+image
+export, readonly reopen and restart recovery. Save/close dialog responses remain
+controlled; native IME NOT VERIFIED and historical FAIL remain open.
+
+Installed `~/Applications/Markdown.app` is 0.55.0 with matching ASAR; startup and
+recent-panel checks pass and exit normally. 0.54.0 remains in the delivery run's
+rollback directory, with full bundle manifest and recovery map. Keep v2 image
+drafts/new app when rolling back: 0.54.0 cannot restore those image records.
+
+Delivery harness corrections: wrong close selector; incorrect assumption that
+export reopening would not add a recent entry. Resumed the same synthetic draft
+and retained initial logs, without repeating the native picker or creating another
+draft. Prior user drafts kept identical hashes/identities. Original recent entries
+were preserved; the one synthetic addition was withdrawn using the existing
+verified snapshot writer, so logical history is restored while generations advance.
+One synthetic image draft remains recoverably archived. This run's Home fixture
+was moved intact to evidence after checking no active references; no permanent
+cleanup or historical-file changes.
+
+Control-checkout evidence: `.local/verification/local-images-delivery-055-96986cxv/`
+(`candidate-gui.json`, `installed-gui.json`, `recent-restoration.json`,
+`package-fixture-recovery-map.json`, `installation/result.json`). Native picker
+pass is automation, not human/IME acceptance. No Air/DeepSeek/full-CI or release
+claim; no runtime/test/version edits and no Git commit/push/merge/tag in closeout.
+
+
+## Long documents and read-only source — 0.56.0 candidate (2026-11-06)
+
+The outline now filters titles literally (case-insensitive); Enter jumps to the
+first match and Escape clears the query. Scrolling locates the active heading
+with logarithmic layout reads. The toolbar's **源码** opens the complete confirmed
+Markdown as selectable, read-only text, including protected syntax. It offers
+wrapping and Select All, reports line endings/BOM, and returns without changing
+article scroll, source, selection or history. Clipboard selection may normalize
+line endings and omits the BOM; export remains the byte-preserving file path.
+Pending/unconfirmed/composing input blocks opening; session/revision changes clear
+and dismiss the snapshot. No new IPC, writer, network access or save authority.
+
+A real 0.55.0 regression was found and fixed: attachment lookup dereferenced null
+source mappings for opaque HTML/unsupported blocks, preventing such files from
+opening. The regression failed before the one-line null guard and passes after it.
+43 focused Node checks and two Pro Electron workflows pass. The long fixture has
+116,352 bytes / 201 headings; one measured scroll used 8 heading layout reads.
+Timing samples (not a performance guarantee): open 263 ms, source view 44 ms.
+Light/dark/narrow screenshots were inspected. Dialogs and composition are controlled;
+native Chinese IME NOT VERIFIED, historical manual/formal FAIL, SEC-01, independent
+review, full CI and human acceptance remain open. Existing overwrite stays blocked
+by `coordination-required`; syntax/file limits and destination policy are unchanged.
+
+This is uncommitted source, not an installed/released 0.56.0. The installed App
+remains 0.55.0. Prior image work is preserved. Evidence is in the control checkout
+`.local/verification/long-document-gutntr4s/` (Node log, e2e-final, hashes and scope).
+New presentation helper is 62 lines; reading controller remains below 300 lines.
+The existing large renderer entry gains only import/wiring; no unrelated split.
+
+Harness-only corrections in this run: the first sandbox launch was unavailable;
+the initial test cwd did not match the existing safe-create prefix; a hidden-window
+screenshot timed out; the history assertion assumed a typed word was one edit.
+Those checks were corrected without weakening product gates. The separate opaque
+block issue above was a product defect. No Home test directories or real user
+profiles were used; temporary synthetic fixtures and failed-run evidence remain
+in the scoped temporary/evidence locations. No Air, DeepSeek, Git publication or
+installation was performed in this slice.
+
+
+## Long-document delivery — installed 0.56.0, bounded acceptance (2026-11-07)
+
+Reused 527 matching source fingerprints and the previous 43 focused Node / two
+source Electron passes. No runtime, test or version edits in this delivery slice.
+Verified 64 packaged project files, 9,637 ASAR entries and no private/unexpected
+project entries; actual runtime is Electron 43.8.7 arm64. Existing builder
+missing/duplicate dependency diagnostics remain in the log; package content and
+actual-runtime checks pass, not a substitute for full CI/dependency audit.
+ASAR SHA-256: `dd8882128ef4e245f859c42a82b5d65d19f7ef0a3361034b96c098af32520f14`.
+
+Actual package PASS at 20 ms/key: exact 1,066-character article, nine headings,
+filtered navigation, read-only source/selection/wrapping, unchanged scroll and
+revision on return, Undo/Redo, restart recovery and archive through existing UI.
+Installed startup/recent-panel/normal exit PASS; no user documents opened. Three
+successful normal process exits; no page errors or HTTP requests. Original draft
+and recent-catalog records retain their identity/content hashes. The successful
+synthetic draft is archived in the app, with its ID in local evidence.
+
+**Stress failure remains open:** initial zero-delay packaged typing lost rejected
+characters. An isolated diagnosis produced 947/1,066 characters and 118 observed
+`edit-queue-full` states; 20 ms/key produced all 1,066. The existing controller
+intentionally rejects the 65th pending edit, but later acknowledgements obscure
+its notice. This is an existing input-capacity/feedback limitation, not proven
+fixed by paced testing. No queue limit or editing protection was relaxed. Retain
+the failed synthetic draft and logs. Next bounded task is deterministic queue
+saturation feedback/recovery, before broader authoring/checkpoint acceptance.
+Two diagnostic startup attempts were refused because the harness test root/cwd
+did not meet existing constraints; corrected harness only, no product bypass.
+
+`~/Applications/Markdown.app` is 0.56.0; complete 0.55.0 rollback, bundle manifests
+and recovery mapping are in control-checkout evidence
+`.local/verification/long-document-delivery-056-nxbohlxj/installation/`.
+The same directory's parent holds GUI logs, screenshots, source hashes and input
+rate evidence/mapping. No Home fixtures or exported user files were created.
+No Air, DeepSeek, Git commit, push, merge, tag or release. Source/index remain
+uncommitted/empty. Native IME NOT VERIFIED, historical manual/formal FAIL, SEC-01,
+independent review, full CI and human acceptance remain open. Overwrite protection,
+file/directory policy and the accepted visual baseline are unchanged. This is
+limited local delivery, not complete writing acceptance or a release sign-off.
+
+
+## Input saturation protection — 0.56.1 local WIP (2026-11-07)
+
+Fixes the 0.56.0 transient queue-full warning. The existing 64-operation queue
+and main-owned revision/history are unchanged. The first otherwise valid edit
+refused at capacity is retained with the preceding queued source in the existing
+window-local recovery collection; editing pauses. Accepted operations drain in
+order, but later acknowledgements and document switches cannot erase the pause.
+A visible Chinese notice offers selectable Markdown; resuming requires an idle,
+confirmed state and explicit acknowledgement that the user has retained needed
+content and agrees to discard the unsubmitted change. No automatic retry occurs.
+Controlled composition completes before its overflow result is retained; the
+browser's real composition lifecycle is not synthesized or force-ended.
+
+These records are NOT persistent backups. Keys after the pause are not accepted,
+and closing/restarting loses this window-local evidence. Confirmed source alone
+remains eligible for draft backup. Export, close-document, history and editing
+stay fenced while recovery is pending; other recovery records are not discarded.
+Original files, save destinations, exclusive creation and coordination-required
+are unchanged. This fixes explicit protection/recovery, not unlimited throughput;
+the prior zero-delay stress failure and failed synthetic draft remain preserved.
+
+Validation: 151 focused Node checks PASS (seven new saturation/view regressions;
+initial four core regressions reproduced RED), two isolated Pro Electron workflows
+PASS (pressure + long-source regression), and the actual packaged pressure/history
+workflow PASS. The packaged synthetic draft was archived via the application;
+pre-existing draft/recent file identities and hashes are unchanged. Native IME
+remains NOT VERIFIED; historical manual/formal FAIL, SEC-01, full CI, human
+acceptance and release approval are not cleared. No Air/Reviewer call this turn.
+Codex A bounded self-review found no new confirmed P0/P1; this is not independent
+review. Controller 265 lines and new view 38 lines; existing entry 470 lines keeps
+only integration wiring, so no unrelated module split. New Node/E2E files stay
+under 200 lines. Bundle rebuilt with preserve-symlinks to use reproducible module
+paths; no dependency change. Patch version follows the repository bug-fix rule.
+
+Installed 0.56.1 startup/Recent Documents panel PASS; no user document opened.
+Complete 0.56.0 bundle retained for rollback; existing draft format is unchanged.
+Evidence: control checkout `.local/verification/input-pressure-8cfefafq/`.
+Source changes remain uncommitted; no push, merge, tag or release.
+
+## Broader-document workflows — 0.56.1 local WIP checkpoint (2026-11-07)
+
+Preserves one related batch: local PNG/JPEG import/preview, draft retention and
+exclusive attachment export; filtered long-document outline and read-only source;
+and bounded input-saturation pause/recovery. The user approved the proposed
+stage closeout/local checkpoint. This is preservation of current work, not human
+feature acceptance, mainline integration or public-release approval.
+
+Exact scope: 45 files (27 runtime including the required generated bundle,
+10 tests, six documents and two version files). Version remains 0.56.1;
+no dependency, runtime, test, package or installed-App change in this closeout.
+All 530 source fingerprints and 45 candidate fingerprints matched the final
+input-pressure evidence before documentation-only closeout edits. Reused the
+151 focused Node / two Pro Electron passes and actual-package pressure/history
+and installed-startup checks, alongside the recorded image/export/recovery and
+long-source checks. Overlapping historical counts are not summed. No new test,
+GUI, Air or Reviewer run, and no new Home fixture.
+
+Codex A bounded self-review found no new confirmed P0/P1; it is not an independent
+review. Native IME remains NOT VERIFIED; historical manual/formal FAIL, SEC-01,
+full CI, independent/human acceptance and release gates remain open. The prior
+zero-delay stress failure is preserved: 0.56.1 pauses at the same 64-edit limit,
+retains only the first refused supported edit in the current window, and does
+not accept later keys or automatically retry. Existing-file overwrite remains
+blocked by coordination-required; destination and exclusive-create rules stay.
+
+Next is one bounded real-writing acceptance pass across input/history, local
+images/export/reopen, and long-article navigation/source. Preserve the visual
+baseline and original-file protection; do not infer broad daily-use readiness.
+Checkpoint manifests and Git verification are in the control checkout's
+`.local/verification/broader-documents-checkpoint-0561-8br483qy/`; earlier evidence/rollback files are unchanged.
+No push, merge, tag or release is part of this checkpoint.

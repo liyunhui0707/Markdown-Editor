@@ -1,18 +1,22 @@
 'use strict';
+const {MAX_DOCUMENT_BYTES} = require('./document-capacity');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
 const { captureCopyDestination, inspectMacMetadata } = require('./document-save-policy');
 const { createDocumentFileStore } = require('./document-file-store');
+const {decodeAttachments} = require('./document-local-images');
+const {verifyAttachment} = require('./document-image-export');
 const unknown = code => ({ ok: false, state: 'create-outcome-unknown', created: null, code });
 // Injected fork is a trusted main-process capability, never supplied by renderer.
 function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-copy-writer.js'), timeoutMs = 12000 }) {
   const active = new Map();
-  async function create({ filePath, bytes, revision, isAuthorized }) {
-    let target, child;
+  async function create({ filePath, bytes, revision, isAuthorized, attachments = [] }) {
+    let target, child, assets;
     const authorized = () => { try { return typeof isAuthorized === 'function' && isAuthorized() === true; } catch { return false; } };
     try {
-      if (!Buffer.isBuffer(bytes) || bytes.length > 1048576 || !Number.isSafeInteger(revision)
+      if (!Buffer.isBuffer(bytes) || bytes.length > MAX_DOCUMENT_BYTES || !Number.isSafeInteger(revision)
           || revision < 0 || typeof isAuthorized !== 'function' || !authorized()) throw Object.assign(Error(), { code: 'copy-authorization-expired' });
+      assets = decodeAttachments(attachments);
       target = captureCopyDestination(filePath);
     } catch (cause) {
       return { ok: false, state: cause.code === 'target-exists' ? 'target-exists' : 'not-created', created: false,
@@ -31,7 +35,8 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
         const finish = result => {
           if (settled) return; settled = true; clearTimeout(timer); clearTimeout(termination); active.delete(child);
           const { fileMetadataSha256, ...receipt } = result; // Internal writer proof, not renderer authority.
-          resolve({ ...receipt, filePath, directoryIdentity: target.state.identity });
+          resolve({ ...receipt, ...(assets.length ? {attachmentPaths:assets.map(a=>path.join(target.root,a.name))} : {}),
+            filePath, directoryIdentity: target.state.identity });
         };
         const stop = code => {
           invalid = true; if (termination || settled) return;
@@ -49,7 +54,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
           try {
             target.verify();
             if (!authorized()) throw Error('authorization expired');
-            child.postMessage({ id, revision, sha256, base64: bytes.toString('base64'), name: target.name,
+            child.postMessage({ id, revision, sha256, base64: bytes.toString('base64'), name: target.name, attachments,
               destination: { root: target.root, state: target.state } });
           } catch { stop('copy-authorization-expired'); }
         });
@@ -74,11 +79,13 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
                     || createHash('sha256').update(JSON.stringify(actual)).digest('hex') !== response.fileMetadataSha256) throw Error('created attributes changed');
               };
               verifyNativeMetadata();
-              const read = createDocumentFileStore().read(filePath, 1048576);
+              const read = createDocumentFileStore().read(filePath, MAX_DOCUMENT_BYTES);
               if (`${read.identity.dev}:${read.identity.ino}` !== response.fileIdentity || read.identity.mode !== 0o600
                   || read.identity.uid !== target.state.identity.uid || read.identity.gid !== target.state.identity.gid
                   || read.sha256 !== sha256 || !read.bytes.equals(bytes)) throw Error('created file changed');
               verifyNativeMetadata();
+              if (!Array.isArray(response.attachments || []) || (response.attachments || []).length !== assets.length) throw Error('missing attachments');
+              assets.forEach((a,i) => verifyAttachment(target.root,a,target.state.identity,response.attachments[i]));
               target.verify();
             } catch { finish({ ...response, ok: false, state: 'created-unverified', code: 'copy-post-verification-failed' }); return; }
           } else if (!Object.hasOwn({ 'not-created': false, 'target-exists': false, 'created-partial': true, 'created-unverified': true, 'durability-uncertain': true, 'create-outcome-unknown': null }, response.state)

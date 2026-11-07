@@ -136,5 +136,8 @@ export function createFindView({ byId, context }) {
       event.preventDefault(); move(event.shiftKey ? -1 : 1);
     }
   }, true);
-  return { sync, configure() { enabled = true; sync(); } };
+  return { sync, reset() {
+    opened = false; bar.hidden = true; button.setAttribute('aria-expanded', 'false');
+    input.value = ''; matches = []; total = 0; active = -1; mapped = null;
+  }, configure() { enabled = true; sync(); } };
 }

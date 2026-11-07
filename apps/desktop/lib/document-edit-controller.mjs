@@ -1,8 +1,19 @@
+import capacity from './document-capacity.js';
+const {MAX_SOURCE_UNITS} = capacity;
+import sourceEdits from './document-source-edit.js';
 import { mapFormatEdit } from './document-format-edit.mjs';
 import { projectSource, mapTextEdit } from './document-source-map.mjs';
 
 function transactionEdit(source, tr) {
   if (!tr.docChanged || tr.steps.length !== 1) return null;
+  const shortcut=tr.getMeta('document-block-shortcut');
+  if(shortcut) {
+    if(!['table-add-row','table-exit','toggle-task','task-shortcut','indent-list','outdent-list','block-shortcut','fence-shortcut','split-quote','join-quote','exit-block','paragraph','split-heading','split-list','join-list','split-paragraph','join-paragraph'].includes(shortcut.action)) return null;
+    const mapped=mapFormatEdit(source,shortcut),schema=tr.doc.type.schema;
+    if(!mapped.ok || !tr.before.eq(schema.nodeFromJSON(projectSource(source).doc))
+        || !tr.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
+    return {operation:'format',edit:shortcut,source:mapped.source,structural:true};
+  }
   const step = tr.steps[0];
   const json = step.toJSON();
   if (json.stepType !== 'replace' || !step.slice) return null;
@@ -41,8 +52,8 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   let confirmed = structuredClone(initial), source = initial.source, code = 'opened';
   const recoveries = recoveryRecords.map(r => {
     if (!r || r.sessionId !== initial.sessionId || !Number.isSafeInteger(r.id) || r.id < 1 || typeof r.source !== 'string'
-        || r.source.length > 131072 || ('visibleText' in r && r.visibleText !== null
-          && (typeof r.visibleText !== 'string' || r.visibleText.length > 131072))) throw Error('Invalid recovery record');
+        || r.source.length > MAX_SOURCE_UNITS || ('queuedSource' in r && (typeof r.queuedSource !== 'string' || r.queuedSource.length > MAX_SOURCE_UNITS)) || ('visibleText' in r && r.visibleText !== null
+          && (typeof r.visibleText !== 'string' || r.visibleText.length > MAX_SOURCE_UNITS))) throw Error('Invalid recovery record');
     return structuredClone(r);
   });
   if (new Set(recoveries.map(r => r.id)).size !== recoveries.length) throw Error('Duplicate recovery identity');
@@ -55,15 +66,22 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     try { projectSource(s.source); return true; } catch { return false; }
   };
   const atCapacity = () => recoveries.length >= 16;
+  const inputPaused = () => recoveries.some(r => r.reason === 'edit-queue-full');
+  function retainOverflow(nextSource, queuedSource = source) {
+    recoveries.push({ id: ++recoverySequence, sessionId: initial.sessionId, reason: 'edit-queue-full',
+      source: nextSource, queuedSource, confirmedSource: confirmed.source,
+      baseRevision: confirmed.revision, mainMatchesDraft: false });
+    code = 'edit-queue-full'; notify();
+  }
   function rememberDraft(reason) {
-    if (source === confirmed.source || recoveries.some(r => r.source === source)) return null;
+    if (source === confirmed.source || recoveries.some(r => r.source === source || (r.reason === 'edit-queue-full' && r.queuedSource === source))) return null;
     const record = { id: ++recoverySequence, sessionId: initial.sessionId, source, reason,
       confirmedSource: confirmed.source, baseRevision: confirmed.revision, mainMatchesDraft: false };
     recoveries.push(record); return record;
   }
   function state() { return { confirmed, source, code, recoveryDraft: recoveries.at(-1)?.source || '',
-    recoveryRecords: structuredClone(recoveries), pending: queue.length,
-    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() }; }
+    recoveryRecords: structuredClone(recoveries), pending: queue.length, inputPaused: inputPaused(),
+    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() || inputPaused() }; }
   const notify = () => { if (!disposed) onChange(state()); };
   const settle = () => { if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve(); };
   const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise(resolve => waiters.push(resolve));
@@ -90,7 +108,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       while (queue.length && !disposed) {
         const item = queue[0], revision = confirmed.revision;
         let reply;
-        try { reply = await send('edit', { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit }); }
+        try { reply = await send(item.operation || 'edit', { sessionId: initial.sessionId, expectedRevision: revision, ...item.edit }); }
         catch { await reconcile(null, 'ipc-failed'); break; }
         if (disposed) break;
         const next = reply?.snapshot, expected = revision + Number(item.source !== confirmed.source);
@@ -103,7 +121,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   }
   function prepare(tr) {
     if (!tr.docChanged) return true;
-    if (disposed || locked || atCapacity() || historyPending || composition?.invalid || queue.length >= 64) {
+    if (disposed || locked || atCapacity() || historyPending || composition?.invalid || inputPaused()) {
       code = disposed ? 'controller-disposed' : locked ? 'sync-unknown' : atCapacity() ? 'recovery-capacity'
         : historyPending ? 'history-pending' : composition?.invalid ? 'composition-invalid' : 'edit-queue-full'; notify(); return false;
     }
@@ -114,6 +132,12 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       if (composition) composition.invalid = true;
       notify(); return false;
     }
+    if (!composition && queue.length >= 64) { retainOverflow(mapped.source); return false; }
+    // A cleared paragraph has no source mark to inherit. Do not leave PM's
+    // deleted format behind and reject the user's next ordinary keystroke.
+    const at = tr.selection.$from;
+    if (mapped.edit.insert === '' && tr.selection.empty && at.parent.type.name === 'paragraph'
+        && !at.parent.content.size) tr.setStoredMarks(null);
     prepared.set(tr, mapped); return true;
   }
   function accept(tr) {
@@ -125,7 +149,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (!composition) void pump();
   }
   function beginComposition() {
-    if (disposed || locked || atCapacity() || historyPending || composition) return false;
+    if (disposed || locked || atCapacity() || inputPaused() || historyPending || composition) return false;
     composition = { base: source, invalid: false }; code = 'composing-local'; notify(); return true;
   }
   function endComposition() {
@@ -144,10 +168,14 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (!mapped?.ok || mapped.source !== source) {
       rememberDraft('unsafe-composition'); source = group.base; code = 'unsafe-composition'; onReset(source); notify(); return;
     }
+    if (queue.length >= 64) {
+      const candidate = source; source = group.base; onReset(source);
+      retainOverflow(candidate, group.base); return;
+    }
     queue.push({ edit, source }); code = 'composition-queued'; notify(); void pump();
   }
   async function history(operation) {
-    if (!['undo', 'redo'].includes(operation) || disposed || locked || atCapacity() || composition || historyPending) return false;
+    if (!['undo', 'redo'].includes(operation) || disposed || locked || atCapacity() || inputPaused() || composition || historyPending) return false;
     historyPending = true; const epoch = failures; notify();
     try {
       await idle(); if (disposed || locked || failures !== epoch) return false;
@@ -167,7 +195,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     } finally { historyPending = false; notify(); }
   }
   async function format(command) {
-    if (disposed || locked || atCapacity() || composition || historyPending || confirmed.readOnly) return false;
+    if (disposed || locked || atCapacity() || inputPaused() || composition || historyPending || confirmed.readOnly) return false;
     historyPending = true; const epoch = failures; notify();
     try {
       await idle(); if (disposed || locked || failures !== epoch || recoveries.length) return false;
@@ -189,6 +217,28 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
       confirmed = structuredClone(reply.snapshot); source = confirmed.source; code = 'formatted';
       onReset(source, mapped.selection); return true;
     } finally { historyPending = false; notify(); }
+  }
+  async function applySource(candidate) {
+    if(disposed||locked||atCapacity()||inputPaused()||composition||historyPending||queue.length||flight
+        ||recoveries.length||confirmed.readOnly||confirmed.temporary!==true) return false;
+    const mapped=sourceEdits.sourceDifference(confirmed.source,candidate);
+    if(!mapped.ok){code=mapped.code;notify();return false;}
+    try {projectSource(candidate);} catch {code='invalid-source-edit';notify();return false;}
+    historyPending=true;notify();const revision=confirmed.revision;
+    try {
+      let reply;
+      try {reply=await send('source-edit',{sessionId:initial.sessionId,expectedRevision:revision,...mapped.change});}
+      catch {await reconcile(null,'ipc-failed');return false;}
+      if(disposed)return false;
+      if(!reply?.ok) {
+        if(valid(reply?.snapshot)&&reply.snapshot.source===confirmed.source&&reply.snapshot.revision===revision){code=reply.code;return false;}
+        await reconcile(reply,reply?.code||'ack-mismatch');return false;
+      }
+      if(!valid(reply.snapshot)||reply.snapshot.source!==candidate||reply.snapshot.revision!==revision+Number(candidate!==confirmed.source)) {
+        await reconcile(null,'ack-mismatch');return false;
+      }
+      confirmed=structuredClone(reply.snapshot);source=confirmed.source;code='source-applied';onReset(source);return true;
+    } finally {historyPending=false;notify();}
   }
   async function reload() {
     if (disposed || flight || queue.length || composition || historyPending) return false;
@@ -217,7 +267,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (disposed) return { ok: false, code: 'controller-disposed' };
     if (!composition?.invalid && code !== 'unsafe-composition') return { ok: false, code: 'composition-copy-unavailable' };
     if (visibleText !== null && typeof visibleText !== 'string') return { ok: false, code: 'invalid-copy-input' };
-    if (source.length > 131072 || (visibleText !== null && visibleText.length > 131072)) return { ok: false, code: 'copy-too-large' };
+    if (source.length > MAX_SOURCE_UNITS || (visibleText !== null && visibleText.length > MAX_SOURCE_UNITS)) return { ok: false, code: 'copy-too-large' };
     const existing = recoveries.find(r => r.reason === 'composition-copy' && r.source === source
       && r.confirmedSource === confirmed.source && r.baseRevision === confirmed.revision && r.visibleText === visibleText);
     if (existing) return { ok: true, record: structuredClone(existing) };
@@ -235,6 +285,6 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
     if (index < 0) return false;
     recoveries.splice(index, 1); code = 'recovery-discarded'; notify(); return true;
   }
-  return { state, prepare, accept, beginComposition, endComposition, history, format, reload, refresh, idle, discardRecovery, retainCompositionCopy,
+  return { state, prepare, accept, beginComposition, endComposition, history, format, applySource, reload, refresh, idle, discardRecovery, retainCompositionCopy,
     dispose() { disposed = true; queue.length = 0; locked = true; for (const resolve of waiters.splice(0)) resolve(); } };
 }

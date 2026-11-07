@@ -23,16 +23,14 @@ for (const text of ['标题😀', 'A ', '粗体中文', ' end.']) {
     assert.deepEqual(projectSource(r.source).doc, r.projection.doc);
   });
 }
-test('surrogate splitting, mark crossing, structural syntax and empty formatted text fail closed', () => {
+test('surrogate splitting, cross-block edits and structural syntax fail closed', () => {
   const spans = projectSource(source).spans;
   const h = spans[0], bold = spans[2];
   for (const change of [
     { from: h.to - 1, to: h.to, insert: 'x' },
-    { from: spans[1].from, to: bold.to, insert: 'x' },
-    { from: bold.from, to: bold.to, insert: '' },
+    { from: h.from, to: bold.to, insert: 'x' },
     { from: bold.from, to: bold.to, insert: '**new**' },
     { from: h.from, to: h.to, insert: 'line\nbreak' },
-    { from: bold.from, to: bold.from, insert: 'x' }, // ambiguous mark boundary
   ]) assert.equal(mapTextEdit(source, change).ok, false);
 });
 test('HTML, images, tables, unknown syntax, escaped/entities and unsupported multiline syntax are not editable', () => {
@@ -52,15 +50,15 @@ test('combining characters and ZWJ emoji keep UTF-16 source positions without no
   assert.equal(r.ok, true); assert.equal(r.source, '# é 👨‍💻 新文\r\n');
 });
 test('source-size limit rejects expansion as an ordinary unsafe edit', () => {
-  const s = 'a'.repeat(131070), p = projectSource(s).spans[0];
+  const s = 'a'.repeat(524286), p = projectSource(s).spans[0];
   assert.equal(mapTextEdit(s, { from: p.from + 1, to: p.from + 1, insert: 'xxxx' }).ok, false);
 });
 
-test('P1-2: only an explicit trusted leaf identity resolves an inverse mark-boundary insertion', () => {
+test('P1-2: trusted history restores the bold leaf while ordinary boundary typing inherits the left mark', () => {
   const bold = projectSource(source).spans.find(s => s.bold);
   const deleted = mapTextEdit(source, { from: bold.from, to: bold.from + 1, insert: '' });
   const point = { from: bold.from, to: bold.from, insert: '粗' };
-  assert.equal(mapTextEdit(deleted.source, point).ok, false);
+  assert.equal(mapTextEdit(deleted.source, point).source, deleted.source.replace('A **', 'A 粗**')); // Normal typing is plain here.
   const leaf = { blockIndex: bold.blockIndex, childIndex: bold.childIndex, bold: true };
   const restored = mapTextEdit(deleted.source, point, leaf);
   assert.equal(restored.ok, true); assert.equal(restored.source, source);
@@ -91,7 +89,7 @@ test('writing V1: split/join inverses protect mixed line endings and unsupported
   const split=mapTextEdit(source,{from:one.from+1,to:one.from+1,insert:'\n\n'});
   assert.equal(split.ok,true);
   const back=mapTextEdit(split.source,split.inverse);assert.equal(back.ok,true);assert.equal(back.source,source);
-  for(const text of ['# heading','- list','> quote','```\ncode\n```','A **bold** end.']){
+  for(const text of ['# heading','- list','> quote','```md extra\ncode\n```','A **bold** end.']){
     const q=projectSource(text),s=q.spans.find(s=>s.text);
     assert.equal(mapTextEdit(text,{from:s?.from||1,to:s?.from||1,insert:'\n\n'}).ok,false);
   }
@@ -161,7 +159,7 @@ for (const nl of ['\n', '\r\n', '\r']) test(`multiline paste V1: atomic source s
   assert.equal(back.ok, true); assert.equal(back.source, source);
   const redo = mapTextEdit(back.source, change, r.leaf, r.paragraphSeparator);
   assert.equal(redo.source, r.source);
-  assert.equal(mapTextEdit(r.source, r.inverse).ok, false, 'cross-paragraph inverse is history-only');
+  assert.equal(mapTextEdit(r.source, r.inverse).source, source, 'ordinary range is also safe without trusted history fields');
 });
 test('multiline paste V1: empty slots preserve terminal newline and surrounding source', () => {
   for (const source of ['', '\n', '\n\nTail.', 'Before.\r\n\r\n']) {
@@ -171,8 +169,8 @@ test('multiline paste V1: empty slots preserve terminal newline and surrounding 
     assert.equal(mapTextEdit(r.source, r.inverse, r.leaf, r.paragraphSeparator).source, source);
   }
 });
-test('multiline paste V1: forbidden structure, ambiguous whitespace and untrusted cross-block edits reject atomically', () => {
-  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```\ncode\n```']) {
+test('multiline paste V1: forbidden structure and ambiguous whitespace reject atomically', () => {
+  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```md extra\ncode\n```']) {
     const span = projectSource(source).spans[0];
     assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
   }
@@ -180,7 +178,7 @@ test('multiline paste V1: forbidden structure, ambiguous whitespace and untruste
     assert.equal(mapTextEdit('Normal.', { from: 2, to: 2, insert }).ok, false, JSON.stringify(insert));
   }
   const source = 'First.\n\nSecond.', spans = projectSource(source).spans;
-  assert.equal(mapTextEdit(source, { from: spans[0].from + 1, to: spans[1].from + 1, insert: 'One\n\nTwo' }).ok, false);
+  assert.equal(mapTextEdit(source, { from: spans[0].from + 1, to: spans[1].from + 1, insert: 'One\n\nTwo' }).source, 'FOne\n\nTwoecond.');
 });
 
 
@@ -219,11 +217,54 @@ for (const nl of ['\n', '\r\n']) test(`literal brackets: exact text editing and 
   for (const { leaf, ...change } of changes.reverse()) current = mapTextEdit(current, change, leaf).source;
   assert.equal(current, original);
   for (const text of ['[ ]', '[label]', 'before ] after', '# [title]']) assert.ok(projectSource(text).spans.length, text);
-  for (const text of ['[label](https://example.invalid)', '[label]\n\n[label]: /target', '![x](file.png)', '- [ ] task']) {
+  for (const text of ['[**label**](https://example.invalid)', '[label]\n\n[label]: /target', '![x](file.png)', '- [ ] task\n  continuation']) {
     assert.equal(projectSource(text).spans.length, 0, text);
   }
   assert.equal(mapTextEdit('[label]', { from: 8, to: 8, insert: '(target)' }).ok, false);
   // A definition elsewhere must not silently turn text into a reference link.
   const referenced = '[label\n\n[label]: /target';
   assert.equal(mapTextEdit(referenced, { from: 7, to: 7, insert: ']' }).ok, false);
+});
+
+test('typed margin spaces in mixed paragraphs remain visible until the next word',()=>{
+  for(const original of ['A **bold** tail.','[label](<../guide.md>) tail.']){
+    let source=original;
+    for(const char of ' next word'){
+      const s=projectSource(source).spans.at(-1),r=mapTextEdit(source,{from:s.to,to:s.to,insert:char});
+      assert.equal(r.ok,true,JSON.stringify(source+char));source=r.source;
+    }
+    assert.equal(source,original+' next word');
+  }
+  for(const original of ['**Bold**','*Italic*','`Code`','[Link](target)']){
+    const source=original+' ',s=projectSource(source).spans.at(-1);assert.equal(s.text,' ');
+    const r=mapTextEdit(source,{from:s.to,to:s.to,insert:'next'});assert.equal(r.ok,true);assert.equal(r.source,source+'next');
+  }
+});
+
+test('repeated parsing shares no mutable projection state across text/history/structured callers',()=>{
+ const source='# Heading\n\n- Item **bold**\n  - Nested\n\n> Quote\n\n| A | B |\n| - | - |\n| x | y |\n\n```js\nx\n```\n';
+ const expected=projectSource(source),mutated=projectSource(source);
+ mutated.doc.content.length=0;mutated.spans[0].text='corrupted';mutated.blocks.length=0;
+ assert.deepEqual(projectSource(source),expected);
+ projectSource('different');assert.deepEqual(projectSource(source),expected);
+ for(const other of ['evict 1','evict 2','evict 3'])projectSource(other);
+ assert.deepEqual(projectSource(source),expected);
+});
+
+
+test('line margins remain exact across mixed newline kinds and intervening protected blocks',()=>{
+ for(const nl of ['\n','\r','\r\n']){
+  const source=['  First 中文😀  ', '', '# Heading', '', '```', 'protected', '```', '', '  Middle  ', '', '<div>opaque</div>', '', '  Last  '].join(nl);
+  const projection=projectSource(source);
+  for(const text of ['  First 中文😀  ','  Middle  ','  Last  ']){
+   const span=projection.spans.find(s=>s.text===text);assert.ok(span,text);
+   assert.equal(source.slice(span.sourceFrom,span.sourceTo),text);
+   const edit=mapTextEdit(source,{from:span.from+2,to:span.from+2,insert:'新'});
+   assert.equal(edit.ok,true);assert.equal(edit.source,source.replace(text,'  新'+text.slice(2)));
+  }
+ }
+ const mixed='  First  \n\n# Title\r\n\r\n  Second  \r\r  Third  \n\nTail';
+ assert.deepEqual(projectSource(mixed).spans.map(s=>s.text),['  First  ','Title','  Second  ','  Third  ','Tail']);
+ const soft='start\nsecond\n\n  after  ';
+ assert.deepEqual(projectSource(soft).spans.map(s=>s.text),['start','second','  after  ']);
 });

@@ -122,9 +122,16 @@ test('document details use confirmed identity and distinguish a draft from a fil
   assert.equal(byId('details-document-location').textContent, '/synthetic/original');
   assert.equal(byId('details-backup-card').hidden, true); assert.deepEqual(c.state.confirmed, original);
   c.state.confirmed = { ...original, sessionId: 'draft', temporary: true, readOnly: false };
-  shell.sync(); assert.equal(byId('details-document-kind').textContent, '独立草稿 · 未存为文件');
+  shell.sync(); assert.equal(byId('details-document-kind').textContent, '独立草稿');
   assert.equal(byId('details-document-revision').textContent, '3'); assert.equal(byId('details-backup-card').hidden, false);
   assert.doesNotMatch(byId('details-document-location').textContent, /synthetic/);
+  for(const dirty of [false,true]){
+    c.state.confirmed={...c.state.confirmed,dirty,originalSave:{filePath:'/synthetic/bound.md',lastConfirmed:{revision:3}}};
+    const before=structuredClone(c.state.confirmed);shell.sync();
+    assert.equal(byId('details-document-kind').textContent,dirty?'文件草稿 · 修改未保存':'文件草稿 · 正文已保存');
+    assert.equal(byId('details-document-location').textContent,'/synthetic/bound.md');
+    assert.deepEqual(c.state.confirmed,before);
+  }
 });
 
 test('title popup Escape returns focus without changing document state', () => {

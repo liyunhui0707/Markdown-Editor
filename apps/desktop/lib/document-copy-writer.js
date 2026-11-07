@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_DOCUMENT_BYTES, base64Limit} = require('./document-capacity');
 // Trusted one-shot Electron utility entry. No renderer or system Node launch path.
 const { createHash } = require('node:crypto');
 const { createDocumentFileStore } = require('./document-file-store');
@@ -18,13 +19,13 @@ port.on('message', ({ data }) => {
   try {
     if (!data || typeof data.id !== 'string' || !/^[a-f0-9-]{36}$/.test(data.id)
         || !Number.isSafeInteger(data.revision) || data.revision < 0 || !copyName(data.name)
-        || typeof data.base64 !== 'string' || data.base64.length > 1398104) throw Error('invalid-writer-task');
+        || typeof data.base64 !== 'string' || data.base64.length > base64Limit(MAX_DOCUMENT_BYTES)) throw Error('invalid-writer-task');
     const bytes = Buffer.from(data.base64, 'base64');
-    if (bytes.toString('base64') !== data.base64 || bytes.length > 1048576
+    if (bytes.toString('base64') !== data.base64 || bytes.length > MAX_DOCUMENT_BYTES
         || createHash('sha256').update(bytes).digest('hex') !== data.sha256) throw Error('invalid-writer-task');
     const store = createDocumentFileStore({ persistentCreateTask: data.destination });
     attempted = true;
-    result = store.createCopy(data.name, bytes);
+    result = require('./document-image-export').createWithAttachments({store, name:data.name, bytes, attachments:data.attachments, destination:data.destination});
     if (result.ok) {
       // Recheck the authorized directory identity after creating the selected new file.
       const fs = require('node:fs');

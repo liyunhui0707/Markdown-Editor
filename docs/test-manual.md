@@ -1,6 +1,490 @@
-# Manual Test Checklist  
+# Manual Test Checklist
+
+## Practical capacity — 0.61.0 (manual acceptance pending)
+
+Use a disposable article and local PNG/JPEGs. Open a longer article, create a
+copy, edit ordinary paragraphs and source, Undo/Redo, insert an image over 1 MiB,
+then export, reopen, save an edit and restart/recover. Compare text, image display
+and the original BOM/newlines. Keep Markdown and exported image sidecars together.
+Check real Chinese IME and sustained typing separately; controlled test input is
+not native acceptance. At extreme document length, record visible pauses.
+
+Limits: 2 MiB / 524,288 UTF-16 units; 16 images / 4 MiB each / 16 MiB and 32 million
+pixels total. Over-limit input must leave existing content intact and must not
+claim a successful backup/export. Whole-source replacements can reduce Undo depth
+under the 8 MiB document-history budget. Older Apps can reject these larger drafts;
+retain the new bundle/records and export needed work before any rollback.
+
+## Bound-file save — 0.60.0 (manual acceptance pending)
+
+Use a disposable local Markdown file in a supported directory. Open it, choose
+编辑副本, make an edit and wait for backup. Cancel the first 保存 prompt and check
+that nothing changed; then accept it. Confirm the disk content and saved message.
+Continue editing: the previous success remains visible while the new edit is
+unsaved. Save again, then use Undo/Redo and verify the saved-state distinction.
+
+While the draft is open, edit the disposable original externally. Saving must
+report conflict and retain both the local draft and external content; it must not
+retry. In 草稿 → 保存版本, inspect the previous/draft versions. Restart and restore
+the draft: text returns but original-write authority does not. Native dialog
+interaction and real Chinese IME must be recorded separately from automated checks.
+Do not test races against personal documents.
+
+## Complete source editing — 0.59.0
+
+Automated checks cover raw edits, history and IPC fences, mixed line endings,
+original-file protection, source/rich editing, backup/restart and new-file export.
+Controlled composition events are not native IME acceptance.
+
+Optional focused acceptance on a disposable document:
+
+1. Open an original, create an editing copy, then open **源码**. Change a heading
+   and a YAML/HTML region, search with ⌘F, and try local Undo/Redo.
+2. Choose **返回** with unapplied edits: **继续编辑** must retain the text;
+   **放弃修改** must leave the document unchanged. Unapplied text is not backed up.
+3. Choose **应用并返回**; verify the visual result and document Undo/Redo.
+   Unsupported blocks remain protected visually, without changing their source.
+4. Wait for backup, restart/recover, then export a new file. The edits must remain;
+   the original and earlier exports must not change. Existing save limits apply.
+5. Native Chinese IME: type, select a candidate, cancel composition and switch
+   views. Record this separately; previous historical FAIL/NOT VERIFIED is not
+   cleared by automated checks or prior limited basic passes.
+
+
+## Save subfolders — 0.58.0 installed local WIP
+
+Automated evidence: 121 targeted Node checks and one Pro Electron workflow pass.
+Native dialogs in that GUI regression are controlled; physical picker use and
+comprehensive native IME are not inferred from these results.
+
+Optional next real-use checks, without overwriting an existing target:
+
+1. Edit a copy, then choose a new filename in an ordinary local subfolder of
+   `~/Liyunhui` or `~/Downloads`. Confirm the displayed receipt path and reopen it.
+2. Cancel a later export, or choose the existing filename. The draft, history and
+   previous confirmed receipt must remain; no existing file changes.
+3. Choose an unsupported/synced/hidden location. The App should clearly report
+   refusal and retain writing. No permission changes or automatic retry occur.
+
+Earlier native IME NOT VERIFIED and historical failures remain as recorded below.
+
+## Finder opening — 0.57.0 (2026-11-07)
+
+Automated evidence: 109 focused Node checks, three Pro Electron workflows and
+actual-package macOS cold/warm/repeated LaunchServices opens PASS. The unchanged
+file is reused, active draft/history survives switching, composing/modal requests
+wait for explicit completion, changed/replaced files and unsupported inputs are
+refused. Private draft/recent records were preserved and recovered exactly.
+No default file handler was changed; generated composition events do not establish
+native IME acceptance. Earlier limited human 0.56.1 experience remains applicable
+only to its recorded scope; historical native failures are not automatically closed.
+
+Optional focused human acceptance on the installed 0.57.0 (not yet reported):
+
+- [ ] Right-click a disposable `.md` → Open With → Markdown, once with the App
+  closed and once running. Correct original opens; an already open unchanged file
+  returns to its existing row. No original file is modified.
+- [ ] With a draft being edited, request another file from Finder. The draft stays
+  in the sidebar with its text and history. During real Chinese composition the
+  request waits; finish input, then use **打开文件**. Record the input method/result.
+- [ ] If desired, use Finder Get Info → Open with → Markdown → Change All, then
+  double-click a disposable `.md`. This is the user's optional system preference,
+  not a setting applied by the installer or a prerequisite for Open With.
+
+Files still need to be accessible regular UTF-8 `.md` within current limits.
+Writable-source, wider save folders, safe original-file saving and larger image/
+document capacity remain phase 2 development, not acceptance implied by Finder.
+
+
+## Current combined acceptance — installed 0.56.1 (2026-11-07)
+
+**Human result: LIMITED BASIC PASS (user-reported, 2026-11-07).** The user reported:
+“我在APP里做了简单的测试，看着基本没问题，三项基本通过。” This covers the
+three requested experience areas: basic Chinese input/history, image export/reopen,
+and long-document outline/source navigation. No new problem was reported.
+
+This is a simple experience check, not evidence that every detailed substep below,
+every input method or all edge cases were exercised. The exact IME configuration
+was not supplied. Basic input has positive human evidence; comprehensive native
+IME acceptance remains NOT VERIFIED. Historical manual/formal failures remain
+recorded until their specific reproductions are retested. Full CI, SEC-01 and
+release gates are unchanged. Do not ask the user to repeat these three basic checks
+without a new regression or a specific uncovered risk.
+
+Older dated checklists below are history. For future targeted checks, use a scratch article;
+a synthetic long article and small PNG are prepared in control-checkout evidence
+`.local/verification/broader-writing-acceptance-3kh_j2q5/manual-fixture/`.
+No need to type the long fixture or manually force queue saturation.
+
+1. Open the scratch article, create an editing copy and use macOS Chinese Pinyin
+   in its first paragraph. Choose a candidate, cancel a second preedit, finish
+   two sentences, then Undo/Redo and continue typing. Expected: exact completed
+   text without lost/duplicated characters, a stable caret, and no persistent
+   disabled state after composition ends. Synthetic Unicode insertion is not
+   evidence for this native check.
+2. Use the image button to choose the prepared PNG (or a small disposable PNG/JPEG).
+   Confirm preview, description and Undo/Redo. Export to a supported local folder
+   with a fresh filename, then use the export receipt to reopen. Expected: both
+   text and image match; original files stay unchanged. Keep Markdown and its
+   image sidecar together. Subsequent copy edits must not change the exported file.
+3. Filter the outline for `Chapter 160`, press Enter, view **源码**, then Escape
+   back and continue editing. Expected: correct target, readonly source, retained
+   article position, and normal later editing/Undo. Report any unexpected jump,
+   lag or layout obstruction during ordinary use.
+
+The user has returned a basic pass for all three areas. Future failures should
+identify the exact step; a limited pass does not automatically clear historical
+IME failures, full CI or release gates. If creation is partial/unknown or input
+pauses, retain the window/evidence and needed text; do not blindly retry or delete.
+The new combined Pro regression passes controlled text/history, image export and
+reopen, source navigation and restart recovery. Automation and the user report
+are distinct evidence. The installed runtime and version are unchanged.
+
+## Input saturation correction — 0.56.1 (2026-11-07)
+
+Automated verification passes; human acceptance is pending. No user needs to
+manually force 65 queued edits. If the pause notice appears during normal use,
+confirm it persists, copy needed text from the retained Markdown, and explicitly
+acknowledge before resuming. Later accepted replies must not hide it. Pending
+operations must settle first; switching documents must preserve the record.
+Check light/dark readability. The record is window-local, not a backup; do not
+close before retaining needed text. Controlled composition tests do not establish
+native Chinese IME acceptance or remove historical manual/formal FAIL.
+
+
+## Long documents / read-only source — 0.56.0 installed WIP (2026-11-07)
+
+Pending human acceptance on the installed 0.56.0 App. Packaged paced typing,
+outline/source, history/recovery and startup passed controlled automation.
+Zero-delay automated input exceeded the 64-edit queue and lost rejected keys;
+this historical FAILED case remains recorded. 0.56.1 adds bounded pause/recovery;
+it does not promise unlimited input throughput. Controlled results do not replace these checks:
+
+1. Open a long article, filter an outline title and press Enter to jump; clear
+   with Escape. Duplicate headings remain separate targets. Scroll and confirm
+   the active heading follows the article; filtering does not change the body.
+2. Open **源码**. Confirm heading markers, unsupported syntax and original line
+   endings/BOM description. Select/copy text, toggle wrapping, press Escape;
+   return to the same article position and continue editing/Undo/Redo.
+3. While Chinese input is composing, the source trigger must not steal focus;
+   finish input and retry. This is still native IME NOT VERIFIED, not a cleared
+   historical manual/formal FAIL.
+4. Switch documents and inspect source again: no prior document text. Check a
+   narrow window and light/dark appearance. Source is read-only, with no original
+   overwrite; copy selection is not a byte-exact backup. Existing drafts/export
+   retain their original meanings.
+
+
+
+## Local images — 0.55.0 installed local WIP (2026-11-06)
+
+Human acceptance is pending; these features are included in installed 0.56.0. The actual 0.55.0 package passed
+macOS native PNG selection through computer-use automation, preview/history,
+attachment export, readonly reopening and restart recovery. Save/close choices
+in that package test were controlled; earlier source E2E also covers JPEG.
+Native IME is NOT VERIFIED; historical formal/manual FAIL remains.
+
+1. In a scratch draft, use image → 选择本地图片 with a small PNG/JPEG. Check the
+   native picker, cancel, description, preview, Enter, Undo/Redo and normal typing.
+2. Export to a supported local folder with a new name. Keep the Markdown and
+   image sidecars together; reopen and check both images and text. Original image
+   and original Markdown must be unchanged. Later edits stay in the draft.
+3. Wait for confirmed draft backup, close and recover. Check images and text;
+   old Undo history and export authority must not return. Image drafts need 0.55.0.
+4. Unsupported/oversize images and missing or replaced attachments must not appear
+   as confirmed exports. Preserve any partial/unknown result; do not retry or delete
+   it blindly. Check narrow/dark layout and real IME without treating automation
+   as native input-method acceptance.
+
+## Image references — 0.54.0 installed candidate (2026-11-06)
+
+Human acceptance is pending. The local app at `~/Applications/Markdown.app` is
+now 0.54.0; actual-package combined writing/export/recovery and installed startup
+passed controlled automation. Try these checks with the task/table steps below in
+one scratch draft. Do not treat the card as a loaded image. Native IME remains
+NOT VERIFIED and historical formal/manual FAIL remains open.
+
+1. In a scratch paragraph, use the image button with a relative address; select
+   the resulting card to edit its description/address. Cancel preserves it.
+   Enter continues in prose; remove and Undo/Redo restore the exact reference.
+2. Check light/dark and narrow layout. Invalid script/file/data addresses leave
+   panel input and body intact; composing input must not be committed prematurely.
+3. Export a new `.md`, reopen readonly, then restart and recover the draft.
+   Reference text should match; original files remain unchanged. No preview or
+   attachment copying is promised; check relative paths when choosing a new folder.
+
+## Basic tables — 0.53.0 local candidate (2026-11-06)
+
+Focused human acceptance is pending; automated evidence is in the phase record.
+The mixed list/table workflow also passed scripted Pro verification. For this
+acceptance, combine the list and table steps in one scratch draft, switch away
+and back, and check that later edits remain separate from the exported snapshot.
+Native Chinese IME remains NOT VERIFIED; earlier manual/formal FAIL is retained.
+
+1. New scratch draft: click the table button; replace header text, fill empty
+   cells, Tab/Shift+Tab between cells and Enter down a column. At the last row,
+   advancing appends a blank row; Cmd+Enter returns to ordinary prose.
+2. Use +/− row and column controls. Undo/Redo should restore content and structure;
+   the header row/final column cannot be removed. Try one-line Chinese/emoji paste
+   inside one cell; multiline/cross-cell input must be refused without text loss.
+3. Export to a new Markdown file, reopen read-only, then restart and restore the
+   draft. Check cell contents/order/alignment. The original must remain unchanged.
+
+Bounds: plain outer-pipe rectangular tables, 8 columns / 32 rows (header included),
+three-hyphen separators; no nested marks, links, escaped pipes, merged cells or
+spreadsheet paste. Test native IME separately; synthetic strings are not native QA.
+
+## Task and nested lists — installed 0.52.0 candidate (2026-11-06)
+
+Installed at `~/Applications/Markdown.app`; human acceptance remains pending.
+Native Chinese IME remains NOT VERIFIED and the
+historical formal/manual FAIL is not cleared by synthetic input.
+
+1. Create a scratch draft; type `- [ ] ` and a task, toggle its checkbox, then
+   Undo/Redo. Text and checked state must both match each revision.
+2. Enter another task, Tab to nest it, Enter a sibling, Shift+Tab to lift it.
+   Try ordinary and ordered items, including a subtree with children. Nested
+   empty tasks lift; a final top-level empty item exits to normal prose.
+3. Select text across two same-level leaf items; replace/paste one line, delete,
+   and Undo/Redo. Cross-level/subtree ranges must leave all text intact on refusal.
+4. Export once to a supported fresh file, reopen readonly, exit/restart and
+   restore the draft. Compare text, nesting, checked states; the original and
+   exported snapshot must not change after later draft edits.
+5. Check checkbox alignment/focus in the accepted light/dark workspace. During
+   actual IME composition, checkbox/structure operations must not write preedit.
+
+Limits: six levels/32 items; no loose or multiline item bodies, cross-level range
+replacement, multiline list paste or bulk structured-list conversion. Type text
+before indenting an empty ordinary bullet; ambiguous CommonMark boundaries remain
+refused. Controlled Pro tests cover the above supported paths but do not replace
+this native interaction acceptance.
+
+## Draft naming / export names — installed 0.51.0 WIP (2026-11-06)
+
+Automated: 130 targeted Node checks and one two-start Pro Electron workflow PASS;
+normal/narrow screenshots reviewed. Dialog choices and composition events are
+controlled. Air blocked on launch-time lock detection before GUI. The installed
+app is now 0.51.0. Bounded package naming cancel/invalid-input checks and installed
+startup/recent-panel checks pass; existing private records were unchanged. This
+is not a human/native-IME PASS or a full packaged writing/recovery acceptance.
+
+Optionally check one short writing session in the installed app:
+
+- In an independent draft, click the title → **重命名草稿…**; cancel once, then
+  confirm a short Chinese/English name. Title/sidebar update; text and Undo remain.
+- Export to a supported folder: the suggested name matches and ends in `.md`.
+  A different native filename only names the new file; an existing target is refused.
+- Quit after backup, restart and resume: the draft name/body remain. Renaming does
+  not rename the original or an earlier export, and recovery does not restore Undo
+  or export receipts. A named empty draft is also recoverable.
+
+Original-file overwrite remains prohibited. Native IME and the historical manual
+FAIL remain separate acceptance gaps; no repeated real-document saves are needed.
+
+## Recent documents / resume writing — 0.50.0 candidate (2026-11-06)
+
+Automated: 148 targeted Node checks; one isolated Electron workflow on both Pro
+and Air, each with three clean starts/exits. Normal and narrow screenshots were
+reviewed. Dialog choices are controlled; native IME is NOT VERIFIED. The installed
+app now includes this workflow in 0.51.0; five recent Node regressions were
+rechecked on the combined candidate. These human checks remain pending:
+
+- Open a disposable `.md`, edit an independent copy, wait for backup and restart.
+  Welcome should offer the draft under **继续写作** and the file under **最近文档**.
+- Resume the draft and continue writing; use **最近文档** to reopen the original
+  read-only. Draft content and original content remain separate.
+- Modify the disposable file externally: its recent entry should require **打开…**
+  again, retaining the current document. Clear the list and restart: history stays
+  empty, while the file and recoverable draft remain.
+
+No human PASS is implied. Clearing the list is not secure erasure of retained
+catalog generations; no existing-file overwrite or save-destination expansion.
   
 Use this checklist before sharing the app with another person.  
+
+## Common-authoring closeout — installed 0.49.0 (2026-11-06)
+
+Automated: 351 targeted Node cases, five source Electron workflows, one packaged
+workflow and installed startup PASS. This adds no human/native-IME PASS. The local
+app is updated; the previous bundle is recoverably retained.
+
+For a short optional experience, write one article using `# `, ordinary paragraphs,
+bold/italic, a link, a flat list, `> ` and a basic fenced code block. Continue typing
+immediately after Enter. Export a new file, reopen it, then quit and recover the
+draft: content should match, while old Undo history and export authority do not
+return. Originals remain unchanged; later draft edits do not update the export.
+Native Chinese composition and historical failures still need separate acceptance.
+
+## Quote/code workflow — 0.49.0 WIP candidate (2026-11-06)
+
+Automated: 383 targeted Node and five Pro source Electron workflows PASS. No
+new human/native-IME or installed-app acceptance is claimed. After safe installation:
+
+- In a new draft type `>` and Space, write two plain quote paragraphs, then
+  Enter on the last empty quote paragraph to continue ordinary prose.
+- Type three backticks plus optional `js`, then Enter. Type code, use Enter/Tab,
+  paste multiple lines with blank lines, Undo/Redo, and Cmd+Enter to continue prose.
+- Edit a supported loaded quote/code block, export a new file, reopen and compare;
+  original content must remain unchanged. Complex blocks stay read-only.
+
+Quotes require explicit `> ` lines with `> ` blank separators; lazy/wrapped/nested
+quotes stay protected. Splitting marked quote paragraphs is not supported; use
+Cmd+Enter to exit. Basic fences must be closed, unindented, with a simple optional
+language and no metadata. Existing safety/IME/release limitations remain.
+
+## Link workflow — 0.48.0 WIP candidate (2026-11-05)
+
+Automated: 399 targeted Node cases and three controlled source Electron workflows
+PASS. The source candidate is not yet the running installed app (0.46.0).
+No human/native-IME pass is claimed. Optional experience after a safe installation:
+
+- Select ordinary text, press Cmd+K, enter an address and apply. With a caret in
+  a simple link, edit its text/address or cancel; cancellation retains the document.
+- Use **取消链接** to keep text without the link; Undo/Redo restores each operation.
+  Clicking a link edits it without opening a browser.
+- Export a new file and reopen: link text/address match, original stays unchanged.
+
+Nested formatting, cross-link ranges and reference links remain protected.
+Controlled composition events do not replace native IME acceptance; historical
+manual failures and existing release limitations are not globally cleared.
+
+## Italic editing — 0.44.0 WIP candidate (2026-11-05)
+
+Automated: 323 focused Node, four controlled source Electron workflows, one
+packaged workflow and installed welcome startup PASS. No human or
+native-IME pass is claimed. Optional short experience on a synthetic document:
+
+- Select plain text, click **I** or press Cmd+I; select the entire italic phrase
+  and repeat to remove it. Reverse selection and Undo/Redo should preserve text.
+- Type in italic text; Enter splits and Backspace rejoins a supported paragraph
+  or simple list item. Delete a whole italic paragraph, then type again.
+- Select text already bold and request italic: explicitly refuse nested marks,
+  keep content and continue with a plain selection.
+- Export a new file and reopen it: italic appears correctly, original unchanged.
+
+Native IME, full physical QA and historical acceptance limits remain separate.
+
+## Adjacent list-item selections — installed 0.43.0 WIP candidate (2026-11-05)
+
+301 focused Node, four controlled source Electron workflows and one packaged
+editing/export/reopen/recovery workflow plus installed welcome startup PASS.
+Native IME and full physical/manual acceptance remain NOT VERIFIED. Optional check:
+
+- In a synthetic simple bullet or numbered list, select from midway through one
+  item into a later item, including bold text; type, paste one line or delete.
+  Unselected edges merge into one item. Undo/Redo restores each complete operation.
+- Select all text across the list and press Backspace/Delete, then type again.
+  One empty list item remains. Undo restores the original items and formatting.
+- Select into a protected code block or paste multiple lines across list items:
+  refuse the entire operation and retain text. Make a safe selection and continue.
+- Switch original/copy, export a new file and reopen; original bytes stay unchanged.
+
+This supersedes the 0.42.0 cross-item refusal only within one simple flat list.
+Different lists, nested/task/loose lists and ambiguous source syntax remain protected.
+Controlled Chinese clipboard text and stubbed dialogs do not establish native IME.
+
+## Single list-item selection editing — installed 0.42.0 WIP candidate (2026-11-05)
+
+Automated: 267 focused Node, four controlled source Electron workflows and one
+packaged editing/export/reopen/recovery workflow plus installed welcome PASS.
+No new human/native-IME acceptance is claimed. Optional brief experience:
+
+- In a synthetic list item such as `- Alpha **bold** tail`, select across plain
+  and bold text in either direction; type or paste one line, then Undo/Redo.
+- Delete all item text, type again, and Undo. The empty item accepts plain text;
+  Undo restores the original text and formatting. Enter/Backspace still work.
+- Select across two list items or paste multiple lines into an item: reject the
+  complete operation, retain content, and allow the next supported edit.
+- Export to a new filename and reopen. The original stays unchanged and read-only.
+
+Mixed-format composition replacement, nested/task/loose lists and ambiguous
+Markdown delimiters remain protected. Controlled Chinese clipboard text does not
+verify native macOS IME; historical formal/manual failures remain scoped/open.
+
+## Paragraph/list boundaries — installed 0.41.0 WIP (2026-11-05)
+
+Automated: 237 distinct focused Node, four controlled source Electron workflows,
+one packaged keyboard/export/reopen/recovery workflow and installed startup PASS.
+This is not human/native-IME acceptance. Optional short experience:
+
+- In an ordinary paragraph containing bold, press Enter inside the bold text,
+  then Backspace at the next paragraph's beginning; Undo/Redo restores each step.
+- Repeat inside a simple bullet/numbered list. At the first item's beginning,
+  Backspace returns it to normal text while preserving the remaining items.
+- Start a list from an empty document with the format selector; Enter on an empty
+  first/last item exits. A middle empty item's Enter is refused; typing still works.
+- Export a new file and reopen it. Original files stay unchanged and read-only.
+
+The historical 0.40.0 split/join restriction below is superseded only for this
+supported paragraph/simple-list scope. Complete physical QA remains pending.
+
+## Plain/bold selection editing — installed 0.40.0 WIP (2026-11-05)
+
+Automated: 216 focused Node, three controlled source Electron workflows, one
+packaged mixed-range/export/reopen/recovery workflow and installed welcome PASS.
+The 0.39.0 checkpoint/rollback is retained. Native dialogs were stubbed, Chinese
+text was controlled input, and native IME/full physical acceptance is NOT VERIFIED.
+No new user manual acceptance is claimed. Optional brief experience:
+
+- Open a synthetic paragraph such as `Alpha **bold** omega.` and edit a copy.
+  Select from plain text into bold, then in the opposite direction; type or paste
+  one line. New text follows the format of the selected text's start.
+- Delete a complete bold span, Undo/Redo, and continue typing at the boundary.
+  Confirm one Undo restores the complete original operation and formatting.
+- Try multiline paste into the mixed selection or select across a code block:
+  the edit must be refused with existing content retained; a safe edit still works.
+- Export a new file and reopen it; the original stays read-only and unchanged.
+
+The historical 0.39.0 cross-format refusal below is superseded only for this new
+same-paragraph plain/bold scope. Mixed-format paragraph split/join is still limited.
+
+## Ordinary paragraph range editing — installed 0.39.0 WIP (2026-11-05)
+
+205 targeted Node / three final controlled Electron passes are reused; one new
+packaged range/export/reopen/recovery regression and installed welcome startup
+pass. All 528 installed bundle entries match; 0.38.0 is retained for rollback.
+Native dialog choices in the packaged regression were stubbed; physical range
+input and native close Cancel are not newly accepted. Optional bounded check:
+select from the middle of one plain paragraph into the next, replace/delete,
+Undo/Redo, then type and split/join. Try multiline plain-text paste over the same
+range. A selection across a heading, bold span or code block must be rejected
+without preventing the next safe edit. Original files stay read-only.
+Native Chinese composition is not covered by these controlled input checks.
+
+## Individual document close — installed follow-up (2026-11-05)
+
+0.38.0 is now installed and byte-verified, with a preserved 0.37.0 rollback.
+Ordinary launch, a real Cmd+W prompt and a restore action were observed on a
+synthetic draft. A Cancel click returned a stale-window error; the next observed
+state does not establish Cancel semantics. Exact restored-body verification also
+remains incomplete. Native Cancel/full installed-flow acceptance is NOT VERIFIED;
+do not replace that gap with the controlled close E2E passes. The earlier
+historical record below describes the pre-install attempt, not current installation.
+
+## Individual document close — source candidate (2026-11-04)
+
+Automated: main/session/preload guards, cancel/history retention, verified draft
+recovery, empty welcome/find/outline reset, backup-directory replacement refusal,
+continued editing/Undo after refusal and unchanged original bytes. The native
+confirmation choice is stubbed in E2E (five affected workflows passed on
+Electron 43.8.7). A separate native-close attempt could not operate the
+dialog because the GUI control pipe failed to start; its wait timed out.
+Real close confirmation and native IME remain NOT VERIFIED. The unsigned
+0.38.0 package is byte-checked but has not replaced installed 0.37.0 or been
+accepted through an ordinary packaged GUI launch. Historical formal/manual
+FAIL is not cleared.
+
+When accepting a build containing this candidate, use a disposable document:
+
+1. Open an original and edit a copy. Cmd+W → Cancel must keep text and Undo/Redo.
+2. Cmd+W → Keep draft and close should select the remaining document. Restore
+   from 草稿 and check the text; previous Undo/export authority is not restored.
+3. Close the final read-only document: welcome remains, window stays open.
+4. During real Chinese composition, closure must wait for confirmed/cancelled
+   input; after completion it should work. Cmd+Shift+W retains the window guard.
+
+No request to repeat unrelated manual QA. Existing originals/exports must remain
+unchanged; unknown file-creation or backup results require retaining the window.
 
 ## Current Document application — 0.37.0 local WIP (2026-11-04)
 
@@ -1976,3 +2460,82 @@ highlighted/navigable with an explicit limit notice and an accurate total.
 Normal composition pauses navigation. Air composition checks used controlled
 events, **not native macOS IME**. Native IME remains NOT VERIFIED and earlier
 manual/formal FAIL is not cleared. File save/overwrite policies are unchanged.
+
+
+## 0.45.0 inline code V1 — manual acceptance pending
+
+Open a disposable Markdown file and edit its independent copy. Select plain text
+and use `</>` / Cmd+E; type inside the code, Undo/Redo, remove format by selecting
+the entire code span, and switch original/copy. Test simple list code with Enter
+and Backspace. Export to a new file and reopen read-only; original stays unchanged.
+Multi-backtick/nested/multiline code and fenced blocks remain protected. Check
+Chinese IME separately: controlled strings/events do not establish native PASS.
+Automated evidence (340 Node, two source E2E, one packaged workflow) is in the
+phase record. Two Air source workflows subsequently pass after user unlock;
+no native manual acceptance is claimed.
+
+
+## 0.46.0 existing link labels — manual acceptance pending
+
+In a disposable file containing `A [label](https://example.test "title") tail.`,
+open an editing copy, click inside the underlined label, type/replace/paste one
+line, Undo/Redo and switch original/copy. Export a new file and reopen; URL/title
+and original bytes must stay intact. Clicking a link does not navigate. Whole
+label deletion, cross-link edits, nested/reference links and splitting/joining
+link-containing paragraphs/items are refused; later ordinary input still works.
+360 Node, two Pro source workflows and one packaged workflow PASS. Native Chinese
+IME and full physical/manual acceptance are NOT VERIFIED. Air NOT RUN this slice.
+
+
+### Heading/list typing workflow — 0.47.0 candidate (2026-11-05)
+
+Automated source checks passed; physical/native IME and installed-app QA have
+not been performed for this candidate. These are optional acceptance checks,
+not claims of user approval:
+
+1. New draft: type `#` then Space, write a heading, Enter to a paragraph.
+   Repeat with `######`; Undo/Redo the conversion, and Backspace at the heading
+   start to return to body text. An empty heading exits with Enter.
+2. Type `- ` or `1. `; continue typing, Enter for another item, Enter on the
+   empty final item to exit. Existing complex/nested/task blocks stay protected.
+3. Continue Chinese text only after completing system IME selection; shortcuts
+   must not force composition completion. Save as a new file and reopen it.
+   Original files remain unchanged and export does not become in-place saving.
+
+The running 0.46.0 installed app was deliberately left intact. Test the rebuilt
+0.47.0 candidate after safely closing the old app, not the previous installation.
+
+
+## 0.61.x daily-writing / native input acceptance — PENDING
+
+Use the current 0.61.x App on macOS with your normal Chinese input method. Work only in
+an independent disposable draft; record macOS/input-method name and PASS/FAIL
+for these three workflows. Automated `insertText` is not native IME evidence.
+
+1. **Candidate input and focus:** type `这是我的写作测试` using actual candidates;
+   commit once with Space and once with Enter. Start another word and cancel
+   with Escape. During an unfinished candidate, try the sidebar/document switch
+   and Save; text must not disappear, duplicate, force-save preedit or become
+   permanently stuck. Complete/cancel composition, then continue typing normally.
+   Repeat once in a table cell. Undo/Redo must restore confirmed text, not fragments.
+2. **Continuous writing and navigation:** in a disposable longer article, write
+   mixed Chinese/English, `[]` and emoji near its start/middle/end; select and
+   replace a phrase. Use outline/filter, Source and return, then continue writing
+   and Undo/Redo. No missing/duplicate characters, unexpected caret jump or wrong
+   heading target. Report visible stalls; near-capacity latency is not accepted
+   merely because contents are eventually exact.
+3. **Backup and recovery:** wait for the latest draft-backed-up state; quit normally,
+   reopen, restore the draft and compare the final paragraph. Continue writing,
+   export to a fresh supported filename and reopen it. Confirm the original is
+   unchanged and the latest confirmed text appears exactly once.
+
+Any loss/duplication, stuck composition or incorrect recovered/exported text is a
+FAIL. Preserve the draft and exact action sequence; do not erase historical FAIL
+or mark all native IME accepted from a passing subset. Full CI, SEC-01,
+accessibility, signing/notarization and general release acceptance are separate.
+
+## 0.62.0 local-folder acceptance (2026-11-07)
+
+Pending human acceptance: use an existing ordinary local folder below Home (or local Desktop/Documents when not synced), export a uniquely named synthetic document, reopen it, edit and explicitly save the bound file. Verify content and retained previous version. On iCloud Desktop/Documents, expect a cloud-location refusal with the draft retained; do not disable sync to make a test pass. Existing targets must not be overwritten by Save As.
+
+Native IME remains NOT VERIFIED; the three daily-input checks remain PENDING and historical manual FAIL is not closed by automation.

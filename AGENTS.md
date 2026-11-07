@@ -2,27 +2,206 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-11-04) — READ FIRST
+## Current architecture (fact-checked 2026-11-07) — READ FIRST
+
+**Current candidate: 0.62.1 local-folder compatibility and package hygiene.**
+The Document package excludes `node_modules/@toast-ui/**`; retain historical
+Vault development dependencies and SEC-01's legacy status. Do not restore these
+unused bundled dependencies to the shipped Document app. All 75 project runtime
+files and the native helper are unchanged from the tested 0.62.0 candidate.
+Desktop/Documents components beneath Home now use a bounded read-only Foundation
+location check, then all existing ancestor/metadata/APFS checks. iCloud-managed
+folders remain refused. Export workers repeat capture; native coordinated saving
+rechecks the location proof. No cloud permission, ACL change or arbitrary path
+write is added. Build the production helper before running these workflows.
+Native IME NOT VERIFIED, manual PENDING and historical FAIL remain open.
+
+**Previous local WIP checkpoint: 0.61.2 daily-writing performance.**
+The source mapper, table presentation and outline optimizations preserve full
+source/main validation, history, queue budgets and save/recovery authority.
+Matching focused Node, controlled Electron, package and installed-startup evidence
+is retained. Native IME remains NOT VERIFIED, human acceptance PENDING and
+historical manual FAIL open; near-limit latency and long-duration memory remain
+limitations. This checkpoint preserves work and is not daily-use/release acceptance.
+
+On 2026-11-07 the user authorized local checkpoints, subsequent complete function
+groups and Git/remote operations. Continue the accepted visual baseline and
+existing architecture. Next is ordinary local-file compatibility; full CI and
+security must pass before mainline integration. Public release readiness remains
+separate from authorization. Earlier authorization limits below are historical.
+
+**Previous local WIP checkpoint: 0.61.0 everyday document workflows.**
+This groups Finder opening, nested local save destinations, editable source,
+version-preserving bound-file saving and practical text/image capacity. Native
+IME, historical manual FAIL, full CI, SEC-01 and public-release gates remain open.
+
+**0.61.0 practical text/image capacity — included in this checkpoint.**
+Document capacity is centralized in `lib/document-capacity.js`; the sandboxed
+preload and native header have parity tests. Text is bounded by 524,288 UTF-16
+units / 2 MiB. Images are bounded by count, encoded bytes and decoded pixels;
+backup/export/native saving enforce the same limits. Two immutable parse trees
+are cached; each projection remains independent. Main document history retains
+at most 64 entries / 8 MiB of inverse+redo text. Larger source replacements can
+reduce the available Undo depth. Do not remove aggregate budgets or claim full
+long-document/native IME acceptance from controlled automation. Older bundles
+may not recover enlarged drafts; preserve the current bundle/records on rollback.
+See the latest stage-history entry for measured limits and remaining gates.
+
+**0.60.0 bound-file saving — retained in this candidate.**
+The user approved the explicit replacement contract described in the latest
+save-hardening and stage-history records. The fixed product entry can save a
+main-bound editing copy or confirmed export through native file coordination
+and version-preserving exchange. This does not establish inode-CAS safety: a
+racing target can already change before a conflict is reported. Legacy save
+stays `coordination-required`; no arbitrary renderer paths or recovered write
+authority. Build the macOS helper with `npm run build:document-save` before
+local GUI testing; pack/dist commands build it automatically. Never package a
+`DOCUMENT_SAVE_TESTING` binary. Prior checkpoint/installed descriptions below
+are historical; current delivery and remaining gates are in stage-history.
+
+
+**Previous local WIP checkpoint: 0.56.1 broader-document workflows.**
+The installed 0.56.1 runtime is unchanged. This checkpoint preserves local images,
+long-document/source navigation and input-saturation protection as one related
+batch. Reused matching source/test/package evidence; only closeout documentation
+changed. Human/native IME, independent review, full CI, SEC-01 and historical
+failure acceptance remain open. No push, merge, tag or release is authorized.
+Earlier delivery-time statements below are historical; their pending source is
+now included in this checkpoint. See the latest stage-history entry for scope.
+
+**0.56.1 input saturation protection — included in this checkpoint.**
+The 64-edit queue is unchanged. Its first refused supported edit and queued
+source are retained in existing window-local recovery records; editing pauses.
+Later acknowledgements cannot clear the notice. Explicit acknowledgement and an
+idle confirmed state are required before discarding that record and resuming.
+There is no automatic retry, persistent backup of these records or acceptance
+of keys after the pause. 151 focused Node, two Pro Electron and actual-package
+pressure/history checks pass. The synthetic packaged draft was archived; prior
+private records are unchanged. Installed startup passes; 0.56.0 is retained
+for rollback. Native IME/human acceptance, full CI, SEC-01 and
+historical failures remain open. No commit or release approval.
+
+**Previous delivery: 0.56.0 long documents / read-only source.**
+The existing outline filters headings and measures active location logarithmically.
+A renderer-only modal displays confirmed raw Markdown with selectable text,
+wrapping and line-ending/BOM metadata. It cannot edit, serialize or grant file
+access; unconfirmed/composing input blocks opening, and changed identity/revision
+closes the snapshot. Fixed 0.55.0 attachment lookup on null opaque-block mappings.
+43 focused Node and two Pro Electron checks pass. The actual 0.56.0 package
+passes paced typing, outline/source, Undo/Redo, restart recovery and installed
+startup. 0.55.0 is retained for rollback; prior draft/recent records are unchanged.
+Zero-delay burst input hits the existing 64-edit queue and drops rejected keys;
+its transient warning was insufficient. This historical stress case FAILED;
+0.56.1 adds bounded pause/recovery as described above, not unlimited throughput
+or accepted full-writing performance. Source stays uncommitted;
+no limit expansion, overwrite or release approval. Native IME/human acceptance,
+full CI, SEC-01 and historical failures remain open.
+
+**0.55.0 local PNG/JPEG attachments — included in the current WIP.**
+Main owns native image selection, bounded raster validation and document-specific
+attachment bytes. Renderer receives only verified raster data URIs; CSP allows
+`img-src data:` and still disallows network/file loading. Only explicitly imported
+images and exact content-addressed sibling attachments of opened Markdown load.
+Draft record v2 stores text and up to four 1 MiB rasters in one verified generation;
+plain text stays v1, with no migration. The existing exclusive writer creates image
+sidecars before Markdown and parent verification covers all outputs. Exact existing
+sidecars can be reused read-only; partial/unknown outcomes remain fenced and retained.
+No new overwrite/directory policy. See the latest phase record for limits/evidence.
+Actual-package native image selection/preview, history, export/reopen and restart
+recovery pass; installed startup and prior-record preservation pass. 0.54.0 is
+retained for rollback (it cannot restore v2 image drafts). Source remains uncommitted;
+native IME, human/independent acceptance and full CI remain open. Following earlier
+checkpoint descriptions are historical, not current feature limitations.
 
 **Active product: a document-first macOS ProseMirror/Tiptap editor.** The trusted
 `apps/desktop/document-app-main.js` entry starts the shared Document lifecycle in
 `lib/document-window-main.js`. Both `npm run dev` and the local `Markdown.app`
 use it. `main.js` / `npm run dev:legacy` retain the old Vault application solely
 for historical development; the dedicated document package excludes that runtime.
-Use the explicitly approved branch. `feat/document-editor` collects the existing
-Document baseline for integration; subsequent work uses short feature branches
-from `main`. A Worktree directory name is not its current Git branch. Preserve
+Use the explicitly approved branch. PR #138 integrated the Document baseline
+into `main` on 2026-11-04; subsequent work uses short feature branches from `main`.
+A Worktree directory name is not its current Git branch. Preserve
 the recovery baseline; do not create a long-lived `develop` branch.
 
 Raw Markdown bytes are authoritative in the Document Model/Service/File Store.
 Supported edits patch verified source-map ranges and reparse; **do not serialize
 or normalize the whole file**. Originals stay read-only; independently authorized
-copies support paragraphs, headings, bold and simple flat lists. Other structures
+copies support paragraphs, headings, bold, italic, single-backtick inline code, simple inline links, tight task/nested lists (six levels / 32 items), bounded plain-cell GFM tables (8 columns / 32 rows), inert standalone image references, explicit single-level quote paragraphs and closed basic fences. Other structures
 remain protected. Local draft recovery, document find, exclusive new-file export
 and verified export shortcuts are implemented with a limited destination policy.
 Existing-file overwrite remains blocked by `coordination-required`.
 
-Version **0.37.1 is a development WIP**, not public-release acceptance. Native IME and
+Version **0.54.0 is an installed local WIP checkpoint** for task/nested lists,
+basic tables and image-reference
+creation/edit/removal and history/export/recovery. Cards explicitly have no preview;
+there is no file/image broker, URL fetch, attachment copying or CSP relaxation.
+Main revalidates the existing format command and exact source projection. 316
+focused Node checks and image plus mixed-authoring Pro Electron workflows pass.
+Package contents match 60 project runtime files; the actual package passes combined
+task/list/table/image-reference writing, history, export isolation and restart
+recovery. Installed startup/recent-panel checks pass; existing private records are
+unchanged and 0.53.0 is retained for rollback. No new runtime change or version bump
+in this delivery closeout. Air, independent review, native IME, human acceptance,
+full CI and release approval remain unestablished; historical failures stay open.
+
+The preceding **0.53.0 table candidate is included in the 0.54.0 WIP checkpoint**.
+Table projection/commands use the same source patches, main-owned revision/history
+and save policy. Plain rectangular outer-pipe tables support cell text/navigation,
+row/column addition/removal and export/recovery; formatted/escaped/ragged tables
+remain protected. No table serializer or new persistence authority is introduced.
+421 focused Node checks, two Pro source workflows and actual-package table/history/
+export/restart recovery and installed startup/panel checks pass. The installed
+0.53.0 bundle preserves existing private records; 0.52.0 is retained for rollback.
+A further mixed-authoring Pro workflow passes continuous writing, document switching,
+export snapshot isolation and restart recovery; only tests/docs changed in that
+closeout. Native IME and human table/list QA remain open.
+The preceding 0.52.0 app is retained for rollback; no commit/publication implied.
+
+The preceding **0.52.0 list candidate, now included in the 0.54.0 WIP**, was installed for bounded user
+acceptance of task and nested lists. The preceding 0.51.0 checkpoint is `755c751`.
+Task toggles, Enter continuation and Tab/Shift+Tab subtree moves use existing
+source patches and main-owned history. Loose/multiline items, cross-parent or
+subtree-spanning range edits, and ambiguous source boundaries remain protected.
+396 focused Node / three source Electron workflows pass; the actual package
+passes task editing/history/export/restart recovery, with installed startup
+verified. Dialogs and IME events are controlled; human/native acceptance remains
+open. The installed 0.51.0 bundle is retained for rollback. No Git checkpoint,
+publication, original-file overwrite or broad Markdown acceptance is implied.
+
+Version **0.51.0 is a local WIP checkpoint** for draft naming and recent documents, not public-release acceptance.
+The preceding 0.49.0 checkpoint is `d8a3f25`; that checkpoint installed 0.51.0.
+Draft naming uses the existing private backup writer, bound to session, content
+revision and previous label. Only a confirmed backup updates the live name;
+body/history and export receipts remain unchanged. Recovery keeps the saved label.
+The main-owned name supplies a Save As filename suggestion, never a target path or
+overwrite permission. Pending/unconfirmed input and unknown results remain fenced.
+Recent documents remember at most 12 main-owned path/identity/hash records in a
+separate private catalog using the existing draft snapshot writer. Reopening
+uses a new read-only session and revalidates identity/content; changed files
+require native selection. Welcome resume-writing uses existing draft recovery.
+Clearing history does not delete files/drafts or securely erase older snapshots.
+No new file-write permission or directory scan is introduced.
+The preceding 0.48.0 checkpoint is `dd0eef4`; 0.49.0 preserves quote/code and the bounded writing closeout.
+The installed 0.51.0 app passed bounded startup/panel checks; 0.49.0 is retained
+for rollback. Existing draft/catalog records were verified unchanged. This does
+not replace native manual acceptance or full CI.
+The preceding list-editing checkpoint is `01a4d7a` (0.43.0). Selected italic and inline-code
+formatting reuse existing source-map patches, format toolbar and main-owned history.
+Line-start heading (1–6) and flat-list shortcuts convert on Space through the
+existing queued format/revision path. Heading/list/marked-paragraph boundary keys
+also use that queue so pending text acknowledgements do not drop Enter/Backspace.
+Bare prefixes stay literal until Space;
+empty headings remain editable. Do not enable unrestricted Tiptap input rules.
+Simple italic, inline-code text and existing simple link labels are editable.
+The link toolbar/Cmd+K panel inserts links, updates label/address or removes the
+link while keeping text. Main revalidates the bounded format command, session,
+revision and projected source; unchanged addresses/titles retain exact bytes.
+Links render inertly, without navigation. Quote/code mapping uses the existing
+source patch and main-owned history; `sourceEditable` is projection data, never
+save or session authority. Opaque code-shaped nodes default to protected. Code
+newlines display as LF but source keeps LF/CRLF/CR; history selections use PM
+coordinates, never source offsets. Cmd+Enter exits to prose. Nested marks,
+reference links, complex quotes and unclosed/metadata-bearing fences stay protected. No file overwrite or save-authority change. Native IME and
 historical formal/manual failures are not globally cleared by controlled E2E.
 Keep SEC-01 and other release limitations visible; no publish/merge/tag authority
 is implied. Current scope/evidence: [phase record](docs/document-editing-interaction-phase1b3.md).

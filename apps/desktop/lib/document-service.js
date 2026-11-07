@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_DOCUMENT_BYTES} = require('./document-capacity');
 const { createHash, randomUUID } = require('node:crypto');
 const { createDocumentModel } = require('./document-model');
 const { createDocumentFileStore } = require('./document-file-store');
@@ -8,8 +9,8 @@ const { record, failure, revisionError } = require('./document-contract');
 // Future document opening must authorize paths before handing out session IDs.
 function createDocumentService(options = {}) {
   // Trusted main-process construction only, never an IPC payload.
-  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot', 'persistentWriter'])) throw TypeError('Invalid service construction options');
-  const { persistentWriter, ...storeOptions } = options;
+  if (!record(options, ['fs', 'unsafeExperimentalRoot', 'isolatedCreateRoot', 'persistentWriter', 'attachmentsFor', 'originalWriter'])) throw TypeError('Invalid service construction options');
+  const { persistentWriter, originalWriter, attachmentsFor = () => [], ...storeOptions } = options;
   if (persistentWriter !== undefined && typeof persistentWriter !== 'function') throw TypeError('Invalid writer capability');
   const store = createDocumentFileStore(storeOptions);
   const sessions = new WeakMap();
@@ -123,10 +124,14 @@ function createDocumentService(options = {}) {
   function confirmedSnapshot(document, copyId) {
     const expected = getConfirmedCopy(document);
     if (!expected || typeof copyId !== 'string' || expected.copyId !== copyId) throw Error('No confirmed copy authority');
-    const current = store.read(expected.filePath, 524288);
+    const current = store.read(expected.filePath, MAX_DOCUMENT_BYTES);
     if (current.filePath !== expected.filePath || current.sha256 !== expected.sha256
         || current.bytes.length !== expected.byteLength
         || `${current.identity.dev}:${current.identity.ino}` !== expected.fileIdentity) throw Error('Confirmed copy changed');
+    for (const a of expected.attachments || []) {
+      const asset = require('./document-local-images').readImageFile(a.filePath);
+      if (asset.name !== a.name || asset.sha256 !== a.sha256 || asset.fileIdentity !== a.fileIdentity) throw Error('Confirmed attachment changed');
+    }
     return current;
   }
   function openConfirmedCopy(document, copyId, parse) {
@@ -166,13 +171,17 @@ function createDocumentService(options = {}) {
       const checked = store.check(s.snapshot);
       if (!checked.ok) return { ...checked, state: 'not-created', created: false };
       if (!valid()) return failure('copy-authorization-expired');
+      const attachments = attachmentsFor(document);
       started = true;
-      const result = await persistentWriter({ filePath: options.filePath, bytes: Buffer.from(bytes), revision: options.expectedRevision, isAuthorized: valid });
+      const result = await persistentWriter({ filePath: options.filePath, bytes: Buffer.from(bytes), attachments, revision: options.expectedRevision, isAuthorized: valid });
       if (!valid()) {
         result.ok = false; result.code = 'copy-source-changed';
         if (result.created !== false) result.state = 'created-unverified';
       }
       s.copy = rememberCopy(s, { ...result, revision: options.expectedRevision, expectedSha256: sha256 });
+      if(originalWriter&&s.copy.ok&&s.copy.state==='created-confirmed'){
+        try{s.origin={snapshot:confirmedSnapshot(document,s.copy.copyId),receipt:null,stopped:false};}catch{/* Export receipt remains independent. */}
+      }
       return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
     } catch (cause) {
       s.copy = Object.freeze({ ok: false, state: started ? 'create-outcome-unknown' : 'not-created',
@@ -203,6 +212,7 @@ function createDocumentService(options = {}) {
       store.authorizeSynthetic(document.filePath);
       const checked = store.check(s.snapshot);
       if (!checked.ok) return { ...checked, state: 'not-created', created: false };
+      if (attachmentsFor(document).length) return failure('image-persistent-export-required');
       creationStarted = true;
       const result = store.createCopy(options.name, bytes);
       // The synchronous operation has no await point. Still check for reentrant
@@ -240,6 +250,37 @@ function createDocumentService(options = {}) {
     } finally { s.saving = false; }
   }
 
+  function bindOriginal(document, original) {
+    const s=sessions.get(document),from=sessions.get(original);
+    if(!originalWriter||!s?.syntheticTemporary||!from||from.syntheticTemporary||document.blocked)return false;
+    if(!document.bytesForSave().equals(from.snapshot.bytes))return false;
+    s.origin={snapshot:from.snapshot,receipt:null,stopped:false};return true;
+  }
+  function getOriginalState(document) {
+    const s=sessions.get(document),o=s?.origin;
+    return o ? {available:true,filePath:o.snapshot.filePath,stopped:o.stopped,
+      receipt:o.receipt?{...o.receipt}:null,lastConfirmed:o.confirmed?{...o.confirmed}:null} : null;
+  }
+  async function saveOriginal(document,{expectedRevision,isAuthorized}) {
+    const s=sessions.get(document),o=s?.origin;
+    if(!o||!originalWriter)return failure('original-save-unavailable');
+    if(s.saving||o.stopped||s.unverified||s.pending||unresolvedCopy(s))return failure('unresolved-save-state');
+    if(expectedRevision!==document.revision||document.blocked||!isAuthorized())return failure('save-authorization-expired');
+    const bytes=document.bytesForSave(),text=document.text; s.saving=true;
+    const valid=()=>sessions.get(document)===s&&document.revision===expectedRevision&&document.bytesForSave().equals(bytes)&&isAuthorized();
+    try {
+      const result=await store.replaceCoordinated(o.snapshot,bytes,{writer:originalWriter,revision:expectedRevision,isAuthorized:valid,attachments:attachmentsFor(document)});
+      if(result.ok){try{if(!valid())throw Error();originalWriter.acknowledge(result.recordId,result);}catch{Object.assign(result,{ok:false,state:'save-unverified',code:'save-receipt-unconfirmed'});}}
+      const {snapshot:_snapshot,identity:_identity,...receipt}=result;
+      o.receipt={...receipt,revision:expectedRevision,filePath:o.snapshot.filePath};
+      if(result.ok){o.snapshot=result.snapshot;o.confirmed=o.receipt;s.acceptSaved(text,result.snapshot.identity);s.state='saved-confirmed';s.committed=true;s.lastCode=null;}
+      else {o.stopped=result.committed!==false||result.code==='external-change';if(result.committed!==false){s.unverified=true;s.committed=result.committed;s.state='replacement-unverified';}}
+      return {ok:result.ok,code:result.code};
+    }catch{o.stopped=true;s.unverified=true;s.committed=null;o.receipt={ok:false,state:'save-outcome-unknown',committed:null,code:'save-outcome-unknown',filePath:o.snapshot.filePath,revision:expectedRevision};return failure('save-outcome-unknown');}
+    finally{s.saving=false;}
+  }
+  function listSaveRecoveries(){return originalWriter?.list()||{ok:false,records:[]};}
+  function locateSaveRecovery(id){return originalWriter?.locate(id);}
   function close(document) {
     const session = sessions.get(document);
     if (!session) return unknown();
@@ -250,7 +291,7 @@ function createDocumentService(options = {}) {
     return { ok: true };
   }
 
-  return { open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
+  return { bindOriginal, getOriginalState, saveOriginal, listSaveRecoveries, locateSaveRecovery, open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
 }
 
 module.exports = { createDocumentService };

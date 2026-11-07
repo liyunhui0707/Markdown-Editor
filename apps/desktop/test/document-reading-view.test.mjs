@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Schema } from '@tiptap/pm/model';
+import { getSchema } from '@tiptap/core';
+import { documentEditorExtensions } from '../lib/document-editor-extensions.mjs';
 import { projectSource } from '../lib/document-source-map.mjs';
-import { defaultReading, changeReading, documentHeadings, createReadingView } from '../lib/document-reading-view.mjs';
-const schema = new Schema({ nodes: { doc: { content: 'block+' }, text: { group: 'inline' },
-  paragraph: { group: 'block', content: 'inline*' }, heading: { group: 'block', content: 'inline*', attrs: { level: { default: 1 } } },
-  codeBlock: { group: 'block', content: 'text*' }, blockquote: { group: 'block', content: 'block+' } }, marks: { bold: {} } });
+import { defaultReading, changeReading, documentHeadings, createReadingView, activeHeadingIndex } from '../lib/document-reading-view.mjs';
+const schema = getSchema(documentEditorExtensions());
 const projected = source => schema.nodeFromJSON(projectSource(source).doc);
 
 test('reading options accept only declared display values and preserve defaults', () => {
@@ -15,11 +14,11 @@ test('reading options accept only declared display values and preserve defaults'
   for (const [key, value] of [['size','10000'],['font','url(https://example.invalid)'],['width','auto'],['theme','auto'],['__proto__','x'],['path','/tmp']])
     assert.equal(changeReading(result, key, value), result);
 });
-test('outline uses projected headings and excludes code, unsupported headings and frontmatter', () => {
+test('outline uses supported headings including links and excludes code, nested headings and frontmatter', () => {
   const source = '\ufeff---\r\nsecret: synthetic\r\n---\r\n# 中文 **标题**\r\n\r\n```md\n# Code heading\n```\n\n## Same\n\n## Same\n\n### [link](https://example.invalid)\n\n> # Nested\n';
   const doc = projected(source.slice(1)), before = doc.toJSON(), rows = documentHeadings(doc);
-  assert.deepEqual(rows.map(r => [r.level,r.title]), [[1,'中文 标题'],[2,'Same'],[2,'Same']]);
-  assert.equal(new Set(rows.map(r => r.position)).size, 3);
+  assert.deepEqual(rows.map(r => [r.level,r.title]), [[1,'中文 标题'],[2,'Same'],[2,'Same'],[3,'link']]);
+  assert.equal(new Set(rows.map(r => r.position)).size, 4);
   for (const row of rows) assert.equal(doc.nodeAt(row.position).textContent, row.title);
   assert.deepEqual(doc.toJSON(), before); assert.equal(documentHeadings(projected('Only paragraph.')).length, 0);
 });
@@ -84,4 +83,64 @@ test('opening settings during composition is refused; display choices leave cont
   byId('reading-size').value='21';byId('reading-size').onchange();assert.equal(byId('reading-size').value,'21');
   byId('reset-reading-settings').onclick();assert.equal(byId('reading-size').value,'17');
   assert.equal(c.editor.state.doc,original);assert.deepEqual({...c.state,composing:undefined},{...before,composing:undefined});
+});
+
+
+test('closing the last document clears outline rows and stale navigation', t => {
+  const {c,byId,view,scroll}=fixture(t), stale=byId('outline-list').children[0];
+  c.state=undefined; c.editor=null; view.sync();
+  assert.equal(byId('outline-list').children.length,0); stale.onclick();
+  assert.equal(scroll.calls,undefined);
+});
+
+
+test('active heading lookup is logarithmic for a large ordered outline', () => {
+  let reads=0;
+  assert.equal(activeHeadingIndex(4096, index => { reads++; return index * 100; }, 205050),2050);
+  assert.ok(reads<=13,`layout reads: ${reads}`);
+  assert.equal(activeHeadingIndex(0,()=>{throw Error('no headings');},0),-1);
+  assert.equal(activeHeadingIndex(3,i=>i*100,-10),0);
+  assert.equal(activeHeadingIndex(3,i=>i*100,999),2);
+});
+test('outline filtering is literal, preserves source and resets across sessions', t => {
+  const {c,byId,view,scroll}=fixture(t), before=structuredClone(c.state);
+  byId('outline-filter').value='SECOND';byId('outline-filter').oninput();
+  assert.equal(byId('outline-list').children[0].hidden,true);
+  assert.equal(byId('outline-list').children[1].hidden,false);
+  assert.equal(byId('outline-count').textContent,'1 / 2');
+  byId('outline-filter').onkeydown({key:'Enter',preventDefault(){}});assert.equal(scroll.calls,1);
+  byId('outline-filter').value='.*';byId('outline-filter').oninput();
+  assert.equal(byId('outline-empty').textContent,'没有匹配的标题。');
+  assert.deepEqual(c.state,before);
+  c.state.confirmed={...c.state.confirmed,sessionId:'b'};view.sync();
+  assert.equal(byId('outline-filter').value,'');assert.equal(byId('outline-count').textContent,'2');
+});
+test('outline navigation waits for native composition even before controller catches up', t => {
+  const {c,byId,view,scroll}=fixture(t);c.editor.view.composing=true;view.sync();
+  byId('outline-list').children[0].onclick();assert.equal(scroll.calls,undefined);
+});
+
+
+test('outline filter composition cannot jump on the candidate confirmation key', t => {
+  const {byId,scroll}=fixture(t), input=byId('outline-filter');
+  input.oncompositionstart();input.value='Second';input.oninput();
+  input.onkeydown({key:'Enter',preventDefault(){throw Error('candidate key consumed');}});
+  assert.equal(scroll.calls,undefined);input.oncompositionend();
+  assert.equal(byId('outline-count').textContent,'1 / 2');
+  input.onkeydown({key:'Enter',preventDefault(){}});assert.equal(scroll.calls,1);
+});
+
+
+test('body edits retain outline DOM, update positions and still refuse unconfirmed navigation',t=>{
+ const {c,byId,view,scroll}=fixture(t),first=byId('outline-list').children[0],second=byId('outline-list').children[1];
+ const source='# Original\n\nNew body text.\n\n## Second\n';
+ const doc=projected(source);c.editor.state.doc=doc;c.state.source=source;
+ second.onclick();assert.equal(scroll.calls,undefined);
+ view.sync();assert.equal(byId('outline-list').children[1],second);
+ c.state.confirmed={...c.state.confirmed,source};
+ const calls=[];c.editor.view.nodeDOM=pos=>{calls.push(pos);return {nodeName:'H2',getBoundingClientRect:()=>({top:700})};};
+ view.sync();assert.equal(byId('outline-list').children[0],first);assert.equal(byId('outline-list').children[1],second);
+ calls.length=0;second.onclick();assert.ok(calls.includes(documentHeadings(doc)[1].position));assert.equal(scroll.calls,1);
+ c.state.confirmed={...c.state.confirmed,sessionId:'other'};view.sync();second.onclick();assert.equal(scroll.calls,1);
+ assert.notEqual(byId('outline-list').children[1],second);
 });

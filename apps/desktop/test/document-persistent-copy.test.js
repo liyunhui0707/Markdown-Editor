@@ -12,8 +12,18 @@ const { createHomeFixture } = require('./helpers/home-fixture.cjs');
 const hash = b => createHash('sha256').update(b).digest('hex');
 const text = 'First 中文 😀\n\nSecond paragraph.';
 const baselineCwd = process.cwd();
+const batch = require('./helpers/save-folder-fixture.cjs').createSaveFolderFixture();
+const children = [];
+test.after(async () => {
+  process.chdir(baselineCwd);
+  await Promise.all(children.map(child => child.closed || new Promise((resolve,reject) => {
+    const timer=setTimeout(()=>reject(Error('writer still active; retain Home evidence')),5000);
+    child.once('close',()=>{clearTimeout(timer);resolve();});
+  })));
+  console.log('persistent-fixtures:'+JSON.stringify(batch.archive({quiescent:true})));
+});
 function destination({ cleanup = false } = {}) {
-  const owned = createHomeFixture('Markdown-Persistent-Test-V1-');
+  const owned = createHomeFixture('Markdown-Persistent-Test-V1-', {parent:batch.dir});
   if (!cleanup) owned.keep('negative-or-uncertain-test-evidence');
   return { dir: owned.dir, filePath: path.join(owned.dir, 'copy.md'), owned };
 }
@@ -49,6 +59,7 @@ function nodeFork(hooks = {}) {
       process.parentPort={on:(n,f)=>process.on(n,data=>f({data})),postMessage:m=>{${hooks.omitMetadataProof ? 'delete m.result.fileMetadataSha256;' : ''}${hooks.fault === 'missing' ? 'process.exit(0)' : hooks.fault === 'hang' ? 'void m' : 'process.send(m)'}}};
       require(${JSON.stringify(entry)});
     `], { ...options, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+    children.push(child); child.once('close',()=>{child.closed=true;});
     child.postMessage = data => {
       if (data.ack && hooks.beforeAck) hooks.beforeAck();
       if (!data.ack && hooks.beforeTask) hooks.beforeTask();
@@ -58,11 +69,11 @@ function nodeFork(hooks = {}) {
     return child;
   };
 }
-function fixture(writer) {
+function fixture(writer, attachments = []) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-safe-create-'))); fs.chmodSync(root, 0o700);
   process.chdir(root); // Dedicated Node test process only.
   const seed = path.join(root, 'seed.md'); fs.writeFileSync(seed, '', { flag: 'wx', mode: 0o600 });
-  const service = createDocumentService({ isolatedCreateRoot: root, persistentWriter: writer });
+  const service = createDocumentService({ isolatedCreateRoot: root, persistentWriter: writer, attachmentsFor: () => attachments });
   const document = service.open(seed, { syntheticTemporary: true }).document;
   assert.equal(document.edit({ from: 0, to: 0, insert: text, expectedRevision: 0 }).ok, true);
   const request = filePath => ({ filePath, expectedRevision: document.revision, expectedSha256: hash(document.bytesForSave()), isAuthorized: () => true });
@@ -97,7 +108,7 @@ for (const kind of ['existing','symlink','writable-by-others','tmp','wrong-name'
   if (kind === 'symlink') fs.symlinkSync('missing.md', file);
   if (kind === 'writable-by-others') fs.chmodSync(d.dir,0o777);
   if (kind === 'tmp') file = path.join(os.tmpdir(),'copy.md');
-  if (kind === 'wrong-name') file = path.join(d.dir,'../escape.md');
+  if (kind === 'wrong-name') file = path.join(d.dir,'.hidden.md');
   assert.throws(()=>captureCopyDestination(file));
   if (kind === 'existing') assert.equal(fs.readFileSync(file,'utf8'),'SENTINEL');
   if (kind === 'symlink') assert.equal(fs.readlinkSync(file),'missing.md');
@@ -216,7 +227,7 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
 
 // Save As New File V1: only synthetic folders/files are created by these tests.
 function ordinaryDestination(name = '新文档 😀.md', { cleanup = false } = {}) {
-  const owned = createHomeFixture('Writing-synthetic-'), dir = owned.dir;
+  const owned = createHomeFixture('Writing-synthetic-', {parent:batch.dir}), dir = owned.dir;
   const sentinel = path.join(dir, 'untouched.md');
   fs.writeFileSync(sentinel, 'UNTOUCHED', { flag: 'wx', mode: 0o600 });
   if (cleanup) owned.recordFile('untouched.md', Buffer.from('UNTOUCHED'));
@@ -263,7 +274,7 @@ test('save as new: unsupported locations and unsafe names fail before creation',
   for (const name of ['新文档 😀.md', 'Another copy.md', 'UPPER.MD']) assert.equal(copyName(name), true, name);
   for (const name of ['../escape.md', 'a/b.md', 'a\\b.md', '.hidden.md', 'trailing.md ', 'a:b.md', 'line\nname.md', 'a\u202ename.md', 'a\ud800.md', '中'.repeat(85) + '.md']) assert.equal(copyName(name), false, JSON.stringify(name));
   // Reserved locations are refused before metadata/content reads; no real files accessed.
-  for (const name of ['Desktop','Documents','Library','Dropbox','OneDrive - Work','Google Drive','iCloud Drive','.hidden']) {
+  for (const name of ['Library','Dropbox','OneDrive - Work','Google Drive','iCloud Drive','.hidden']) {
     assert.throws(() => captureCopyDestination(path.join(os.homedir(), name, 'new.md')), { code: 'unsupported-copy-directory' });
   }
   const d = ordinaryDestination('plain.md');
@@ -420,4 +431,43 @@ for (const mutation of [null, 'attribute', 'content', 'ctime', 'mode']) test('fi
       console.log('first-metadata-evidence:' + evidence);
     }
   }
+});
+
+const imageBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64');
+const imageName=require('../lib/document-local-images').imageAsset(imageBytes).name;
+const imageAttachments=[{name:imageName,base64:imageBytes.toString('base64')}];
+test('image sidecars use exclusive writer, parent verification and identical readonly reuse',async()=>{
+ const d=destination({cleanup:true}),f=fixture(createCopyProcess({fork:nodeFork()}).create,imageAttachments);
+ const first=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(first.ok,true,JSON.stringify(first));assert.equal(first.attachments.length,1);
+ assert.deepEqual(fs.readFileSync(path.join(d.dir,imageName)),imageBytes);const identity=fs.statSync(path.join(d.dir,imageName)).ino;
+ d.owned.recordFile('copy.md',Buffer.from(text));d.owned.recordFile(imageName,imageBytes);
+ const second=await f.service.createPersistentCopy(f.document,f.request(path.join(d.dir,'second.md')));assert.equal(second.ok,true,JSON.stringify(second));assert.equal(second.attachments[0].created,false);assert.equal(fs.statSync(path.join(d.dir,imageName)).ino,identity);
+ assert.equal(f.document.dirty,true);assert.equal(fs.readFileSync(f.seed,'utf8'),'');d.owned.recordFile('second.md',Buffer.from(text));reclaim(d.owned);
+});
+test('partial image write retains artifacts and draft, never creates Markdown or retries',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork({fault:'partial'})}).create,imageAttachments);
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.state,'created-partial');assert.equal(fs.existsSync(d.filePath),false);
+ assert.equal(fs.readFileSync(path.join(d.dir,imageName)).length,3);assert.equal(f.document.dirty,true);
+ assert.equal((await f.service.createPersistentCopy(f.document,f.request(d.filePath))).code,'unresolved-copy-state');
+});
+test('existing wrong or linked attachment rejects before writing the Markdown target',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork()}).create,imageAttachments),imagePath=path.join(d.dir,imageName);fs.writeFileSync(imagePath,'wrong',{mode:0o600});
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.created,false);assert.equal(fs.readFileSync(imagePath,'utf8'),'wrong');assert.equal(fs.existsSync(d.filePath),false);
+});
+test('parent catches a sidecar replaced after child verification, and keeps the result unresolved',async()=>{
+ const d=destination(),f=fixture(createCopyProcess({fork:nodeFork({beforeAck:()=>{const imagePath=path.join(d.dir,imageName);fs.renameSync(imagePath,imagePath+'.evidence');fs.writeFileSync(imagePath,imageBytes,{mode:0o600});}})}).create,imageAttachments);
+ const r=await f.service.createPersistentCopy(f.document,f.request(d.filePath));assert.equal(r.ok,false);assert.equal(r.state,'created-unverified');assert.equal(r.code,'copy-post-verification-failed');assert.equal(f.document.dirty,true);
+});
+
+for (const phase of ['beforeTask','beforeAck']) test('nested ancestor replacement '+phase+' refuses confirmation even when leaf identity survives',async()=>{
+ const d=destination(),parent=path.join(d.dir,'parent'),leaf=path.join(parent,'leaf');fs.mkdirSync(leaf,{recursive:true,mode:0o700});
+ const filePath=path.join(leaf,'nested.md'),inode=fs.statSync(leaf).ino;
+ const writer=createCopyProcess({fork:nodeFork({[phase]:()=>{
+  fs.renameSync(parent,parent+'-moved');fs.mkdirSync(parent,{mode:0o700});fs.renameSync(path.join(parent+'-moved','leaf'),leaf);
+ }})});
+ const r=await writer.create({filePath,bytes:Buffer.from(text),revision:1,isAuthorized:()=>true});
+ assert.equal(fs.statSync(leaf).ino,inode);assert.equal(r.ok,false);
+ assert.equal(r.state,phase==='beforeTask'?'not-created':'created-unverified');
+ if(phase==='beforeTask')assert.equal(fs.existsSync(filePath),false);
+ else assert.equal(fs.readFileSync(filePath,'utf8'),text);
 });

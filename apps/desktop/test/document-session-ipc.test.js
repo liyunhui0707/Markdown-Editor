@@ -570,3 +570,112 @@ test('confirmed-copy preload accepts only new readonly snapshots and retains an 
   assert.equal((await next).code, 'copy-action-unknown');
   assert.equal((await f.api.createPersistentCopy(q)).code, 'copy-action-unknown');
 });
+
+
+test('user close blocks composition and pending edits before establishing a fence', async () => {
+  const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 };
+  f.dom.emit('compositionstart'); assert.equal((await f.api.closeDocument(data)).code, 'composition-active');
+  assert.equal(f.pending.length, 0); f.dom.emit('compositionend');
+  const edit = f.api.edit(data); assert.equal((await f.api.closeDocument(data)).code, 'document-busy');
+  assert.equal(f.pending.length, 1); f.pending[0].resolve({ ok: true }); await edit;
+});
+for (const code of ['close-cancelled', 'close-backup-unverified', 'unresolved-save-state']) test(`matched user close refusal resumes only the still-live session: ${code}`, async () => {
+  const f = preloadFixture(), states = [], data = { sessionId: 'a', expectedRevision: 2 };
+  f.api.onLifecycle(s => states.push(s.state)); const closing = f.api.closeDocument(data);
+  assert.equal((await f.api.edit(data)).code, 'close-pending');
+  f.pending[0].resolve({ ...data, requestRevision: 2, ok: false, closed: false, code });
+  assert.equal((await closing).code, code); assert.deepEqual(states, ['close-pending', 'open']);
+  const snapshot = f.api.snapshot({ sessionId: 'a' }); f.pending[1].resolve({ ok: true, snapshot: { sessionId: 'a' } });
+  assert.equal((await snapshot).ok, true);
+});
+for (const fault of ['transport', 'identity', 'revision', 'missing-state']) test(`uncertain user close remains fenced: ${fault}`, async () => {
+  const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 }, closing = f.api.closeDocument(data);
+  if (fault === 'transport') f.pending[0].reject(Error('Synthetic transport failure'));
+  else f.pending[0].resolve({ ok: false, code: 'close-cancelled', sessionId: fault === 'identity' ? 'b' : 'a',
+    requestRevision: fault === 'revision' ? 1 : 2, ...(fault === 'missing-state' ? {} : { closed: false }) });
+  assert.equal((await closing).code, 'close-outcome-unknown');
+  assert.equal((await f.api.edit(data)).code, 'close-outcome-unknown');
+});
+test('main invalidation wins over a matched cancellation; a confirmed close cannot be reused', async () => {
+  for (const ok of [false, true]) {
+    const f = preloadFixture(), data = { sessionId: 'a', expectedRevision: 2 }, closing = f.api.closeDocument(data);
+    f.events.emit('document-demo:invalidated', {}, { sessionId: 'a' });
+    f.pending[0].resolve({ ...data, requestRevision: 2, ok, closed: ok, code: ok ? undefined : 'close-cancelled' });
+    const result = await closing; assert.equal(result.ok, ok);
+    assert.equal((await f.api.snapshot(data)).code, 'unknown-session');
+  }
+});
+
+test('link format payloads are revision bound, readonly isolated and exactly reversible',()=>{
+ const f=fixture(),disk=fs.readFileSync(f.file),before=f.document.text,p=projectSource(before).spans[0];
+ const q={operation:'format',sessionId:f.id,expectedRevision:0,action:'set-link',from:p.from,to:p.to,label:'新链接😀',href:'https://example.test/path'};
+ const readonly=f.manager.provision(f.win,f.service.open(f.file).document,'Readonly',{readOnly:true});
+ assert.equal(f.call({...q,sessionId:readonly}).code,'read-only-document');
+ assert.equal(f.manager.request({sender:f.wc,senderFrame:{url:f.frame.url}},q).code,'unauthorized-sender');
+ for(const extra of [{source:'bad'},{path:'/tmp/no'},{inverseSource:{}},{capability:true}])assert.equal(f.call({...q,...extra}).code,'invalid-request');
+ assert.equal(f.call({...q,href:'javascript:alert(1)'}).ok,false);assert.equal(f.document.text,before);
+ assert.equal(f.call({...q,action:'bold'}).ok,false);assert.equal(f.document.revision,0);
+ const r=f.call(q);assert.equal(r.ok,true);assert.equal(r.snapshot.source,before.replace('标题😀','[新链接😀](<https://example.test/path>)'));
+ assert.equal(f.call(q).code,'stale-revision');
+ const undo=f.call({operation:'undo',sessionId:f.id,expectedRevision:1});assert.equal(undo.snapshot.source,before);
+ const redo=f.call({operation:'redo',sessionId:f.id,expectedRevision:2});assert.equal(redo.snapshot.source,r.snapshot.source);
+ assert.equal(f.call({operation:'save',sessionId:f.id,expectedRevision:3}).code,'coordination-required');
+ assert.equal(f.call({operation:'snapshot',sessionId:readonly}).snapshot.source,before);assert.deepEqual(fs.readFileSync(f.file),disk);
+});
+
+test('recent preload fences composition, pending edits and unknown outcomes; validates readonly ID receipts',async()=>{
+  const a=preloadFixture();a.dom.emit('compositionstart');assert.equal((await a.api.openRecent('recent')).code,'composition-active');assert.equal((await a.api.clearRecents()).code,'composition-active');assert.equal(a.pending.length,0);
+  a.dom.emit('compositionend');const pending=a.api.snapshot({sessionId:'draft'});assert.equal((await a.api.openRecent('recent')).code,'document-busy');a.pending[0].resolve({ok:true});await pending;
+  for(const result of [{ok:true,recentId:'other',snapshot:{sessionId:'new',readOnly:true}},{ok:true,recentId:'recent',snapshot:{sessionId:'new',temporary:true,readOnly:false}}]){
+    const f=preloadFixture(),call=f.api.openRecent('recent');f.pending[0].resolve(result);assert.equal((await call).code,'ipc-outcome-unknown');assert.equal((await f.api.openRecent('recent')).code,'ipc-outcome-unknown');
+  }
+  const b=preloadFixture(),call=b.api.openRecent('recent');b.pending[0].resolve({ok:true,recentId:'recent',snapshot:{sessionId:'new',readOnly:true}});assert.equal((await call).ok,true);
+  const c=preloadFixture(),lost=c.api.openRecent('recent');c.pending[0].reject(Error('lost'));await assert.rejects(lost);assert.equal((await c.api.clearRecents()).code,'ipc-outcome-unknown');
+});
+
+test('draft rename preload fences input and unknown outcomes and checks name/session/revision receipts',async()=>{
+ const q={sessionId:'draft',expectedRevision:2,expectedLabel:'Old',label:'New'},a=preloadFixture();
+ a.dom.emit('compositionstart');assert.equal((await a.api.renameDraft(q)).code,'composition-active');assert.equal(a.pending.length,0);a.dom.emit('compositionend');
+ const inFlight=a.api.renameDraft(q);assert.equal((await a.api.renameDraft(q)).code,'document-busy');
+ a.pending[0].resolve({ok:true,snapshot:{sessionId:'draft',revision:2,label:'New',temporary:true,readOnly:false}});assert.equal((await inFlight).ok,true);
+ for(const altered of [{label:'Wrong'},{sessionId:'other'},{revision:3},{readOnly:true}]){
+  const f=preloadFixture(),p=f.api.renameDraft(q);f.pending[0].resolve({ok:true,snapshot:{sessionId:'draft',revision:2,label:'New',temporary:true,readOnly:false,...altered}});
+  assert.equal((await p).code,'ipc-outcome-unknown');assert.equal((await f.api.renameDraft(q)).code,'ipc-outcome-unknown');
+ }
+ const f=preloadFixture(),lost=f.api.renameDraft(q);f.pending[0].reject(Error('lost'));assert.equal((await lost).ok,false);
+ assert.equal((await f.api.createPersistentCopy({sessionId:'draft'})).code,'ipc-outcome-unknown');
+});
+test('local image preload blocks composition and native-pick overlap; preview cannot hold the typing fence', async () => {
+ const f=preloadFixture(),q={sessionId:'image-session',expectedRevision:2},href='markdown-image-'+'a'.repeat(64)+'.png';
+ f.dom.emit('compositionstart');assert.equal((await f.api.importImage(q)).code,'composition-active');assert.equal(f.pending.length,0);f.dom.emit('compositionend');
+ const preview=f.api.imagePreview({...q,href}),pick=f.api.importImage(q);assert.equal(f.pending.length,2);
+ assert.equal((await f.api.format({...q,action:'bold',from:1,to:2})).code,'document-busy');
+ f.pending[1].resolve({ok:true,sessionId:q.sessionId,revision:2,href});assert.equal((await pick).ok,true);
+ f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:2,href,dataUrl:'data:image/svg+xml;base64,AAAA'});assert.equal((await preview).ok,false);
+ const forged=f.api.importImage(q);f.pending[2].resolve({ok:true,sessionId:'different',revision:2,href});assert.equal((await forged).ok,false);
+ assert.equal((await f.api.createPersistentCopy(q)).ok,false);
+});
+test('local image preload ignores stale preview after session revocation', async () => {
+ const f=preloadFixture(),q={sessionId:'image-session',expectedRevision:1,href:'markdown-image-'+'b'.repeat(64)+'.png'};
+ const preview=f.api.imagePreview(q);f.events.emit('document-demo:invalidated',{}, {sessionId:q.sessionId});
+ f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:1,href:q.href,dataUrl:'data:image/png;base64,AAAA'});assert.equal((await preview).ok,false);
+});
+
+test('source-edit preload fences composition, pending IPC and prior unknown outcome',async()=>{
+ const f=preloadFixture(),q={sessionId:'source',expectedRevision:0,from:0,to:0,insert:'raw'};
+ f.dom.emit('compositionstart');assert.equal((await f.api.sourceEdit(q)).code,'composition-active');f.dom.emit('compositionend');
+ const pending=f.api.sourceEdit(q);assert.equal(f.pending[0].payload.operation,'source-edit');assert.equal((await f.api.sourceEdit(q)).code,'document-busy');
+ f.pending[0].reject(Error('synthetic transport loss'));await assert.rejects(pending);
+ assert.equal((await f.api.sourceEdit(q)).code,'ipc-outcome-unknown');assert.equal(f.pending.length,1);
+});
+
+test('image preload accepts the full image byte budget and refuses oversized or stale data URLs',async()=>{
+ const {MAX_IMAGE_BYTES,base64Limit}=require('../lib/document-capacity');
+ for(const [length,accepted]of [[MAX_IMAGE_BYTES,true],[MAX_IMAGE_BYTES+32,false]]){
+  const f=preloadFixture(),q={sessionId:'capacity-image',expectedRevision:2,href:'markdown-image-'+'a'.repeat(64)+'.png'};
+  const result=f.api.imagePreview(q),dataUrl='data:image/png;base64,'+Buffer.alloc(length).toString('base64');
+  f.pending[0].resolve({ok:true,sessionId:q.sessionId,revision:2,href:q.href,dataUrl});assert.equal((await result).ok,accepted);
+ }
+ const source=fs.readFileSync(path.join(__dirname,'../lib/document-demo-preload.js'),'utf8');
+ assert.match(source,new RegExp(`MAX_IMAGE_DATA_URL = ${base64Limit(MAX_IMAGE_BYTES)+26}`));
+});

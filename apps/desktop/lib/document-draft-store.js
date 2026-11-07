@@ -1,4 +1,5 @@
 'use strict';
+const {MAX_SOURCE_UNITS, MAX_DOCUMENT_BYTES, MAX_RECORD_BYTES} = require('./document-capacity');
 // Application-owned recovery snapshots only. This grants no Markdown save authority.
 const nativeFs = require('node:fs'), path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
@@ -8,7 +9,9 @@ const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const filename = /^([a-f0-9-]{36})\.(\d{1,10})\.json$/;
 const fail = code => { throw Object.assign(Error(code), { code }); };
 const stamp = s => [s.dev, s.ino, s.mode, s.uid, s.gid, s.nlink, s.size, s.mtimeNs, s.ctimeNs].join(':');
-const MAX_RECORD = 768 * 1024;
+const {decodeAttachments} = require('./document-local-images');
+// Bounded raster attachments share the same verified generation as the text.
+const MAX_RECORD = MAX_RECORD_BYTES;
 function createDraftStore(root, { fs = nativeFs } = {}) {
   if (!path.isAbsolute(root)) fail('draft-directory-unavailable');
   try { fs.mkdirSync(root, { mode: 0o700 }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
@@ -37,16 +40,19 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       while (offset < buffer.length) { const n = fs.readSync(fd, buffer, offset, buffer.length - offset, offset); if (!n) fail('invalid-draft'); offset += n; }
       if (stamp(fs.fstatSync(fd, { bigint: true })) !== stamp(before) || stamp(fs.lstatSync(file, { bigint: true })) !== stamp(before)) fail('draft-changed');
       const envelope = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer)), r = envelope.record;
-      if (!r || envelope.sha256 !== hash(JSON.stringify(r)) || r.version !== 1 || !uuid.test(r.id)
+      if (!r || envelope.sha256 !== hash(JSON.stringify(r)) || ![1,2].includes(r.version) || !uuid.test(r.id)
+          || (r.version === 1 && r.attachments !== undefined)
+          || (r.version === 2 && (!Array.isArray(r.attachments) || !r.attachments.length))
           || name !== `${r.id}.${r.generation}.json` || !Number.isSafeInteger(r.generation) || r.generation < 1
           || !Number.isSafeInteger(r.revision) || r.revision < 0 || typeof r.label !== 'string' || r.label.length > 512
           || !Number.isSafeInteger(r.time) || typeof r.body !== 'string'
           || (r.archived !== undefined && typeof r.archived !== 'boolean')) fail('invalid-draft');
       const bytes = Buffer.from(r.body, 'base64');
       const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-      if (bytes.length > 524288 || bytes.toString('base64') !== r.body || hash(bytes) !== r.contentHash
-          || text.length > 131073 || text.includes('\0')) fail('invalid-draft');
-      verifyRoot(); return { ...r, bytes, token: name, identity: stamp(before) };
+      if (bytes.length > MAX_DOCUMENT_BYTES || bytes.toString('base64') !== r.body || hash(bytes) !== r.contentHash
+          || text.length > (MAX_SOURCE_UNITS + (text.startsWith("\ufeff") ? 1 : 0)) || text.includes('\0')) fail('invalid-draft');
+      decodeAttachments(r.attachments);
+      verifyRoot(); return { ...r, attachments: r.attachments || [], bytes, token: name, identity: stamp(before) };
     } finally { if (fd !== undefined) fs.closeSync(fd); }
   }
   function group(id, all = names()) {
@@ -84,11 +90,14 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       return { ok: true, drafts, archived, capacity: { active: drafts.length, limit: 32, records: all.length, maxRecords: 128 } };
     } catch (e) { return { ok: false, code: e.code || 'draft-read-failed', drafts: [], archived: [] }; }
   }
-  function writeRecord({ id, token = null, fingerprint = null, label, revision, bytes }, management = null) {
+  function writeRecord({ id, token = null, fingerprint = null, label, revision, bytes, attachments = [] }, management = null) {
     let fd, directory, created = false, attempted = false;
     try {
-      if (!uuid.test(id) || !Buffer.isBuffer(bytes) || bytes.length > 524288 || typeof label !== 'string' || label.length > 512
+      if (!uuid.test(id) || !Buffer.isBuffer(bytes) || bytes.length > MAX_DOCUMENT_BYTES || typeof label !== 'string' || label.length > 512
           || !Number.isSafeInteger(revision) || revision < 0) fail('invalid-draft');
+      const text = new TextDecoder('utf-8', {fatal:true,ignoreBOM:true}).decode(bytes);
+      if (text.length > MAX_SOURCE_UNITS + (text.startsWith('\ufeff') ? 1 : 0) || text.includes('\0')) fail('invalid-draft');
+      decodeAttachments(attachments);
       const all = names(), previous = group(id, all);
       if ((previous[0] || null) !== token) fail('draft-conflict');
       const prior = token ? read(token) : null;
@@ -102,7 +111,7 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       const generation = token ? Number(token.split('.')[1]) + 1 : 1;
       if (generation > 9999999999) fail('draft-capacity');
       const name = `${id}.${generation}.json`, file = path.join(root, name);
-      const record = { version: 1, id, generation, revision, label, time: management ? management.time : Date.now(), archived: management?.archived === true, contentHash: hash(bytes), body: bytes.toString('base64') };
+      const record = { version: attachments.length ? 2 : 1, id, generation, revision, label, time: management ? management.time : Date.now(), archived: management?.archived === true, contentHash: hash(bytes), body: bytes.toString('base64'), ...(attachments.length ? {attachments} : {}) };
       const encoded = Buffer.from(JSON.stringify({ record, sha256: hash(JSON.stringify(record)) }));
       if (encoded.length > MAX_RECORD) fail('draft-capacity');
       directory = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW); verifyRoot();
@@ -115,7 +124,7 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       }
       fs.fsyncSync(fd); fs.closeSync(fd); fd = undefined;
       const confirmed = read(name);
-      if (!confirmed.bytes.equals(bytes) || !confirmed.identity.startsWith(`${owned.dev}:${owned.ino}:`)) fail('draft-changed');
+      if (!confirmed.bytes.equals(bytes) || JSON.stringify(confirmed.attachments) !== JSON.stringify(attachments) || !confirmed.identity.startsWith(`${owned.dev}:${owned.ino}:`)) fail('draft-changed');
       fs.fsyncSync(directory); verifyRoot();
       if (read(name).identity !== confirmed.identity) fail('draft-changed');
       // Keep two verified generations. Unknown/partial/foreign entries are retained.
@@ -147,7 +156,7 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
       // A verified generation changes membership without deleting the draft.
       // The same bounded writer retains its body and applies normal generation retention.
       const result = writeRecord({ id, token: current.token, fingerprint: current.identity,
-        label: current.label, revision: current.revision, bytes: current.bytes }, { archived, time: current.time });
+        label: current.label, revision: current.revision, bytes: current.bytes, attachments: current.attachments }, { archived, time: current.time });
       return result.ok ? { ok: true, state: archived ? 'archived' : 'available' } : result;
     } catch (e) { return { ok: false, state: 'not-changed', code: e.code || 'draft-management-failed' }; }
   }

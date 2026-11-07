@@ -67,7 +67,7 @@ body[data-document-viewer] .icon-button {display:inline-flex;align-items:center;
 #format-toolbar select {font-size:12px;border:0;border-radius:5px;background:transparent;color:var(--ink);padding:5px 0;max-width:145px;margin:0 8px 0 0}
 #format-toolbar button {font-size:14px;padding:2px 8px;border-color:transparent;background:transparent;color:var(--muted)}
 #format-bold {font-weight:700;font-family:Georgia,serif!important}
-#format-bold[aria-pressed=true] {background:var(--active);color:var(--accent)}
+#format-bold[aria-pressed=true],#format-italic[aria-pressed=true],#format-code[aria-pressed=true] {background:var(--active);color:var(--accent)}
 .format-divider {width:1px;height:16px;background:var(--line);margin:0 6px}
 #document-scroll {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 body[data-document-viewer] #editor {width:calc(100% - 2 * var(--gutter));max-width:var(--reading-width);min-width:0;margin:0 auto;border:0;padding:58px 0 100px;font-size:17px;line-height:1.95;overflow-wrap:anywhere;word-break:normal}
@@ -98,7 +98,7 @@ body[data-document-viewer] .tiptap pre code {font:inherit;background:none;paddin
 #copy-operation-alert[data-tone=neutral] {background:var(--panel);color:var(--muted);border-color:#a6b2a3}
 #viewer-status {position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 #viewer-status[data-notice] {position:static;display:block;width:calc(100% - 2 * var(--gutter));height:auto;clip-path:none;white-space:normal;max-width:var(--reading-width);margin:18px auto -12px;padding:12px 15px;background:#f5f0e5;border-radius:5px;color:#785d33;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
-#empty-state {max-width:640px;margin:0 auto;padding:75px 32px 80px;display:flex;flex-direction:column;align-items:flex-start}
+#empty-state {max-width:640px;margin:0 auto;padding:36px 32px 60px;display:flex;flex-direction:column;align-items:flex-start}
 body[data-document-viewer] .welcome-icon {width:30px;height:34px;color:#8c9c92;margin-bottom:28px;display:none}
 #empty-state .welcome-kicker {font-size:11px;letter-spacing:1px;color:var(--muted);margin:0 0 16px}
 #empty-state h1 {font:500 36px/1.4 "Songti SC",Georgia,serif;margin:0 0 18px;letter-spacing:-.02em}
@@ -183,3 +183,105 @@ body[data-document-viewer] :is(.input-protection,#composition-status) {max-width
 .copy-action-buttons {display:flex;gap:8px;flex-wrap:wrap}
 .copy-action-buttons button {font-size:12px;padding:5px 10px}
 #copy-action-status:not(:empty) {display:block;margin-top:8px;color:var(--muted);overflow-wrap:anywhere}
+
+body[data-document-viewer] .tiptap .document-source-link { color:var(--accent);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 40%,transparent);text-underline-offset:3px;cursor:text; }
+
+#format-link[aria-pressed=true] {background:var(--active);color:var(--accent)}
+#link-dialog {width:420px;padding:24px}
+#link-dialog h2 {margin:0 0 18px;font-size:17px}
+#link-dialog label {display:block;margin:12px 0 5px;font-weight:500}
+#link-dialog input {box-sizing:border-box;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}
+#link-dialog input:focus {outline:2px solid var(--accent);outline-offset:1px}
+#link-dialog .link-help {color:var(--muted);font-size:12px;margin:12px 0}
+#link-error {color:#995622;font-size:12px;min-height:1.8em;margin:8px 0}
+.link-dialog-actions {display:flex;align-items:center;gap:8px;margin-top:16px}
+.link-dialog-actions span {flex:1}
+#link-apply {background:var(--accent);border-color:var(--accent);color:white}
+
+body[data-document-viewer] .tiptap blockquote {margin:1.3em 0;padding:0 0 0 1.1em;border-left:3px solid var(--accent);color:var(--muted)}
+body[data-document-viewer] .tiptap blockquote p {margin:.7em 0}
+
+/* Resume the accepted workspace without changing the writing surface. */
+.resume-sections {width:100%;margin-top:24px;border-top:1px solid var(--line);text-align:left}
+.resume-sections>section {margin-top:22px}
+.resume-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
+#empty-state .resume-heading h2 {font-size:13px;font-weight:600;margin:0;color:var(--ink)}
+#empty-state .resume-note {font-size:12px;margin:8px 0;color:var(--muted)}
+.resume-heading button {font-size:12px}
+.resume-row {display:block;width:100%;margin:4px 0;padding:11px 13px;text-align:left;border:1px solid transparent;background:transparent;border-radius:8px;color:var(--ink)}
+.resume-row:hover {background:var(--surface);border-color:var(--line)}
+.resume-row strong,.resume-row small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.resume-row strong {font-size:13px;font-weight:500}
+.resume-row small {font-size:11px;color:var(--muted);margin-top:3px}
+.recent-actions {display:flex;gap:8px;margin-top:20px}
+
+#name-dialog {box-sizing:border-box;width:min(478px,calc(100vw - 40px));padding:24px}
+#name-dialog h2 {margin:0 0 16px;font-size:17px}
+#name-dialog p {color:var(--muted);font-size:12px}
+#name-form label {display:block;font-size:12px;margin:20px 0 8px}
+#draft-name-input {box-sizing:border-box;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit}
+#name-dialog #draft-name-error {color:#99652f;min-height:1.5em;font-size:12px}
+#rename-draft {margin:10px 0}
+
+/* Source-owned task items share the established reading width and palette. */
+#editor li {position:relative}
+#editor li[data-task-item] {list-style:none}
+#editor .document-task-toggle {position:absolute;left:-1.6em;top:.35em;width:1.1em;height:1.1em;min-width:0;padding:0;margin:0;line-height:1;border:1px solid var(--muted);border-radius:4px;background:transparent;color:var(--accent);font:inherit;font-size:.85em;display:grid;place-items:center;line-height:1;cursor:pointer}
+#editor .document-task-toggle[aria-checked=true] {background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+#editor .document-task-toggle:disabled {cursor:default;opacity:.75}
+#editor li[data-task-item]>div>p {margin-top:0}
+
+/* Bounded GFM tables share the reading width and existing visual palette. */
+#table-tools {display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex:none}
+#table-position {font-size:11px;color:var(--muted);margin-right:8px}
+body[data-document-viewer] #table-tools button {padding:3px 9px;font-size:11px}
+body[data-document-viewer] .tiptap table {border-collapse:collapse;table-layout:fixed;width:100%;margin:1.2em 0;font-size:15px;line-height:1.65}
+body[data-document-viewer] .tiptap :is(th,td) {border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left;min-width:32px;font-weight:400}
+body[data-document-viewer] .tiptap th {background:var(--panel);font-weight:600}
+body[data-document-viewer] .tiptap :is(th,td):focus-within {box-shadow:inset 0 0 0 1px var(--accent)}
+body[data-document-viewer] .tiptap :is(th,td) p {margin:0;min-height:1.65em;white-space:pre-wrap}
+body[data-document-viewer] .tiptap [data-align=center] {text-align:center}
+body[data-document-viewer] .tiptap [data-align=right] {text-align:right}
+
+/* Inert image references share the document surface; never an external fetch. */
+body[data-document-viewer] .document-image-reference { display:flex; flex-direction:column; align-items:center; gap:8px; margin:1.4em 0; padding:28px 24px; border:1px solid var(--line); border-radius:10px; background:var(--panel); text-align:center; cursor:default; }
+body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { outline:2px solid var(--accent); outline-offset:3px; }
+.document-image-reference .image-reference-icon { font-size:30px; opacity:.55; }
+.document-image-reference .image-reference-label { font-weight:600; }
+.document-image-reference .image-reference-target { font:13px ui-monospace,monospace; overflow-wrap:anywhere; max-width:100%; opacity:.72; }
+.document-image-reference small { font-size:12px; opacity:.65; }
+#image-form label { display:flex; flex-direction:column; gap:7px; margin:18px 0; }
+#image-form input { width:100%; box-sizing:border-box; padding:10px 12px; }
+#image-error { color:var(--warning-ink, #8a5a2d); }
+
+#image-dialog {width:440px;padding:24px}
+#image-dialog h2 {margin:0;font-size:17px}
+#image-form input {border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+#image-apply {background:var(--accent);border-color:var(--accent);color:var(--on-accent,white)}
+#format-image[aria-pressed=true] {background:var(--active);color:var(--accent)}
+
+/* Verified local images stay inside the accepted reading width. */
+.document-image-reference .document-local-image { display: block; max-width: 100%; max-height: 480px; object-fit: contain; margin: 0 auto 12px; border-radius: 5px; }
+.document-image-reference .document-local-image[hidden] { display: none; }
+
+.document-image-reference.has-preview { background: transparent; border-color: transparent; padding: 10px 0; }
+.document-image-reference.has-preview .image-reference-target,
+.document-image-reference.has-preview small { display: none; }
+.document-image-reference.has-preview .image-reference-label { font-size: .9em; font-weight: 400; color: var(--muted); }
+
+#input-pressure-panel pre {background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+#input-pressure-panel label {display:block;margin:12px 0}
+
+/* Pending native opens keep the current writing surface intact. */
+[data-document-viewer] #native-open-panel { margin: 18px 0; padding: 12px 16px; border: 1px solid var(--line, #ddd); border-radius: 8px; font-size: 14px; color: var(--muted, #626a66); overflow-wrap: anywhere; }
+[data-document-viewer] #native-open-panel button { font: inherit; }
+
+/* Bound file save: quiet success, distinct unresolved outcome. */
+#original-save-status { color: var(--text-muted, #53695b); margin: 16px auto; max-width: var(--reading-width, 820px); }
+#original-save-status p { margin: 0 0 8px; }
+#original-save-status[data-tone="error"] { padding: 14px 18px; border-left: 3px solid #b77b43; background: #b77b4315; }
+#save-original { color: white; background: #506d59; border-color: #506d59; }
+.save-version-row { border-top: 1px solid #8883; padding: 12px 0; overflow-wrap: anywhere; }
+#save-versions p { font-size: 13px; line-height: 1.7; }
+
+#original-save-receipt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }

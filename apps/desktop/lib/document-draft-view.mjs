@@ -28,6 +28,7 @@ export function createDraftView({ api, byId, context, restore }) {
     node.dataset.tone = ['backup-failed', 'draft-unverified'].includes(r?.state) ? 'error' : '';
     summary.dataset.tone = node.dataset.tone;
     summary.textContent = node.dataset.tone === 'error' ? '本地备份未确认 · 请另存新文件，详情中可查看原因'
+      : s.inputPaused ? '输入已暂停 · 未确认修改仅保留在当前窗口'
       : s.composing && !s.compositionInvalid ? '输入中…'
       : unsettled ? '正在确认修改…'
       : r?.state === 'backed-up' && r.revision === s.confirmed.revision ? '已备份'
@@ -59,7 +60,7 @@ export function createDraftView({ api, byId, context, restore }) {
       meta.textContent = `${d.time ? new Date(d.time).toLocaleString() : '备份时间未知'} · ${d.id.slice(0, 8)}`
         + (Number.isSafeInteger(d.revision) ? ` · 修订 ${d.revision}` : '')
         + (d.warning ? ' · 较新记录损坏或未确认，或存在异常旧记录；保留原记录，暂停整理' : '')
-        + (d.active ? ' · 使用中，关闭窗口后可归档' : '');
+        + (d.active ? ' · 使用中，关闭文档后可归档' : '');
       row.append(label, badge, meta);
       if (!archived) {
         const restoreButton = document.createElement('button');

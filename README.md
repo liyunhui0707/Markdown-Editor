@@ -2,11 +2,270 @@
 
 A local macOS Markdown editor with a document-first writing workspace, built with
 Electron and Tiptap. Open an original read-only, edit an independent copy, keep
-local draft backups, and explicitly export a new `.md` file. Existing files are
-never overwritten. No account or hosted backend is required.
+local draft backups, explicitly export a new `.md` file, and save back to a
+bound local file while retaining previous versions. New-file export never replaces
+an existing target. No account or hosted backend is required.
 
-**0.37.1 development WIP:** the installed app is not a signed/notarized release or a
-promise of unrestricted Markdown editing/saving. Current limits are below.
+**0.62.1 local WIP candidate for local-folder compatibility and package hygiene.** This is not
+a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
+
+
+The Document installation excludes the retired Toast UI dependency files, including
+its old embedded sanitizer. Historical Vault source/dependencies remain available
+for development; this is not a claim that their SEC-01 issue is fixed.
+
+## Local Desktop and Documents — 0.62.0
+
+Ordinary local `Desktop` / `Documents` folders beneath Home, including nested
+folders with these names, can now pass the same save checks as other local
+folders. This applies to new-file export and explicitly bound-file saving.
+iCloud-managed Desktop/Documents remain refused with a specific explanation.
+If macOS cannot confirm the location, nothing is created. The app does not change
+sync settings or folder permissions. Home itself, system/hidden/provider folders,
+network and external volumes remain outside the supported save scope.
+
+## Daily writing — 0.61.2
+
+Line-boundary mapping now scans forward once. Ordinary paragraph keys no longer
+request table projections; body edits retain outline buttons while updating their
+confirmed positions. Ordinary keys also skip the inapplicable paragraph split/join
+candidate before copying the full document. Source validation, history, backup and
+save authority are unchanged. The 0.61.1 same-machine profile of eight controlled
+keys in a 485,031-unit synthetic article
+measured a median 695 ms → 205 ms from beforeinput to confirmed state. This is a
+bounded same-machine comparison, not a universal latency guarantee; near-limit
+writing still has noticeable latency and substantial memory use. Native IME and
+human daily-writing acceptance remain pending; see `docs/test-manual.md`.
+
+## Larger articles and images — 0.61.0
+
+The complete open/edit/history/backup/recovery/export/save path now accepts up to
+**524,288 UTF-16 units of Markdown** (excluding the initial BOM) and **2 MiB of
+UTF-8 file bytes**; both limits apply. PNG/JPEG attachments allow **16 distinct
+images**, **4 MiB each**, **16 MiB total** and **32 million decoded pixels total**.
+Each image still has a 4096-pixel side / 16-million-pixel limit. Unknown or
+oversized data is refused; missing attachments remain placeholders, not verified
+exports. Import/Undo retains at most 32 images / 32 MiB / 64 million pixels per
+session. This does not grant access to additional paths or file types.
+
+Document Undo keeps up to 64 entries and 8 MiB of inverse/redo text; large whole-
+source replacements may retain fewer steps. Recent steps remain exact. The source
+window has its own local edit history. Existing drafts need no migration, but a
+larger new draft may exceed older App versions' limits: retain the 0.61.0 App and
+its records before rolling back; export needed work using this version first.
+
+A controlled Electron workflow passed with roughly 491,000 UTF-16 units,
+701 headings and 16 images, including a real 1.13 MiB PNG, through export, save
+back and restart recovery. Opening measured 0.40 s and saving 0.26 s; a controlled
+edit/confirmation flow took 2.13 s, including automation overhead. This is bounded
+functional evidence, **not** smooth extreme-length typing or native IME acceptance.
+Long-document latency and full-app memory profiling remain daily-use gates.
+
+## Save back to a local file — 0.60.0
+
+Open a file, choose **编辑副本**, edit, wait for the draft backup, then choose
+**保存** (⌘S). The first save asks for confirmation of the bound target. A newly
+exported file also becomes the draft's save target. Later changes require another
+explicit save; there is no automatic overwrite. **另存新文件…** remains exclusive
+creation. Inside **源码**, ⌘S still applies the source buffer to the draft only.
+
+Confirmed saves retain the previous content and clear the saved revision's dirty
+state without resetting Undo. Later edits remain unsaved. An external change or
+uncertain outcome stops this draft's subsequent original saves and preserves the
+last successful receipt separately. Keep the draft and inspect the file/version
+records; no automatic retry or rollback occurs. This uses native coordination
+and version preservation, **not** an inode-conditional replacement: an arbitrary
+outside writer can still race the final exchange. In that case the pathname may
+already contain the new version; the displaced object is retained, and detected
+conflicts are not reported as successful saves.
+
+Use **草稿 → 保存版本 → 在 Finder 查看** to inspect retained versions, even after
+restart. Copy a needed `baseline.md` / `draft.md` / `previous.md` to a new location
+before reopening; `exchanged.md` retains the displaced object and can still be
+changed by another process holding it open. Recovery never automatically writes
+back or restores save authority. The private local store stops at 128 records;
+it never automatically deletes them. It is not a backup against disk loss.
+
+The same ordinary local Home-descendant APFS directory policy applies. Unknown
+ACLs/attributes, synced/network/external-volume locations and unsupported files
+remain refused. Current text/image limits remain. Building on macOS now compiles
+a small Foundation helper (`npm run build:document-save`); packaging includes its
+production arm64/x86_64 binary. Native IME, broader OS acceptance, full CI/security
+and signed/notarized release gates remain separate.
+
+## Edit complete Markdown source — 0.59.0
+
+On an independent draft, **源码** opens an editable Markdown window with line
+numbers, syntax highlighting, search, line wrapping and local Undo/Redo. You can
+edit YAML, HTML and other structures that the visual editor protects. Originals
+remain read-only: choose **编辑副本** first.
+
+Choose **应用并返回** (⌘S or ⌘Enter inside the source window) to apply the buffer
+as one document history step and include it in the existing local draft backup.
+This does not save over a file. Unapplied changes stay only in this window;
+returning asks whether to discard them. Complete composition before applying.
+A stale or uncertain result retains the source for copying rather than retrying.
+
+Untouched Markdown, the file's BOM and original line endings are retained through
+application, document Undo/Redo, backup/recovery and new-file export. New line
+breaks follow the nearby source style; the editor/clipboard displays LF. Unsupported
+rich constructs remain protected visually and can be edited here as source; raw
+HTML is not executed. Current document/image limits still apply.
+
+## Save into local subfolders — 0.58.0
+
+**另存新文件…** now accepts ordinary local APFS folders beneath your home,
+including nested folders such as `~/Liyunhui/Inbox` or `~/Downloads/Articles`.
+The selected folder and all ancestors must pass ownership, permissions, identity
+and metadata checks. This export action creates only a new filename and never replaces existing
+targets. Saving back uses the separate bound-file action described above. Failed/cancelled exports retain the draft and
+last confirmed receipt. Imported image attachments use the same destination.
+
+This does not mean any disk or directory is supported. Home itself, Library, Applications, hidden/system and known cloud/sync components,
+symlinked paths, other filesystems and unsupported permissions remain refused.
+The app never changes folder permissions; confirm that no other app syncs your
+chosen folder. Saving back uses the separate bound-file action described above.
+
+## Finder opening — 0.57.0
+
+Markdown declares `.md` support for macOS **Open With**. Cold and running-app
+opens use the same bounded, read-only file service. Repeated opens reuse an
+unchanged original; changed/replaced files retain the old snapshot and ask for
+explicit reopening. Current drafts and their history stay available in the sidebar.
+While composing, waiting for an edit or using a modal, a Finder request stays in
+**Finder 打开请求**; finish the operation, then choose **打开文件** or skip it.
+At most 16 pending requests and eight open documents are held; over-capacity
+requests are reported. Failed/unsupported files never replace the active draft.
+
+The app does not change your default handler. After installing this version,
+use Finder → select an `.md` → Get Info → Open with → Markdown → Change All
+if you want ordinary double-click to use this app. This choice is optional.
+Files still need to be readable regular UTF-8 `.md` files within the current
+size limits; association does not grant overwrite or other filesystem authority.
+Remaining save locations, safe original-file saving, richer visual structures and
+practical capacity are tracked in [the three-phase roadmap](docs/roadmap.md).
+
+## Long articles / source view — 0.56.0 baseline (source editing added in 0.59.0)
+
+Filter headings in the outline and press Enter to jump to the first match;
+Escape clears the filter. The **源码** toolbar button shows the complete confirmed
+Markdown in a read-only window, including unsupported syntax. Select/copy text,
+toggle line wrapping and return to the article without changing its contents or
+history. Pending or composing input must finish first. Clipboard selection may
+normalize newlines and omits the BOM; export preserves the original file format.
+The original-file source view remains read-only; draft source editing is described
+above. Document/save limits are unchanged. The 0.56.0 baseline also
+fixes an image-lookup regression that prevented opening protected HTML blocks.
+43 focused Node checks and two Pro Electron workflows pass. The packaged app also
+passes paced typing, outline/source, Undo/Redo, restart recovery and installed
+startup; 0.55.0 is retained for rollback. Human acceptance remains pending.
+The 0.56.0 zero-delay stress failure is retained. In 0.56.1, reaching the
+64-edit queue limit pauses input and preserves the first refused supported edit.
+Open **查看未确认修改**, select/copy needed Markdown, then explicitly acknowledge
+and resume after pending operations settle. Later successful replies do not hide
+this notice. Recovery text exists only in this window; it is not backed up and
+keys after the pause are not accepted. No automatic retry or throughput guarantee.
+151 focused Node, two Pro Electron and actual-package pressure/history checks
+pass. Native IME remains NOT VERIFIED; human acceptance is still pending.
+
+## Local images — 0.55.0 installed local WIP (2026-11-06)
+
+Use the image button → **选择本地图片…** to choose a PNG/JPEG, add a description,
+then insert it. Verified images appear in the writing surface; Enter continues
+in prose and Undo/Redo retains the attachment. Current 0.61.0 limits are 16 distinct images per
+article, 4 MiB each, 16 MiB / 32 million pixels aggregate; each image remains
+limited to 4096 pixels per side and 16 million pixels.
+The original image is read only. Image clipboard/drop, SVG/GIF and remote loading
+are not supported. Other relative/http(s) addresses remain reference-only cards.
+
+Images are backed up with the same private draft snapshot as the text. Image
+snapshots require 0.55.0; plain-text snapshots remain compatible. Export creates
+new Markdown plus content-addressed image files **in the same supported folder**.
+Keep them together when moving or sharing. Existing identical verified image
+files may be reused read-only; differing files, links or unsupported metadata
+are refused. Success requires verification of the text and every attachment.
+Partial or unknown results retain the draft and possible created-file paths,
+without automatic retry or cleanup. New-file export does not overwrite; bound-file saving is described above.
+
+212 distinct targeted Node checks and two Pro Electron workflows pass, with
+final affected checks repeated after review corrections. Native dialogs are
+controlled in E2E. Native IME/human acceptance, independent review and full CI
+remain open. The actual 0.55.0 package also passes native image selection, preview,
+history, export/reopen and restart recovery. Installed startup passes; prior drafts
+are unchanged. The 0.54.0 app is retained for rollback, but cannot restore image
+drafts made by 0.55.0. This work is included in the 0.56.1 local WIP checkpoint,
+not release approval.
+
+## Image references — 0.54.0 checkpoint history (2026-11-06)
+
+The image toolbar button inserts a standalone Markdown image reference after the
+current paragraph (or in an empty paragraph). Select its card and use the button
+to edit its description/address or remove it. Enter returns to prose; Delete or
+Backspace removes the selected reference. Undo/Redo, export/reopen and draft
+recovery retain the reference and untouched source bytes, including existing titles.
+
+**In the 0.54.0 checkpoint, cards say “未加载预览”: images are not loaded, validated or copied.** Relative
+addresses and http(s) references are stored as Markdown text only. Exporting to a
+different folder does not relocate attachments or repair relative paths. Inline,
+reference-style, nested or complex images remain protected; paste/drop of image
+files, title editing, local-file access and network previews are not implemented.
+316 focused Node checks and two Pro Electron workflows (images and existing mixed
+writing) pass. Controlled dialogs/composition do not establish native IME or human
+acceptance. The actual 0.54.0 package also passes combined task/table/image-reference
+writing, history, export snapshot isolation and restart recovery. Installed startup
+and recent-panel checks pass; existing private records were unchanged. The 0.53.0
+bundle is retained for rollback. The combined task/nested-list, table and image-reference
+batch is preserved in one local WIP checkpoint. Focused human acceptance remains
+pending; the checkpoint is not release acceptance.
+
+## Basic tables — 0.53.0 local candidate (2026-11-06)
+
+Use the table button in the format toolbar from an ordinary paragraph to create
+2 columns with a header and 2 data rows. Type or paste one line in a cell. Tab /
+Shift+Tab moves between cells; Enter moves down; advancing past the last row adds
+an empty row. Cmd+Enter returns to prose. The contextual controls add a row below,
+add a column to the right, or delete a data row/column; Undo/Redo restores them.
+The header and final column cannot be deleted. Existing alignment and untouched
+source bytes are retained through export, readonly reopen and draft recovery.
+
+This first subset supports rectangular, outer-pipe GFM tables with plain-text
+cells, at most 8 columns and 32 rows including the header. Separator cells need
+at least three hyphens. Cell padding remains editable source text. Inline marks,
+links, escaped pipes/backslashes, merged cells, formulas, cell newlines and
+spreadsheet/cross-cell paste remain protected; they are not silently normalized.
+
+421 targeted Node checks, two Pro source Electron workflows (table and prior
+list regression), actual-package table/history/export/restart recovery and installed
+startup/recent-panel checks pass. Prior draft/catalog records remain unchanged.
+Native dialog choices/composition are controlled, not native IME acceptance.
+Original files remain read-only; export only creates a new file. Human table/list
+acceptance, native IME, SEC-01 and existing release limitations remain open.
+
+## Structured lists — introduced in 0.52.0 (2026-11-06)
+
+The installed local candidate adds task items and tight nested lists (up to
+six levels and 32 items per projected list). Type `- [ ] ` or use **任务列表**;
+click a checkbox to toggle it. Enter continues with an unchecked task, Tab nests
+the current item and its children, and Shift+Tab lifts it. A nested empty task
+lifts one level; a first/last top-level empty item exits to prose. Same-parent
+leaf-item selections support replacement, deletion and one-line plain-text paste.
+All changes use the existing main-owned source patches, revision and Undo/Redo.
+
+Multiline/loose list items, cross-level or subtree-crossing range replacement,
+multiline list paste and bulk conversion of a structured list stay refused.
+An empty ordinary bullet cannot start a new nested list after a paragraph in
+CommonMark: enter its text before indenting. A newly nested ordered list starts
+at `1`; untouched markers and exact inverse bytes are retained. Some empty or
+mixed-marker boundaries that cannot reparse identically remain protected.
+
+396 focused Node checks and three Pro Electron workflows pass, including export,
+readonly reopen and draft recovery. Installed 0.51.0 also passed the bounded
+name/edit/export/reopen/recovery preflight with synthetic content and controlled
+dialog choices. The actual 0.52.0 package also passed task editing, history,
+export and restart recovery; installed startup and record preservation passed.
+The old 0.51.0 bundle is retained for rollback. Native IME, human list acceptance,
+Air, full CI and independent review are not newly accepted. Historical failures
+and file-safety limits remain. No Git commit or release was made.
 
 ## Open the application
 
@@ -15,7 +274,56 @@ It may be kept in the Dock. The installed bundle includes its runtime and does
 not need Terminal, mise, a Worktree path or an external Electron installation.
 It uses the current writing workspace, not the historical Vault interface.
 Source edits do not update the installed app until it is rebuilt and reinstalled.
-The installed 0.37.0 bundle has not yet received the 0.37.1 dependency updates.
+The installed app includes line-start shortcuts: type `#` through `######`
+then Space for headings, or `-`, `+`, `*`, `1.` / `3)` then Space for flat lists.
+Bare prefixes stay visible until Space; an empty heading accepts text, Enter
+returns it to a paragraph, and Backspace at a heading start removes its format.
+Undo/Redo uses the existing document history. Heading levels 1–6 are also in
+the format menu. Type `>` then Space for a single-level quote, or three backticks
+(optionally followed by a simple language name) then Enter for a fenced code block.
+The block menu also offers quote/code creation. Plain quote paragraphs split with
+Enter; Enter on the last empty quote paragraph returns to prose. Code supports
+literal Enter/Tab and multiline plain-text paste, including blank lines. **Cmd+Enter**
+exits either block into prose. Undo/Redo and new-file export/reopen preserve source
+markers and line endings. Nested/lazy/soft-wrapped quotes, splitting marked quote
+paragraphs, unclosed/metadata-bearing fences and code execution stay unsupported.
+Code-to-prose conversion is limited to one line; use Cmd+Enter for multiline code.
+The installed app includes the task/nested-list subset introduced in 0.52.0. Nested inline marks remain protected.
+The link button or **Cmd+K** opens an insert/edit panel. Select plain text or place
+the caret to insert; place the caret in a simple link to edit its text/address or
+remove the link while retaining its text. Cancel/Escape preserves the document;
+Undo/Redo covers the complete change. Unchanged addresses and existing titles
+retain their source spelling. Enter at the end of a linked paragraph continues
+with a new paragraph without rewriting the link. Links stay inert; cross-link selection/splitting,
+nested marks and title editing remain unsupported. The panel accepts http(s),
+mailto, relative and fragment targets, rejecting script/file protocols, credentials,
+whitespace and control characters. No URL is opened or fetched.
+The installed app is now **0.54.0**; the previous 0.53.0 bundle is retained locally
+for recovery; user documents and existing drafts were not migrated. The 0.48.0
+checkpoint is `dd0eef4`; the 0.49.0 local WIP `d8a3f25` preserves quote/code and authoring closeout.
+The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
+existing final newline, and structural keys arriving before text acknowledgements.
+For that 0.49.0 authoring closeout, 351 targeted Node cases, five source Electron
+workflows, one real packaged-app workflow and installed startup passed. Export/reopen and restart recovery preserve
+verified source bytes. Controlled dialogs/clipboard and text insertion are not
+native IME acceptance. Air, independent review and full CI were not run for this
+batch; historical manual failures and release limitations remain.
+
+The recent-documents slice passed 148 targeted Node cases and the
+restart/recovery/reopen/clear workflow on Pro and Air (three clean exits per run).
+Air used the final 0.50.0 snapshot and isolated copied dependencies. Package
+membership, source hashes and main-process dependency imports passed. Five recent
+regressions also pass on the combined 0.51.0 candidate. See the phase record for
+exact evidence; these counts cover different scopes, not one full CI run.
+
+The 0.51.0 checkpoint adds draft naming and suggested export names. It passes 130
+targeted Node checks, one two-start Pro Electron workflow and package checks.
+This batch's Air GUI did not start because its launch-time check found the screen
+locked. The 0.51.0 package subsequently passed bounded welcome/recent-panel and
+name cancel/invalid-input checks; the installed app passed startup and the recent
+panel with the same ASAR. Existing draft/recent record identities and hashes were
+unchanged. Full packaged writing/recovery, native dialogs/IME, independent review
+and full CI are not newly accepted by this closeout. Human experience checks remain open.
 
 With existing development dependencies, start the same UI from source:
 
@@ -40,8 +348,34 @@ bottom status bar. The sidebar filters open document names only; it does not sca
 folders or search document content. Click a row to switch original/copy, or click
 the document title to see its full name and directory. Press Escape or click outside to dismiss the title menu;
 Escape returns focus to the title when focus was inside the menu. On narrow windows the
-sidebar becomes an overlay. The welcome page offers New and Open. Opened original
+sidebar becomes an overlay. The 0.50.0 welcome page adds **继续写作** (up to three local drafts) and
+**最近文档** (six recent files); the sidebar opens the full recent list of up to
+12 entries. Recovery reuses independent drafts, without old Undo history or save
+authority. Recent files reopen read-only after identity and content verification.
+Changed, replaced or missing files require a fresh selection through **打开…**.
+The catalog contains local paths, identities and hashes, not document bodies; it
+does not scan folders. **清空列表** removes visible history, not Markdown files or
+drafts; older verified catalog generations may remain, so this is not secure
+erasure. Catalog failures leave normal native Open available. Opened original
 files cannot be edited or saved.
+
+For an independent draft, click its title and choose **重命名草稿…**. A confirmed
+name appears in the sidebar and survives draft recovery, including an empty named
+draft. Cancel/Escape keeps the old name. Names cannot be paths; invalid names or
+unconfirmed backups retain the current body and name. **另存新文件…** suggests this
+name with `.md`; you can still choose a different new filename in the native dialog.
+Naming does not rename original/exported files, change text or reset Undo/Redo.
+Recovery keeps the name and confirmed body, without restoring old history or
+export receipts. That source operation grants no file-write authority; the separate bound-file save and destination restrictions are described above.
+
+**Installed WIP candidate (`feat/document-close`):** click the header
+× or press **Cmd+W** to close only the current document. Read-only originals close
+without writes. Editing copies offer Cancel or Keep draft and close; closing
+requires a verified backup of their latest confirmed body. Cancellation retains
+text and Undo/Redo. Recovery restores the body, not old history or export receipts.
+Unfinished input, uncertain exports or unverified backups prevent closing. The
+last document returns to the welcome page; **Cmd+Shift+W** closes the window using
+the existing window guard. Closing does not delete or archive drafts or files.
 
 The second integration batch adds a real **文档大纲** on the right: click a heading
 to scroll to it without changing the caret or document. It lists supported headings
@@ -78,25 +412,57 @@ write in an independent session. Confirmed writing receives a separate local dra
 backup; the original file stays read-only.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
 source-line boundaries and unsupported structures remain protected. Literal `[`
-and `]` can be typed when they remain ordinary text; edits that create links or
-reference syntax are still refused. Plain-text
+and `]` can be typed when they remain ordinary text; typing that creates links or
+reference syntax is still refused. Use the link panel for explicit link creation. Plain-text
 paste accepts a single line in one supported text range, or up to 32 nonempty
 paragraphs within one plain top-level paragraph (including an empty input slot).
+The installed WIP also replaces or deletes a selection across up to
+32 adjacent plain paragraphs and supports multiline paste over that selection.
+It preserves exact untouched source bytes and one Undo/Redo operation per
+replacement; typing, Enter and Backspace can continue afterward.
+Within a single-source-line paragraph containing plain, bold, italic and inline-code text, selections
+can also be replaced/deleted or pasted over with a single line. Replacement text
+inherits the format at the start of the selected text (regardless of drag
+direction); at a collapsed marked boundary, typing inherits the left-hand format.
+Undo restores exact original bytes, including `**` versus `__` and `*` versus `_` delimiters.
+With a collapsed caret, Enter also splits a plain/bold/italic/code paragraph, and Backspace
+at the following paragraph's start joins it to a supported previous paragraph.
+Existing source delimiter style and marks are retained; Undo restores exact bytes.
+Cross-format IME replacement remains unsupported; finish composition first.
 A clipboard newline or one blank separator becomes a paragraph boundary, using
 the document's existing newline style. One paste is one Undo/Redo item. The 4096
 UTF-16 limit applies before and after conversion; clipboard HTML is ignored.
-Leading/trailing blank lines, consecutive empty paragraphs, cross-block selections,
-multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
-are refused as a whole. The native Edit menu includes Paste for system dialogs.
+Leading/trailing blank lines, consecutive empty paragraphs, selections crossing
+headings/lists/protected blocks, formatted paragraph boundaries or source soft breaks, mixed or ambiguous
+paragraph separators, multiline paste into formatted/soft-wrapped paragraphs, files and unsafe syntax
+are refused as a whole. The native Edit menu includes Paste for system dialogs. Cross-paragraph IME
+replacement and Enter over an existing cross-paragraph selection are not enabled;
+finish input first, and collapse the selection before splitting a paragraph.
 
-The compact format bar offers **正文 / 标题 1–3 / 无序列表 / 有序列表**, selection
-**加粗** (Cmd+B), and Undo/Redo. Commands patch a verified source range, then
-reparse it; they do not normalize the whole file. Headings require a nonempty
-single source line. Bold applies within one text leaf; removing it requires the
-whole bold leaf. Lists support up to 32 flat, tight, one-line items: Enter splits
-a plain item, Enter on the last empty item exits, and Backspace at a nonfirst plain
-item's start joins it to the previous plain item. Converting a list applies to the
-whole current list. Nested/task/loose lists and complex structures remain protected.
+The compact format bar offers **正文 / 标题 1–6 / 无序列表 / 有序列表**, selection
+**加粗** (Cmd+B), **斜体** (Cmd+I), **行内代码** (Cmd+E), **链接** (Cmd+K), and Undo/Redo. Commands patch a verified source range, then
+reparse it; they do not normalize the whole file. Headings use a supported single
+source line and may start empty. Bold/italic/code applies within one unmarked text leaf; removing it requires the
+whole corresponding marked leaf. Combining marks, partial removal and
+formatting a selection across leaves remain refused. The flat-list baseline supports up to 32 tight, one-line items containing
+plain/bold/italic/code text. Select within one item or across adjacent items in that same
+list to replace/delete or paste one line, including plain/bold/italic/code text. A cross-item
+replacement merges the selected items, retaining their unselected text and marks.
+Replacement inherits the selection's start format (plain when starting at an item's
+end); Undo restores exact bytes, markers and original numbering. Deleting all
+selected item text leaves one empty item; subsequent typing starts plain.
+Multiline list paste, selections crossing different lists or other block types,
+and edits whose existing delimiters cannot represent the formatting remain refused.
+If the browser reports a different input range from the current selection, the
+operation is cancelled with a message; it must not partially replace the selection.
+Enter splits an item; Backspace at a nonfirst item's start joins
+it to its predecessor. Backspace at the first item's start returns that item to
+an ordinary paragraph and preserves remaining list items. Enter on the first or
+last empty item exits; an empty paragraph can become a list through the format
+selector when reparsing preserves surrounding structure. A middle empty item
+cannot exit because a blank paragraph alone cannot separate same-kind Markdown
+lists; this operation is explicitly refused. Converting a list with the selector
+still applies to the whole flat list. The 0.52.0 candidate extends tasks/nesting as described above; loose lists and complex structures remain protected.
 Typing Markdown markers is not a general formatting shortcut in this preview.
 
 Normal IME composition shows only **输入中…**, without moving the writing area.
@@ -106,14 +472,14 @@ no composition state is cleared by a timer or by hiding its status.
 
 The installed app and `npm run dev` include the restricted **另存新文件…** flow.
 
-Choose an existing ordinary local APFS folder directly under your home folder,
-owned by you and not writable by others. Home itself, Desktop, Documents,
-Library, hidden and known sync folders are unsupported. Downloads is supported
+Choose an existing ordinary local APFS folder within your home folder, including subfolders,
+owned by you and not writable by others. Local Desktop/Documents are supported after checks; iCloud-managed ones remain refused.
+Home itself, Library, Applications, hidden and known sync folders are unsupported. Downloads is supported
 when it passes these checks: its non-inheriting everyone deny-delete protection
 and opaque `com.apple.macl` directory metadata are accepted and fingerprinted;
 other ACLs/xattrs remain refused. The dialog suggests Downloads only after checks
 pass, then revalidates the selected destination before creation. The app does not
-change folder permissions. Nested folders are not yet supported. Native MACL and last-used
+change folder permissions. Every ancestor is bound into the destination authorization. Native MACL and last-used
 attributes on newly created files are retained and checked across writer/main
 verification. The first native metadata probe precedes the strict stat/byte
 baseline so initial macOS metadata setup is not mistaken for a later change;
@@ -167,11 +533,10 @@ sessions while viewing real files. The eight-session limit is a development
 constraint. Native macOS IME remains unaccepted; this is not daily-writing or
 release sign-off.
 
-This restricted preview formats headings, paragraphs, bold and simple flat lists. Other syntax,
-including HTML, images, links and tables, is displayed as literal text; it does
-not load external resources. Only UTF-8 regular, non-linked `.md` files up to
-512 KiB and 131,072 UTF-16 code units are accepted. It is a development feature,
-not Finder integration or release acceptance. See the
+The writing surface supports the bounded common-authoring, task/list, table and
+local-image workflows described above. Other syntax is retained as protected
+source; remote resources are not loaded. Only UTF-8 regular, non-linked `.md` files up to
+2 MiB and 524,288 UTF-16 code units (excluding the initial BOM) are accepted. Finder opening uses this same read boundary; it is not release acceptance. See the
 [scope and verification](docs/document-editing-interaction-phase1b3.md#document-first-open-v1-read-only-2026-10-26).
 
 ## Historical Vault reference

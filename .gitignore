@@ -53,3 +53,6 @@ __pycache__/
 
 # Private recovery material is not disposable build cache.
 /.local/
+
+# Rebuilt macOS original-save helper; never commit the generated executable.
+/apps/desktop/build/document-save

@@ -1,6 +1,6 @@
 'use strict';
 // Main-confirmed models only; no renderer body, path, save receipt or history input.
-function createDraftBackups(store, notify = () => {}) {
+function createDraftBackups(store, notify = () => {}, attachmentsFor = () => []) {
   const entries = new Map();
   function status(document) {
     const e = entries.get(document); if (!e) return null;
@@ -11,7 +11,7 @@ function createDraftBackups(store, notify = () => {}) {
     const e = entries.get(document); if (!e || !e.pending) return;
     clearTimeout(e.timer); e.timer = null; e.pending = false; e.sequence++;
     try {
-      const result = store.save({ id: e.id, token: e.token, fingerprint: e.fingerprint, label: e.label, revision: document.revision, bytes: document.bytesForSave() });
+      const result = store.save({ id: e.id, token: e.token, fingerprint: e.fingerprint, label: e.label, revision: document.revision, bytes: document.bytesForSave(), attachments: attachmentsFor(document) });
       e.result = result;
       if (result.ok) { e.confirmed = result; e.token = result.token; e.fingerprint = result.fingerprint; }
       else e.stopped = result.state === 'draft-unverified' || ['draft-conflict', 'EEXIST'].includes(result.code);
@@ -29,8 +29,40 @@ function createDraftBackups(store, notify = () => {}) {
       token: recovery && !recovery.warning ? recovery.token : null, fingerprint: recovery && !recovery.warning ? recovery.identity : null, label, sequence: 0, pending: false, timer: null };
     entries.set(document, e); if (document.text.length || recovery) changed(document);
   }
+  function rename(document, label) {
+    const e = entries.get(document);
+    if (!e || e.stopped) return { ok: false, code: 'draft-name-unavailable' };
+    const pending = e.pending;
+    flush(document);
+    if (e.stopped || (pending && !e.result?.ok)) return { ok: false, code: 'draft-name-unavailable' };
+    e.sequence++;
+    try {
+      e.result = store.save({ id: e.id, token: e.token, fingerprint: e.fingerprint,
+        label, revision: document.revision, bytes: document.bytesForSave(), attachments: attachmentsFor(document) });
+      if (e.result.ok) {
+        e.label = label; e.confirmed = e.result; e.token = e.result.token; e.fingerprint = e.result.fingerprint;
+      } else e.stopped = e.result.state === 'draft-unverified' || ['draft-conflict', 'EEXIST'].includes(e.result.code);
+    } catch { e.stopped = true; e.result = { ok: false, state: 'draft-unverified', code: 'draft-name-unknown' }; }
+    notify(document, status(document));
+    return { ok: e.result.ok === true, code: e.result.ok ? 'draft-renamed' : 'draft-name-unconfirmed' };
+  }
+  function verifyForClose(document) {
+    const e = entries.get(document); if (!e) return false;
+    flush(document);
+    if (e.pending || !e.result?.ok || e.confirmed?.revision !== document.revision) return false;
+    try {
+      const recovered = store.recover(e.id);
+      if (recovered.ok && !recovered.warning && recovered.token === e.token
+        && recovered.identity === e.fingerprint && recovered.revision === document.revision
+        && recovered.label === e.label && recovered.bytes.equals(document.bytesForSave())
+        && JSON.stringify(recovered.attachments || []) === JSON.stringify(attachmentsFor(document))) return true;
+    } catch { /* Preserve the live document and every uncertain disk record. */ }
+    e.result = { ok: false, state: 'draft-unverified', code: 'draft-verification-failed' };
+    e.stopped = true; e.sequence++; notify(document, status(document));
+    return false;
+  }
   function release(document) { flush(document); entries.delete(document); }
-  return { attach, changed, status, release, flush,
+  return { attach, changed, status, release, flush, verifyForClose, rename,
     flushAll: () => { for (const doc of entries.keys()) flush(doc); },
     active: id => [...entries.values()].some(e => e.id === id) };
 }

@@ -27,7 +27,7 @@ test('formatting: list text, split, join, empty item exit and type conversion',(
   assert.equal(format(numbered.source,'paragraph','A').source,'A\r\n\r\nB');
 });
 test('formatting rejects unsupported structure, cross blocks, blank bold and unsafe payloads',()=>{
-  for(const source of ['```md\nfoo\n```','- one\n  - nested','- [ ] task','line\nwrapped','Title\n===','[link](x)']){
+  for(const source of ['```md\nfoo\n```','- one\n  - nested','- [ ] task','line\nwrapped','Title\n===','[**link**](x)']){
     assert.equal(mapFormatEdit(source,{action:'heading-1',from:1,to:1}).ok,false,source);
   }
   for(const change of [{action:'bold',from:1,to:1},{action:'bold',from:1,to:3},{action:'heading-1',from:1,to:10},{action:'html',from:1,to:1},{action:'paragraph',from:1,to:1,path:'/tmp/x'}]) assert.equal(mapFormatEdit(' A \n\nTail.',change).ok,false,JSON.stringify(change));
@@ -52,7 +52,7 @@ test('flat list marker variants keep unmodified spelling; complex lists remain o
     assert.ok(split.source.endsWith(marker+'Second'+nl));
     assert.equal(format(source,'paragraph','First').source,'First'+nl+nl+'Second'+nl);
   }
-  for(const source of ['- a\n\n- b','- a\n  continuation','- a\n  - nested','- [x] task','- [link](x)','- a  \n  b','- `code`']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
+  for(const source of ['- a\n\n- b','- a\n  continuation','- a\n  - nested\n    continuation','- [x] task\n  continuation','- [**link**](x)','- a  \n  b','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
 });
 test('format source inverse exactly restores accepted byte ranges over a small boundary matrix',()=>{
   let accepted=0;
