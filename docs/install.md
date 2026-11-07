@@ -1,151 +1,86 @@
-# Install and Run Guide  
-  
-This guide explains how to run Markdown Vault App on macOS.  
-  
-## 1. Requirements  
-  
-You should have:  
-  
-- macOS 12 Monterey or newer
-- Node.js 22.12 or newer (Node.js 24 recommended)
-- npm available  
-- the project repo available locally  
-  
----  
-  
-## 2. Run in development mode  
-  
-Open Terminal and go to the desktop app folder:  
+# 安装、更新与回退
 
-```
-cd ~/code/markdown-vault-app/apps/desktop
-```
+当前为 **0.63.0 本地开发版本**，使用独立的 `Markdown.app`。打开 App 不需要
+终端、Node.js 或仓库，也不需要选择 Vault。此批交付尚未经过 Developer ID
+签名、公证或公开发布验收；真实输入与 VoiceOver 验收仍待完成。
 
-Install dependencies:
+## 安装与打开文件
 
-```
-npm install
-```
+1. 使用此次交付的、已经核对 SHA-256 的 ZIP。展开后保留完整的 `Markdown.app`，
+   放在固定位置，例如 `~/Applications/Markdown.app`。已经安装时先按下文更新。
+2. 双击 App；可把它拖到 Dock，以后从 Dock 启动。安装包声明 macOS 12 或更新版本；
+   本批实际构建和测试的是 Apple Silicon / arm64，不能据此宣称 Intel 或所有系统版本通过。
+3. 点「打开…」选择 `.md`，或在 Finder 右键文件 →「打开方式」→ Markdown。
+   原文件首先只读打开；「编辑副本」创建独立草稿。源码窗口支持修改，
+   「应用并返回」将修改应用到草稿，与保存到文件是不同操作。
+4. 如需双击 `.md` 默认使用本 App，在 Finder「显示简介」→「打开方式」选择
+   Markdown，再自行选择「全部更改」。安装程序不会替你更改默认关联。
 
-Start the app:
+草稿备份、导出副本和保存回绑定文件有不同状态。另存新文件绝不覆盖已有目标；
+保存回绑定文件需首次确认，并保留历史版本。支持符合检查的普通 Home 下本地目录，
+包括普通本地桌面、文稿和下载；同步目录、网络卷和外部卷仍有限制。
+打开位置与可保存位置并非同一许可。遇到冲突、部分创建或结果未知时，保留内容和提示，
+不要反复点击保存。
 
-```
-npm run dev
-```
+若 macOS 拦截未公证 App，先核对来源、版本与哈希，按系统给出的安全提示处理。
+不要以关闭 Gatekeeper、移除隔离属性或重新签名作为默认安装步骤。
 
-If this succeeds, the Electron app window should open.
+## 更新和回退
 
----
+1. 保留需要的内容，正常退出 Markdown；不要覆盖仍在运行的 App。
+2. 将旧的完整 App 可恢复地保留在项目的 `.local/` 验证目录（开发者）或用户自行选择
+   的备份位置，并记录旧版本及路径。不要直接删除旧版本。
+3. 将验证过的新 App 放回原安装位置，启动后核对版本、打开、草稿恢复和保存状态。
+   不要同时启动新旧两个版本；同一个应用身份共享本地记录。
+4. 回退前先退出新版本，保留新 App 和本地记录，再恢复之前的 App。
+   老版本可能无法读取新容量或新结构的草稿：先用新版本导出需要的 Markdown，
+   连同图片附件保存，不能把换回旧 App 当成数据降级或迁移。
 
-## 3. Build a local packaged app
+本地记录位于 `~/Library/Application Support/` 下：
 
-From the desktop app folder:
+- `Markdown Vault Document Drafts/`：草稿备份。
+- `Markdown Vault Document/Recent Documents/`：最近文档目录。
+- `Markdown Vault Document/Original Save Versions/`：保存版本与恢复记录。
 
-```
-cd ~/code/markdown-vault-app/apps/desktop
-npm run pack
-```
+更新不应清空这些目录。需要备份时，退出 App 后完整保留记录、权限和目录结构；
+不要只复制部分 JSON。App 内备份不保护磁盘损坏。此版本没有自动更新器，
+没有本批公开 Release 下载页；不要把未验证的任意构建当成正式升级。
 
-This creates an unpacked `.app` in `dist/` for local testing. That is enough for Day 28.
+## 键盘操作
 
-This should create packaged build artifacts inside:
+- `F6` / `Shift+F6`：在文档侧栏、顶部操作区、工具栏、正文、大纲之间切换。
+- `Option+F10`：进入文字格式工具栏。方向键切换按钮，`Home` / `End` 到首尾，
+  `Tab` 离开这一组；按钮使用空格或回车执行。原生格式选择框保持原生操作。
+- 原生功能键可能需要同时按 `Fn`，取决于 Mac 的键盘设置。
+- 对话框内 `Tab` / `Shift+Tab` 移动，`Escape` 退出或进入已有的未应用修改确认；
+  返回触发按钮。中文候选仍在输入时，区域快捷键不会强制提交或转移焦点。
 
-```
-apps/desktop/dist/
-```
+编辑区和控件名称、焦点提示及两种主题的部分颜色组合已经过定向自动化验证。
+这不等同于完整 WCAG 合规、VoiceOver 人工验收或原生 IME 验收。
 
----
+## 从源码运行和打包（开发者）
 
-## 4. Open the packaged app
+仓库锁定 Node **24.20.0**。下列命令在 `apps/desktop/` 内执行：
 
-If the app crashes silently on first open, run this once in Terminal:
-
-```
-codesign --force --deep --sign - apps/desktop/dist/mac-arm64/markdown-vault-desktop.app
-```
-
-Then try opening it again. This is a known issue with local unsigned Electron builds.
-
----
-
-## 5. First launch workflow
-
-When the app opens:
-
-1. Click **Choose Vault**
-2. Select a folder on disk
-3. Optionally click **Create Demo Vault**
-4. Open notes from the list
-5. Try search
-6. Try the **AI Imports** filter
-
----
-
-## 6. Recommended first vault choices
-
-For testing, choose one of these:
-
-- an empty test folder
-- a demo folder created just for this app
-- a copy of a safe Markdown folder
-
-Do not use an important real notes folder until you trust the app.
-
----
-
-## 7. Create a demo vault quickly
-
-After choosing a vault, click:
-
-```
-Create Demo Vault
+```sh
+mise exec -- npm ci           # 仅新检出；会替换 node_modules
+mise exec -- npm run dev      # 当前 Document App
+mise exec -- npm run pack     # 本地 .app
+mise exec -- npm run dist:mac # 本地 .app 和 ZIP
 ```
 
-This creates sample notes so you can test the app quickly.
+产物位于 `apps/desktop/dist/`；本批隔离验证可指定独立输出目录。
+打包会编译生产版 native helper，不能使用带测试钩子的二进制。修改渲染器入口后必须
+重建对应 bundle 并验证它与源码一致。历史 `dev:legacy` 为 Vault 开发入口，不是产品启动方式。
 
----
+分发或安装前核对：包内版本与 `package.json` / lock 一致、真实运行时版本、
+项目运行文件和 helper 哈希、`.md` 文件关联、无 `.local`/测试/凭据或旧 Toast UI 文件。
+对实际交付 ZIP 计算并独立保存校验值：
 
-## 8. Common problems
-
-### Problem: `npm run dev` fails
-
-Try:
-
-```
-npm install
+```sh
+shasum -a 256 /实际路径/Markdown-版本-arm64-mac.zip
 ```
 
-again inside `apps/desktop`.
-
-### Problem: packaged app builds but does not open
-
-Check:
-
-- required files are included in packaging
-- the build completed successfully
-- Gatekeeper is not blocking the unsigned build
-
-### Problem: app opens but no notes appear
-
-Check:
-
-- did you choose a vault?
-- did you click **Create Demo Vault** or load real notes?
-- are there `.md` files inside the selected vault?
-
----
-
-## 9. What “working” looks like
-
-A successful install/run means:
-
-- app launches
-- vault can be selected
-- notes can be edited and saved
-- search works
-- demo vault works
-- AI Imports filter can show imported notes
-
-  
----  
-   
+本机校验值仅证明拿到的是已验证产物，不替代发布者签名。开发检查点、CI 通过与
+本地 ZIP 都不代表公开发布批准。签名、公证、真实输入、VoiceOver 和长期使用验收
+仍按路线图收口。

@@ -6,13 +6,28 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.62.2 local WIP candidate for long-document typing performance.** This is not
+**0.63.0 local WIP candidate for keyboard access and delivery readiness.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
 The Document installation excludes the retired Toast UI dependency files, including
 its old embedded sanitizer. Historical Vault source/dependencies remain available
 for development; this is not a claim that their SEC-01 issue is fixed.
+
+## Keyboard access and local delivery — 0.63.0
+
+F6 / Shift+F6 moves between workspace regions; Option+F10 enters formatting.
+Toolbars use one Tab stop with arrow-key/Home/End navigation. Read-only content
+and editing copies have distinct accessible names and roles. Focus indicators
+and muted-text contrast in light/dark themes are clearer, without changing the
+accepted layout. Navigation does not force-confirm composition or bypass edit
+and save guards. Real VoiceOver/native IME acceptance remains pending.
+
+The [installation guide](docs/install.md) now covers the actual standalone
+Document App, Finder association, keyboard controls, verified local ZIPs,
+updates, private records and recoverable rollback. No terminal is needed to run
+an installed App. This batch is not a signed/notarized public release or an
+automatic updater. See the [manual checks](docs/test-manual.md).
 
 ## Local Desktop and Documents — 0.62.0
 

@@ -189,6 +189,98 @@
     }
   });
 
+  // lib/document-accessibility-view.mjs
+  function createAccessibilityView({ byId: byId2, context }) {
+    const doc4 = byId2("writing-app").ownerDocument;
+    let enabled = false;
+    const blocked = () => {
+      const { state: s, editor: editor2, loading: loading2 } = context();
+      return loading2 || editor2?.view.composing || s?.pending || s?.historyPending || s?.composing || s?.compositionInvalid;
+    };
+    const available = (node2) => node2 && !node2.disabled && !node2.closest("[hidden],[inert]");
+    const visible = (node2) => available(node2) && node2.getClientRects().length > 0;
+    const attribute = (node2, name2, value) => {
+      if (node2.getAttribute(name2) !== value) node2.setAttribute(name2, value);
+    };
+    const bars = ["format-inline-tools", "reading-tools", "table-tools"].map((id2) => {
+      const node2 = byId2(id2);
+      let remembered = null;
+      const buttons = () => [...node2.querySelectorAll("button")];
+      function sync2() {
+        const items = buttons(), ready = items.filter(available);
+        const selected2 = ready.includes(remembered) ? remembered : ready[0];
+        for (const item3 of items) attribute(item3, "tabindex", item3 === selected2 ? "0" : "-1");
+        return ready;
+      }
+      node2.addEventListener("focusin", (event) => {
+        if (enabled && buttons().includes(event.target)) {
+          remembered = event.target;
+          sync2();
+        }
+      });
+      node2.addEventListener("keydown", (event) => {
+        if (!enabled || blocked() || event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const items = sync2(), at = items.indexOf(doc4.activeElement);
+        if (at < 0) return;
+        const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (at + (event.key === "ArrowRight" ? 1 : -1) + items.length) % items.length;
+        event.preventDefault();
+        items[next].focus();
+      });
+      return { sync: sync2, focus() {
+        const items = sync2();
+        (items.find((n) => n.tabIndex === 0) || items[0])?.focus();
+      } };
+    });
+    doc4.addEventListener("keydown", (event) => {
+      if (!enabled || blocked() || event.defaultPrevented || event.isComposing || event.keyCode === 229 || doc4.querySelector("dialog[open]")) return;
+      if (event.key === "F10" && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+        if (visible(byId2("format-inline-tools"))) {
+          event.preventDefault();
+          bars[0].focus();
+        }
+        return;
+      }
+      if (event.key === "F6" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const editor2 = context().editor;
+        const groups = [
+          ["document-sidebar", byId2("session-filter")],
+          ["document-header", byId2("toggle-session-sidebar")],
+          ["writing-toolbar", visible(byId2("format-block")) ? byId2("format-block") : byId2("show-reading-settings")],
+          ["document-scroll", editor2?.view.dom || byId2("empty-new")],
+          ["document-outline", byId2("outline-filter")]
+        ].filter(([, target]) => visible(target));
+        if (!groups.length) return;
+        const at = groups.findIndex(([id2]) => byId2(id2).contains(doc4.activeElement));
+        const next = at < 0 ? event.shiftKey ? groups.length - 1 : 0 : (at + (event.shiftKey ? -1 : 1) + groups.length) % groups.length;
+        event.preventDefault();
+        groups[next][1].focus({ preventScroll: true });
+      } else if (event.key === "Escape" && globalThis.matchMedia?.("(max-width: 760px)").matches && byId2("writing-app").dataset.sidebar === "open") {
+        event.preventDefault();
+        byId2("close-session-sidebar").click();
+      }
+    });
+    function sync() {
+      if (!enabled) return;
+      bars.forEach((bar) => bar.sync());
+      const { editor: editor2, state } = context();
+      if (!editor2 || !state?.confirmed) return;
+      const node2 = editor2.view.dom, readOnly2 = state.confirmed.readOnly === true;
+      attribute(node2, "role", readOnly2 ? "document" : "textbox");
+      attribute(node2, "aria-label", (readOnly2 ? "\u53EA\u8BFB\u6B63\u6587\uFF1A" : "\u6B63\u6587\u7F16\u8F91\uFF1A") + state.confirmed.label);
+      if (readOnly2) {
+        node2.removeAttribute("aria-multiline");
+        node2.removeAttribute("aria-readonly");
+      } else {
+        attribute(node2, "aria-multiline", "true");
+        attribute(node2, "aria-readonly", String(!editor2.isEditable));
+      }
+    }
+    return { sync, configure() {
+      enabled = true;
+      sync();
+    } };
+  }
+
   // lib/document-native-open-view.mjs
   var messages = {
     "session-limit": "\u5DF2\u8FBE\u5230\u516B\u4EFD\u6587\u6863\u4E0A\u9650\uFF0C\u8BF7\u5173\u95ED\u4E00\u4EFD\u540E\u518D\u6253\u5F00\u3002",
@@ -62801,6 +62893,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         const open = id2 === "toggle-session-sidebar" && byId2("writing-app").dataset.sidebar !== "open";
         sidebar(open);
         if (!open) byId2("toggle-session-sidebar").focus();
+        else byId2("session-filter").focus();
       };
     }
     byId2("document-sidebar").addEventListener("pointerdown", (event) => {
@@ -63531,6 +63624,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (span) resetSource(source, { from: span.from + at - span.sourceFrom, to: span.from + at - span.sourceFrom });
     }
   }) });
+  var accessibility = createAccessibilityView({ byId, context: () => ({ editor, state: controller?.state(), loading }) });
   var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
@@ -63774,6 +63868,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     findView.sync();
     closeView.sync();
     nativeOpenView.sync();
+    accessibility.sync();
     show();
   }
   function resetSource(source, selection) {
@@ -64122,7 +64217,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     void recentView.refresh();
   }
   function viewerStatus(message, notice = false) {
-    byId("viewer-status").textContent = message;
+    const node2 = byId("viewer-status");
+    if (node2.textContent !== message) node2.textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
   async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null) {
@@ -64268,6 +64364,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("open-file").disabled = false;
       document.title = "Markdown";
       nativeOpenView.configure();
+      accessibility.configure();
     } else byId("connect").disabled = false;
   });
 })();

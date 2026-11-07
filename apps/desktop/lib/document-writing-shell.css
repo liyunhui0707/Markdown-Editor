@@ -1,7 +1,7 @@
 /* Approved visual prototype, connected to the existing document controllers. */
 body[data-document-viewer] {
   --paper:#fdfcf9; --panel:#f4f3ef; --surface:#fffefa; --ink:#303832;
-  --muted:#717a71; --line:#e4e7df; --accent:#4f6a55; --active:#e3e8df;
+  --muted:#5f695f; --line:#e4e7df; --accent:#4f6a55; --active:#e3e8df;
   --reading-width:680px; --gutter:clamp(24px,4vw,64px);
   margin:0; padding:0; background:var(--paper); color:var(--ink); color-scheme:light;
   font:13px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
@@ -13,7 +13,7 @@ body[data-document-viewer] :is(button,select,input) {font:inherit;color:inherit}
 body[data-document-viewer] button {margin:0;padding:7px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);line-height:20px;font-size:12px;cursor:pointer}
 body[data-document-viewer] button:hover:enabled {background:var(--active)}
 body[data-document-viewer] button:disabled {opacity:.45;cursor:default}
-body[data-document-viewer] :is(button,summary,select,input):focus-visible {outline:2px solid #78927d;outline-offset:2px}
+body[data-document-viewer] :is(button,summary,select,input):focus-visible {outline:2px solid var(--accent);outline-offset:2px}
 body[data-document-viewer] svg {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 body[data-document-viewer] ::selection {background:#cbdbc5}
 #writing-app {height:100dvh;display:grid;grid-template-columns:228px minmax(0,1fr);isolation:isolate}
@@ -285,3 +285,8 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 #save-versions p { font-size: 13px; line-height: 1.7; }
 
 #original-save-receipt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+
+/* Keyboard access preserves the approved geometry and palette. */
+#format-inline-tools {display:flex;align-items:center;gap:inherit}
+body[data-document-viewer] .tiptap:focus-visible {outline:2px solid var(--accent);outline-offset:8px}
+body[data-document-viewer] input::placeholder {opacity:1;color:var(--muted)}

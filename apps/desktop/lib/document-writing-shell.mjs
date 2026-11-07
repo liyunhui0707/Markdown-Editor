@@ -20,6 +20,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       const open = id === 'toggle-session-sidebar' && byId('writing-app').dataset.sidebar !== 'open';
       sidebar(open);
       if (!open) byId('toggle-session-sidebar').focus();
+      else byId('session-filter').focus();
     };
   }
   byId('document-sidebar').addEventListener('pointerdown', event => { if (blocked()) event.preventDefault(); });
