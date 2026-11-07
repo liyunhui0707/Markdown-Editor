@@ -51,10 +51,21 @@ test('italic split/join preserves style and never conflates bold with italic',()
   const before='**bold**\n\n*italic*';exact(command(before,'join-paragraph','italic'),before,'**bold***italic*');
 });
 test('italic refuses nested marks, partial removal, malformed payloads and protected syntax',()=>{
-  for(const raw of ['A ***nested*** Z','A *nested **bold*** Z','- A *[link](x)*','A *soft\nwrap*','- [x] *task*','``*code*``'])assert.equal(projectSource(raw).spans.length,0,raw);
+  for(const raw of ['A ***nested*** Z','A *nested **bold*** Z','- A *[link](x)*','A *soft\nwrap*','``*code*``'])assert.equal(projectSource(raw).spans.length,0,raw);
   for(const [s,a,t,f,e] of [['A **bold** Z','italic','bold',0,4],['A *italic* Z','bold','italic',0,6],['A *italic* Z','italic','italic',1,3],['A word Z','italic','A word Z',0,0],['A word Z','italic','A word Z',0,2],['A 😀 Z','italic','A 😀 Z',3,4]])assert.equal(command(s,a,t,f,e).ok,false);
   assert.equal(mapFormatEdit('Text',{action:'italic',from:1,to:5,path:'/tmp/forged'}).ok,false);
   assert.equal(mapTextEdit('A *italic* Z',{from:3,to:9,insert:'**nested**'}).ok,false);
+});
+
+test('italic task text remains editable without changing its checked state or delimiters',()=>{
+  for(const checked of [' ', 'x'])for(const nl of ['\n','\r\n']){
+    const before=`- [${checked}] *task*${nl}- [ ] Next${nl}`,p=span(before,'task');
+    assert.equal(p.italic,true);
+    const edit=mapTextEdit(before,{from:p.from+1,to:p.from+2,insert:'新'});
+    assert.equal(edit.ok,true);assert.equal(edit.source,before.replace('*task*','*t新sk*'));
+    const back=mapTextEdit(edit.source,{from:p.from+1,to:p.from+2,insert:'a'},edit.leaf);
+    assert.equal(back.ok,true);assert.equal(back.source,before);
+  }
 });
 
 test('italic toolbar state and shortcut keep composition and readonly guards',async()=>{

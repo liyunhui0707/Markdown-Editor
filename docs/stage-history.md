@@ -1756,3 +1756,15 @@ historical manual FAIL, near-limit latency, long-duration memory, full CI/securi
 and signed/notarized distribution remain open. Subsequent integration must pass
 current checks; historical no-remote authorizations above are superseded by this
 explicit user instruction. No version-only bump or release tag is created.
+
+
+## Full-suite integration correction (2026-11-07, 0.61.2 unchanged)
+
+Draft PR #139 exposed two stale test expectations in the combined full suite:
+italic task text was still expected to be protected after structured-list support,
+and document details still expected the pre-bound-save draft label. Update the
+expectations to the already implemented contracts and add exact checked/unchecked
+italic-text round trips and saved/dirty bound-document identity assertions. No
+production code or dependency/version change. The two affected files pass locally;
+full CI is rerun on the resulting commit. Initial CI had 3242 passes, 2 failures,
+22 skips; both dependency audits passed. Native IME/manual/release gates remain open.
