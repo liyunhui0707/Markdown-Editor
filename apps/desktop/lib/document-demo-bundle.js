@@ -231,8 +231,15 @@
         (items.find((n) => n.tabIndex === 0) || items[0])?.focus();
       } };
     });
+    const clearRegionFocus = () => {
+      if (enabled) doc4.body.removeAttribute("data-keyboard-navigation");
+    };
+    doc4.addEventListener("pointerdown", clearRegionFocus, true);
+    doc4.addEventListener("beforeinput", clearRegionFocus, true);
     doc4.addEventListener("keydown", (event) => {
       if (!enabled || blocked() || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      if (event.key === "Tab" || event.key === "F6" || event.key === "F10" && event.altKey)
+        doc4.body.setAttribute("data-keyboard-navigation", "true");
       const dialog = doc4.querySelector("dialog[open]");
       if (dialog) {
         if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {

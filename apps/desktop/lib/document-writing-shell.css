@@ -288,5 +288,5 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 
 /* Keyboard access preserves the approved geometry and palette. */
 #format-inline-tools {display:flex;align-items:center;gap:inherit}
-body[data-document-viewer] .tiptap:focus-visible {outline:2px solid var(--accent);outline-offset:8px}
+body[data-document-viewer][data-keyboard-navigation] .tiptap:focus-visible {outline:2px solid var(--accent);outline-offset:8px}
 body[data-document-viewer] input::placeholder {opacity:1;color:var(--muted)}

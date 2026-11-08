@@ -85,7 +85,7 @@ body[data-document-viewer] #source-dialog {width:min(1000px,calc(100vw - 40px));
 #source-metadata {margin-right:auto}
 body[data-document-viewer] #source-text {flex:1;min-height:0;overflow:auto;margin:0;padding:24px;border:0;border-radius:0;background:var(--surface);color:var(--ink);font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;tab-size:4}
 body[data-document-viewer] #source-text[data-wrap=false] {white-space:pre;overflow-wrap:normal}
-#source-text:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
+body[data-keyboard-navigation] #source-text:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
 .source-note {margin:0;padding:12px 24px;border-top:1px solid var(--line);color:var(--muted);font-size:11px;line-height:1.7}
 body[data-document-viewer] #source-wrap[aria-pressed=true] {background:var(--active);color:var(--accent)}
 
@@ -100,7 +100,8 @@ body[data-document-viewer] #source-wrap[aria-pressed=true] {background:var(--act
 #source-editor .cm-line {padding:0 18px}
 #source-editor .cm-gutters {background:var(--surface);color:var(--muted);border-right:1px solid var(--line)}
 #source-editor .cm-activeLine {background:color-mix(in srgb,var(--accent) 5%,transparent)}
-#source-editor .cm-focused {outline:2px solid var(--accent);outline-offset:-2px}
+#source-editor .cm-focused {outline:none}
+body[data-keyboard-navigation] #source-editor .cm-focused {outline:2px solid var(--accent);outline-offset:-2px}
 #source-dialog .source-actions {flex-wrap:wrap;gap:8px}
 #source-dialog .source-footer {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-top:1px solid var(--line)}
 #source-dialog .source-footer p {margin:0;padding:0}
