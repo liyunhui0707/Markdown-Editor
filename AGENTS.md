@@ -4,17 +4,21 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-08) — READ FIRST
 
-**Current baseline: 0.63.0, merged in PR #141 at `89cd943`.**
-Continue phase-3 real-input/VoiceOver/sustained-writing acceptance and distribution
-preparation in the existing Worktree. Current test/release-tooling work does not
-change product runtime or version. `DOCUMENT_WRITING_SOAK_MINUTES` extends the
-existing isolated Electron workflow (0–30 minutes); automation is not native IME.
-Developer ID builds use the separate release config, and the release verifier
-requires signed App/helper, stapled ticket and Gatekeeper acceptance. Missing
-Developer ID identity is not permission to use a development/ad-hoc fallback.
-Genuine-input PENDING, native IME NOT VERIFIED, VoiceOver NOT VERIFIED and
-historical manual FAIL remain. The user deferred paid Developer ID setup and formal distribution; actual
-signing/notarization and downloaded-package acceptance remain outstanding. Development integration does not clear release gates.
+**Current candidate: 0.63.1 writing-focus correction.**
+PR #142 merged test/release tooling at `af2d53c` (0.63.0 unchanged). The user
+subsequently reported all three genuine-input workflows PASS with built-in Pinyin,
+WeChat Input and iFlytek Input on the installed 0.63.0 App. Record this scoped
+human acceptance; preserve historical FAIL and untested native-input scenarios.
+VoiceOver and longer genuine writing remain pending. Paid Apple Developer setup,
+Developer ID signing/notarization and formal distribution are deferred by the user.
+
+The reported rich/source green outline was visible even after mouse clicks.
+0.63.1 limits the editor ring to keyboard navigation and clears it on pointer/text
+input, retaining controls' focus, roles and composition guards. No document,
+history, persistence or permission change. The opt-in writing soak and separate
+Developer ID build/verifier remain available. Do not substitute development or
+ad-hoc signing for distribution. Development integration does not clear the
+remaining acceptance gates. Continue in the existing Worktree.
 
 **Previous candidate: 0.62.2 bounded long-document typing optimization.**
 PR #139 merged the 0.62.1 development checkpoint into main at `2575b77` with

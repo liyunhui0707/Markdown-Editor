@@ -19,6 +19,19 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
+### Phase 3 — genuine-input results and focus correction (2026-11-08)
+
+The user reports all three current genuine-input workflows PASS on 0.63.0 with
+built-in Pinyin, WeChat Input and iFlytek Input. Preserve historical FAIL; broader
+unrepeated scenarios and input-method versions are not covered. VoiceOver and
+longer genuine writing remain the next acceptance steps. Paid signing and public
+distribution stay deferred by the user's choice.
+
+0.63.1 corrects the persistent rich/source green outline found during that test.
+The editor ring identifies keyboard navigation; pointer interaction and text input
+return to caret-led writing. Control focus indicators, roles, composition guards,
+source, storage and permissions stay unchanged. Keep the accepted visual layout.
+
 ### Phase 3 — real-input acceptance and distribution preparation (2026-11-08)
 
 PR #141 merged 0.63.0 at `89cd943` with full CI passing. The current work keeps

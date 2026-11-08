@@ -1,5 +1,39 @@
 # Stage History
 
+## Writing-focus correction — 0.63.1 candidate (2026-11-08)
+
+The user reports the three current genuine-input workflows PASS with built-in
+Pinyin, WeChat Input and iFlytek Input on 0.63.0, with rich/source screenshots.
+This supersedes the pending result for those scenarios only; historical failures,
+unrecorded method versions, VoiceOver and longer real writing remain separate.
+The screenshots also reveal intrusive full green borders during ordinary typing.
+
+Editable content matches browser `:focus-visible` even after pointer focus;
+CodeMirror additionally has an unconditional `.cm-focused` outline. The existing
+accessibility view now tracks keyboard navigation for these editor-region rings
+only. Pointer interaction or `beforeinput` clears the ring; F6/Tab navigation
+restores it. Control focus indicators, accessible roles, composition guards,
+caret, source/history, file saving and the visual layout are unchanged.
+
+23 focused Node checks and the extended Electron accessibility workflow PASS.
+The regression first fails on the old mouse-focus border, then verifies rich/source
+pointer and typing appearance, F6/Tab rings, text/Undo and existing modal/focus/
+contrast behavior. An intermediate test-order mistake changed the revision before
+its navigation-only assertion; that assertion was retained and moved before the
+new typing check. A hidden-window screenshot timeout was resolved by displaying
+only the synthetic window without activation for capture; functional assertions
+were already passing. Both visual captures were inspected.
+
+The 0.63.1 candidate App contains 77 matching runtime files, reproducible renderer,
+unchanged universal production helper, correct version and file association;
+private/test/retired dependencies stay excluded. Installed replacement and
+VoiceOver acceptance remain pending at this record. All verification fixtures
+stay in OS temporary directories or the control checkout's existing
+`.local/verification/daily-acceptance-0xflxfeh/`; no Home fixtures or user documents
+were changed. This user-visible bug fix increments patch only. Paid signing,
+notarization and formal distribution remain deferred by the user.
+
+
 ## Real-writing acceptance and release tooling — 0.63.0 unchanged (2026-11-08)
 
 PR #141 merged at `89cd943`; the installed 0.63.0 App and product runtime remain

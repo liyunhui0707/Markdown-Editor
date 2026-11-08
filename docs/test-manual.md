@@ -2608,3 +2608,19 @@ with `e2e/document-sustained-writing.spec.cjs` and an explicit isolated Electron
 runtime. Its evidence includes durations, rounds, heap/process samples and artifact
 paths. It checks exact edits/history, backup and original preservation; it does
 not operate the system IME or VoiceOver and cannot replace the checks above.
+
+
+### Human results — 0.63.0 (2026-11-08)
+
+The user reports all three workflows (candidate commit/cancel and focus,
+continuous editing/history/source navigation, quit/recovery) PASS with macOS
+built-in Pinyin, WeChat Input and iFlytek Input. Supplied screenshots show the
+rich/source document and confirmed file saving. Input-method versions were not
+recorded. This is genuine-input evidence for those workflows and methods;
+historical FAIL remains unchanged and untested scenarios are not globally accepted.
+VoiceOver speech/reading-order acceptance and longer everyday use remain PENDING.
+
+The user also reports an intrusive green outline around both writing surfaces.
+The 0.63.1 fix should show no full editor border after clicking or typing, retain
+visible F6/Tab keyboard-location feedback, and preserve caret, text/history and
+control focus. Check this together with the VoiceOver steps above after updating.

@@ -27,8 +27,15 @@ export function createAccessibilityView({byId,context}) {
     });
     return {sync,focus(){const items=sync();(items.find(n=>n.tabIndex===0)||items[0])?.focus();}};
   });
+  // Editable fields match :focus-visible even after pointer focus. Keep the
+  // region ring for keyboard location; the caret takes over during writing.
+  const clearRegionFocus=()=>{if(enabled)doc.body.removeAttribute('data-keyboard-navigation');};
+  doc.addEventListener('pointerdown',clearRegionFocus,true);
+  doc.addEventListener('beforeinput',clearRegionFocus,true);
   doc.addEventListener('keydown',event=>{
     if(!enabled||blocked()||event.defaultPrevented||event.isComposing||event.keyCode===229)return;
+    if(event.key==='Tab'||event.key==='F6'||(event.key==='F10'&&event.altKey))
+      doc.body.setAttribute('data-keyboard-navigation','true');
     const dialog=doc.querySelector('dialog[open]');
     if(dialog){
       // Native modal inertness stays authoritative; make the two Tab boundaries explicit.
