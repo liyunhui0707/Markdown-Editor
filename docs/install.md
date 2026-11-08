@@ -84,3 +84,55 @@ shasum -a 256 /实际路径/Markdown-版本-arm64-mac.zip
 本机校验值仅证明拿到的是已验证产物，不替代发布者签名。开发检查点、CI 通过与
 本地 ZIP 都不代表公开发布批准。签名、公证、真实输入、VoiceOver 和长期使用验收
 仍按路线图收口。
+
+
+## Developer ID 分发准备（维护者）
+
+用户已决定暂不购买 Apple Developer 会员；以下流程保留待产品进度合适时启用，
+目前优先完成真实输入、VoiceOver 与日常写作验收。
+
+此流程尚未完成实际签名和公证。需要本机钥匙串中可用的 **Developer ID Application**
+证书及其私钥；Apple Development 或 ad-hoc 签名不能替代本站外分发流程。
+使用已有 Apple Developer 账号在本机配置证书，并以 `notarytool store-credentials`
+交互式保存公证凭据。只记录钥匙串 profile 名称；不要把密码、API Key 或私钥放进仓库、
+命令历史、日志或聊天。目前产品继续使用既有 bundle ID，不借发布准备迁移用户记录。
+
+完成真实输入、VoiceOver 和持续写作验收后，从通过 CI 的确切提交构建。在
+`apps/desktop/` 内设置公开的证书名称（不是密钥）后执行：
+
+```sh
+export DOCUMENT_SIGNING_IDENTITY='Developer ID Application: 你的证书名称 (TEAMID)'
+mise exec -- npm run pack:document:signed
+```
+
+此命令单独输出到 `dist/signed/`，要求分发签名和 Hardened Runtime，并将
+`Contents/Resources/document-save` 纳入签名；不上传、不公证、不发布。
+缺少有效分发身份时失败，不退回开发签名。原有本地 `pack` / `dist:mac` 行为不变。
+维护者应先复核实际包内代码、版本、生产 helper、关联和排除项，再继续。
+
+以下路径与 profile 均为示例，替换为本次明确目标。上传公证只包含待交付 App，
+不包含用户文档或私有记录。为每次候选使用新的产物路径，不覆盖旧包：
+
+```sh
+ditto -c -k --sequesterRsrc --keepParent dist/signed/mac-arm64/Markdown.app /本次候选目录/submission.zip
+xcrun notarytool submit /本次候选目录/submission.zip --keychain-profile 已配置的profile名称 --wait
+# 仅在上一步明确 Accepted 后执行：
+xcrun stapler staple dist/signed/mac-arm64/Markdown.app
+mise exec -- npm run verify:document:release -- "$PWD/dist/signed/mac-arm64/Markdown.app" 实际十位TEAMID
+# Staple 改变了 App，重新制作最终交付 ZIP；不能发布之前的 submission.zip：
+ditto -c -k --sequesterRsrc --keepParent dist/signed/mac-arm64/Markdown.app /本次候选目录/Markdown-版本-arm64-mac.zip
+shasum -a 256 /本次候选目录/Markdown-版本-arm64-mac.zip
+```
+
+`verify:document:release` 只读检查包内版本/身份、App 和保存 helper 的 Developer ID、
+Team ID、Hardened Runtime、时间戳、票据和 Gatekeeper；任一步失败都返回非零。
+它不能替代包内容复核、功能验收或来源真实性判断。
+
+保留公证 submission ID、提交 SHA、签名身份、最终 ZIP 哈希与实际安装结果。
+在另一台受支持的 Mac 上通过真实下载路径验收最终 ZIP：首次启动、Finder 打开、
+中文输入、保存与恢复、退出后更新和回退。未通过前不发布正式下载或覆盖已有 Release 资产。
+签名/公证不等同于功能验收；当前这些发布门槛仍未关闭。
+
+流程依据：[Electron 签名文档](https://www.electronjs.org/docs/latest/tutorial/code-signing)、
+[Apple 公证说明](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)。
+配置语法按仓库锁定的 electron-builder 26 验证，不直接套用新版配置格式。

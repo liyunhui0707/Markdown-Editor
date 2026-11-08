@@ -19,6 +19,23 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
+### Phase 3 — real-input acceptance and distribution preparation (2026-11-08)
+
+PR #141 merged 0.63.0 at `89cd943` with full CI passing. The current work keeps
+that installed runtime unchanged: extend the existing repeated-writing test to
+an opt-in ten-minute run, reuse three genuine-input checks, and add concrete
+VoiceOver acceptance to the existing manual guide. Native IME NOT VERIFIED,
+manual PENDING and historical FAIL remain until scenario-specific human results.
+
+Separate Developer ID build and read-only signature/notarization verification
+commands prepare delivery without changing local packaging or product identity.
+Actual Developer ID signing, notarization and fresh-machine download acceptance
+are deferred by the user until product progress warrants paid Apple Developer
+membership; real-input/VoiceOver acceptance continues now.
+Do not substitute an Apple Development identity or call a synthetic verifier test
+successful signing. No automatic updater, new UI family or framework is added.
+This tooling/test/documentation group does not change the app version.
+
 ### Phase 3 — keyboard accessibility and delivery, 0.63.0
 
 PR #140 merged the bounded 0.62.2 performance work at `a89762b`; its mainline CI

@@ -2530,7 +2530,7 @@ The running 0.46.0 installed app was deliberately left intact. Test the rebuilt
 
 ## 0.61.x daily-writing / native input acceptance — PENDING
 
-Use the current 0.62.2 App on macOS with your normal Chinese input method. Work only in
+Use the current 0.63.0 App on macOS with your normal Chinese input method. Work only in
 an independent disposable draft; record macOS/input-method name and PASS/FAIL
 for these three workflows. Automated `insertText` is not native IME evidence.
 
@@ -2576,3 +2576,35 @@ Automation passed cold-parser differential checks, full projections, three
 Electron workflows and six open/edit/close cycles. It does not replace physical
 IME acceptance or clear historical failures. Mainline merge approval likewise
 is not manual QA PASS or public-release approval.
+
+
+## 0.63.0 VoiceOver and sustained-writing acceptance — PENDING (2026-11-08)
+
+Use the three genuine-input checks above in the installed 0.63.0 App; record
+macOS, keyboard/input-method name, version and the actual result of each workflow.
+The prior FAIL is historical evidence: a new result covers only the repeated
+scenario and configuration. Do not infer a global native-IME PASS.
+
+For VoiceOver, use a disposable draft and your normal VoiceOver navigation:
+
+1. Visit sidebar, top actions, formatting toolbar, rich editor, outline and source.
+   Check spoken names, roles and focus order. In the editor, read and edit a
+   paragraph, heading and table cell; confirm text and caret feedback are usable.
+2. Open link/source/settings dialogs using the keyboard. Traverse controls, close
+   with Escape and confirm focus returns to the trigger. There must be no unlabeled
+   essential control or focus trap. Check Finder's native open/save panels too.
+3. Confirm backup, success and failure notices are understandable without repeated
+   announcements on each keystroke. Keep the exact action/announcement on failure;
+   an AX tree or controlled focus test alone is not a screen-reader acceptance pass.
+
+One 20–30 minute genuine writing session should combine candidate commit/cancel,
+selection replacement, Undo/Redo, source/outline navigation and final backup/recovery.
+Report stalls, missing/duplicate text or unexpected focus movement. Do not use
+important unexported content as a fixture. Reuse current drafts only if disposable.
+
+Developers can extend the existing isolated controlled test without Home fixtures:
+`DOCUMENT_WRITING_SOAK_MINUTES=10` (integer 0–30; default 0 retains six short cycles)
+with `e2e/document-sustained-writing.spec.cjs` and an explicit isolated Electron
+runtime. Its evidence includes durations, rounds, heap/process samples and artifact
+paths. It checks exact edits/history, backup and original preservation; it does
+not operate the system IME or VoiceOver and cannot replace the checks above.

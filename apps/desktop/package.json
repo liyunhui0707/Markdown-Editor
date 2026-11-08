@@ -33,7 +33,9 @@
     "dev:document": "electron document-app-main.js",
     "pack:document": "npm run build:document-save && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
     "dev:legacy": "electron main.js",
-    "build:document-save": "node tools/build-document-save.cjs"
+    "build:document-save": "node tools/build-document-save.cjs",
+    "pack:document:signed": "node -e \"require('./electron-builder.document-release.cjs')\" && npm run build:document-save && electron-builder --config electron-builder.document-release.cjs --mac dir --arm64 --publish never",
+    "verify:document:release": "node tools/verify-document-release.cjs"
   },
   "author": "",
   "license": "MIT",

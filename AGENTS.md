@@ -4,15 +4,17 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-08) — READ FIRST
 
-**Current candidate: 0.63.0 keyboard access and delivery readiness.**
-PR #140 merged 0.62.2 at `a89762b`; exact mainline CI passed. Continue on
-`feat/document-accessibility-delivery` in the existing Worktree. Keyboard region
-and toolbar focus, accessible editor names, contrast/focus styles and current
-installation/rollback documentation form this group. No storage or source-map
-permission changes. Local App/ZIP verification is not signing, notarization,
-VoiceOver or native IME acceptance. Existing genuine-input PENDING, native IME
-NOT VERIFIED and historical manual FAIL remain; release gates stay separate
-from approved development Git operations.
+**Current baseline: 0.63.0, merged in PR #141 at `89cd943`.**
+Continue phase-3 real-input/VoiceOver/sustained-writing acceptance and distribution
+preparation in the existing Worktree. Current test/release-tooling work does not
+change product runtime or version. `DOCUMENT_WRITING_SOAK_MINUTES` extends the
+existing isolated Electron workflow (0–30 minutes); automation is not native IME.
+Developer ID builds use the separate release config, and the release verifier
+requires signed App/helper, stapled ticket and Gatekeeper acceptance. Missing
+Developer ID identity is not permission to use a development/ad-hoc fallback.
+Genuine-input PENDING, native IME NOT VERIFIED, VoiceOver NOT VERIFIED and
+historical manual FAIL remain. The user deferred paid Developer ID setup and formal distribution; actual
+signing/notarization and downloaded-package acceptance remain outstanding. Development integration does not clear release gates.
 
 **Previous candidate: 0.62.2 bounded long-document typing optimization.**
 PR #139 merged the 0.62.1 development checkpoint into main at `2575b77` with
