@@ -4,12 +4,17 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-08) — READ FIRST
 
-**Current candidate: 0.63.1 writing-focus correction.**
+**Current installed version: 0.63.1; basic human acceptance passed.**
 PR #142 merged test/release tooling at `af2d53c` (0.63.0 unchanged). The user
 subsequently reported all three genuine-input workflows PASS with built-in Pinyin,
 WeChat Input and iFlytek Input on the installed 0.63.0 App. Record this scoped
 human acceptance; preserve historical FAIL and untested native-input scenarios.
-VoiceOver and longer genuine writing remain pending. Paid Apple Developer setup,
+After PR #143 merged at `d10d79d` and 0.63.1 was installed, the user reported
+the rich/source border, basic VoiceOver controls/paragraph reading, dialog
+keyboard return and non-disruptive backup announcements PASS. Heading/table
+VoiceOver checks were explicitly deferred; longer genuine writing also remains
+pending. Do not expand these results into full accessibility acceptance.
+Paid Apple Developer setup,
 Developer ID signing/notarization and formal distribution are deferred by the user.
 
 The reported rich/source green outline was visible even after mouse clicks.

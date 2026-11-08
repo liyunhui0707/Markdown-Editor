@@ -2624,3 +2624,19 @@ The user also reports an intrusive green outline around both writing surfaces.
 The 0.63.1 fix should show no full editor border after clicking or typing, retain
 visible F6/Tab keyboard-location feedback, and preserve caret, text/history and
 control focus. Check this together with the VoiceOver steps above after updating.
+
+
+### Human results — 0.63.1 basic VoiceOver/focus check (2026-11-08)
+
+The user reports all steps of the simplified instructions PASS after
+installing 0.63.1: no persistent full green border while clicking/typing
+in rich text or Source; VoiceOver names for essential controls and reading
+the current paragraphs; Source-dialog Tab traversal and Escape return;
+backup notices without repeated typing interruption. This is user-reported
+speech/navigation evidence, distinct from the automated AX/focus checks.
+
+Those instructions explicitly allowed heading/table-cell VoiceOver checks
+to remain untested, so they are NOT TESTED. The report does not specify
+a 20–30 minute genuine-writing duration or cover all dialogs/native panels.
+These remaining scenarios and broad accessibility acceptance stay open;
+do not ask the user to repeat the passed basic checks without a regression.
