@@ -1,5 +1,22 @@
 # Stage History
 
+## 0.63.1 installed and basic human acceptance — closeout (2026-11-08)
+
+PR #143 merged at `d10d79d`. Full CI: 3290 Node passes, two expected
+performance skips, four Electron passes, dependency audits, generated assets
+and packaging pass. Actual candidate and installed startup/recent-panel checks
+pass; existing draft/catalog/save-version records are unchanged. The old
+0.63.0 App is retained locally with recovery mapping; no tag or Release.
+
+After installation, the user reports all steps of the supplied basic check
+PASS: rich/source pointer-writing appearance, VoiceOver control names and
+paragraph reading, keyboard Source-dialog traversal and Escape return, and
+non-disruptive backup notices. The guide explicitly deferred heading/table
+VoiceOver checks; these are NOT TESTED. A 20–30 minute genuine-writing result
+also remains pending. Earlier pending entries below are dated checkpoints;
+historical failures and untested scenarios are retained. Documentation-only
+closeout: version remains 0.63.1, with no runtime/dependency/package change.
+
 ## Writing-focus correction — 0.63.1 candidate (2026-11-08)
 
 The user reports the three current genuine-input workflows PASS with built-in
