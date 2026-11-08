@@ -1,5 +1,45 @@
 # Stage History
 
+## Real-writing acceptance and release tooling — 0.63.0 unchanged (2026-11-08)
+
+PR #141 merged at `89cd943`; the installed 0.63.0 App and product runtime remain
+unchanged in this batch. The existing sustained-writing Electron test gains an
+opt-in 0–30 minute duration; default six short cycles remain. A ten-minute input
+loop run (734 seconds including setup, source navigation, backup and closure)
+passes six sessions at start/middle/end of a 485,031 UTF-16-unit document, 4,080
+inserted characters and 60 Undo/Redo pairs. Exact source, confirmed backup,
+original hash, empty editor after close, clean exit and zero page/network faults
+all pass. Closed renderer heap after test-only GC ranges 10.13–11.13 MiB with
+six retained synthetic drafts; process working sets are recorded separately.
+This is bounded automation, not a leak proof, native Chinese input or 20–30 minute
+human writing acceptance. Existing memory/capacity limits are unchanged.
+
+Separate Developer ID packaging requires a distribution identity and Hardened
+Runtime, signs the native save helper and never falls back to ad-hoc signing.
+A read-only release verifier checks bundle version/identity, App/helper signatures,
+Team ID, runtime/timestamp, stapled ticket and Gatekeeper. Local packaging stays
+unchanged; notarization upload remains a separate explicit operation. The existing
+install guide covers final ZIP recreation after stapling and download/rollback QA.
+17 targeted Node checks PASS, including the actual locked builder-26 schema;
+signature-tool positive results are synthetic. The actual installed unsigned App
+is correctly rejected. No real Developer ID signing/notarization has been performed.
+New implementation and test files are each below 100 lines. No dependency or
+user-visible feature change, so no version bump or new installed App is needed.
+
+The user is performing the existing three genuine-input checks; results remain
+PENDING. AX control names were inspected, but GUI actions were unavailable and
+VoiceOver speech was not tested: VoiceOver and native IME remain NOT VERIFIED;
+historical manual FAIL is retained. The user explicitly deferred paid Apple
+Developer membership and Developer ID preparation until product progress warrants
+it. Signing, notarization and formal distribution are therefore DEFERRED, not
+failed product tests or grounds for requesting payment now.
+
+Evidence: control-checkout `.local/verification/daily-acceptance-0xflxfeh/`.
+Synthetic App/verifier fixtures and writing drafts remain in named OS temporary
+directories; no Home fixtures, user documents, old archives or installed App were
+changed. Development integration does not mark the remaining acceptance as PASS.
+
+
 ## Keyboard access and delivery — 0.63.0 local WIP (2026-11-08)
 
 PR #140 merged 0.62.2 at `a89762b`; its mainline Desktop CI passed. This group
