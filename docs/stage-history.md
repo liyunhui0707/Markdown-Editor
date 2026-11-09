@@ -1,5 +1,56 @@
 # Stage History
 
+## Long-document Unicode validation — 0.63.2 (2026-11-09)
+
+CPU sampling found repeated Unicode lookaround scans in the exact-source mapper
+and inline leaves. Both now use the native well-formedness predicate already
+required by the pinned runtimes. No source normalization, parser-cache expansion,
+queue/history change, file policy change or visual redesign. The 316-line source
+mapper is not split for this two-line optimization; the new Unicode test is 47
+lines. The generated renderer changes only the corresponding two predicates.
+
+Tests enumerate all 2,048 lone surrogate code units in four contexts through
+both source-leaf and insertion guards, exercise every high/low surrogate in a
+valid pair, and verify exact mixed-newline edits/inverses plus pair-split refusal.
+Full locked-dependency Node suite: 3,293 PASS, two expected performance skips.
+Production audit reports zero vulnerabilities; the existing high-severity full
+security gate passes with seven moderate development-tool findings retained.
+
+A bounded 485k-unit mapper run improves mean 14.4 → 10.3 ms. One paired Air
+43.8.7 / Node 24.20.0 run improves the controlled 25-key input/confirmation time
+2.35 → 2.09 seconds, peak queued edits 2 → 1. Exact source, Undo/Redo, Source,
+backup and restart recovery pass. Long tasks remain around 100 ms; these timings
+include automation overhead and are not a universal responsiveness guarantee.
+Two local long-writing workflows also pass on the complete runtime. Air
+completed the requested 20-minute soak in 21.7 minutes: six start/middle/end
+editing sessions, 118 input/history rounds and 8,024 inserted UTF-16 units,
+with exact source/Undo, original-file preservation and controlled close checks.
+No runtime faults or remaining test processes. Closed renderer JS heap is
+9.94–10.81 MiB while six drafts are retained, but renderer working set rises
+from 378 to 505 MiB and embedder memory also grows. This does not establish
+long-term memory stability or real-IME acceptance; retain that follow-up.
+The actual 0.63.2 package
+and installed welcome/recent-panel checks pass; 77 runtime files match source,
+the canonical renderer is reproducible and the production native helper is
+unchanged. Existing private records remain unchanged. 0.63.1 is retained for
+rollback; no tag, Release or paid-signing setup.
+
+The first local checks exposed stale ignored dependencies and a temporary
+Electron directory missing Info.plist. A fresh lockfile install passes the full
+suite; a hash-verified complete runtime passes GUI tests. Initial failures remain
+in private evidence. The Air renderer differs from the canonical rebuild only
+in esbuild dependency path labels; normalized bytes match exactly. No dependency
+versions changed. Future reuse requires actual runtime and dependency checks,
+not merely a matching package-lock file. Fixtures remain under OS temporary or
+private verification directories; no Home Writing-synthetic fixtures were added.
+
+README and the manual guide now distinguish scoped human PASS from remaining
+20–30 minute genuine writing and heading/table VoiceOver checks, which the user
+will do later. Paid signing/notarization and public distribution stay deferred.
+Next feature group is main-editor find and replace. This patch is development
+integration, not a new global native-input/accessibility or release sign-off.
+
+
 ## 0.63.1 installed and basic human acceptance — closeout (2026-11-08)
 
 PR #143 merged at `d10d79d`. Full CI: 3290 Node passes, two expected

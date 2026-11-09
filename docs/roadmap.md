@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-08)
+## Current direction (2026-11-09)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -18,6 +18,25 @@ limits have already been removed.
 | 1. Native Mac file opening | Open `.md` via Finder Open With; after the user chooses Markdown as default, double-click opens it. Cold/warm launch, repeat opens, Unicode paths and pending input behave predictably. | 0.57.0 installed local candidate implements association, main-owned queued read intent, unchanged-session reuse and deferred opening. Existing originals stay read-only; no default handler is changed automatically. 109 focused Node checks, three source Electron workflows and actual-package cold/warm/repeated LaunchServices opens pass; no unrestricted filesystem or release claim. |
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
+
+### Current batch — writing stability, 0.63.2 (2026-11-09)
+
+Keep the accepted workspace and improve only measured daily-writing costs.
+CPU sampling identified repeated Unicode validation in full-source projection;
+the two hotspots use native well-formedness checking with exhaustive lone-surrogate
+and paired-character boundary coverage. The source mapping, parser cache, full
+validation, history and persistence model do not change. Controlled long-document
+input/history/restart checks and the 21.7-minute Air soak pass; details and
+remaining process-memory growth are recorded in the stage history. The user postponed the genuine 20–30 minute session, so keep
+that and heading/table VoiceOver acceptance pending while development continues.
+
+Next, complete **main-editor find and replace** as one user workflow: current/all
+replacement, clear match scope, exact Undo, selection/focus preservation and
+source/protected-block behavior. Then address compatibility issues found during
+real writing and remaining accessibility checks together. Local delivery and
+rollback continue; paid signing/notarization/public distribution remain deferred.
+Do not broaden this performance patch into a new editor architecture or an
+unrelated feature batch.
 
 ### Phase 3 — basic native acceptance completed (2026-11-08)
 

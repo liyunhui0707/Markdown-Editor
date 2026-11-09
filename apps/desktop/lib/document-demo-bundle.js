@@ -6757,7 +6757,7 @@
       b--;
     }
     const value = leaf.value;
-    if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value) || source.slice(a, b) !== value) return null;
+    if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || !value.isWellFormed() || source.slice(a, b) !== value) return null;
     if (code3) {
       if (value.includes("`") || source[a - 1] !== "`" || source[b] !== "`") return null;
     } else if (/[<>{}\\`$|]/.test(value)) return null;
@@ -16858,7 +16858,7 @@
   var parser = unified().use(remarkParse).use(remarkGfm);
   var parse2 = createSourceParser((source) => parser.parse(source));
   var unsafe = () => ({ ok: false, code: "unsafe-source-range" });
-  var validText2 = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
+  var validText2 = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && s.isWellFormed();
   var splits2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   function projectSource(source) {
     if (typeof source !== "string" || source.length > MAX_SOURCE_UNITS4) throw Error("Unsupported source");
