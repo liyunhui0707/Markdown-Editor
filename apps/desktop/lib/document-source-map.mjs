@@ -19,7 +19,7 @@ const parser = unified().use(remarkParse).use(remarkGfm);
 const parse = createSourceParser(source => parser.parse(source));
 const unsafe = () => ({ ok: false, code: 'unsafe-source-range' });
 const validText = s => typeof s === 'string' && !/[\0\r\n]/.test(s)
-  && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
+  && s.isWellFormed();
 const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
 
 export function projectSource(source) {

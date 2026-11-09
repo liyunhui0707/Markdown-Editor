@@ -6,7 +6,7 @@ export function projectInlineLeaf(child, source) {
   if(code){a++;b--;}
   const value=leaf.value;
   if((code?leaf.type!=='inlineCode':leaf.type!=='text') || typeof value!=='string' || !value
-      || /[\0\r\n]/.test(value) || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
+      || /[\0\r\n]/.test(value) || !value.isWellFormed()
       || source.slice(a,b)!==value) return null;
   if(code) {
     // One backtick pair; reject padding removal, multiline normalization and embedded delimiters.

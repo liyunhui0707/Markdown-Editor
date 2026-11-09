@@ -1,11 +1,25 @@
 # Manual Test Checklist
 
-## Keyboard accessibility — 0.63.0 (manual acceptance pending)
+## Current acceptance status — 0.63.2 stability candidate (2026-11-09)
+
+The 0.63.1 acceptance baseline has user-reported PASS for the supplied basic
+VoiceOver/focus check. The three genuine-input workflows passed on 0.63.0 with
+built-in Pinyin, WeChat Input and iFlytek Input. Do not repeat those checks solely
+because a new development batch starts. Dated PENDING/FAIL entries below remain
+historical evidence and are superseded only for the exact repeated scenarios.
+
+The user will do the 20–30 minute real-writing session later. Heading/table-cell
+VoiceOver checks are also NOT TESTED. Automated long-writing runs do not replace
+these results. The 0.63.2 candidate changes only two Unicode-validation hotspots;
+use the next genuine session to report any noticeable pauses or text problems.
+Paid signing/notarization and formal distribution remain deferred.
+
+## Keyboard accessibility — original 0.63.0 checklist
 
 Controlled Electron verifies region/toolbar navigation, modal focus confinement
 and return, light/dark palette pairs and composition focus retention. It does not
-exercise VoiceOver or a physical Chinese input method. The existing three genuine
-input checks remain PENDING; native IME NOT VERIFIED and historical FAIL remain.
+exercise VoiceOver or a physical Chinese input method. The current scoped human
+results are summarized above; this automation does not clear historical failures.
 
 On a disposable article, use F6 / Shift+F6 through the regions and Option+F10 into
 formatting (Fn may be needed). Tab leaves each toolbar; arrow keys/Home/End move

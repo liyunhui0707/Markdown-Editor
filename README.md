@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.63.0 local WIP candidate for keyboard access and delivery readiness.** This is not
+**0.63.2 installed local development build for long-document writing stability.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -21,13 +21,43 @@ Toolbars use one Tab stop with arrow-key/Home/End navigation. Read-only content
 and editing copies have distinct accessible names and roles. Focus indicators
 and muted-text contrast in light/dark themes are clearer, without changing the
 accepted layout. Navigation does not force-confirm composition or bypass edit
-and save guards. Real VoiceOver/native IME acceptance remains pending.
+and save guards. The user reported the three supplied genuine-input workflows
+PASS on 0.63.0 with built-in Pinyin, WeChat Input and iFlytek Input. Basic
+VoiceOver controls/paragraph reading, Source-dialog keyboard return and the
+writing-focus correction passed user acceptance on 0.63.1. Heading/table-cell
+VoiceOver checks and 20–30 minutes of genuine writing are still pending; these
+results do not claim complete accessibility or all native-input scenarios.
 
 The [installation guide](docs/install.md) now covers the actual standalone
 Document App, Finder association, keyboard controls, verified local ZIPs,
 updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
+
+## Long-document validation — 0.63.2
+
+The two measured text-validation hotspots now use the native Unicode
+well-formedness check already supported by the pinned runtimes. Lone UTF-16
+surrogates remain rejected; valid emoji, combining characters and exact offsets
+are preserved. Full projection checks, independent main-process validation,
+history, backups and file-saving protections are unchanged.
+
+A bounded 485k-unit mapper measurement fell from 14.4 ms to 10.3 ms on the same
+Mac. On Air, the controlled 25-key input/confirmation sequence fell from 2.35 s
+to 2.09 s, with exact text, Undo/Redo and restart recovery passing. This single
+paired run includes automation overhead and is not a universal latency guarantee;
+long tasks around 100 ms remain near the capacity limit.
+
+A 21.7-minute controlled Air run passes six long-document editing/closing
+sessions and 118 input/history rounds. Renderer JS heap after closing remains
+9.94–10.81 MiB with six retained drafts; process working set rises during the run,
+so longer memory stability remains under observation. This is synthetic input,
+not the postponed human-writing session.
+
+Paid Developer ID signing, notarization and formal distribution are deferred by
+the user. 0.63.2 is installed and passed packaged startup/record-preservation checks;
+0.63.1 is retained for rollback. The previous scoped human acceptance is not
+a claim of new human testing. Historical failures and untested scenarios remain.
 
 ## Local Desktop and Documents — 0.62.0
 
@@ -54,7 +84,8 @@ On the same 485k-unit synthetic article, the focused mapper mean fell from
 latency guarantees. Six open/edit/close cycles at the start, middle and end pass
 exact history and original-file checks. Closed renderer heap measured 9.9–11.2 MiB
 while six synthetic drafts were retained; process working sets fluctuated.
-This short run does not establish long-duration memory or native IME acceptance.
+This historical short run does not establish long-duration memory or native IME
+acceptance; subsequent scoped human results are listed above.
 
 Earlier 0.61.2 improvements remain:
 
@@ -66,8 +97,9 @@ save authority are unchanged. The 0.61.1 same-machine profile of eight controlle
 keys in a 485,031-unit synthetic article
 measured a median 695 ms → 205 ms from beforeinput to confirmed state. This is a
 bounded same-machine comparison, not a universal latency guarantee; near-limit
-writing still has noticeable latency and substantial memory use. Native IME and
-human daily-writing acceptance remain pending; see `docs/test-manual.md`.
+writing still has noticeable latency and substantial memory use. The later scoped
+genuine-input results are listed above; long genuine-writing
+acceptance remains pending. See `docs/test-manual.md`.
 
 ## Larger articles and images — 0.61.0
 

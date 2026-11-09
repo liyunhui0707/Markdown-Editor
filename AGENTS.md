@@ -2,9 +2,21 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-11-08) — READ FIRST
+## Current architecture (fact-checked 2026-11-09) — READ FIRST
 
-**Current installed version: 0.63.1; basic human acceptance passed.**
+**Current installed build: 0.63.2, bounded writing stability.**
+Two profiled text-validation hotspots use native `String.isWellFormed()` instead
+of repeated lookaround regex scans. Full source projection, main validation,
+parser cache bounds, history, saves and capacity remain unchanged. The pinned
+Node/Electron already use this API elsewhere. Unicode boundary and long-writing
+checks cover this optimization; do not infer unlimited throughput or global IME
+acceptance. Local test dependencies must match the lockfile: an older ignored
+node_modules directory and a partially missing temporary Electron distribution
+were detected this batch. Reuse only verified runtime/tool snapshots.
+The user postponed the genuine 20–30 minute writing session; heading/table-cell
+VoiceOver checks remain NOT TESTED. Next feature group is main-editor find/replace.
+
+**Previous installed version: 0.63.1; basic human acceptance passed.**
 PR #142 merged test/release tooling at `af2d53c` (0.63.0 unchanged). The user
 subsequently reported all three genuine-input workflows PASS with built-in Pinyin,
 WeChat Input and iFlytek Input on the installed 0.63.0 App. Record this scoped
