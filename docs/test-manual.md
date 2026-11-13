@@ -1,5 +1,15 @@
 # Manual Test Checklist
 
+## Find and replace — 0.64.0
+
+In a disposable editing copy use ⌘F, search repeated Chinese/English text,
+replace current and then all matches. Undo each action in one step, Redo,
+close search with Escape and continue typing. Check case sensitivity, empty
+replacement, and a cross-bold match (whole action should refuse). During genuine
+candidate input in either field, Enter/Escape should belong to the input method.
+Check controls with VoiceOver when convenient. These human checks are NOT TESTED.
+
+
 ## Current acceptance status — 0.63.2 stability candidate (2026-11-09)
 
 The 0.63.1 acceptance baseline has user-reported PASS for the supplied basic

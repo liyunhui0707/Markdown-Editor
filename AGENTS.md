@@ -2,9 +2,18 @@
 
 This file provides guidance to Codex when working with code in this repository.
 
-## Current architecture (fact-checked 2026-11-09) — READ FIRST
+## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
-**Current installed build: 0.63.2, bounded writing stability.**
+**0.64.0 installed development build: document find and replace.** Current/all literal replacement
+uses exact source spans and a complete projection comparison, then the existing
+main-validated source-edit command for atomic history/backup. Never silently
+replace a partial result set: over 1,000 disables Replace All. Protected/cross-mark
+or structurally changing replacements refuse entirely; Source mode is available.
+Read-only originals and native composition retain their guards. Controlled tests
+do not establish fresh genuine-IME/VoiceOver acceptance.
+
+
+**Previous installed build: 0.63.2, bounded writing stability.**
 Two profiled text-validation hotspots use native `String.isWellFormed()` instead
 of repeated lookaround regex scans. Full source projection, main validation,
 parser cache bounds, history, saves and capacity remain unchanged. The pinned

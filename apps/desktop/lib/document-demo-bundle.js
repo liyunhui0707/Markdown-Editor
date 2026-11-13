@@ -18462,6 +18462,47 @@
     } };
   }
 
+  // lib/document-replace.mjs
+  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
+  function planDocumentReplace(source, doc4, matches2, insert2, selection = { from: 1, to: 1 }) {
+    const fail = (code3) => ({ ok: false, code: code3 });
+    if (typeof insert2 !== "string" || insert2.length > 4096 || /[\0\r\n]/.test(insert2) || !insert2.isWellFormed() || !Array.isArray(matches2) || !matches2.length || matches2.length > 1e3) return fail("invalid-replacement");
+    try {
+      const projection = projectSource(source), schema = doc4.type.schema;
+      if (!doc4.eq(schema.nodeFromJSON(projection.doc))) return fail("stale-replacement");
+      const edits2 = [];
+      let end = -1;
+      for (const { from: from2, to } of matches2) {
+        if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < end || to <= from2) return fail("invalid-replacement");
+        const span = projection.spans.find((s) => from2 >= s.from && to <= s.to);
+        if (!span) return fail("protected-replacement");
+        const a = span.sourceFrom + from2 - span.from, b = span.sourceFrom + to - span.from;
+        const text5 = source.slice(a, b);
+        if (!text5.isWellFormed() || text5 !== doc4.textBetween(from2, to, "", "")) return fail("protected-replacement");
+        edits2.push({ from: from2, to, a, b });
+        end = to;
+      }
+      if (source.length + edits2.reduce((n, e) => n + insert2.length - (e.b - e.a), 0) > import_document_capacity12.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
+      const tr2 = new Transform(doc4);
+      let candidate = source;
+      for (const e of edits2.toReversed()) {
+        candidate = candidate.slice(0, e.a) + insert2 + candidate.slice(e.b);
+        const marks2 = doc4.nodeAt(e.from)?.marks || [];
+        tr2.replaceWith(e.from, e.to, insert2 ? schema.text(insert2, marks2) : []);
+      }
+      if (!tr2.doc.eq(schema.nodeFromJSON(projectSource(candidate).doc))) return fail("protected-replacement");
+      return {
+        ok: true,
+        source: candidate,
+        count: edits2.length,
+        selection: { from: tr2.mapping.map(selection.from), to: tr2.mapping.map(selection.to) },
+        selectionJSON: typeof selection.map === "function" ? selection.map(tr2.doc, tr2.mapping).toJSON() : null
+      };
+    } catch {
+      return fail("protected-replacement");
+    }
+  }
+
   // node_modules/prosemirror-view/dist/index.js
   var domIndex = function(node2) {
     for (var index2 = 0; ; index2++) {
@@ -23810,11 +23851,11 @@
   function createFindView({ byId: byId2, context }) {
     const bar = byId2("document-find"), input = byId2("find-query"), doc4 = bar.ownerDocument;
     const button = byId2("show-document-find"), scroll = byId2("document-scroll");
-    let enabled = false, opened = false, queryComposing = false, mapped = null;
+    let enabled = false, opened = false, queryComposing = false, replacementComposing = false, replacing = false, mapped = null;
     let matches2 = [], total = 0, active = -1;
     const ready = () => {
       const { state: s, editor: editor2, loading: loading2, invalid } = context();
-      return enabled && !!editor2 && !!s?.confirmed && !loading2 && !invalid && !s.locked && !s.pending && !s.historyPending && !s.composing && !s.compositionInvalid && !editor2.view.composing && s.source === s.confirmed.source;
+      return !replacing && enabled && !!editor2 && !!s?.confirmed && !loading2 && !invalid && !s.locked && !s.pending && !s.historyPending && !s.composing && !s.compositionInvalid && !editor2.view.composing && s.source === s.confirmed.source;
     };
     const modal = () => doc4.querySelector("dialog[open]");
     function publish() {
@@ -23830,6 +23871,12 @@
       for (const id2 of ["find-previous", "find-next"]) byId2(id2).disabled = paused || !matches2.length;
       byId2("find-case").disabled = paused;
       input.disabled = !ready();
+      const s = context().state;
+      const editable2 = ready() && !queryComposing && !replacementComposing && !s.confirmed.readOnly && s.confirmed.temporary === true && !s.recoveryRecords?.length;
+      byId2("find-replacement").disabled = !ready() || s.confirmed.readOnly || s.confirmed.temporary !== true;
+      byId2("find-replace-one").disabled = !editable2 || !matches2.length;
+      byId2("find-replace-all").disabled = !editable2 || !matches2.length || total > FIND_LIMIT;
+      byId2("find-scope").textContent = s?.confirmed?.readOnly ? "\u539F\u6587\u53EA\u8BFB \xB7 \u8BF7\u5148\u521B\u5EFA\u7F16\u8F91\u526F\u672C" : total > FIND_LIMIT ? "\u5339\u914D\u8D85\u8FC7 1000 \u5904\uFF0C\u8BF7\u7F29\u5C0F\u67E5\u627E\u8303\u56F4\u540E\u5168\u90E8\u66FF\u6362" : "\u5F53\u524D\u6587\u6863 \xB7 \u7EAF\u6587\u672C \xB7 \u6700\u591A 1000 \u5904";
       bar.dataset.paused = String(paused);
       byId2("editor").dataset.findPaused = String(paused);
       byId2("find-count").textContent = paused ? "\u7B49\u5F85\u8F93\u5165\u5B8C\u6210" : !input.value ? "" : total === 0 ? "\u65E0\u5339\u914D" : `${active + 1} / ${total}` + (total > FIND_LIMIT ? ` \xB7 \u4EC5\u5B9A\u4F4D\u524D ${FIND_LIMIT} \u5904` : "");
@@ -23856,14 +23903,52 @@
       }
       controls();
     }
+    async function replace4(all2) {
+      if (!opened || !ready() || queryComposing || replacementComposing || modal()) return;
+      sync();
+      const { editor: editor2, controller: controller2, state } = context();
+      if (!controller2 || state.confirmed.readOnly || state.confirmed.temporary !== true || state.recoveryRecords?.length || !matches2.length || all2 && total > FIND_LIMIT) return;
+      const plan = planDocumentReplace(
+        state.confirmed.source,
+        editor2.state.doc,
+        all2 ? matches2 : [matches2[active]],
+        byId2("find-replacement").value,
+        editor2.state.selection
+      );
+      const status = byId2("find-replace-status");
+      if (!plan.ok) {
+        status.textContent = "\u5339\u914D\u8DE8\u8D8A\u683C\u5F0F\u6216\u53D7\u4FDD\u62A4\u7ED3\u6784\uFF0C\u6216\u66FF\u6362\u4F1A\u6539\u53D8 Markdown \u7ED3\u6784\u3002\u8BF7\u7F29\u5C0F\u8303\u56F4\u6216\u5728\u6E90\u7801\u4E2D\u4FEE\u6539\uFF1B\u672C\u6B21\u672A\u66FF\u6362\u3002";
+        return;
+      }
+      if (plan.source === state.confirmed.source) {
+        status.textContent = "\u66FF\u6362\u5185\u5BB9\u4E0E\u539F\u6587\u76F8\u540C\uFF0C\u672A\u4FEE\u6539\u3002";
+        return;
+      }
+      replacing = true;
+      controls(true);
+      let ok3 = false;
+      try {
+        ok3 = await controller2.applySource(plan.source);
+      } catch {
+      }
+      replacing = false;
+      if (context().controller !== controller2 || context().editor !== editor2) return;
+      if (ok3) {
+        const tr2 = editor2.state.tr.setSelection(plan.selectionJSON ? Selection.fromJSON(editor2.state.doc, plan.selectionJSON) : TextSelection.create(editor2.state.doc, plan.selection.from, plan.selection.to));
+        editor2.view.dispatch(tr2.setMeta("addToHistory", false));
+        status.textContent = `\u5DF2\u66FF\u6362 ${plan.count} \u5904\uFF0C\u53EF\u64A4\u9500\u3002`;
+      } else status.textContent = "\u66FF\u6362\u672A\u786E\u8BA4\uFF0C\u8BF7\u68C0\u67E5\u6587\u6863\u72B6\u6001\uFF1B\u5F53\u524D\u5185\u5BB9\u5DF2\u4FDD\u7559\u3002";
+      sync();
+      if (ready()) byId2("find-replacement").focus({ preventScroll: true });
+    }
     function jump() {
       const { editor: editor2, state } = context();
-      if (!opened || !ready() || queryComposing || modal() || !matches2[active] || mapped?.doc !== editor2.state.doc || mapped.session !== state.confirmed.sessionId) return;
+      if (!opened || !ready() || queryComposing || replacementComposing || modal() || !matches2[active] || mapped?.doc !== editor2.state.doc || mapped.session !== state.confirmed.sessionId) return;
       const rect = editor2.view.coordsAtPos(matches2[active].from), bounds = scroll.getBoundingClientRect();
       scroll.scrollTo({ top: Math.max(0, scroll.scrollTop + rect.top - bounds.top - scroll.clientHeight / 3), behavior: "auto" });
     }
     function move(direction) {
-      if (!ready() || queryComposing || modal()) return;
+      if (!ready() || queryComposing || replacementComposing || modal()) return;
       sync();
       if (!matches2.length) return;
       active = (active + direction + matches2.length) % matches2.length;
@@ -23872,7 +23957,7 @@
       jump();
     }
     function open() {
-      if (!ready() || queryComposing || modal()) return;
+      if (!ready() || queryComposing || replacementComposing || modal()) return;
       opened = true;
       bar.hidden = false;
       button.setAttribute("aria-expanded", "true");
@@ -23882,7 +23967,7 @@
       input.select();
     }
     function close2() {
-      if (!opened || !ready() || queryComposing || modal()) return;
+      if (!opened || !ready() || queryComposing || replacementComposing || modal()) return;
       opened = false;
       bar.hidden = true;
       button.setAttribute("aria-expanded", "false");
@@ -23901,9 +23986,24 @@
       view.focus();
     }
     const guard = (event) => {
-      if (!ready() || queryComposing) event.preventDefault();
+      if (!ready() || queryComposing || replacementComposing) event.preventDefault();
     };
-    for (const id2 of ["show-document-find", "find-previous", "find-next", "find-close", "find-case"]) byId2(id2).onpointerdown = guard;
+    for (const id2 of ["show-document-find", "find-previous", "find-next", "find-close", "find-case", "find-replace-one", "find-replace-all"]) byId2(id2).onpointerdown = guard;
+    const replacement = byId2("find-replacement");
+    replacement.addEventListener("compositionstart", () => {
+      replacementComposing = true;
+      controls(true);
+    });
+    replacement.addEventListener("compositionend", () => {
+      replacementComposing = false;
+      sync();
+    });
+    replacement.onpointerdown = guard;
+    replacement.oninput = () => {
+      byId2("find-replace-status").textContent = "";
+    };
+    byId2("find-replace-one").onclick = () => replace4(false);
+    byId2("find-replace-all").onclick = () => replace4(true);
     input.onpointerdown = (event) => {
       if (!ready()) event.preventDefault();
     };
@@ -23931,7 +24031,7 @@
     byId2("find-next").onclick = () => move(1);
     byId2("find-close").onclick = close2;
     doc4.addEventListener("keydown", (event) => {
-      if (!enabled || event.defaultPrevented || event.isComposing || event.keyCode === 229 || queryComposing || modal()) return;
+      if (!enabled || event.defaultPrevented || event.isComposing || event.keyCode === 229 || queryComposing || replacementComposing || modal()) return;
       if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
         open();
@@ -23939,7 +24039,7 @@
         event.preventDefault();
         event.stopPropagation();
         close2();
-      } else if (opened && bar.contains(event.target) && event.key === "Enter" && ready()) {
+      } else if (opened && event.target === input && event.key === "Enter" && ready()) {
         event.preventDefault();
         move(event.shiftKey ? -1 : 1);
       }
@@ -23949,6 +24049,8 @@
       bar.hidden = true;
       button.setAttribute("aria-expanded", "false");
       input.value = "";
+      replacement.value = "";
+      byId2("find-replace-status").textContent = "";
       matches2 = [];
       total = 0;
       active = -1;
@@ -62319,9 +62421,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   }
 
   // lib/document-edit-controller.mjs
-  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity13 = __toESM(require_document_capacity(), 1);
   var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity12.default;
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity13.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
     const shortcut = tr2.getMeta("document-block-shortcut");
@@ -63645,7 +63747,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   }) });
   var accessibility = createAccessibilityView({ byId, context: () => ({ editor, state: controller?.state(), loading }) });
   var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2) }), refreshDrafts: () => draftView.refresh() });
-  var findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+  var findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
   var recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: (id2) => openDocument(false, false, null, null, id2), restore: (id2) => openDocument(true, false, id2) });
   var nameView = createNameView({
