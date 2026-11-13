@@ -10,10 +10,10 @@ function fixture(t) {
   const byId = id => { if (!nodes.has(id)) nodes.set(id, element()); return nodes.get(id); };
   let result = { ok: true, drafts: [], archived: [], capacity: { limit: 32, records: 0, maxRecords: 128 } };
   const calls = [], state = { confirmed: { source: 'Synthetic', revision: 4 }, source: 'Synthetic' };
-  const api = { onDraftStatus() {}, listDrafts: async () => {
+  const api = { onDraftStatus(fn) { this.status=fn; }, listDrafts: async () => {
     if (result instanceof Error) throw result; return result;
   }, manageDraft: async request => { calls.push(request); return { ok: true }; } };
-  const view = createDraftView({ api, byId, context: () => ({ state }), restore: async id => calls.push(id) });
+  const view = createDraftView({ api, byId, context: () => ({ state, hasSession:id=>state.confirmed.sessionId===id }), restore: async id => calls.push(id) });
   view.configure({ draftsEnabled: true });
   return { byId, view, api, state, calls, result: value => { result = value; } };
 }
@@ -56,4 +56,14 @@ test('pending draft management is single-flight and unknown results remain indep
   assert.match(h.byId('draft-operation-status').textContent, /结果未知/);
   await h.view.refresh(); assert.match(h.byId('draft-operation-status').textContent, /不自动重试/);
   assert.equal(h.state.confirmed.source, 'Synthetic'); assert.equal(h.state.confirmed.revision, 4);
+});
+
+test('released backup notices cannot be reintroduced by a late closed-session event',t=>{
+ const h=fixture(t);Object.assign(h.state.confirmed,{sessionId:'A',temporary:true});
+ h.api.status({sessionId:'A',backup:{sequence:1,revision:4,state:'backed-up'}});
+ assert.match(h.byId('draft-backup-status').textContent,/修订 4/);
+ h.view.release('A');h.state.confirmed.sessionId='B';
+ h.api.status({sessionId:'A',backup:{sequence:2,revision:9,state:'backed-up'}});
+ h.state.confirmed.sessionId='A';h.view.render(h.state);
+ assert.doesNotMatch(h.byId('draft-backup-status').textContent,/修订 (4|9)/);
 });

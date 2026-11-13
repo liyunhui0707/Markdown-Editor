@@ -40,3 +40,9 @@ test('failed Finder action never changes export confirmation or writing; stale m
   assert.match(h.byId('copy-action-status').textContent, /无法验证/); assert.deepEqual(h.state, before);
   h.state.confirmed.confirmedCopy.copyId = 'new'; h.view.render(); assert.equal(h.byId('copy-action-status').textContent, '');
 });
+test('confirmed-close release drops only the named receipt notice',async()=>{
+ const h=harness();h.result({ok:true,copyId:'confirmed'});await h.byId('reveal-confirmed-copy').onclick();
+ h.view.release('other');h.view.render();assert.match(h.byId('copy-action-status').textContent,/已请求/);
+ h.view.release('confirmed');h.view.render();assert.equal(h.byId('copy-action-status').textContent,'');
+ assert.equal(h.state.confirmed.confirmedCopy.copyId,'confirmed');
+});

@@ -4,7 +4,14 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
-**0.64.0 installed development build: document find and replace.** Current/all literal replacement
+**0.64.1 installed development build: closed-session presentation cleanup.** Only a confirmed
+main-owned document-close receipt releases window-local backup/export/save notices.
+Late backup notices for IDs absent from the live document list are ignored. Clear
+hidden receipt/recovery text after closing. Main/preload invalidation fences and
+disk drafts/versions stay intact. This removes confirmed unbounded UI caches;
+it does not establish the cause or elimination of process working-set growth.
+
+**Previous 0.64.0 installed development build: document find and replace.** Current/all literal replacement
 uses exact source spans and a complete projection comparison, then the existing
 main-validated source-edit command for atomic history/backup. Never silently
 replace a partial result set: over 1,000 disables Replace All. Protected/cross-mark

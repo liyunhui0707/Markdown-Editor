@@ -128,9 +128,12 @@ export function createDraftView({ api, byId, context, restore }) {
       await refresh();
     }
   };
-  api.onDraftStatus(({ sessionId, backup }) => { remember(sessionId, backup); render(context().state); });
+  api.onDraftStatus(({ sessionId, backup }) => {
+    const c=context(); if(c.hasSession && !c.hasSession(sessionId)) return;
+    remember(sessionId, backup); render(c.state);
+  });
   byId('refresh-drafts').onclick = refresh;
-  return { render, refresh, configure(data) {
+  return { render, refresh, release(sessionId) { receipts.delete(sessionId); }, configure(data) {
     enabled = data.draftsEnabled === true;
     byId('draft-recovery-panel').hidden = !(enabled || data.draftError);
     if (data.draftError) byId('draft-recovery-status').textContent = '本地草稿不可用，当前写作仍仅在内存中。请另存新文件。';

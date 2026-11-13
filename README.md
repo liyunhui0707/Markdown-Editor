@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.64.0 development build with document find and replace.** This is not
+**0.64.1 development build with closed-document resource cleanup.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -33,6 +33,15 @@ Document App, Finder association, keyboard controls, verified local ZIPs,
 updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
+
+## Repeated document sessions — 0.64.1
+
+Confirmed document closing now releases that session's window-local backup,
+export and save notices, and clears hidden receipt/recovery text. Late backup
+notifications cannot repopulate closed-session UI caches. Other open documents,
+on-disk drafts, saved versions and revoked-session guards are preserved.
+This removes unbounded presentation caches; it does not prove that process
+memory growth observed in earlier soak tests is resolved.
 
 ## Find and replace — 0.64.0
 

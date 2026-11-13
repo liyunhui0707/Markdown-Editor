@@ -54,6 +54,13 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
    const open=await sample();await p.locator('#close-current-document').click();await expect(p.locator('#edit-copy')).toBeVisible();
    expect((await snap()).source).toBe(source);await p.locator('#close-current-document').click();await expect(p.locator('#empty-open')).toBeVisible();
    await expect(p.locator('#documents option')).toHaveCount(0);await expect(p.locator('#editor .tiptap')).toHaveCount(0);
+   for(const id of ['source','recovery','test-copy-result','test-copy-summary','test-copy-operation',
+     'original-save-receipt','draft-backup-status','copy-action-status','input-pressure-source','save-version-list'])
+     await expect(p.locator('#'+id)).toHaveText('');
+   // Revocation must survive presentation cleanup; an old session cannot regain access.
+   const stale=await p.evaluate(async sessionId=>window.documentDemo.snapshot({sessionId}),current.sessionId);
+   expect(stale.ok).toBe(false);
+   expect((await p.evaluate(async()=>window.documentDemo.listDrafts())).drafts).toHaveLength(cycle+1);
    evidence.cycles.push({cycle,paragraphIndex,typingMs,rounds,open,closed:await sample()});expect(hash(await fs.readFile(original))).toBe(hash(bytes));
   }
   expect(faults).toEqual([]);expect(network).toEqual([]);evidence.passed=true;

@@ -48,5 +48,5 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
   byId('save-original').onpointerdown=e=>{if(originalSaveRefusal(context().controller?.state(),context()))e.preventDefault();};
   byId('save-original').onclick=save;byId('refresh-save-versions').onclick=refresh;
   byId('show-drafts').addEventListener('click',refresh);
-  return {render,save};
+  return {render,save,release(sessionId){notices.delete(sessionId);unknown.delete(sessionId);}};
 }

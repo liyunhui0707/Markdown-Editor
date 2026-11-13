@@ -33,7 +33,7 @@ function harness() {
   const render = () => view.render(documents.get(selected).state);
   view = createTestCopyView({ api, byId, context, busy: value => { frozen = value; }, rerender: render, focus() {} });
   render();
-  return { byId, documents, responses, render, calls: () => calls,
+  return { view, byId, documents, responses, render, calls: () => calls,
     select(id) { selected = id; render(); },
     async attempt(response) {
       responses.push(response); byId('create-test-copy').onclick();
@@ -208,4 +208,13 @@ test('cloud and unavailable folder checks retain writing and the last confirmed 
   assert.match(h.text('test-copy-result'),/\/synthetic\/A.md/);
   for(const key of ['source','revision','dirty','canUndo'])assert.deepEqual(h.documents.get('A').state.confirmed[key],before[key]);
  }
+});
+
+test('confirmed close releases old export notices without changing other open sessions',async()=>{
+ const h=harness();await h.attempt(confirmed());h.select('B');await h.attempt(confirmed(2,'B'));
+ h.view.release('A');h.select('B');assert.match(h.text('test-copy-result'),/B.md/);
+ h.documents.get('A').state.confirmed.copyState=refused('target-exists');
+ h.select('A');assert.equal(h.text('test-copy-result'),'');
+ assert.match(h.text('test-copy-operation'),/target-exists/);
+ assert.equal(h.documents.get('A').state.source,'A text');
 });

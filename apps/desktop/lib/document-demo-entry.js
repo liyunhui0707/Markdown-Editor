@@ -47,7 +47,7 @@ const sourceView = createSourceView({ byId, createEditor:createSourceEditor, con
 const accessibility = createAccessibilityView({byId,context:()=>({editor,state:controller?.state(),loading})});
 const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
+const draftView = createDraftView({ api, byId, context: () => ({ hasSession:id=>[...byId('documents').options].some(o=>o.value===id), state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 const recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: id => openDocument(false, false, null, null, id), restore: id => openDocument(true, false, id) });
 const nameView = createNameView({ api, byId,
   context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
@@ -378,6 +378,10 @@ api.onLifecycle(({ sessionId, state }) => {
 async function finishDocumentClose(id) {
   const options = [...byId('documents').options], index = options.findIndex(o => o.value === id);
   const next = options[index + 1] || options[index - 1];
+  // Called only after the matched main-owned close receipt. Release presentation
+  // caches; preload/main lifecycle fences and persisted recovery records remain.
+  const copyId=controller?.state().confirmed.confirmedCopy?.copyId;
+  draftView.release(id);testCopyView.release(id);originalSaveView.release(id);copyActionsView.release(copyId);
   options[index]?.remove(); drafts.delete(id);
   controller?.dispose(); controller = null; selected = null;
   editor?.destroy(); editor = null; byId('editor').replaceChildren();
@@ -387,7 +391,8 @@ async function finishDocumentClose(id) {
   for (const name of ['document-info', 'edit-copy', 'create-test-copy', 'temporary-notice', 'writing-status',
     'original-save-status', 'save-original', 'copy-summary-compact', 'copy-operation-alert', 'confirmed-copy-actions', 'composition-warning',
     'composition-status', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId(name).hidden = true;
-  for (const name of ['source', 'recovery', 'viewer-status']) byId(name).textContent = '';
+  for (const name of ['source', 'recovery', 'viewer-status', 'test-copy-result', 'test-copy-summary', 'test-copy-operation',
+    'original-save-receipt', 'draft-backup-status', 'copy-action-status', 'input-pressure-source', 'save-version-list']) byId(name).textContent = '';
   document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
   for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
   loading = false; inputPressure.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();

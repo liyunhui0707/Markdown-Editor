@@ -1,5 +1,30 @@
 # Stage History
 
+## Repeated-session resources — 0.64.1 (2026-11-14)
+
+Closed document IDs remained in window-local backup/export/save receipt maps.
+After the matched main close confirmation, release only that session’s presentation
+records and clear hidden receipt/recovery DOM. Filter late backup events against
+the live session list. Main/preload invalidation tombstones, unresolved close
+guards and persisted drafts/versions remain unchanged. Other open sessions retain
+their notices. Small source changes keep the accepted visual baseline.
+
+Regression tests first fail without release, then verify isolation and late-event
+rejection. Repeated long-document Electron sessions assert empty closed-workspace
+text, exact backup retention and refusal of revoked session IDs; find/replace and
+restart recovery are rerun. This is not proof of a process-memory leak fix.
+A historical CM6 test repeatedly exposed an incomplete parser tree under load;
+its harness now explicitly completes parsing before the unchanged decoration
+assertions, following existing tests. No historical CM6 runtime or threshold changes.
+
+37 focused view checks and the full suite (3,303 PASS, two expected skips) pass.
+Two controlled Electron workflows pass, including six repeated 485k-unit document
+sessions in approximately two minutes. The existing CI now includes the repeated
+writing workflow. Package/source/helper and candidate/installed startup checks pass; previous App
+is retained for rollback and private records are unchanged. No
+new physical IME/VoiceOver or universal memory-stability claim.
+
+
 ## Document find and replace — 0.64.0 (2026-11-14)
 
 The find bar offers current/all literal replacement in independent drafts. A

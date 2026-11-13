@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-09)
+## Current direction (2026-11-14)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -19,7 +19,17 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — writing stability, 0.63.2 (2026-11-09)
+### Current batch — repeated-session resources, 0.64.1 (2026-11-14)
+
+Release per-session presentation notices after confirmed close, clear hidden
+workspace text, reject late notices for closed documents and preserve disk
+recovery plus revoked-session guards. Repeated long-document and restored-writing
+checks support this group. Process-memory growth still needs longer observation;
+do not equate removing UI caches with a complete leak fix. Genuine longer writing
+and heading/table VoiceOver acceptance remain postponed. Next prioritize concrete
+compatibility failures from real writing; paid distribution remains deferred.
+
+### Previous batch — writing stability, 0.63.2 (2026-11-09)
 
 Keep the accepted workspace and improve only measured daily-writing costs.
 CPU sampling identified repeated Unicode validation in full-source projection;
