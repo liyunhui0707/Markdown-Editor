@@ -18,7 +18,7 @@ const assert   = require('node:assert/strict');
 
 const { EditorState, EditorSelection } = require('@codemirror/state');
 const { Decoration, WidgetType }     = require('@codemirror/view');
-const { syntaxTree }                 = require('@codemirror/language');
+const { syntaxTree, ensureSyntaxTree }                 = require('@codemirror/language');
 const { markdown, markdownLanguage } = require('@codemirror/lang-markdown');
 
 delete require.cache[require.resolve('../../lib/cm6-lp-inline.js')];
@@ -35,7 +35,11 @@ function makeState(doc, cursorPos) {
 }
 
 function countReplaced(state) {
-  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  // State creation uses a short parser budget; CI load can leave a partial tree.
+  // Assert the intended complete syntax, not how far parsing got in that budget.
+  const tree = ensureSyntaxTree(state, state.doc.length, 30_000);
+  assert.ok(tree, 'the complete fixture must parse within the test budget');
+  const out = lpInline.buildLpInlineDecorations(state, { ...cm6, syntaxTree: () => tree });
   if (!out || !out.replaced || typeof out.replaced.iter !== 'function') return 0;
   let n = 0;
   const cur = out.replaced.iter();
@@ -191,7 +195,11 @@ test('Stage B WAVE 6-T-X-3: whole-doc selection reveals all marker types', () =>
     selection: { anchor: 0, head: fixture.length },
     extensions: [markdown({ base: markdownLanguage, codeLanguages: [] })],
   });
-  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  // State creation uses a short parser budget; CI load can leave a partial tree.
+  // Assert the intended complete syntax, not how far parsing got in that budget.
+  const tree = ensureSyntaxTree(state, state.doc.length, 30_000);
+  assert.ok(tree, 'the complete fixture must parse within the test budget');
+  const out = lpInline.buildLpInlineDecorations(state, { ...cm6, syntaxTree: () => tree });
   let n = 0;
   if (out && out.replaced && typeof out.replaced.iter === 'function') {
     const cur = out.replaced.iter();
@@ -216,7 +224,11 @@ test('Stage B WAVE 6-T-X-4: multi-cursor reveals only touched lines', () => {
       markdown({ base: markdownLanguage, codeLanguages: [] }),
     ],
   });
-  const out = lpInline.buildLpInlineDecorations(state, cm6);
+  // State creation uses a short parser budget; CI load can leave a partial tree.
+  // Assert the intended complete syntax, not how far parsing got in that budget.
+  const tree = ensureSyntaxTree(state, state.doc.length, 30_000);
+  assert.ok(tree, 'the complete fixture must parse within the test budget');
+  const out = lpInline.buildLpInlineDecorations(state, { ...cm6, syntaxTree: () => tree });
   let n = 0;
   if (out && out.replaced && typeof out.replaced.iter === 'function') {
     const cur = out.replaced.iter();

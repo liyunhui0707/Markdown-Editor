@@ -126,5 +126,5 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
       unknown.add(q.sessionId); receipts.set(q.sessionId, { ok: false, state: 'create-outcome-unknown', created: null, code: 'copy-outcome-unknown' });
     } finally { finish(); }
   };
-  return { render };
+  return { render, release(sessionId) { receipts.delete(sessionId); confirmedReceipts.delete(sessionId); unknown.delete(sessionId); } };
 }

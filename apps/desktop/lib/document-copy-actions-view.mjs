@@ -33,5 +33,5 @@ export function createCopyActionsView({ api, byId, context, open, busy, rerender
       finally { busy(false); rerender(); }
     };
   }
-  return { render };
+  return { render, release(copyId) { messages.delete(copyId); } };
 }

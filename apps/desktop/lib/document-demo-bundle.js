@@ -62163,7 +62163,9 @@ ${prefix}
         }
       };
     }
-    return { render: render4 };
+    return { render: render4, release(copyId) {
+      messages2.delete(copyId);
+    } };
   }
 
   // lib/document-original-save-view.mjs
@@ -62279,7 +62281,10 @@ SHA-256: ${last.sha256}` : "";
     byId2("save-original").onclick = save;
     byId2("refresh-save-versions").onclick = refresh;
     byId2("show-drafts").addEventListener("click", refresh);
-    return { render: render4, save };
+    return { render: render4, save, release(sessionId) {
+      notices.delete(sessionId);
+      unknown.delete(sessionId);
+    } };
   }
 
   // lib/document-test-copy-view.mjs
@@ -62417,7 +62422,11 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         finish();
       }
     };
-    return { render: render4 };
+    return { render: render4, release(sessionId) {
+      receipts.delete(sessionId);
+      confirmedReceipts.delete(sessionId);
+      unknown.delete(sessionId);
+    } };
   }
 
   // lib/document-edit-controller.mjs
@@ -63467,11 +63476,15 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       }
     };
     api2.onDraftStatus(({ sessionId, backup }) => {
+      const c = context();
+      if (c.hasSession && !c.hasSession(sessionId)) return;
       remember(sessionId, backup);
-      render4(context().state);
+      render4(c.state);
     });
     byId2("refresh-drafts").onclick = refresh;
-    return { render: render4, refresh, configure(data2) {
+    return { render: render4, refresh, release(sessionId) {
+      receipts.delete(sessionId);
+    }, configure(data2) {
       enabled = data2.draftsEnabled === true;
       byId2("draft-recovery-panel").hidden = !(enabled || data2.draftError);
       if (data2.draftError) byId2("draft-recovery-status").textContent = "\u672C\u5730\u8349\u7A3F\u4E0D\u53EF\u7528\uFF0C\u5F53\u524D\u5199\u4F5C\u4ECD\u4EC5\u5728\u5185\u5B58\u4E2D\u3002\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
@@ -63748,7 +63761,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var accessibility = createAccessibilityView({ byId, context: () => ({ editor, state: controller?.state(), loading }) });
   var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-  var draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
+  var draftView = createDraftView({ api, byId, context: () => ({ hasSession: (id2) => [...byId("documents").options].some((o) => o.value === id2), state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
   var recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: (id2) => openDocument(false, false, null, null, id2), restore: (id2) => openDocument(true, false, id2) });
   var nameView = createNameView({
     api,
@@ -64275,6 +64288,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   async function finishDocumentClose(id2) {
     const options = [...byId("documents").options], index2 = options.findIndex((o) => o.value === id2);
     const next = options[index2 + 1] || options[index2 - 1];
+    const copyId = controller?.state().confirmed.confirmedCopy?.copyId;
+    draftView.release(id2);
+    testCopyView.release(id2);
+    originalSaveView.release(id2);
+    copyActionsView.release(copyId);
     options[index2]?.remove();
     drafts.delete(id2);
     controller?.dispose();
@@ -64309,7 +64327,19 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       "input-pressure-panel",
       "recovery-panel"
     ]) byId(name2).hidden = true;
-    for (const name2 of ["source", "recovery", "viewer-status"]) byId(name2).textContent = "";
+    for (const name2 of [
+      "source",
+      "recovery",
+      "viewer-status",
+      "test-copy-result",
+      "test-copy-summary",
+      "test-copy-operation",
+      "original-save-receipt",
+      "draft-backup-status",
+      "copy-action-status",
+      "input-pressure-source",
+      "save-version-list"
+    ]) byId(name2).textContent = "";
     document.body.dataset.documentState = "empty";
     document.title = "Markdown";
     byId("empty-state").hidden = false;

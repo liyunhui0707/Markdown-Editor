@@ -1,5 +1,13 @@
 # Manual Test Checklist
 
+## Repeated document sessions — 0.64.1
+
+On disposable files, open two documents, edit and close one, then continue
+writing in the other. Confirm notices belong to the current document. Close the
+last document, reopen and restore its draft; text should be intact and old receipt
+text should not remain in the empty workspace. Human check remains NOT TESTED.
+
+
 ## Find and replace — 0.64.0
 
 In a disposable editing copy use ⌘F, search repeated Chinese/English text,

@@ -1,6 +1,6 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.64.0",
+  "version": "0.64.1",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "document-app-main.js",
   "scripts": {
