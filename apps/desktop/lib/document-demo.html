@@ -30,6 +30,9 @@
       <label title="区分大小写"><input id="find-case" type="checkbox" aria-label="区分大小写">Aa</label>
       <output id="find-count" role="status" aria-live="polite"></output>
       <button id="find-previous" aria-label="上一个匹配" title="上一个（Shift+Enter）">↑</button><button id="find-next" aria-label="下一个匹配" title="下一个（Enter）">↓</button><button id="find-close" aria-label="关闭查找" title="关闭查找（Escape）">×</button>
+      <div id="find-replace-row"><input id="find-replacement" type="text" aria-label="替换为" placeholder="替换为…（仅编辑副本）" maxlength="4096" autocomplete="off" spellcheck="false">
+      <button id="find-replace-one" type="button">替换当前</button><button id="find-replace-all" type="button">全部替换</button>
+      <span id="find-scope" class="find-scope">当前文档 · 纯文本 · 最多 1000 处</span><output id="find-replace-status" role="status" aria-live="polite"></output></div>
     </section>
     <div id="table-tools" hidden role="toolbar" aria-label="表格操作"><span id="table-position"></span><button id="table-add-row" title="在当前行下方新增行">＋ 行</button><button id="table-delete-row" title="删除当前数据行，可撤销">− 行</button><button id="table-add-column" title="在当前列右侧新增列">＋ 列</button><button id="table-delete-column" title="删除当前列，可撤销">− 列</button><button id="table-exit" title="回到表格之后的正文（⌘Enter）">回到正文</button></div>
     <div id="writing-body"><main id="document-scroll" aria-label="文档正文"></main>

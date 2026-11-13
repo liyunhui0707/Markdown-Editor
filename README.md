@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.63.2 installed local development build for long-document writing stability.** This is not
+**0.64.0 development build with document find and replace.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -33,6 +33,21 @@ Document App, Finder association, keyboard controls, verified local ZIPs,
 updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
+
+## Find and replace — 0.64.0
+
+Use ⌘F to search the current document's rendered text, with literal matching and
+optional case sensitivity. Editing copies offer Replace Current and Replace All;
+each action is one main-confirmed source edit and one Undo step. Empty replacement
+removes matching text where the resulting Markdown remains equivalent.
+
+Search does not include link destinations or image paths and does not join blocks.
+Replacement must stay within exact editable source spans; cross-format/protected
+matches or changes that introduce Markdown structure refuse the whole action.
+Use Source mode for those changes. Replace All supports at most 1,000 matches;
+refine the query when there are more. Read-only originals remain searchable.
+IME preedit and pending edits pause replacement; Escape returns focus to the editor.
+Controlled automation is not new physical-IME or VoiceOver acceptance.
 
 ## Long-document validation — 0.63.2
 

@@ -11,3 +11,10 @@
 [data-reading-theme=dark] .document-find-hit.is-current {background:#756039;box-shadow:0 0 0 1px #c8a565}
 #editor[data-find-paused=true] .document-find-hit {background:transparent;box-shadow:none}
 @media(max-width:680px) {#document-find {flex-wrap:wrap;padding:8px 12px;gap:5px}#document-find input[type=search] {flex:1;width:120px}#find-count {order:2;width:100%;text-align:right;min-height:0}#find-count:empty {display:none}}
+
+#document-find {flex-wrap:wrap}
+#find-replace-row {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:7px;flex-basis:100%}
+#find-replacement {width:220px;min-width:90px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit}
+#find-replace-row button {font-size:12px;border-color:var(--line);padding:6px 9px}
+.find-scope,#find-replace-status {font-size:11px;color:var(--muted)}
+#find-replace-status:empty {display:none}

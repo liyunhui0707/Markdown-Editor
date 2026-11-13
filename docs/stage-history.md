@@ -1,5 +1,30 @@
 # Stage History
 
+## Document find and replace — 0.64.0 (2026-11-14)
+
+The find bar offers current/all literal replacement in independent drafts. A
+bounded planner maps exact editable source spans and compares the complete new
+projection with the intended ProseMirror transform. One existing main-validated
+source-edit command preserves atomic history and backup behavior. No new IPC or
+file authority. Readonly originals, composition, recovery records, pending edits
+and stale state cannot authorize replacement. Over 1,000 results disables Replace
+All rather than modifying a partial set. Protected/cross-mark matches and Markdown
+structural effects refuse the whole action. Source mode remains available.
+
+Tests cover mixed newlines, frontmatter/URL preservation, marks, headings, lists,
+code and tables, deletion, invalid Unicode, capacity and busy/readonly guards.
+Controlled Electron covers current/all replacement, one-step Undo/Redo, composition
+guards, narrow layout, exact backup/restart and unchanged original. Initial test
+fixture failures (temporary environment and reused creation directory) remain in
+private evidence. A legacy CM6 timing-sensitive test failed under concurrent GUI
+load then passed alone; the final full suite passed with 3,298 tests and two expected skips. Two additional
+UI guard tests passed separately and are included in CI. Genuine
+IME/VoiceOver acceptance remains pending. Both new/expanded modules stay below
+300 lines. No dependency upgrades or unrelated refactoring. The existing CI Electron step
+now includes this replacement workflow. Candidate/package and installed startup
+checks pass, runtime files match source, and 0.63.2 is retained for rollback.
+
+
 ## Long-document Unicode validation — 0.63.2 (2026-11-09)
 
 CPU sampling found repeated Unicode lookaround scans in the exact-source mapper

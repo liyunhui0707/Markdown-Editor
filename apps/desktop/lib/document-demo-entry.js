@@ -46,7 +46,7 @@ const sourceView = createSourceView({ byId, createEditor:createSourceEditor, con
 }) });
 const accessibility = createAccessibilityView({byId,context:()=>({editor,state:controller?.state(),loading})});
 const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
-const findView = createFindView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
+const findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 const recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: id => openDocument(false, false, null, null, id), restore: id => openDocument(true, false, id) });
 const nameView = createNameView({ api, byId,

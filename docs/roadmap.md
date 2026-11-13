@@ -30,7 +30,7 @@ input/history/restart checks and the 21.7-minute Air soak pass; details and
 remaining process-memory growth are recorded in the stage history. The user postponed the genuine 20–30 minute session, so keep
 that and heading/table VoiceOver acceptance pending while development continues.
 
-Next, complete **main-editor find and replace** as one user workflow: current/all
+0.64.0 implements **main-editor find and replace** as one user workflow: current/all
 replacement, clear match scope, exact Undo, selection/focus preservation and
 source/protected-block behavior. Then address compatibility issues found during
 real writing and remaining accessibility checks together. Local delivery and

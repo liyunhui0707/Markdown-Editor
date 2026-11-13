@@ -119,3 +119,29 @@ test('readonly focus return restores the current PM range, never a cached sessio
   key('Escape'); assert.deepEqual(range, ['synthetic-text-node', 2, 'synthetic-text-node', 5]);
   assert.equal(c.editor.state.selection.from, 2); assert.equal(c.editor.state.selection.to, 5);
 });
+
+test('replacement controls refuse readonly, pending, recovery and both input compositions', async()=>{
+ const {c,byId,key,search,view}=fixture();let calls=0;
+ c.state.confirmed.readOnly=false;c.state.confirmed.temporary=true;
+ c.controller={applySource:async()=>{calls++;return false;}};
+ key('f',{metaKey:true});search('alpha');byId('find-replacement').value='beta';
+ for(const field of ['pending','historyPending','composing','locked']) {
+  c.state[field]=true;view.sync();await byId('find-replace-all').onclick();c.state[field]=false;
+ }
+ c.state.recoveryRecords=[{}];await byId('find-replace-all').onclick();c.state.recoveryRecords=[];
+ c.state.confirmed.readOnly=true;view.sync();assert.equal(byId('find-replace-all').disabled,true);await byId('find-replace-one').onclick();c.state.confirmed.readOnly=false;
+ for(const id of ['find-query','find-replacement']) {
+  byId(id).compositionstart();await byId('find-replace-all').onclick();byId(id).compositionend();
+ }
+ assert.equal(calls,0);
+ await byId('find-replace-all').onclick();assert.equal(calls,1);
+ assert.match(byId('find-replace-status').textContent,/未确认/);
+});
+
+test('more than the display limit cannot silently replace only the first matches',async()=>{
+ const {c,byId,key,search,view}=fixture();let calls=0;
+ c.state.confirmed.readOnly=false;c.state.confirmed.temporary=true;c.controller={applySource:async()=>{calls++;}};
+ c.editor.state=EditorState.create({schema,doc:document('a'.repeat(1001)),plugins:[createFindPlugin()]});
+ key('f',{metaKey:true});search('a');view.sync();
+ assert.equal(byId('find-replace-all').disabled,true);await byId('find-replace-all').onclick();assert.equal(calls,0);
+});
