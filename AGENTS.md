@@ -4,6 +4,15 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.65.1 installed development build: formatted long-document writing.** The two-revision AST
+cache can reparse one isolated single-line paragraph or ATX heading containing
+plain text, emphasis, inline code or strike. Require unchanged block type, exact
+blank boundaries and supported inline AST; references/links, escapes, HTML,
+soft lines, margins and structural edits retain full parsing. Complete projection
+and main-owned edit validation, history and persistence remain unchanged. Cold
+parser differential tests protect exact positions. This is a measured latency
+fix, not full memory-stability or physical IME acceptance.
+
 **0.65.0 installed development build: mixed-format continuous authoring.** Exact inline patch
 planning supports plain/bold/italic/code/simple-link ranges in paragraphs,
 headings, quote rows and individual list items. Preserve first selected marks

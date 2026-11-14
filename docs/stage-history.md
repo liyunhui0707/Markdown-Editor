@@ -1,5 +1,40 @@
 # Stage History
 
+## Formatted long-document writing — 0.65.1 (2026-11-14)
+
+Formatted single-line paragraphs and ATX headings forced a full remark parse on
+every edit while ordinary paragraphs reused the two-revision cache. Extend the
+existing isolated-block path only to text/emphasis/inline-code/strike AST nodes,
+requiring unchanged block type, exact blank boundaries and supported inline
+content. Reference/link syntax, escapes, HTML, soft lines, trailing margins and
+structural changes retain full fallback. Full projection comparison and main edit
+validation, cache size, history, capacity, filesystem authority and visual baseline
+stay unchanged. Source parser remains under 100 lines.
+
+New tests fail on the old full-reparse behavior, then compare complete cold ASTs
+including every position over LF/CRLF/CR, beginning/middle/EOF, mixed reference,
+list/table/fence/frontmatter contexts and sequential edits. Existing full-parser
+expectations change only for intentionally optimized bold/code cases; all cold
+comparison assertions remain. Full Node suite: 3,310 PASS, two expected skips.
+
+One paired 485k-unit, 12-edit synthetic run measures formatted map means about
+95 → 10 ms (ordinary paragraph stays about 11 ms). A paired Electron workflow
+on 364,082 units measures three 16-character input/confirmation rounds, with the
+same 50 ms key delay: 3.1–3.3 → 1.0–1.1 seconds. It verifies exact Undo/Redo,
+Source return, 600-hit find, BOM/mixed-newline export/reopen, original preservation
+and restart recovery. Runtime faults: none. The new test initially reused its
+process cwd across restart, correctly causing exclusive temporary creation to
+refuse; it now creates a fresh isolated cwd per launch, matching the product.
+A mixed-inline rerun containing an unissued extra character is retained; its synthetic window is now hidden to reduce local keyboard interference,
+and the exact rerun passes.
+The renderer rebuild is reproducible; package and universal helper match source.
+Candidate/installed startup and normal exit preserve prior local records. Only
+the installed App remains registered; candidate and rollback bundles are retained
+as disabled backups with restoration maps. Do not interpret committed-text automation as physical IME or human writing QA.
+Longer genuine writing, heading/table VoiceOver and process-memory trends remain
+pending; paid signing/notarization/public distribution stay deferred.
+
+
 ## Mixed-format continuous writing — 0.65.0 (2026-11-14)
 
 Extend the existing exact inline mapper to headings and simple link labels,

@@ -1,13 +1,15 @@
-// A two-revision parse cache. Only isolated, single-line literal paragraphs can
+// A two-revision parse cache. Only isolated, single-line inline paragraphs/headings can
 // reuse surrounding AST nodes. Projection and edit validation still inspect the
 // complete document; uncertain syntax always goes through the complete parser.
 export function createSourceParser(parseFull) {
   const cached = new Map();
   const blankGap = text => /^[\r\n]+$/.test(text) && text.replaceAll('\r\n', '\n').length >= 2;
-  const literal = (node, text) => node?.type === 'paragraph' && node.children?.length === 1
-    && node.children[0].type === 'text' && node.children[0].value === text
+  const inline = node => ['text','inlineCode'].includes(node.type)
+    || ['strong','emphasis','delete'].includes(node.type) && node.children?.every(inline);
+  const isolated = (node, text) => ['paragraph','heading'].includes(node?.type)
+    && node.children?.length > 0 && node.children.every(inline)
     && node.position.start.column === 1 && node.position.start.line === node.position.end.line
-    && text.length > 0 && !/[\r\n\[\]<>\\`*_~|]/.test(text);
+    && text.length > 0 && !/[\r\n\[\]<>\\|]/.test(text) && !/[ \t]$/.test(text);
   function translate(value, point) {
     if (Array.isArray(value)) return value.map(v => translate(v, point));
     if (!value || typeof value !== 'object') return value;
@@ -24,7 +26,7 @@ export function createSourceParser(parseFull) {
     if (index < 0) return null;
     const node = tree.children[index], start = node.position.start.offset, stop = node.position.end.offset;
     const raw = before.slice(start, stop), delta = source.length - before.length;
-    if (!literal(node, raw)) return null;
+    if (!isolated(node, raw)) return null;
     // Two physical line breaks keep this paragraph separate from lists, fences,
     // setext headings, HTML and lazy continuation. Reference definitions cannot
     // be introduced because brackets/escapes are excluded from both revisions.
@@ -33,9 +35,9 @@ export function createSourceParser(parseFull) {
       ? !blankGap(before.slice(stop, tree.children[index + 1].position.start.offset))
       : !/^[\r\n]*$/.test(before.slice(stop))) return null;
     const nextRaw = source.slice(start, stop + delta);
-    if (!nextRaw || /[\r\n\[\]<>\\`*_~|]/.test(nextRaw)) return null;
+    if (!nextRaw || /[\r\n\[\]<>\\|]/.test(nextRaw)) return null;
     const fragment = parseFull(nextRaw);
-    if (fragment.children.length !== 1 || !literal(fragment.children[0], nextRaw)) return null;
+    if (fragment.children.length !== 1 || fragment.children[0].type !== node.type || !isolated(fragment.children[0], nextRaw)) return null;
     const replacement = translate(fragment.children[0], p => ({...p,
       offset: p.offset + start, line: p.line + node.position.start.line - 1}));
     const shift = p => ({...p, offset: p.offset + delta,
