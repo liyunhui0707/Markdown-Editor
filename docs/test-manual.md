@@ -1,5 +1,32 @@
 # Manual Test Checklist
 
+## Current daily-use acceptance — 0.67.0 (2026-11-14)
+
+The user postponed the genuine 20–30 minute writing session and heading/table
+VoiceOver check on 2026-11-14. Keep them pending; do not repeatedly request the
+basic 0.63.0 input and 0.63.1 VoiceOver checks that already passed in their scope.
+The current controlled harness verifies Chromium composition in headings, plain/
+bold/combined-emphasis text, lists and table cells; cancellation, exact history,
+backup exclusion of preedit and source cancellation remain separate from physical
+candidate input. AX checks verify title levels/table roles and text in both modes,
+plus keyboard access/return for linked-file controls, not actual spoken feedback.
+
+When convenient, complete only these remaining human checks on disposable content:
+
+1. Write normally for 20–30 minutes using your usual Chinese input method. Include
+   candidate commit/cancel, selection changes, Undo/Redo, Source return and saving.
+   Quit and reopen; restore the draft and confirm the last intended text. Pass:
+   no missing/duplicated text or stranded candidate/focus; record actual duration
+   and input method. Note noticeable stalls rather than guessing their cause.
+2. Enable VoiceOver with Command+F5 (or Fn+Command+F5). In a disposable article,
+   read an actual heading and a table header/data cell, then use Details → Disk
+   file controls and Escape. Pass: roles/content/control names are understandable
+   and focus returns. Report which part was heard; an AX tree is not this result.
+
+Unperformed checks remain NOT TESTED. No new manual PASS or public-release signoff
+is established by this automation group. Existing external/sync save restrictions
+and the separately deferred paid signing/notarization work are unchanged.
+
 ## Everyday file workflow — 0.67.0
 
 Use a disposable local `.md`. Open it, then Details → Check disk changes: the

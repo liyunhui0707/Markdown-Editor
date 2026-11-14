@@ -121,3 +121,34 @@ successful Home fixture. It does not prove native IME or native Finder UI behavi
 The icon is reproducible from `tools/build-document-icon.swift` (AppKit), resized
 to macOS iconset sizes with `sips`, then assembled with `iconutil`; `build/document.icns`
 is tracked. No signing credentials or system security changes are required.
+
+## Sustained Document acceptance (0.67.0 runtime)
+
+From `apps/desktop`, use a verified isolated Electron executable; never point tests
+at a running user instance or a personal profile. Build the production helper with
+`mise exec -- node tools/build-document-save.cjs` first. The selected workflows
+create only synthetic input and private OS-temporary profiles/drafts.
+
+```sh
+E2E_ELECTRON_EXECUTABLE=/absolute/path/Electron.app/Contents/MacOS/Electron \
+  mise exec -- node node_modules/@playwright/test/cli.js test \
+  --config=e2e/playwright.config.cjs \
+  e2e/document-input-lifecycle.spec.cjs e2e/document-accessibility.spec.cjs \
+  e2e/document-resource-reuse.spec.cjs e2e/document-sustained-writing.spec.cjs
+```
+
+Use a fresh output directory below ignored `.local/verification/` when collecting
+evidence. `DOCUMENT_WRITING_SOAK_MINUTES=20` extends the existing sustained test;
+accepted integers are 0–30, with 0 selecting the normal six-cycle regression.
+The extended mode is opt-in, not a mandatory 20-minute CI step. It writes bounded
+`progress.json` and terminal progress, exact source/history/backup checks, natural
+heap/process samples, six forced-GC comparison points, and restart/continued-writing
+results. GC is test-only and never used by the product to mask resource behavior.
+The fixed-draft workflow repeats eight restore/close cycles with one retained
+record to separate catalog growth from session reuse. Working-set measurements are
+observations, not a generic memory limit or proof that every leak is fixed.
+
+The input driver uses Chromium CDP composition, and accessibility checks inspect
+Chromium's tree and keyboard focus. Neither substitutes for physical input-method
+candidate interaction or hearing VoiceOver. Keep those human outcomes in
+`docs/test-manual.md`; do not infer acceptance from a matching file manifest.

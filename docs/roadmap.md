@@ -19,7 +19,24 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — everyday file workflow, 0.67.0 (2026-11-14)
+### Current batch — daily-use acceptance automation (2026-11-14)
+
+Keep the installed 0.67.0 product runtime and accepted visual baseline unchanged
+unless a reproducible product defect appears. Extend complete continuous-writing
+coverage with formatted near-limit articles, exact restart/continued editing,
+natural and forced-GC resource observations, and fixed-catalog restore/close loops.
+Verify browser composition commit/cancel/history across common writing contexts
+and heading/table AX semantics plus keyboard file controls. These controlled tests
+remain distinct from physical IME and human spoken-feedback acceptance.
+
+The user again postponed genuine longer writing and heading/table VoiceOver;
+leave those outcomes pending without repeating previously passed basic checks.
+When actual failures arrive, handle them together as a stability group. Broader
+local-volume saving retains the concrete native staging/recovery dependency below;
+paid distribution remains deferred. A test/documentation-only batch does not bump
+the app version or require reinstalling an identical runtime.
+
+### Previous batch — everyday file workflow, 0.67.0 (2026-11-14)
 
 Complete explicit disk inspection, read-only current-version opening and Finder
 reveal for opened originals/bound drafts. Preserve local source/history and separate

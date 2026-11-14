@@ -4,7 +4,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
 test('keyboard workspace: named content, roving tools, modal focus and contrast preserve source',async({},info)=>{
  test.setTimeout(90000);
  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-a11y-')));
- const original=path.join(root,'Keyboard article.md'),source='# Heading\n\nOrdinary paragraph.\n\n## Next heading\n\nMore text.\n';
+ const original=path.join(root,'Keyboard article.md'),source='# Heading\n\nOrdinary paragraph.\n\n## Next heading\n\nMore text.\n\n| 主题 | 状态 |\n| --- | --- |\n| 中文内容 | 已保留 |\n';
  await fs.writeFile(original,source,{flag:'wx',mode:0o600});
  const env={PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()};
  const app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,
@@ -13,9 +13,17 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
    '--document-original-saves-test-root='+path.join(root,'versions')],cwd:root,env,chromiumSandbox:true});
  const exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal}))),faults=[],requests=[];
  const p=await app.firstWindow();p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
+ const cdp=await p.context().newCDPSession(p);
  const evidence={root,nativeIME:'NOT VERIFIED',voiceOver:'NOT VERIFIED',passed:false};
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=()=>expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>s.pending===0&&!s.historyPending&&!s.composing)).toBe(true);
+ async function semantics(mode){
+  const tree=await cdp.send('Accessibility.getFullAXTree');
+  const nodes=tree.nodes.filter(n=>!n.ignored).map(n=>({role:n.role?.value,name:(n.name?.value||'').trim(),rawName:n.name?.value||'',level:n.properties?.find(p=>p.name==='level')?.value?.value}));
+  evidence.semantics||=[];evidence.semantics.push({mode,nodes:nodes.filter(n=>['heading','columnheader','cell'].includes(n.role))});
+  for(const [role,name] of [['heading','Heading'],['heading','Next heading'],['columnheader','主题'],['cell','中文内容']])expect(nodes.some(n=>n.role===role&&n.name===name),mode+' '+role+' '+name).toBe(true);
+  expect(nodes.find(n=>n.role==='heading'&&n.name==='Heading').level).toBe(1);
+ }
  try{
   await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;
    const window=BrowserWindow.getAllWindows()[0];window.setContentSize(1280,850);window.hide();},original);
@@ -24,8 +32,10 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   await expect(editor).toHaveAttribute('role','document');await expect(editor).toHaveAccessibleName('只读正文：Keyboard article.md');
   await expect(p.locator('#session-filter')).toHaveAccessibleName('筛选已打开文档');
   await p.locator('#show-reading-settings').focus();await p.keyboard.press('F6');await expect(editor).toBeFocused();
+  await semantics('read-only');
   await p.locator('#edit-copy').click();await idle();await expect(editor).toHaveAttribute('role','textbox');
   await expect(editor).toHaveAttribute('aria-multiline','true');await expect(editor).toHaveAttribute('aria-readonly','false');
+  await semantics('editing');
   const before=await snap();
   await expect(editor).toHaveCSS('outline-style','none');
   await editor.focus();await p.keyboard.press('F6');await expect(p.locator('#outline-filter')).toBeFocused();
@@ -50,6 +60,11 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   await expect(p.locator('#reset-reading-settings')).toBeFocused();await p.keyboard.press('Tab');await expect(p.locator('#close-reading-settings')).toBeFocused();
   await p.keyboard.press('F6');await expect(p.locator('#close-reading-settings')).toBeFocused();
   await p.keyboard.press('Escape');await expect(p.locator('#show-reading-settings')).toBeFocused();
+  await p.locator('#show-details').focus();await p.keyboard.press('Enter');
+  await expect(p.locator('#close-document-details-dialog')).toBeFocused();
+  await p.locator('#inspect-linked-file').focus();await p.keyboard.press('Enter');await expect(p.locator('#linked-file-status')).toContainText('一致');
+  await p.keyboard.press('Tab');await expect(p.locator('#open-linked-file')).toBeFocused();await p.keyboard.press('Tab');await expect(p.locator('#reveal-linked-file')).toBeFocused();
+  await p.keyboard.press('Escape');await expect(p.locator('#show-details')).toBeFocused();expect((await snap()).source).toBe(before.source);
   // Actual rendered palette, rather than assertions about particular CSS strings.
   evidence.contrast=[];
   for(const theme of ['light','dark']){
@@ -76,7 +91,7 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   expect((await snap()).source).toContain('**Ordinary paragraph.**');
   await p.keyboard.press('Meta+z');await idle();expect((await snap()).source).toBe(before.source);
   // Composition owns focus; navigation must not force-confirm or discard preedit.
-  await p.locator('#editor p').first().click();await p.keyboard.press('End');const cdp=await p.context().newCDPSession(p);
+  await p.locator('#editor p').first().click();await p.keyboard.press('End');
   await cdp.send('Input.imeSetComposition',{text:'ceshi',selectionStart:5,selectionEnd:5});
   await expect(p.locator('#status')).toContainText('"composing":true');await p.keyboard.press('F6');await expect(editor).toBeFocused();
   expect((await snap()).source).toBe(before.source);await cdp.send('Input.insertText',{text:'测试'});await idle();
