@@ -1,18 +1,44 @@
 # Markdown
 
 A local macOS Markdown editor with a document-first writing workspace, built with
-Electron and Tiptap. Open an original read-only, edit an independent copy, keep
-local draft backups, explicitly export a new `.md` file, and save back to a
+Electron and Tiptap. Open a file and write directly in an independent bound buffer, keep local draft
+backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.68.0 development build with recoverable persistence offload.** This is not
+**0.69.0 development build with direct file writing and conflict comparison.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
 The Document installation excludes the retired Toast UI dependency files, including
 its old embedded sanitizer. Historical Vault source/dependencies remain available
 for development; this is not a claim that their SEC-01 issue is fixed.
+
+## Everyday file writing — 0.69.0
+
+**打开…**, recent files and Finder opens start an editable file buffer without
+an extra **编辑副本** step when binding/recovery capabilities are available.
+The original is untouched until explicit Save and native confirmation. Reopening
+an unchanged live file focuses its existing writing and Undo history. Explicit
+**打开磁盘版** / **打开已导出文件** remain read-only inspection paths; failed
+binding falls back to a readable original.
+
+Simply opening/closing an unmodified file does not add recovery drafts. Confirmed
+editing starts backup. Closing an untouched file rechecks it; if it changed or
+became unavailable, normal confirmation and backup verification apply. The
+whole-window warning still protects unconfirmed input. Confirmed Save/Save As
+refreshes trusted recent-file metadata; external replacements still require review.
+
+**详情 → 核对两份内容** (also in a paused-save notice) shows current writing and
+a read-only disk snapshot side by side as Markdown. **重新核对** refreshes it.
+**编辑这份磁盘版本** creates a separate editable document; the old writing and
+history remain. If either source revision or disk fingerprint changed, it refuses
+and requires another comparison. **另存当前写作…** keeps local work under a new
+filename. No automatic merge/reload, original overwrite or stopped-authority rebase.
+
+The accepted layout, exact source/history model and ordinary local Home/APFS save
+scope remain. External-volume saving, longer genuine writing/heading-table
+VoiceOver acceptance and paid distribution are not completed by this group.
 
 ## Sustained-use persistence — 0.68.0
 
@@ -244,7 +270,7 @@ Long-document latency and full-app memory profiling remain daily-use gates.
 
 ## Save back to a local file — 0.60.0
 
-Open a file, choose **编辑副本**, edit, wait for the draft backup, then choose
+Open a file, edit, wait for the draft backup, then choose
 **保存** (⌘S). The first save asks for confirmation of the bound target. A newly
 exported file also becomes the draft's save target. Later changes require another
 explicit save; there is no automatic overwrite. **另存新文件…** remains exclusive
@@ -282,8 +308,9 @@ and signed/notarized release gates remain separate.
 
 On an independent draft, **源码** opens an editable Markdown window with line
 numbers, syntax highlighting, search, line wrapping and local Undo/Redo. You can
-edit YAML, HTML and other structures that the visual editor protects. Originals
-remain read-only: choose **编辑副本** first.
+edit YAML, HTML and other structures that the visual editor protects. Directly
+opened files already have a writing buffer; read-only inspection views still
+require **编辑副本** before editing.
 
 Choose **应用并返回** (⌘S or ⌘Enter inside the source window) to apply the buffer
 as one document history step and include it in the existing local draft backup.
@@ -314,7 +341,7 @@ chosen folder. Saving back uses the separate bound-file action described above.
 ## Finder opening — 0.57.0
 
 Markdown declares `.md` support for macOS **Open With**. Cold and running-app
-opens use the same bounded, read-only file service. Repeated opens reuse an
+opens use the same bounded file reader and main-owned writing buffers. Repeated unchanged opens reuse an
 unchanged original; changed/replaced files retain the old snapshot and ask for
 explicit reopening. Current drafts and their history stay available in the sidebar.
 While composing, waiting for an edit or using a modal, a Finder request stays in
@@ -536,7 +563,7 @@ Escape returns focus to the title when focus was inside the menu. On narrow wind
 sidebar becomes an overlay. The 0.50.0 welcome page adds **继续写作** (up to three local drafts) and
 **最近文档** (six recent files); the sidebar opens the full recent list of up to
 12 entries. Recovery reuses independent drafts, without old Undo history or save
-authority. Recent files reopen read-only after identity and content verification.
+authority. Recent files reopen for writing after identity and content verification; explicit read-only inspection remains available.
 Changed, replaced or missing files require a fresh selection through **打开…**.
 The catalog contains local paths, identities and hashes, not document bodies; it
 does not scan folders. **清空列表** removes visible history, not Markdown files or
@@ -592,9 +619,9 @@ confirmation cannot be closed while its request is pending. These panels support
 the same light/dark appearance and narrow-window layout as the editor.
 Cancel or an open error keeps the current document.
 
-Click **新建**, or open a file and choose **编辑副本**, to
+Click **新建**, or open a file directly for writing, to
 write in an independent session. Confirmed writing receives a separate local draft
-backup; the original file stays read-only.
+backup; original file bytes change only after explicit, verified Save.
 Ordinary paragraphs support typing, Enter, Backspace and Cmd+Z / Cmd+Shift+Z;
 source-line boundaries and unsupported structures remain protected. Literal `[`
 and `]` can be typed when they remain ordinary text; typing that creates links or

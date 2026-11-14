@@ -21,7 +21,7 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
     if(last){const text=doc.createElement('p');text.textContent=`已保存回 ${last.filePath.split('/').pop()} · ${o.stopped?'当前文件状态需核对':s.confirmed.dirty?'之后的修改尚未保存':'当前正文已保存'}。`;alert.append(text);}
     const message=originalSaveNotice(s.confirmed)||notices.get(c.selected)||'';
     if(message){const text=doc.createElement('p');text.textContent=message+(r?.code?`（${r.code}）`:'');alert.append(text);}
-    if(o.stopped&&s.confirmed.linkedFile){for(const [label,id] of [['打开磁盘版','open-linked-file'],['另存新文件…','create-test-copy']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=!!(c.loading||c.invalid||s.locked||s.pending||s.historyPending||s.composing||s.compositionInvalid||s.recoveryRecords.length||s.source!==s.confirmed.source);b.onpointerdown=e=>byId(id).onpointerdown?.(e);b.onclick=()=>byId(id).click();alert.append(b);}}
+    if(o.stopped&&s.confirmed.linkedFile){for(const [label,id] of [['核对两份内容','compare-linked-file'],['打开磁盘版','open-linked-file'],['另存新文件…','create-test-copy']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=!!(c.loading||c.invalid||s.locked||s.pending||s.historyPending||s.composing||s.compositionInvalid||s.recoveryRecords.length||s.source!==s.confirmed.source);b.onpointerdown=e=>byId(id).onpointerdown?.(e);b.onclick=()=>byId(id).click();alert.append(b);}}
     if(r?.recordId){const reveal=doc.createElement('button');reveal.type='button';reveal.textContent='查看保存版本';reveal.disabled=!!c.loading;reveal.onclick=()=>api.revealSaveRecovery(r.recordId);alert.append(reveal);}
     alert.hidden=!alert.childNodes.length;alert.dataset.tone=message?'error':'success';
   }

@@ -1,3 +1,4 @@
+import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
 import {createAccessibilityView} from './document-accessibility-view.mjs';
@@ -139,6 +140,9 @@ const testCopyView = createTestCopyView({ api, byId,
 const linkedFileView=createLinkedFileView({api,byId,context:()=>({controller,selected,loading,invalid:activeInvalid()}),
   busy:value=>{loading=value;},rerender:()=>{if(controller)render(controller.state());},
   open:request=>openDocument(false,false,null,null,null,null,request)});
+const comparisonView=createFileComparisonView({api,byId,context:()=>({controller,selected,loading,invalid:activeInvalid()}),
+  busy:value=>{loading=value;},rerender:()=>{if(controller)render(controller.state());},
+  open:request=>openDocument(false,false,null,null,null,null,null,request),focus:()=>{if(editor?.isEditable)editor.view.focus();}});
 const originalSaveView = createOriginalSaveView({api,byId,
   context:()=>({controller,selected,loading,invalid:activeInvalid()}),busy:value=>{loading=value;},
   rerender:()=>{if(controller)render(controller.state());},focus:()=>{if(editor?.isEditable)editor.view.focus();}});
@@ -195,14 +199,14 @@ function render(s) {
     byId('document-info-note').textContent = temporary ? (current.originalSave?.available ? '已关联文件。保存需点击保存；磁盘检查和打开磁盘版在详情中。另存新文件不会覆盖已有目标。' : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : '原文件只读。暂不支持的 Markdown 格式按原文显示。';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
-    document.title = current.label + (temporary ? ' — 草稿' : ' — 原文只读');
+    document.title = current.label + (temporary ? current.linkedFile?' — '+filePresentation(current,s).label:' — 草稿' : ' — 原文只读');
     if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus('');
     else if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
     else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 可通过「源码」编辑。', true);
     else if (s.code === 'memory-edited') viewerStatus(current.originalSave?.available ? '修改保留在草稿中，点击保存后写回文件。' : '修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
-  inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); linkedFileView.render(); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); accessibility.sync(); show();
+  inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); linkedFileView.render();comparisonView.render(); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); accessibility.sync(); show();
 }
 function resetSource(source, selection) {
   if (!editor) return;
@@ -386,7 +390,7 @@ async function finishDocumentClose(id) {
   // Called only after the matched main-owned close receipt. Release presentation
   // caches; preload/main lifecycle fences and persisted recovery records remain.
   const copyId=controller?.state().confirmed.confirmedCopy?.copyId;
-  draftView.release(id);testCopyView.release(id);originalSaveView.release(id);linkedFileView.release(id);copyActionsView.release(copyId);
+  draftView.release(id);testCopyView.release(id);originalSaveView.release(id);linkedFileView.release(id);comparisonView.release(id);copyActionsView.release(copyId);
   options[index]?.remove(); drafts.delete(id);
   controller?.dispose(); controller = null; selected = null;
   editor?.destroy(); editor = null; byId('editor').replaceChildren();
@@ -412,7 +416,7 @@ function viewerStatus(message, notice = false) {
   if(node.textContent!==message)node.textContent=message; // Avoid re-announcing unchanged status on every render.
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
-async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null) {
+async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {
   const state = controller?.state();
   if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
   const original = state?.confirmed;
@@ -421,6 +425,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
       || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
   if(linkedRequest&&(activeInvalid()||state.locked||state.recoveryRecords.length||state.source!==original.source
       ||linkedRequest.sessionId!==selected||linkedRequest.expectedRevision!==original.revision||!original.linkedFile))return;
+  if(comparedRequest&&(activeInvalid()||state.locked||state.recoveryRecords.length||state.source!==original.source||comparedRequest.sessionId!==selected||comparedRequest.expectedRevision!==original.revision))return;
   if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked
       || state.recoveryRecords.length || state.source !== original.source)) return;
   loading = true; const epoch = ++switchEpoch;
@@ -429,9 +434,9 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
   viewerStatus(editingCopy ? '正在创建独立编辑副本…' : temporary ? '正在新建草稿…' : '正在打开…');
   let candidate = null, reused = false;
   try {
-    const r = await (linkedRequest ? api.openLinkedFile(linkedRequest) : nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+    const r = await (comparedRequest ? api.editComparedFile({sessionId:comparedRequest.sessionId,expectedRevision:comparedRequest.expectedRevision,comparisonToken:comparedRequest.comparisonToken}) : linkedRequest ? api.openLinkedFile(linkedRequest) : nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
     if (epoch !== switchEpoch) return;
-    if ((confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) || (linkedRequest && lifecycles.has(linkedRequest.sessionId))) throw Error('Source session invalidated');
+    if ((confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) || (linkedRequest && lifecycles.has(linkedRequest.sessionId)) || (comparedRequest&&lifecycles.has(comparedRequest.sessionId))) throw Error('Source session invalidated');
     if (!r.ok) {
       const messages = { 'recent-file-unavailable': '最近文档已变化、被移动或无法验证，请通过「打开…」重新选择。', 'recents-unavailable': '最近列表暂不可用，请通过「打开…」选择文件。', 'confirmed-copy-unavailable': '文件已移动、被修改或无法验证，请通过「打开…」重新选择检查。', 'copy-action-unknown': '打开结果尚未确认，请勿重复操作；当前草稿与文件回执仍保留。', 'draft-already-open': '该草稿已在当前窗口打开。', 'draft-unreadable': '草稿无法验证，原记录已保留。', 'draft-read-failed': '草稿读取失败，原记录已保留。', 'draft-unavailable': '草稿已不可用。', 'open-cancelled': '已取消打开。', 'file-unavailable': '所选文件已不存在。',
         'read-failed': '无法读取所选文件。', 'unsupported-encoding': '目前仅支持 UTF-8 Markdown。',
@@ -440,14 +445,15 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
         'edit-copy-outcome-unknown': '副本创建结果未知，请勿重复创建；原文件仍为只读。',
         'temporary-create-failed': '无法创建独立编辑副本。', 'copy-session-invalidated': '原文会话已不可用。',
         'source-hash-mismatch': '无法验证已打开的内容。', 'stale-revision': '已打开的文档修订发生变化。',
-        'external-change': '文件在读取期间发生变化。', 'session-limit': '当前窗口已达到八份文档上限。' };
+        'comparison-stale':'磁盘或当前写作已变化，请重新核对。', 'comparison-outcome-unknown':'核对操作结果尚未确认，请保留当前文档并检查侧栏。', 'external-change': '文件在读取期间发生变化。', 'session-limit': '当前窗口已达到八份文档上限。' };
       viewerStatus((messages[r.code] || '无法打开所选文件。') + ' 当前文档未改变。', true);
       return r;
     }
+    if(comparedRequest&&(r.sessionId!==comparedRequest.sessionId||r.requestRevision!==comparedRequest.expectedRevision||r.comparisonToken!==comparedRequest.comparisonToken||r.snapshot?.source!==comparedRequest.source))throw Error('Comparison mismatch');
     if(linkedRequest&&(r.sessionId!==linkedRequest.sessionId||r.requestRevision!==linkedRequest.expectedRevision))throw Error('Linked request mismatch');
     reused = r.reused === true;
     candidate = r.snapshot;
-    if (!candidate || (nativeRequestId && r.requestId !== nativeRequestId) || (recentId && r.recentId !== recentId) || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
+    if (!candidate || (nativeRequestId && r.requestId !== nativeRequestId) || (recentId && r.recentId !== recentId) || (temporary||r.openedForWriting===true ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== 'string')
         || lifecycles.has(candidate.sessionId) || typeof candidate.label !== 'string') throw Error('Invalid read-only snapshot');
     if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom
         || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error('Invalid copy snapshot');
@@ -461,14 +467,14 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     install(candidate);
     byId('document-info').hidden = false; writingShell.closePanels();
     byId('empty-state').hidden = true; document.body.dataset.documentState = 'open'; window.scrollTo(0, 0);
-    if (!linkedRequest && !nativeRequestId && !editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
+    if (!comparedRequest && !linkedRequest && !nativeRequestId && !editingCopy && previous?.readOnly && previous.sessionId !== candidate.sessionId) {
       try {
         const closed = await api.close({ sessionId: previous.sessionId, expectedRevision: previous.revision });
         if (closed.ok) [...byId('documents').options].find(o => o.value === previous.sessionId)?.remove();
       }
       catch { /* Old authority cannot grant write access; main will revoke it on close. */ }
     }
-    viewerStatus(linkedRequest?'已单独打开磁盘版，原文与草稿保留。需要编辑此版本，请创建编辑副本。':draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。撤销历史从此处重新开始；当前为独立草稿。' : '已恢复本地草稿为独立副本。撤销历史从此处重新开始；当前为独立草稿。') : editingCopy ? '已创建独立编辑副本，原文件保持只读；磁盘上的后续变化不会自动导入。' : temporary ? '草稿已就绪。另存新文件后才能在 Finder 中找到。' : '原文只读；点击「编辑副本」开始修改。');
+    viewerStatus(comparedRequest?'已单独打开磁盘新版，可直接编辑；原来的修改和撤销历史保留。':r.openedForWriting===true?'已打开，可直接写作。原文件仅在明确保存时更新。':linkedRequest?'已单独打开磁盘版，原文与草稿保留。需要编辑此版本，请创建编辑副本。':draftId ? (r.recovered?.warning ? '已恢复较早的可验证草稿，较新记录无法确认且已保留。撤销历史从此处重新开始；当前为独立草稿。' : '已恢复本地草稿为独立副本。撤销历史从此处重新开始；当前为独立草稿。') : editingCopy ? '已创建独立编辑副本，原文件保持只读；磁盘上的后续变化不会自动导入。' : temporary ? '草稿已就绪。另存新文件后才能在 Finder 中找到。' : '原文只读；点击「编辑副本」开始修改。');
     return { ok: true };
   } catch {
     if (!reused && candidate && selected !== candidate.sessionId) {
@@ -480,10 +486,10 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     loading = false; for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = false;
     if (controller) render(controller.state()); else writingShell.sync(); recentView.sync();
     void recentView.refresh();
-    if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
+    if ((temporary||candidate?.temporary) && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => { if (!linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
+const openReadOnly = () => { if (!document.querySelector('dialog[open]') && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;

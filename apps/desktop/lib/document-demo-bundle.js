@@ -189,6 +189,118 @@
     }
   });
 
+  // lib/document-file-comparison-view.mjs
+  function createFileComparisonView({ api: api2, byId: byId2, context, busy, rerender, open, focus: focus2 }) {
+    const dialog = byId2("file-comparison-dialog");
+    let captured = null, running = false;
+    const current = () => {
+      const c = context(), s = c.controller?.state();
+      return { c, s, blocked: !s?.confirmed.linkedFile || c.loading || c.invalid || s.locked || s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source };
+    };
+    function buttons() {
+      const { s, blocked } = current();
+      byId2("compare-linked-file").disabled = !!blocked;
+      byId2("refresh-file-comparison").disabled = running || blocked;
+      byId2("edit-compared-file").disabled = running || blocked || !captured;
+      byId2("export-compared-current").disabled = running || blocked || !s?.confirmed.temporary || byId2("create-test-copy").disabled;
+      byId2("close-file-comparison").disabled = running;
+    }
+    function close2() {
+      if (running) return;
+      const owner = captured?.sessionId;
+      captured = null;
+      byId2("comparison-current").value = "";
+      byId2("comparison-disk").value = "";
+      byId2("comparison-status").textContent = "";
+      dialog.close();
+      if (owner === context().selected) focus2();
+    }
+    async function compare2() {
+      const { c, s, blocked } = current();
+      if (running || blocked) return;
+      running = true;
+      busy(true);
+      captured = null;
+      buttons();
+      rerender();
+      if (!dialog.open) dialog.showModal();
+      byId2("comparison-status").textContent = "\u6B63\u5728\u8BFB\u53D6\u5E76\u6838\u5BF9\u78C1\u76D8\u7248\u672C\u2026";
+      byId2("comparison-current").value = s.confirmed.source;
+      byId2("comparison-disk").value = "";
+      try {
+        const r = await api2.compareLinkedFile({ sessionId: c.selected, expectedRevision: s.confirmed.revision });
+        if (context().controller !== c.controller || context().selected !== c.selected) throw Error("Changed owner");
+        if (!r?.snapshot || r.snapshot.sessionId !== c.selected || r.snapshot.revision !== s.confirmed.revision || r.snapshot.source !== s.confirmed.source) throw Error("Unconfirmed comparison");
+        c.controller.refresh(r);
+        if (!r.ok) {
+          byId2("comparison-status").textContent = "\u65E0\u6CD5\u8BFB\u53D6\u53EF\u6838\u5BF9\u7684\u78C1\u76D8\u7248\u672C\uFF0C\u5F53\u524D\u6587\u6863\u4E0E\u5386\u53F2\u4FDD\u7559\u3002\u8BF7\u68C0\u67E5\u6587\u4EF6\uFF0C\u6216\u53E6\u5B58\u5F53\u524D\u5199\u4F5C\u3002";
+          return;
+        }
+        captured = { sessionId: c.selected, expectedRevision: s.confirmed.revision, comparisonToken: r.comparison.token, source: r.comparison.source };
+        byId2("comparison-disk").value = r.comparison.source;
+        byId2("comparison-status").textContent = `${r.comparison.label} \xB7 ${s.confirmed.source === r.comparison.source ? "\u4E24\u4EFD\u6B63\u6587\u76F8\u540C\uFF1B\u6587\u4EF6\u8EAB\u4EFD\u6216\u5143\u6570\u636E\u4ECD\u53EF\u80FD\u4E0D\u540C\u3002" : "\u4E24\u4EFD\u6B63\u6587\u4E0D\u540C\uFF0C\u5F53\u524D\u4FEE\u6539\u5C1A\u672A\u88AB\u66FF\u6362\u3002"} \u672C\u6B21\u8BFB\u53D6\u4E8E ${new Date(r.comparison.checkedAt).toLocaleTimeString()}\uFF0C\u4E0D\u662F\u5B9E\u65F6\u76D1\u6D4B\u3002`;
+      } catch {
+        byId2("comparison-status").textContent = "\u6838\u5BF9\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\u3002\u8BF7\u4FDD\u7559\u5F53\u524D\u6587\u6863\uFF0C\u4E0D\u8981\u91CD\u590D\u64CD\u4F5C\uFF1B\u53EF\u9000\u51FA\u540E\u4ECE\u8349\u7A3F\u6062\u590D\u3002";
+      } finally {
+        running = false;
+        busy(false);
+        rerender();
+        buttons();
+        byId2("close-file-comparison").focus();
+      }
+    }
+    byId2("compare-linked-file").onclick = compare2;
+    byId2("compare-linked-file").onpointerdown = (e) => {
+      if (current().blocked) e.preventDefault();
+    };
+    byId2("refresh-file-comparison").onclick = compare2;
+    byId2("close-file-comparison").onclick = close2;
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      close2();
+    });
+    byId2("export-compared-current").onclick = () => {
+      if (running || current().blocked) return;
+      close2();
+      byId2("create-test-copy").click();
+    };
+    byId2("edit-compared-file").onclick = async () => {
+      const { c, s, blocked } = current();
+      if (running || blocked || !captured) return;
+      if (captured.sessionId !== c.selected || captured.expectedRevision !== s.confirmed.revision) {
+        captured = null;
+        byId2("comparison-status").textContent = "\u5F53\u524D\u5199\u4F5C\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u6838\u5BF9\u3002";
+        buttons();
+        return;
+      }
+      const request = captured;
+      captured = null;
+      running = true;
+      buttons();
+      try {
+        const r = await open(request);
+        if (r?.ok) {
+          running = false;
+          close2();
+          focus2();
+        } else byId2("comparison-status").textContent = r?.code === "comparison-stale" ? "\u78C1\u76D8\u6216\u5F53\u524D\u5199\u4F5C\u5728\u6838\u5BF9\u540E\u518D\u6B21\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u6838\u5BF9\u3002\u5F53\u524D\u6587\u6863\u4FDD\u7559\u3002" : "\u672A\u80FD\u6253\u5F00\u78C1\u76D8\u65B0\u7248\uFF0C\u5F53\u524D\u6587\u6863\u4FDD\u7559\uFF1B\u8BF7\u68C0\u67E5\u4FA7\u680F\u6216\u91CD\u65B0\u6838\u5BF9\u3002";
+      } catch {
+        byId2("comparison-status").textContent = "\u6253\u5F00\u7ED3\u679C\u672A\u77E5\uFF0C\u8BF7\u4FDD\u7559\u5F53\u524D\u6587\u6863\u5E76\u68C0\u67E5\u4FA7\u680F\uFF0C\u4E0D\u8981\u91CD\u590D\u64CD\u4F5C\u3002";
+      } finally {
+        running = false;
+        buttons();
+      }
+    };
+    return { render: buttons, release(id2) {
+      if (captured?.sessionId === id2) {
+        captured = null;
+        byId2("comparison-current").value = "";
+        byId2("comparison-disk").value = "";
+        if (dialog.open) dialog.close();
+      }
+    } };
+  }
+
   // lib/document-file-presentation.mjs
   function filePresentation(current, state) {
     if (!current) return { label: "\u672A\u6253\u5F00\u6587\u6863", kind: "\u672A\u6253\u5F00\u6587\u6863", location: "" };
@@ -198,7 +310,7 @@
     const blocked = o?.stopped, known = file.checked?.state;
     const pending = state && (state.pending || state.historyPending || state.composing || state.compositionInvalid || state.source !== current.source);
     const label = blocked ? "\u4FDD\u5B58\u5DF2\u6682\u505C" : pending ? "\u8F93\u5165\u5F85\u786E\u8BA4" : known === "changed" ? "\u78C1\u76D8\u6587\u4EF6\u5DF2\u53D8\u5316" : known === "missing" ? "\u78C1\u76D8\u6587\u4EF6\u5DF2\u79FB\u52A8\u6216\u5220\u9664" : known === "unavailable" ? "\u78C1\u76D8\u6587\u4EF6\u6682\u4E0D\u53EF\u6838\u5BF9" : typeof current.copySha256 === "string" && current.copySha256 === file.baselineSha256 ? "\u6B63\u6587\u5DF2\u4FDD\u5B58" : "\u4FEE\u6539\u672A\u4FDD\u5B58";
-    return { label, kind: "\u6587\u4EF6\u8349\u7A3F \xB7 " + label, location: file.filePath };
+    return { label, kind: "\u6587\u4EF6 \xB7 " + label, location: file.filePath };
   }
   function linkedFileMessage(file, stopped = false) {
     if (!file) return "\u6B64\u8349\u7A3F\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u53EF\u5728\u8FD9\u91CC\u6838\u5BF9\u3002";
@@ -62497,7 +62609,7 @@ SHA-256: ${last.sha256}` : "";
         alert.append(text5);
       }
       if (o.stopped && s.confirmed.linkedFile) {
-        for (const [label, id2] of [["\u6253\u5F00\u78C1\u76D8\u7248", "open-linked-file"], ["\u53E6\u5B58\u65B0\u6587\u4EF6\u2026", "create-test-copy"]]) {
+        for (const [label, id2] of [["\u6838\u5BF9\u4E24\u4EFD\u5185\u5BB9", "compare-linked-file"], ["\u6253\u5F00\u78C1\u76D8\u7248", "open-linked-file"], ["\u53E6\u5B58\u65B0\u6587\u4EF6\u2026", "create-test-copy"]]) {
           const b = doc4.createElement("button");
           b.type = "button";
           b.textContent = label;
@@ -63549,6 +63661,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
 
   // lib/document-recent-view.mjs
   function createRecentView({ api: api2, byId: byId2, context, open, restore }) {
+    let openForWriting = false;
     let enabled = false, draftsEnabled = false, busy = false, refreshing = false, sequence = 0;
     const dialog = byId2("recent-dialog");
     const blocked = () => {
@@ -63609,7 +63722,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
             button.dataset.recentId = e.id;
           }
         }
-        const status = recent.ok ? entries.length ? "\u70B9\u51FB\u540E\u4EE5\u53EA\u8BFB\u65B9\u5F0F\u91CD\u65B0\u9A8C\u8BC1\u5E76\u6253\u5F00\u3002" : "\u5C1A\u65E0\u6700\u8FD1\u6587\u6863\u3002\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u4E00\u4EFD Markdown \u5F00\u59CB\u3002" : "\u6700\u8FD1\u5217\u8868\u6682\u4E0D\u53EF\u7528\uFF0C\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\u3002\u4ECD\u53EF\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u6587\u4EF6\u3002";
+        const status = recent.ok ? entries.length ? openForWriting ? "\u70B9\u51FB\u540E\u91CD\u65B0\u9A8C\u8BC1\u6587\u4EF6\u5E76\u5F00\u59CB\u5199\u4F5C\uFF1B\u5F53\u524D\u6587\u6863\u4FDD\u7559\u3002" : "\u70B9\u51FB\u540E\u4EE5\u53EA\u8BFB\u65B9\u5F0F\u91CD\u65B0\u9A8C\u8BC1\u5E76\u6253\u5F00\u3002" : "\u5C1A\u65E0\u6700\u8FD1\u6587\u6863\u3002\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u4E00\u4EFD Markdown \u5F00\u59CB\u3002" : "\u6700\u8FD1\u5217\u8868\u6682\u4E0D\u53EF\u7528\uFF0C\u5DF2\u6709\u8BB0\u5F55\u4FDD\u7559\u3002\u4ECD\u53EF\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u9009\u62E9\u6587\u4EF6\u3002";
         byId2("welcome-recent-status").textContent = status;
         byId2("recent-status").textContent = status;
         const available = drafts2?.ok ? drafts2.drafts : [];
@@ -63664,6 +63777,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (!ok3) byId2("recent-status").textContent = "\u6E05\u7A7A\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u8BB0\u5F55\u4FDD\u7559\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002Markdown \u6587\u4EF6\u672A\u6539\u53D8\u3002";
     };
     return { sync, refresh, configure(data2) {
+      openForWriting = data2.openForWriting === true;
       enabled = true;
       draftsEnabled = data2.draftsEnabled === true;
       void refresh();
@@ -63693,13 +63807,13 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       remember(s.confirmed.sessionId, s.confirmed.draftBackup);
       const r = receipts.get(s.confirmed.sessionId), last = r?.revision == null ? "\u5C1A\u65E0\u5DF2\u786E\u8BA4\u5907\u4EFD" : `\u6700\u540E\u5DF2\u5907\u4EFD\u4FEE\u8BA2 ${r.revision}`;
       const unsettled = s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords?.length || s.locked || s.source !== s.confirmed.source || context().invalid;
-      node2.textContent = r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u5907\u4EFD\u7528\u4E8E\u6062\u590D\u8349\u7A3F\uFF1B\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
+      node2.textContent = r?.state === "file-unmodified" ? "\u5C1A\u672A\u4FEE\u6539\u6B64\u6587\u6863\uFF0C\u6253\u5F00\u65F6\u7684\u5185\u5BB9\u672A\u65B0\u589E\u6062\u590D\u8349\u7A3F\u3002\u786E\u8BA4\u4FEE\u6539\u540E\u4F1A\u5F00\u59CB\u5907\u4EFD\u3002" : r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u5907\u4EFD\u7528\u4E8E\u6062\u590D\u8349\u7A3F\uFF1B\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
       if (r?.code === "draft-capacity") node2.textContent += " \u5F85\u6062\u590D\u8349\u7A3F\u5DF2\u6EE1\uFF0C\u8BF7\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\uFF1B\u4E0B\u6B21\u786E\u8BA4\u7F16\u8F91\u65F6\u4F1A\u518D\u6B21\u5C1D\u8BD5\u5907\u4EFD\u3002";
       if (r?.code === "draft-record-capacity") node2.textContent += " \u5DE5\u4F5C\u533A\u8BB0\u5F55\u5DF2\u6EE1\uFF1B\u8BF7\u5728\u8349\u7A3F\u9762\u677F\u5C06\u95F2\u7F6E\u8349\u7A3F\u201C\u79FB\u5165\u6062\u590D\u5F52\u6863\u201D\uFF0C\u4FDD\u7559\u5185\u5BB9\u5E76\u817E\u51FA\u5907\u4EFD\u540D\u989D\u3002";
       if (unsettled) node2.textContent += " \u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u5305\u542B\u5728\u5907\u4EFD\u4FDD\u8BC1\u4E2D\u3002";
       node2.dataset.tone = ["backup-failed", "draft-unverified"].includes(r?.state) ? "error" : "";
       summary.dataset.tone = node2.dataset.tone;
-      summary.textContent = node2.dataset.tone === "error" ? "\u672C\u5730\u5907\u4EFD\u672A\u786E\u8BA4 \xB7 \u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\uFF0C\u8BE6\u60C5\u4E2D\u53EF\u67E5\u770B\u539F\u56E0" : s.inputPaused ? "\u8F93\u5165\u5DF2\u6682\u505C \xB7 \u672A\u786E\u8BA4\u4FEE\u6539\u4EC5\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3" : s.composing && !s.compositionInvalid ? "\u8F93\u5165\u4E2D\u2026" : unsettled ? "\u6B63\u5728\u786E\u8BA4\u4FEE\u6539\u2026" : r?.state === "backed-up" && r.revision === s.confirmed.revision ? "\u5DF2\u5907\u4EFD" : r?.state === "backup-pending" ? "\u6B63\u5728\u5907\u4EFD\u2026" : "\u5C1A\u672A\u5907\u4EFD";
+      summary.textContent = node2.dataset.tone === "error" ? "\u672C\u5730\u5907\u4EFD\u672A\u786E\u8BA4 \xB7 \u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\uFF0C\u8BE6\u60C5\u4E2D\u53EF\u67E5\u770B\u539F\u56E0" : s.inputPaused ? "\u8F93\u5165\u5DF2\u6682\u505C \xB7 \u672A\u786E\u8BA4\u4FEE\u6539\u4EC5\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3" : s.composing && !s.compositionInvalid ? "\u8F93\u5165\u4E2D\u2026" : unsettled ? "\u6B63\u5728\u786E\u8BA4\u4FEE\u6539\u2026" : r?.state === "file-unmodified" ? "\u5C1A\u65E0\u4FEE\u6539" : r?.state === "backed-up" && r.revision === s.confirmed.revision ? "\u5DF2\u5907\u4EFD" : r?.state === "backup-pending" ? "\u6B63\u5728\u5907\u4EFD\u2026" : "\u5C1A\u672A\u5907\u4EFD";
     }
     const blocked = () => {
       const c = context(), s = c.state;
@@ -64264,6 +64378,21 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     },
     open: (request) => openDocument(false, false, null, null, null, null, request)
   });
+  var comparisonView = createFileComparisonView({
+    api,
+    byId,
+    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    busy: (value) => {
+      loading = value;
+    },
+    rerender: () => {
+      if (controller) render3(controller.state());
+    },
+    open: (request) => openDocument(false, false, null, null, null, null, null, request),
+    focus: () => {
+      if (editor?.isEditable) editor.view.focus();
+    }
+  });
   var originalSaveView = createOriginalSaveView({
     api,
     byId,
@@ -64366,7 +64495,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("document-info-note").textContent = temporary ? current.originalSave?.available ? "\u5DF2\u5173\u8054\u6587\u4EF6\u3002\u4FDD\u5B58\u9700\u70B9\u51FB\u4FDD\u5B58\uFF1B\u78C1\u76D8\u68C0\u67E5\u548C\u6253\u5F00\u78C1\u76D8\u7248\u5728\u8BE6\u60C5\u4E2D\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u6807\u3002" : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "\u539F\u6587\u4EF6\u53EA\u8BFB\u3002\u6682\u4E0D\u652F\u6301\u7684 Markdown \u683C\u5F0F\u6309\u539F\u6587\u663E\u793A\u3002";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
-      document.title = current.label + (temporary ? " \u2014 \u8349\u7A3F" : " \u2014 \u539F\u6587\u53EA\u8BFB");
+      document.title = current.label + (temporary ? current.linkedFile ? " \u2014 " + filePresentation(current, s).label : " \u2014 \u8349\u7A3F" : " \u2014 \u539F\u6587\u53EA\u8BFB");
       if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus("");
       else if (navigationError || activeInvalid() || s.locked) viewerStatus("Editing unavailable: " + (navigationError || lifecycleCode(selected) || s.code) + ". Retained input copies remain in this window.", true);
       else if (["unsafe-source-range", "unsafe-format-range"].includes(s.code)) viewerStatus("\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u4FEE\u6539\uFF0C\u539F\u6709\u5185\u5BB9\u5DF2\u4FDD\u7559\u3002\u8BF7\u5728\u53D7\u652F\u6301\u7684\u6BB5\u843D\u3001\u6807\u9898\u3001\u7D27\u51D1\u5217\u8868\u3001\u666E\u901A\u8868\u683C\u5355\u5143\u683C\u3001\u5F15\u7528\u6216\u57FA\u672C\u4EE3\u7801\u5757\u5185\u7F16\u8F91\uFF1B\u590D\u6742 Markdown \u53EF\u901A\u8FC7\u300C\u6E90\u7801\u300D\u7F16\u8F91\u3002", true);
@@ -64378,6 +64507,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     testCopyView.render(s);
     originalSaveView.render(s);
     linkedFileView.render();
+    comparisonView.render();
     copyActionsView.render();
     renderCompositionCopies(s);
     writingShell.sync();
@@ -64682,6 +64812,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     testCopyView.release(id2);
     originalSaveView.release(id2);
     linkedFileView.release(id2);
+    comparisonView.release(id2);
     copyActionsView.release(copyId);
     options[index2]?.remove();
     drafts.delete(id2);
@@ -64766,12 +64897,13 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (node2.textContent !== message) node2.textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
-  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null) {
+  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {
     const state = controller?.state();
     if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
     const original = state?.confirmed;
     if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length || state.source !== original.source || confirmedCopy.sessionId !== selected || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
     if (linkedRequest && (activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source || linkedRequest.sessionId !== selected || linkedRequest.expectedRevision !== original.revision || !original.linkedFile)) return;
+    if (comparedRequest && (activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source || comparedRequest.sessionId !== selected || comparedRequest.expectedRevision !== original.revision)) return;
     if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source)) return;
     loading = true;
     const epoch = ++switchEpoch;
@@ -64782,9 +64914,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     viewerStatus(editingCopy ? "\u6B63\u5728\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u2026" : temporary ? "\u6B63\u5728\u65B0\u5EFA\u8349\u7A3F\u2026" : "\u6B63\u5728\u6253\u5F00\u2026");
     let candidate = null, reused = false;
     try {
-      const r = await (linkedRequest ? api.openLinkedFile(linkedRequest) : nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+      const r = await (comparedRequest ? api.editComparedFile({ sessionId: comparedRequest.sessionId, expectedRevision: comparedRequest.expectedRevision, comparisonToken: comparedRequest.comparisonToken }) : linkedRequest ? api.openLinkedFile(linkedRequest) : nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
       if (epoch !== switchEpoch) return;
-      if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId) || linkedRequest && lifecycles.has(linkedRequest.sessionId)) throw Error("Source session invalidated");
+      if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId) || linkedRequest && lifecycles.has(linkedRequest.sessionId) || comparedRequest && lifecycles.has(comparedRequest.sessionId)) throw Error("Source session invalidated");
       if (!r.ok) {
         const messages2 = {
           "recent-file-unavailable": "\u6700\u8FD1\u6587\u6863\u5DF2\u53D8\u5316\u3001\u88AB\u79FB\u52A8\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u3002",
@@ -64808,16 +64940,19 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
           "copy-session-invalidated": "\u539F\u6587\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528\u3002",
           "source-hash-mismatch": "\u65E0\u6CD5\u9A8C\u8BC1\u5DF2\u6253\u5F00\u7684\u5185\u5BB9\u3002",
           "stale-revision": "\u5DF2\u6253\u5F00\u7684\u6587\u6863\u4FEE\u8BA2\u53D1\u751F\u53D8\u5316\u3002",
+          "comparison-stale": "\u78C1\u76D8\u6216\u5F53\u524D\u5199\u4F5C\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u6838\u5BF9\u3002",
+          "comparison-outcome-unknown": "\u6838\u5BF9\u64CD\u4F5C\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u8BF7\u4FDD\u7559\u5F53\u524D\u6587\u6863\u5E76\u68C0\u67E5\u4FA7\u680F\u3002",
           "external-change": "\u6587\u4EF6\u5728\u8BFB\u53D6\u671F\u95F4\u53D1\u751F\u53D8\u5316\u3002",
           "session-limit": "\u5F53\u524D\u7A97\u53E3\u5DF2\u8FBE\u5230\u516B\u4EFD\u6587\u6863\u4E0A\u9650\u3002"
         };
         viewerStatus((messages2[r.code] || "\u65E0\u6CD5\u6253\u5F00\u6240\u9009\u6587\u4EF6\u3002") + " \u5F53\u524D\u6587\u6863\u672A\u6539\u53D8\u3002", true);
         return r;
       }
+      if (comparedRequest && (r.sessionId !== comparedRequest.sessionId || r.requestRevision !== comparedRequest.expectedRevision || r.comparisonToken !== comparedRequest.comparisonToken || r.snapshot?.source !== comparedRequest.source)) throw Error("Comparison mismatch");
       if (linkedRequest && (r.sessionId !== linkedRequest.sessionId || r.requestRevision !== linkedRequest.expectedRevision)) throw Error("Linked request mismatch");
       reused = r.reused === true;
       candidate = r.snapshot;
-      if (!candidate || nativeRequestId && r.requestId !== nativeRequestId || recentId && r.recentId !== recentId || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
+      if (!candidate || nativeRequestId && r.requestId !== nativeRequestId || recentId && r.recentId !== recentId || (temporary || r.openedForWriting === true ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
       if (editingCopy && (candidate.sessionId === original.sessionId || candidate.source !== original.source || candidate.bom !== original.bom || candidate.revision !== 0 || candidate.canUndo || candidate.canRedo || lifecycles.has(original.sessionId))) throw Error("Invalid copy snapshot");
       const projection = projectSource(candidate.source);
       const schema = editor?.schema || getSchema([...documentEditorExtensions()]);
@@ -64834,14 +64969,14 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("empty-state").hidden = true;
       document.body.dataset.documentState = "open";
       window.scrollTo(0, 0);
-      if (!linkedRequest && !nativeRequestId && !editingCopy && previous3?.readOnly && previous3.sessionId !== candidate.sessionId) {
+      if (!comparedRequest && !linkedRequest && !nativeRequestId && !editingCopy && previous3?.readOnly && previous3.sessionId !== candidate.sessionId) {
         try {
           const closed = await api.close({ sessionId: previous3.sessionId, expectedRevision: previous3.revision });
           if (closed.ok) [...byId("documents").options].find((o) => o.value === previous3.sessionId)?.remove();
         } catch {
         }
       }
-      viewerStatus(linkedRequest ? "\u5DF2\u5355\u72EC\u6253\u5F00\u78C1\u76D8\u7248\uFF0C\u539F\u6587\u4E0E\u8349\u7A3F\u4FDD\u7559\u3002\u9700\u8981\u7F16\u8F91\u6B64\u7248\u672C\uFF0C\u8BF7\u521B\u5EFA\u7F16\u8F91\u526F\u672C\u3002" : draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : editingCopy ? "\u5DF2\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u53EA\u8BFB\uFF1B\u78C1\u76D8\u4E0A\u7684\u540E\u7EED\u53D8\u5316\u4E0D\u4F1A\u81EA\u52A8\u5BFC\u5165\u3002" : temporary ? "\u8349\u7A3F\u5DF2\u5C31\u7EEA\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u70B9\u51FB\u300C\u7F16\u8F91\u526F\u672C\u300D\u5F00\u59CB\u4FEE\u6539\u3002");
+      viewerStatus(comparedRequest ? "\u5DF2\u5355\u72EC\u6253\u5F00\u78C1\u76D8\u65B0\u7248\uFF0C\u53EF\u76F4\u63A5\u7F16\u8F91\uFF1B\u539F\u6765\u7684\u4FEE\u6539\u548C\u64A4\u9500\u5386\u53F2\u4FDD\u7559\u3002" : r.openedForWriting === true ? "\u5DF2\u6253\u5F00\uFF0C\u53EF\u76F4\u63A5\u5199\u4F5C\u3002\u539F\u6587\u4EF6\u4EC5\u5728\u660E\u786E\u4FDD\u5B58\u65F6\u66F4\u65B0\u3002" : linkedRequest ? "\u5DF2\u5355\u72EC\u6253\u5F00\u78C1\u76D8\u7248\uFF0C\u539F\u6587\u4E0E\u8349\u7A3F\u4FDD\u7559\u3002\u9700\u8981\u7F16\u8F91\u6B64\u7248\u672C\uFF0C\u8BF7\u521B\u5EFA\u7F16\u8F91\u526F\u672C\u3002" : draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : editingCopy ? "\u5DF2\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u53EA\u8BFB\uFF1B\u78C1\u76D8\u4E0A\u7684\u540E\u7EED\u53D8\u5316\u4E0D\u4F1A\u81EA\u52A8\u5BFC\u5165\u3002" : temporary ? "\u8349\u7A3F\u5DF2\u5C31\u7EEA\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u70B9\u51FB\u300C\u7F16\u8F91\u526F\u672C\u300D\u5F00\u59CB\u4FEE\u6539\u3002");
       return { ok: true };
     } catch {
       if (!reused && candidate && selected !== candidate.sessionId) {
@@ -64859,11 +64994,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       else writingShell.sync();
       recentView.sync();
       void recentView.refresh();
-      if (temporary && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
+      if ((temporary || candidate?.temporary) && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
     }
   }
   var openReadOnly = () => {
-    if (!linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false);
+    if (!document.querySelector("dialog[open]") && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false);
   };
   byId("new-temporary").onclick = () => openDocument(true);
   byId("edit-copy").onclick = () => openDocument(true, true);

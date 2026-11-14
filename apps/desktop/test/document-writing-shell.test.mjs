@@ -128,7 +128,7 @@ test('document details use confirmed identity and distinguish a draft from a fil
   for(const dirty of [false,true]){
     c.state.confirmed={...c.state.confirmed,dirty,copySha256:dirty?'new':'base',linkedFile:{filePath:'/synthetic/bound.md',baselineSha256:'base'},originalSave:{filePath:'/synthetic/bound.md',lastConfirmed:{revision:3}}};
     const before=structuredClone(c.state.confirmed);shell.sync();
-    assert.equal(byId('details-document-kind').textContent,dirty?'文件草稿 · 修改未保存':'文件草稿 · 正文已保存');
+    assert.equal(byId('details-document-kind').textContent,dirty?'文件 · 修改未保存':'文件 · 正文已保存');
     assert.equal(byId('details-document-location').textContent,'/synthetic/bound.md');
     assert.deepEqual(c.state.confirmed,before);
   }

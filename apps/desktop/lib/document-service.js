@@ -292,7 +292,7 @@ function createDocumentService(options = {}) {
     return { ok: true };
   }
 
-  const linked=require('./document-linked-file').createLinkedFileAccess({store,sessions,openSnapshot});
+  const linked=require('./document-linked-file').createLinkedFileAccess({store,sessions,openSnapshot,closeDocument:close});
   return { ...linked, bindOriginal, getOriginalState, saveOriginal, listSaveRecoveries, locateSaveRecovery, offloadSaveRecovery, open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
 }
 

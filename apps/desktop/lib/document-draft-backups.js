@@ -4,7 +4,7 @@ function createDraftBackups(store, notify = () => {}, attachmentsFor = () => [])
   const entries = new Map();
   function status(document) {
     const e = entries.get(document); if (!e) return null;
-    return { sequence: e.sequence, state: e.pending ? 'backup-pending' : e.result?.state || 'not-backed-up',
+    return { sequence: e.sequence, state: e.pending ? 'backup-pending' : (e.deferredInitial?'file-unmodified':e.result?.state || 'not-backed-up'),
       revision: e.confirmed?.revision ?? null, code: e.result?.code || null };
   }
   function flush(document) {
@@ -21,13 +21,13 @@ function createDraftBackups(store, notify = () => {}, attachmentsFor = () => [])
   function changed(document) {
     const e = entries.get(document); if (!e || e.stopped) return;
     if (e.confirmed?.revision === document.revision) return;
-    e.pending = true; e.sequence++;
+    e.deferredInitial=false;e.pending = true; e.sequence++;
     if (!e.timer) e.timer = setTimeout(() => flush(document), 800);
   }
-  function attach(document, label, recovery) {
+  function attach(document, label, recovery, deferInitial = false) {
     const e = { id: recovery && !recovery.warning ? recovery.id : store.newId(),
-      token: recovery && !recovery.warning ? recovery.token : null, fingerprint: recovery && !recovery.warning ? recovery.identity : null, label, sequence: 0, pending: false, timer: null };
-    entries.set(document, e); if (document.text.length || recovery) changed(document);
+      token: recovery && !recovery.warning ? recovery.token : null, fingerprint: recovery && !recovery.warning ? recovery.identity : null, label, deferredInitial:deferInitial&&!recovery, sequence: 0, pending: false, timer: null };
+    entries.set(document, e); if (!e.deferredInitial&&(document.text.length || recovery)) changed(document);
   }
   function rename(document, label) {
     const e = entries.get(document);
@@ -35,7 +35,7 @@ function createDraftBackups(store, notify = () => {}, attachmentsFor = () => [])
     const pending = e.pending;
     flush(document);
     if (e.stopped || (pending && !e.result?.ok)) return { ok: false, code: 'draft-name-unavailable' };
-    e.sequence++;
+    e.deferredInitial=false;e.sequence++;
     try {
       e.result = store.save({ id: e.id, token: e.token, fingerprint: e.fingerprint,
         label, revision: document.revision, bytes: document.bytesForSave(), attachments: attachmentsFor(document) });
@@ -48,6 +48,7 @@ function createDraftBackups(store, notify = () => {}, attachmentsFor = () => [])
   }
   function verifyForClose(document) {
     const e = entries.get(document); if (!e) return false;
+    if(e.deferredInitial)changed(document);
     flush(document);
     if (e.pending || !e.result?.ok || e.confirmed?.revision !== document.revision) return false;
     try {

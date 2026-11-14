@@ -8,7 +8,8 @@ function supportedOpenPath(file) {
     && !path.basename(file).startsWith('.env.') && !file.split(path.sep).includes('secrets');
 }
 
-// OS events grant read intent only. Paths never come back through renderer IPC.
+// OS events grant read intent; opening never writes back. Main may bind an
+// isolated writing copy, with explicit Save consent and existing native checks. Paths never come back through renderer IPC.
 // The bounded queue also captures events delivered before app/renderer readiness.
 function createNativeOpenQueue() {
   const entries = []; let overflow = 0, notify = () => {};

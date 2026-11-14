@@ -1,0 +1,11 @@
+body[data-document-viewer="true"] #file-comparison-dialog {width:min(1100px,calc(100vw - 48px));max-width:1100px;padding:0;}
+#file-comparison-dialog .comparison-intro {padding:0 24px;color:var(--muted);line-height:1.7;}
+#comparison-status {display:block;padding:0 24px 16px;line-height:1.6;}
+.comparison-columns {display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px;}
+.comparison-columns section {min-width:0;}
+.comparison-columns h3 {font-size:14px;margin:0 0 10px;}
+.comparison-columns textarea {box-sizing:border-box;width:100%;height:min(48vh,480px);min-height:180px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:16px;font:14px/1.8 ui-monospace,monospace;tab-size:4;}
+#file-comparison-dialog .comparison-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding:18px 24px;}
+@media(max-width:760px){.comparison-columns {grid-template-columns:1fr;}.comparison-columns textarea {height:24vh;}}
+
+#file-comparison-dialog .primary-action:enabled {background:var(--accent);border-color:var(--accent);color:var(--on-accent);}

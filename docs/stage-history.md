@@ -1,5 +1,46 @@
 # Stage History
 
+## Direct file writing and conflict continuation — 0.69.0 (2026-11-14)
+
+- Complete dialog/recent/Finder open → write → save/history → conflict comparison
+  → independent disk editing or Save As continuation. Preserve the accepted
+  workspace, exact source/byte model, native save coordination and old versions.
+- Main creates a bound writing buffer directly, using one visible session. The
+  original snapshot stays internal and opening never writes it. Unchanged repeat
+  opens focus existing edits/history, checking all live versions before refusing
+  a retained stale version. Explicit read-only inspection remains;
+  failed binding/factory work retains a readable original and removes partial
+  unreturned sessions. The product enables this mode; the development read-only
+  harness remains default, with an explicit source-only writing-open opt-in.
+- Defer initial recovery for untouched bound files. The first confirmed edit
+  starts backup. Untouched close freshly checks disk before skipping a draft
+  confirmation; changed/missing files use normal confirmation/backup verification.
+  Preload composition/pending/unknown guards and whole-window warnings stay intact.
+- Comparison keeps current/disk Markdown read-only. Main caches only a bounded
+  token/revision/fingerprint, not another full body. A single-use token authorizes
+  another verified read and a separate editable disk document; it never rebases
+  the old draft, restores its stopped authority or accepts renderer paths/text.
+  Failed/replaced comparisons retire old tokens. Closed comparison panes clear.
+- Confirmed native save/export refreshes trusted recent identity/hash metadata;
+  it fixes stale recent entries after the app's own version-preserving inode exchange.
+  Navigation failure never changes a successful save outcome or adopts arbitrary
+  renderer data. External replacement/changed records still refuse recent reuse.
+- Main authority tests cover exact BOM/CRLF, save consent/history, repeat opens
+  at eight sessions, stale/forged/revoked comparisons, missing files, fallback and
+  lazy backup. The full source Electron workflow covers external changes during
+  comparison, retained old writing, independent disk save, local Save As, recent
+  reopening, deferred OS intents and keyboard return. Historical harness failures
+  are retained in the private `file-writing-20261114` verification run.
+- Local verification: 3,358 Node passes, two existing skips, no failures; three
+  Electron workflows pass (direct writing, prior file workflow, accessibility).
+  CI and installed-package evidence are recorded separately after delivery.
+- The existing session router remains over 300 lines because ownership/revision/
+  lifecycle checks are reviewed together; additions stay local rather than doing
+  an unrelated router rewrite. New modules/tests are below ordinary size caps.
+- No new dependency, broader save directory, automatic merge/reload, product GC,
+  public-release or fresh physical-input/VoiceOver acceptance claim. Human and
+  paid-distribution deferrals remain in force. See roadmap for the next group.
+
 ## Sustained-use persistence lifecycle — 0.68.0 (2026-11-14)
 
 - Record the [product-direction review](audits/2026-11-14-product-direction-review.md)

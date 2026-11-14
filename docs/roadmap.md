@@ -19,7 +19,32 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — sustained-use persistence lifecycle, 0.68.0
+### Current batch — direct file writing and conflict continuation, 0.69.0
+
+Deliver one complete open/write/save/conflict workflow on the accepted workspace.
+The installed product opens native selections, recent files and Finder intents as
+main-created bound writing buffers; reopening unchanged files focuses existing
+writing/history rather than duplicating tabs. Explicit disk/export inspection
+stays read-only. Binding/storage failures retain a readable original.
+
+Unmodified open/close does not fill recovery storage. The first confirmed edit
+starts backup; unchanged close rechecks the bound file and retains input/unknown
+outcome guards. Whole-window close remains conservative about unconfirmed input.
+Confirmed save/export refreshes main-owned recent metadata without accepting an
+external file replacement as a successful save.
+
+Conflicts expose read-only current/disk Markdown side by side. A main-owned,
+revision-bound, single-use disk fingerprint permits opening a separate editable
+disk version only after another fresh read agrees. Current writing/history are
+preserved; Save As keeps local changes under a new name. This is explicit
+continuation, not automatic merge/reload or rebasing a stopped draft.
+
+Next advance common article/image compatibility from the review; ordinary external
+volume saving still needs native per-volume staging/recovery. Do not relax path
+checks or introduce another editor framework. Human long-writing/VoiceOver and
+paid distribution remain deferred as previously recorded.
+
+### Previous batch — sustained-use persistence lifecycle, 0.68.0
 
 The [2026-11-14 direction review](audits/2026-11-14-product-direction-review.md)
 is the continuation baseline. Complete capacity visibility, explicit recoverable

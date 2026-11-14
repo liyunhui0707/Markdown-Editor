@@ -89,7 +89,8 @@ app.whenReady().then(async () => {
     } catch { /* History unavailable: native open and drafts remain usable. */ }
   }
   let temporaryCreated = false, temporaryNumber = 0;
-  const manager = createDocumentSessions({ service, draftStore, recentFiles, images, nativeOpens,
+  const openForWriting=!!originalWriter&&!!draftStore&&(product||(!app.isPackaged&&process.argv.includes('--document-writing-open')));
+  const manager = createDocumentSessions({ openForWriting, service, draftStore, recentFiles, images, nativeOpens,
     confirmOriginalSave: originalWriter?async(win,file)=>{
       const r=await dialog.showMessageBox(win,{type:'warning',message:'保存回原文件？',detail:`${file}\n已确认正文将写回这个文件，旧版本保留在本机恢复目录。外部修改会报告冲突；极窄竞态下原路径可能已更新，被换下的版本会保留，不会自动覆盖回去。仅用于未同步的普通本地文件。之后点击保存仍使用这个目标。`,buttons:['取消','保存并保留旧版本'],defaultId:0,cancelId:0,noLink:true});return r.response===1;
     }:null,
@@ -162,7 +163,7 @@ app.whenReady().then(async () => {
     if (!opened.ok) throw Error('Synthetic fixture refused');
     manager.provision(win, opened.document, name);
   }
-  win.webContents.send('document-demo:ready', { readOnlyWindow, draftsEnabled: !!draftStore, draftError });
+  win.webContents.send('document-demo:ready', { readOnlyWindow, draftsEnabled: !!draftStore, draftError, openForWriting });
 }).catch(() => { console.error('Document window startup failed'); app.exit(1); });
 app.on('window-all-closed', () => app.quit());
 

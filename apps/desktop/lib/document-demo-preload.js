@@ -26,13 +26,16 @@ const request = async (operation, data = {}) => {
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: 'ipc-outcome-unknown' };
   }
+  const comparisonAction=['compare-linked-file','edit-compared-file'].includes(operation);
+  const standardOpening=operation==='open-file';
+  const writingSnapshot=r=>r.openedForWriting===true?r.snapshot?.temporary===true&&r.snapshot.readOnly===false&&r.snapshot.originalSave?.available===true&&typeof r.snapshot.linkedFile?.filePath==='string'&&r.snapshot.originalSave.filePath===r.snapshot.linkedFile.filePath:r.openedForWriting===undefined&&r.snapshot?.readOnly===true&&r.snapshot.temporary!==true;
   const linkedAction=['inspect-linked-file','open-linked-file','reveal-linked-file'].includes(operation);
   const originalSaving=operation==='save-original';
   const forking = operation === 'edit-copy' || operation === 'restore-draft';
   const following = operation === 'open-confirmed-copy' || operation === 'reveal-confirmed-copy';
   const nativeOpening = operation === 'open-native-file';
   const recentOpening = operation === 'open-recent', recentClearing = operation === 'clear-recents', renaming = operation === 'rename-draft';
-  if (nativeOpening || recentOpening || recentClearing || renaming) {
+  if (standardOpening || nativeOpening || recentOpening || recentClearing || renaming) {
     if (composing) return { ok: false, code: 'composition-active' };
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
@@ -46,7 +49,7 @@ const request = async (operation, data = {}) => {
   if (['format','source-edit'].includes(operation) && pending) return { ok: false, code: 'document-busy' };
   if (managing && draftManagementUnknown) return { ok: false, code: 'draft-operation-unknown' };
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
-  if (linkedAction || originalSaving || creating || forking || managing || following || importing) {
+  if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing) {
     if ((operation === 'restore-draft' || managing) && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
@@ -62,11 +65,16 @@ const request = async (operation, data = {}) => {
   catch (error) {
     if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
     if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
+    if(comparisonAction){unknown.set(sessionId,'comparison-outcome-unknown');return {ok:false,code:'comparison-outcome-unknown'};}
     unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (linkedAction || originalSaving || creating || forking || managing || following || importing || renaming || nativeOpening) return { ok: false, code: unknown.get(sessionId) };
+    if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing || renaming || nativeOpening) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (linkedAction || originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
+  } finally { --pending; if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
+  if(standardOpening&&(!result||typeof result.ok!=='boolean'||(result.ok&&(!writingSnapshot(result)||states.has(result.snapshot?.sessionId))))){unknown.set(undefined,'ipc-outcome-unknown');return {ok:false,code:'ipc-outcome-unknown'};}
+  if(comparisonAction&&(!result||typeof result.ok!=='boolean'||(result.ok&&(operation==='compare-linked-file'
+    ? result.snapshot?.sessionId!==sessionId||result.snapshot.revision!==data.expectedRevision||typeof result.comparison?.source!=='string'||result.comparison.source.length>524288||!/^[a-f0-9-]{36}$/.test(result.comparison.token)||!/^[a-f0-9]{64}$/.test(result.comparison.sha256)
+    :result.sessionId!==sessionId||result.requestRevision!==data.expectedRevision||result.comparisonToken!==data.comparisonToken||!writingSnapshot(result)||result.snapshot.sessionId===sessionId||result.snapshot.revision!==0||result.snapshot.canUndo||result.snapshot.canRedo||states.has(result.snapshot.sessionId))))){unknown.set(sessionId,'comparison-outcome-unknown');return {ok:false,code:'comparison-outcome-unknown'};}
   if(linkedAction&&(!result||typeof result.ok!=='boolean'||(result.ok&&
     (operation==='inspect-linked-file'
       ? result.snapshot?.sessionId!==sessionId||result.snapshot.revision!==data.expectedRevision
@@ -86,13 +94,12 @@ const request = async (operation, data = {}) => {
     unknown.set(sessionId, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
   }
   if (nativeOpening && (!result || typeof result.ok !== 'boolean' || result.requestId !== data.requestId || (result.ok &&
-      (typeof result.snapshot?.sessionId !== 'string' || result.snapshot.readOnly !== true
-       || result.snapshot.temporary === true || states.has(result.snapshot.sessionId))))) {
+      (typeof result.snapshot?.sessionId !== 'string' || !writingSnapshot(result) || states.has(result.snapshot.sessionId))))) {
     unknown.set(undefined, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
   }
   if (recentOpening && (!result || typeof result.ok !== 'boolean' || (result.ok &&
       (result.recentId !== data.recentId || typeof result.snapshot?.sessionId !== 'string'
-       || result.snapshot.readOnly !== true || result.snapshot.temporary === true || states.has(result.snapshot.sessionId))))) {
+       || !writingSnapshot(result) || states.has(result.snapshot.sessionId))))) {
     unknown.set(undefined, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
   }
   if (managing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
@@ -165,6 +172,8 @@ contextBridge.exposeInMainWorld('documentDemo', {
   onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
     if (typeof data?.sessionId === 'string' && !states.has(data.sessionId)) handler(data);
   }),
+  compareLinkedFile: data => request('compare-linked-file',data),
+  editComparedFile: data => request('edit-compared-file',data),
   inspectLinkedFile: data => request('inspect-linked-file',data),
   openLinkedFile: data => request('open-linked-file',data),
   revealLinkedFile: data => request('reveal-linked-file',data),

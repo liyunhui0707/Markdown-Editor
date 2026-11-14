@@ -688,3 +688,17 @@ test('image preload accepts the full image byte budget and refuses oversized or 
    assert.equal((await bad.api[method](request)).code,'draft-operation-unknown');
   }
  });
+
+test('preload accepts declared direct writing and retains read-only opens; malformed bindings remain fenced',async()=>{
+ const snapshot={sessionId:'direct',temporary:true,readOnly:false,originalSave:{available:true,filePath:'/synthetic/a.md'},linkedFile:{filePath:'/synthetic/a.md'}};
+ for(const method of ['openFile','openRecent','openNativeFile']){
+  const f=preloadFixture(),p=f.api[method]('intent');f.pending[0].resolve({ok:true,openedForWriting:true,recentId:'intent',requestId:'intent',snapshot});assert.equal((await p).ok,true);
+  const bad=preloadFixture(),pending=bad.api[method]('intent');bad.pending[0].resolve({ok:true,openedForWriting:true,recentId:'intent',requestId:'intent',snapshot:{...snapshot,originalSave:null}});assert.equal((await pending).ok,false);
+ }
+});
+test('comparison preload validates source, revision and new binding receipts and fences unknown operations',async()=>{
+ const request={sessionId:'source',expectedRevision:2},f=preloadFixture(),p=f.api.compareLinkedFile(request);f.pending[0].resolve({ok:true,snapshot:{sessionId:'source',revision:2},comparison:{token:'a'.repeat(36),source:'disk',sha256:'a'.repeat(64)}});assert.equal((await p).ok,true);
+ const bad=preloadFixture(),pending=bad.api.compareLinkedFile(request);bad.pending[0].resolve({ok:true,snapshot:{sessionId:'wrong',revision:2},comparison:{}});assert.equal((await pending).code,'comparison-outcome-unknown');
+ assert.equal((await bad.api.editComparedFile({...request,comparisonToken:'a'.repeat(36)})).ok,false);
+ const lost=preloadFixture(),unknown=lost.api.editComparedFile({...request,comparisonToken:'a'.repeat(36)});lost.pending[0].reject(Error('synthetic'));assert.equal((await unknown).code,'comparison-outcome-unknown');assert.equal((await lost.api.compareLinkedFile(request)).ok,false);
+});

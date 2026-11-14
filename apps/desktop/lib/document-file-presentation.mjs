@@ -8,7 +8,7 @@ export function filePresentation(current,state){
  const pending=state&&(state.pending||state.historyPending||state.composing||state.compositionInvalid||state.source!==current.source);
  const label=blocked?'保存已暂停':pending?'输入待确认':known==='changed'?'磁盘文件已变化':known==='missing'?'磁盘文件已移动或删除':known==='unavailable'?'磁盘文件暂不可核对'
   :typeof current.copySha256==='string'&&current.copySha256===file.baselineSha256?'正文已保存':'修改未保存';
- return {label,kind:'文件草稿 · '+label,location:file.filePath};
+ return {label,kind:'文件 · '+label,location:file.filePath};
 }
 export function linkedFileMessage(file,stopped=false){
  if(!file)return '此草稿尚未关联磁盘文件。另存新文件后可在这里核对。';
