@@ -182,6 +182,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   saveOriginal: data => request('save-original',data),
   offloadSaveRecovery: data => request('offload-save-recovery',data),
   listSaveRecoveries: () => request('list-save-recoveries'),
+  revealSaveStaging: recordId => request('reveal-save-staging',{recordId}),
   revealSaveRecovery: recordId => request('reveal-save-recovery',{recordId}),
   openConfirmedCopy: data => request('open-confirmed-copy', data),
   revealConfirmedCopy: data => request('reveal-confirmed-copy', data),

@@ -37,8 +37,8 @@ static NSData *readBytesLimit(int fd, size_t limit) {
   return d;
 }
 static NSData *readBytes(int fd) {return readBytesLimit(fd,DOCUMENT_MAX_BYTES);}
-static NSDictionary *nativeAttributes(int fd, BOOL directory, BOOL *hasACL) {
-  struct stat s;if(fstat(fd,&s)||s.st_flags)refuse(@"unsupported-flags");
+static NSDictionary *checkedAttributes(int fd, BOOL directory, BOOL *hasACL, unsigned int expectedFlags) {
+  struct stat s;if(fstat(fd,&s)||s.st_flags!=expectedFlags)refuse(@"unsupported-flags");
   // On macOS a valid fd with no extended ACL returns ENOENT. Other failures refuse.
   errno=0;acl_t acl=acl_get_fd_np(fd,ACL_TYPE_EXTENDED);
   if(!acl&&errno!=ENOENT)refuse(@"metadata-unavailable");
@@ -69,6 +69,7 @@ static NSDictionary *nativeAttributes(int fd, BOOL directory, BOOL *hasACL) {
     attrs[name]=digest(value);offset+=n+1;
   }return attrs;
 }
+static NSDictionary *nativeAttributes(int fd,BOOL directory,BOOL *acl){return checkedAttributes(fd,directory,acl,0);}
 static NSDictionary *attributes(int fd){return nativeAttributes(fd,NO,NULL);}
 static int openRegular(int dir, const char *name, int flags) {
   int fd=openat(dir,name,flags|O_NOFOLLOW|O_NONBLOCK);if(fd<0)refuse(@"file-unavailable");
@@ -91,7 +92,11 @@ static void verifyAncestors(NSArray *ancestors) {
     if(![p isKindOfClass:NSString.class]||![p hasPrefix:@"/"])refuse(@"invalid-directory");
     int fd=open(p.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(fd<0)refuse(@"directory-changed");
     BOOL match=NO;
-    @try {match=same(identity(fd),a[@"identity"],posixKeys());BOOL acl=NO;NSDictionary *attrs=nativeAttributes(fd,YES,&acl);
+    @try {match=same(identity(fd),a[@"identity"],posixKeys());BOOL acl=NO;unsigned int flags=0;
+      if([a[@"trustedTransit"] boolValue]){struct stat transit;if(fstat(fd,&transit)||transit.st_uid!=0)refuse(@"invalid-transit");
+        mode_t mode=transit.st_mode&07777;BOOL sticky=([p isEqual:@"/Users/Shared"]||[p isEqual:@"/private/tmp"])&&mode==01777;
+        if(mode!=0755&&mode!=0555&&!sticky)refuse(@"invalid-transit");flags=(unsigned int)[a[@"metadata"][@"flags"] longLongValue];}
+      NSDictionary *attrs=checkedAttributes(fd,YES,&acl,flags);
       if(a[@"location"]){
         if(![a[@"location"] isEqual:@{@"ubiquitous":@NO}])refuse(@"invalid-directory-location");
         verifyLocalDirectory(p);

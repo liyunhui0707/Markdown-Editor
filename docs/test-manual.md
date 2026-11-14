@@ -1,5 +1,13 @@
 # Manual Test Checklist
 
+## Cross-location APFS workflow — 0.71.0
+
+Use disposable documents in an owned ordinary non-Home folder or an external APFS volume with ownership enabled. Open, edit, Undo/Redo, Save, export under a fresh name and reopen. Exact text and attachments should survive; an existing export name must never be overwritten.
+
+In 草稿 → 保存版本, inspect both the local record and target-volume recovery area. Disconnect only after all writes finish; local copies/listing must remain available. Reconnect the same volume and inspect its recovery area again. A changed/missing file or interrupted save must retain writing and report uncertainty/conflict rather than retry automatically. Keep hidden recovery material in place. Do not unplug a volume containing valuable data to simulate failure.
+
+Physical external hardware, abrupt power loss and this complete manual workflow remain NOT TESTED by a human; controlled disk-image tests are separate evidence. Existing input/VoiceOver passes and deferred longer writing retain their scope.
+
 ## Current daily-use acceptance — 0.67.0 (2026-11-14)
 
 The user postponed the genuine 20–30 minute writing session and heading/table

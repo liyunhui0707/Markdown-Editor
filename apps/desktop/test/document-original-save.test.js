@@ -87,6 +87,7 @@ test('preload original save fences input and rejects a mismatched success withou
  const saving=api.saveOriginal(request);assert.equal((await api.saveOriginal(request)).code,'document-busy');assert.equal((await api.undo(request)).code,'copy-in-progress');
  pending[0].resolve({ok:true,snapshot:{sessionId:'a',revision:4,originalSave:{receipt:{state:'saved-confirmed'}}}});assert.equal((await saving).code,'save-outcome-unknown');assert.equal((await api.saveOriginal(request)).code,'save-outcome-unknown');assert.equal(pending.length,1);
  const reveal=api.revealSaveRecovery('id');assert.equal(pending[1].payload.recordId,'id');pending[1].resolve({ok:true});await reveal;
+ const staging=api.revealSaveStaging('record-only');assert.equal(pending[2].payload.operation,'reveal-save-staging');assert.deepEqual(Object.keys(pending[2].payload).sort(),['operation','recordId']);pending[2].resolve({ok:false,code:'staging-unavailable'});assert.equal((await staging).code,'staging-unavailable');
 });
 test('production helper rejects test-only protocol controls', {skip:!process.env.DOCUMENT_NATIVE_SAVE_PRODUCTION_BINARY},()=>{
  const r=require('node:child_process').spawnSync(process.env.DOCUMENT_NATIVE_SAVE_PRODUCTION_BINARY,[],{input:'{"testPoint":"before-swap"}\n',encoding:'utf8',timeout:2000});assert.equal(r.status,64);assert.equal(r.stdout,'');
