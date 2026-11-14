@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.66.0 development build with common inline compatibility.** This is not
+**0.67.0 development build with explicit disk-version inspection.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -33,6 +33,24 @@ Document App, Finder association, keyboard controls, verified local ZIPs,
 updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
+
+## Everyday file workflow — 0.67.0
+
+The footer/sidebar/details distinguish an independent draft, unsaved bound-file
+changes, saved content and a paused save. File status compares exact confirmed
+content with its current main-owned file baseline; local backup remains separate.
+
+In **Details → Disk file**, explicitly check for disk changes, reveal the verified
+file in Finder, or open its current contents as another read-only document.
+The existing original/draft, source, Undo/Redo and backups remain intact. Disk
+checks are timestamped observations, not live monitoring. Changed/missing bound
+files pause writing back; checking again does not restore stopped authority.
+Create an editing copy of the verified disk version, or export the retained draft
+under a new filename. Saving still revalidates the file independently.
+
+Home-descendant ordinary local APFS destinations remain the supported scope.
+Cross-volume replacement needs a separate native staging/recovery design; this
+batch does not enable external, network or cloud/sync destinations.
 
 ## Common inline compatibility — 0.66.0
 

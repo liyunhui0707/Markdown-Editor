@@ -1,5 +1,41 @@
 # Stage History
 
+## Everyday file workflow — 0.67.0 (2026-11-14)
+
+- A complete open/edit/save/external-change group keeps the accepted workspace.
+  Main derives linked-file check/open/reveal from existing session snapshots only.
+  Renderer sends session/revision, no file path. Current disk bytes open as a
+  separate read-only session; original/draft text, history and backups remain.
+- Explicit checks retain a timestamp and distinguish unchanged, changed, missing
+  and unavailable. Changed/missing bound targets stop saving; checks never rebase
+  or restore stopped authority. Native saving still verifies independently. The
+  conflict notice offers current-disk reading and exclusive Save As. Unknown-save
+  warnings take priority; rechecks keep the stopped explanation and input guards.
+- Footer/sidebar/details compare the exact current bound baseline hash. A freshly
+  exported draft can show saved content despite its synthetic-model dirty flag;
+  later edits/Undo/Redo remain distinct from local backup and historical exports.
+- TDD starts with missing linked capability failures. Tests cover original/bound/
+  unbound files, changed/missing/symlink/encoding failures, stale/revoked requests,
+  capacity, preload unknown outcomes and composition/pending fences. 3,337 Node
+  passes and two expected skips; controlled Electron covers the complete disk
+  workflow plus native opening and original saving/restart recovery. These are
+  not physical IME or human VoiceOver acceptance. Old conflict UI assertion now
+  checks the explicit paused state/code; exact content/history guards remain.
+- New main helper (36 lines), presentation and view helpers stay under 70 lines.
+  Existing session IPC/renderer stay above the guideline: this group adds bounded
+  dispatch and view integration, not an unrelated architecture split. Existing
+  original-save tests reuse the real service/session/backup harness.
+- Broader save locations evaluated but not silently enabled: current native
+  replacement/recovery assumes one local device and Home-based ancestor proofs.
+  External volumes need independent native staging/recovery verification. Network
+  and sync locations remain unsupported; paid distribution stays deferred.
+- Evidence lives in the control checkout's ignored
+  `.local/verification/file-workflow-20261114/`. New Home test containers are
+  archived with identity/hash manifests and restore mappings, including failed
+  runs. Package/installation checks and CI are recorded there; no user document
+  is used by the controlled workflows.
+
+
 ## Common Markdown authoring compatibility — 0.66.0 (2026-11-14)
 
 Exact inline projection now admits common bold/italic combinations in supported

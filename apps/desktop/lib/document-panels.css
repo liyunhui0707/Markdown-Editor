@@ -67,3 +67,6 @@ body[data-document-viewer] .side-panel {width:464px}
   .panel-heading {padding:16px}
   #copy-confirm-dialog {padding:24px 20px}
 }
+
+.file-location{overflow-wrap:anywhere;user-select:text}
+#linked-file-status{display:block;line-height:1.65}

@@ -1,3 +1,4 @@
+import {filePresentation} from './document-file-presentation.mjs';
 // Presentation only: session authority, edits, composition and writes stay in their controllers.
 export function createWritingShell({ byId, context, refreshDrafts = () => {}, reading = null, sourceView = null }) {
   let enabled = false, previousSession = null;
@@ -84,7 +85,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
   function syncNavigation() {
     if (!enabled) return;
     const c = context(), confirmed = c.state?.confirmed, select = byId('documents');
-    if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly });
+    if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly, detail:filePresentation(confirmed).kind });
     const options = [...select.options], ids = new Set(options.map(o => o.value));
     for (const [id, row] of rows) if (!ids.has(id)) { row.button.remove(); rows.delete(id); metadata.delete(id); }
     const list = byId('session-list'), doc = list.ownerDocument;
@@ -102,7 +103,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       button.setAttribute('aria-current', String(id === confirmed?.sessionId));
       button.disabled = !!(blocked() || select.disabled || c.unavailable?.(id));
       detail.textContent = c.unavailable?.(id) ? '会话已不可用' : c.pendingSession === id ? '正在切换…'
-        : m?.temporary ? '独立草稿' : m?.readOnly ? '原文只读' : '已打开文档';
+        : m?.detail || (m?.temporary ? '独立草稿' : m?.readOnly ? '原文只读' : '已打开文档');
       button.hidden = !option.textContent.toLocaleLowerCase().includes(byId('session-filter').value.trim().toLocaleLowerCase());
     }
     byId('session-count').textContent = String(options.length);
@@ -125,8 +126,9 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       previousSession = current?.sessionId;
     }
     byId('details-document-name').textContent = current?.label || '未打开文档';
-    byId('details-document-kind').textContent = current?.temporary ? (current.originalSave?.lastConfirmed ? (current.dirty?'文件草稿 · 修改未保存':'文件草稿 · 正文已保存') : '独立草稿') : '原文件 · 只读';
-    byId('details-document-location').textContent = current?.temporary ? (current.originalSave?.filePath || '独立草稿，尚未关联文件。') : current?.location || '';
+    const file=filePresentation(current);
+    byId('details-document-kind').textContent = file.kind;
+    byId('details-document-location').textContent = file.location;
     byId('details-document-revision').textContent = String(current?.revision ?? '—');
     byId('details-document-count').textContent = current ? current.source.replace(/\s/gu, '').length.toLocaleString() : '—';
     byId('details-backup-card').hidden = !current?.temporary;
@@ -151,7 +153,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('draft-recovery-panel').open = true;
     byId('details-writing-help').append(byId('temporary-notice'));
     byId('details-backup-content').append(byId('draft-backup-status'));
-    byId('document-details-content').append(byId('original-save-receipt'),byId('test-copy-panel'));
+    byId('document-details-content').append(byId('linked-file-card'),byId('original-save-receipt'),byId('test-copy-panel'));
     confirmation.append(byId('test-copy-confirmation'));
     for (const id of ['composition-status', 'composition-warning', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId('input-alerts').append(byId(id));
     sidebar(!media?.matches);

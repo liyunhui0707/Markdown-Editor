@@ -1,3 +1,4 @@
+import {originalSaveNotice} from './document-file-presentation.mjs';
 // Save authority stays in main. This view only selects the current bound session.
 export function originalSaveRefusal(s, c = {}) {
   const o=s?.confirmed?.originalSave;
@@ -17,9 +18,10 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
     const alert=byId('original-save-status');alert.replaceChildren();alert.hidden=!o;
     if(!o)return;
     const r=o.receipt;
-    if(last){const text=doc.createElement('p');text.textContent=`已保存回 ${last.filePath.split('/').pop()} · ${s.confirmed.dirty?'之后的修改尚未保存':'当前正文已保存'}。`;alert.append(text);}
-    const message=notices.get(c.selected)||(r?.ok===false?(r.committed===false?'未保存回原文件。请保留草稿，重新打开原文件核对，或另存新文件。':'本次保存未确认，原路径可能已经更新。各版本已保留，请检查恢复材料；不会自动重试或回退。'):'');
+    if(last){const text=doc.createElement('p');text.textContent=`已保存回 ${last.filePath.split('/').pop()} · ${o.stopped?'当前文件状态需核对':s.confirmed.dirty?'之后的修改尚未保存':'当前正文已保存'}。`;alert.append(text);}
+    const message=originalSaveNotice(s.confirmed)||notices.get(c.selected)||'';
     if(message){const text=doc.createElement('p');text.textContent=message+(r?.code?`（${r.code}）`:'');alert.append(text);}
+    if(o.stopped&&s.confirmed.linkedFile){for(const [label,id] of [['打开磁盘版','open-linked-file'],['另存新文件…','create-test-copy']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=!!(c.loading||c.invalid||s.locked||s.pending||s.historyPending||s.composing||s.compositionInvalid||s.recoveryRecords.length||s.source!==s.confirmed.source);b.onpointerdown=e=>byId(id).onpointerdown?.(e);b.onclick=()=>byId(id).click();alert.append(b);}}
     if(r?.recordId){const reveal=doc.createElement('button');reveal.type='button';reveal.textContent='查看保存版本';reveal.disabled=!!c.loading;reveal.onclick=()=>api.revealSaveRecovery(r.recordId);alert.append(reveal);}
     alert.hidden=!alert.childNodes.length;alert.dataset.tone=message?'error':'success';
   }

@@ -4,6 +4,16 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.67.0 file-use clarity.** Main derives linked read/check/reveal capabilities
+only from opened-original or bound-file snapshots; renderer supplies session/revision,
+never paths. Disk observations are explicit and timestamped; opening a disk version
+creates another read-only session and preserves original/draft/history. A confirmed
+changed/missing bound file stops saving; later checks never rebase or clear stopped
+state. File presentation uses exact current baseline hashes, separately from local
+backup and historical export receipts. No watcher or new write authority. Save
+scope stays Home-descendant ordinary local APFS: external volumes need a separate
+native staging/recovery design, not just relaxed JS path checks.
+
 **0.66.0 installed development build: common inline compatibility.** Exact lexical emphasis frames
 project combined bold/italic text in supported single-line paragraphs/headings,
 explicit quote rows and tight list items. Inline typing, bounded selected-range

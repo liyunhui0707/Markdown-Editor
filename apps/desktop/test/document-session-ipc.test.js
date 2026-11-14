@@ -4,8 +4,8 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { EventEmitter } = require('node:events');
 const { createDocumentService } = require('../lib/document-service');
 const { createDocumentSessions, registerDocumentIpc, CHANNEL } = require('../lib/document-session-ipc');
-let projectSource, mapTextEdit, mapFormatEdit;
-test.before(async () => { ({ projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs')); ({mapFormatEdit}=await import('../lib/document-format-edit.mjs')); });
+let projectSource, mapTextEdit, mapFormatEdit,filePresentation;
+test.before(async () => { ({filePresentation}=await import('../lib/document-file-presentation.mjs')); ({ projectSource, mapTextEdit } = await import('../lib/document-source-map.mjs')); ({mapFormatEdit}=await import('../lib/document-format-edit.mjs')); });
 function fixture(options = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-ipc-')));
   const file = path.join(root, 'a.md'); fs.writeFileSync(file, '\ufeff# 标题😀\r\n\r\nA **粗体** end.\r\n', { flag: 'wx', mode: 0o640 });
@@ -361,7 +361,7 @@ function copyHeader(confirmed) {
   const helper = entry.match(/function persistentCopyNote\(receipt\) \{[\s\S]*?\n\}/)?.[0] || '';
   const nodes = new Map();
   const byId = id => { if (!nodes.has(id)) nodes.set(id, { querySelector: () => ({}) }); return nodes.get(id); };
-  require('node:vm').runInNewContext(helper + '\n' + block[0], { s: { confirmed, recoveryRecords: [] }, byId, busy: false, activeInvalid: () => false });
+  require('node:vm').runInNewContext(helper + '\n' + block[0], { s: { confirmed, recoveryRecords: [] }, filePresentation, byId, busy: false, activeInvalid: () => false });
   return { note: byId('document-info-note').textContent, badge: byId('readonly-badge').textContent };
 }
 for (const receipt of [undefined, { ok: true, state: 'not-created', created: false },

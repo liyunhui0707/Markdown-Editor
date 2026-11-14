@@ -1,5 +1,20 @@
 # Manual Test Checklist
 
+## Everyday file workflow — 0.67.0
+
+Use a disposable local `.md`. Open it, then Details → Check disk changes: the
+path and timestamp should describe this file. Open disk version must leave the
+previous original open. Create an editing copy, change text, save, Undo and Redo;
+file status should distinguish unsaved/saved text independently from draft backup.
+
+Change the file in another editor. Explicitly check disk again: saving pauses and
+current text/history remain. Open disk version in a separate read-only session;
+return to the retained draft and export under a new name. The external contents
+must remain unchanged. Move the newly exported synthetic file away and recheck:
+missing-file feedback must preserve writing and allow Save As with a fresh name.
+A later successful check must not silently resume an already stopped save.
+Keyboard/VoiceOver checks of these new controls are NOT TESTED by a human yet.
+
 ## Common inline compatibility — 0.66.0
 
 Use a disposable article with headings, combined bold/italic text, soft-wrapped
