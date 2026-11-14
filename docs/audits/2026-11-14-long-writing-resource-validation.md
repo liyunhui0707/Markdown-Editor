@@ -36,7 +36,7 @@ observations, not a claim that every historical RSS byte has been attributed.
   visible inactive native window. No product background-throttling or GC setting
   is changed, and no user window is operated.
 - One test helper checks the native visible/not-minimized state, renderer
-  visibility and two animation-frame timestamps before accepting a sample.
+  visibility and two distinct animation-frame timestamps before accepting a sample.
   Frame callbacks are recorded evidence; they do not certify every compositor
   presentation or performance characteristic of every desktop environment.
 - Samples identify renderer byte units separately from Electron main/process
@@ -45,21 +45,36 @@ observations, not a claim that every historical RSS byte has been attributed.
   vmmap physical footprint are different measures. vmmap could not inspect the
   target PartitionAlloc malloc zone; its partial summary cannot prove allocator
   ownership or quantify a leak.
-- Four Node cases protect false-visible native windows, invalid renderer/frame
+- Six Node cases protect false-visible native windows, invalid renderer/frame
   states, unit labels and explicit collection. Existing exact content/history,
   file bytes, backup count, closed session and image DOM-budget assertions remain.
 
-Local full Node baseline: 3,388 passes, two existing skips, no failures. The three
+Local full Node baseline: 3,390 passes, two existing skips, no failures. The three
 corrected visible Electron workflows pass. In the six-cycle short writing run,
 collected renderer embedder usage stayed between 2,409,192 and 2,757,712 bytes;
 working set fluctuated rather than providing a stand-alone leak conclusion.
 
-The opt-in 20-minute run uses these same visibility fences and records exact
-restart/continued-writing plus natural/collected resource observations. Its
-completion is recorded in the private verification record and PR evidence,
-separately from the short CI workload. Automation remains synthetic input; it
+The opt-in visible run passed in 20.51 minutes: six cycles on 480,929 UTF-16
+units, 11,152 input units, exact restart and continued writing, with no page faults
+or network requests. Collected embedder heap ranged from 2,864,136 to 3,141,576
+bytes; renderer working set ranged from 294,560 to 309,488 Electron kilobytes.
+All accepted samples recorded a visible native window and increasing frame times.
+This longer run remains separate from the short CI workload. Automation remains synthetic input; it
 does not replace genuine longer human writing, physical IME/clipboard or spoken
 heading/table VoiceOver acceptance. Those scoped deferrals remain unchanged.
+
+## Duplicate frame-clock regression
+
+The first CI run refused one fixed-record sample while the other 15 Electron
+workflows passed. Structured diagnostics and a five-repeat local run reproduced
+its cause: both callbacks returned 8,525.332 while the native/renderer windows were
+visible. Immediate rejection confused a scheduling condition with bad presentation.
+The collector now waits, up to the existing five-second bound, for two distinct
+frame times; it records callback count. Hidden/minimized windows and a stationary
+clock still cannot produce accepted evidence. Deterministic duplicate/stalled-clock
+cases and repeated real Electron reuse protect that distinction. Original failed
+CI/local artifacts remain retained. The long run's already increasing timestamps
+satisfy the same final sampling condition.
 
 ## Conclusion and continuation
 

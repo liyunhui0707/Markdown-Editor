@@ -7,13 +7,17 @@
   visible; native performance-event/text-paint queues drain after the same window
   is shown and allowed to produce frames. Preserve old results with that limit.
 - Shared test-only probe requires native visibility, renderer visibility and two
-  frame callbacks. Record API units, process IDs, natural samples and explicit
+  distinct frame timestamps. Record API units, process IDs, natural samples and explicit
   diagnostic collection separately. No product GC, purge or throttling change.
 - Apply the fence to image resources, fixed-record reuse and sustained writing;
-  retain exact history/content/recovery/file and DOM-budget assertions. Four new
-  unit cases, full Node baseline (3,388 pass, two existing skips) and three local
+  retain exact history/content/recovery/file and DOM-budget assertions. Six new
+  unit cases, full Node baseline (3,390 pass, two existing skips) and three local
   visible Electron workflows pass. Opt-in duration evidence remains distinct from
   short CI and genuine human writing.
+- A repeated local run diagnosed equal consecutive callback timestamps behind
+  the first CI refusal. Wait for distinct times within the same five-second bound;
+  preserve native visibility and stalled-clock refusal, with state diagnostics.
+  The opt-in visible 20.51-minute writing/restart run passed separately from CI.
 - Verification-only group: installed 0.70.1 and package/dependency inputs unchanged;
   no version bump or additional App copy. New helper/tests stay below 300 lines.
   Long-term memory and deferred physical/spoken acceptance are not closed by it.

@@ -1,13 +1,23 @@
 'use strict';
 // Test evidence only. No product hooks, cache purging or background-throttling changes.
+function rendererFrames() {
+ return new Promise((resolve,reject)=>{
+  const frames=[];let frameCallbacks=0,settled=false;
+  const timer=setTimeout(()=>{settled=true;reject(Error('Resource sample needs two distinct frame timestamps: '+JSON.stringify({frames,frameCallbacks})));},5000);
+  function next(time){
+   if(settled)return;frameCallbacks++;
+   // Consecutive callbacks can share a timestamp on macOS. Wait for progress,
+   // rather than treating that scheduling condition as invalid memory evidence.
+   if(Number.isFinite(time)&&(!frames.length||time>frames[0]))frames.push(time);
+   if(frames.length===2){settled=true;clearTimeout(timer);resolve({visibility:document.visibilityState,hidden:document.hidden,frames,frameCallbacks});}
+   else requestAnimationFrame(next);
+  }
+  requestAnimationFrame(next);
+ });
+}
 function createResourceProbe({app,page,cdp}) {
  async function observe() {
-  const presentation=await page.evaluate(()=>new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>reject(Error('Resource sample needs presented renderer frames')),5000);
-   requestAnimationFrame(first=>requestAnimationFrame(second=>{
-    clearTimeout(timer);resolve({visibility:document.visibilityState,hidden:document.hidden,frames:[first,second]});
-   }));
-  }));
+  const presentation=await page.evaluate(rendererFrames);
   const host=await app.evaluate(({app,BrowserWindow})=>{
    const windows=BrowserWindow.getAllWindows();if(windows.length!==1)throw Error('One isolated resource window required');
    const window=windows[0];return {window:{visible:window.isVisible(),minimized:window.isMinimized(),rendererPid:window.webContents.getOSProcessId()},
@@ -28,4 +38,4 @@ function createResourceProbe({app,page,cdp}) {
   return {...await observe(),collected:true,beforeCollection:before};
  }};
 }
-module.exports={createResourceProbe};
+module.exports={createResourceProbe,rendererFrames};

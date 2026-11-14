@@ -146,7 +146,9 @@ heap/process samples, explicit diagnostic collection at open/closed checkpoints,
 results. GC is test-only and never used by the product to mask resource behavior.
 Resource workflows keep the isolated native window visible without activation.
 The schema-2 probe refuses hidden/minimized native windows, hidden renderer state
-or missing frame callbacks; renderer visibility alone is insufficient. Samples
+or missing frame progress; renderer visibility alone is insufficient. Consecutive
+callbacks can share a timestamp; wait up to five seconds for two distinct times,
+record callback count and reject a clock that does not progress. Samples
 label CDP byte units separately from Electron main/process kilobytes and retain
 PIDs/types. Natural samples and explicit diagnostic collection remain separate.
 Historical hidden-window snapshots remain archived with that measurement limit;
