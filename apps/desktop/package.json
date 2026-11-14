@@ -1,11 +1,11 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.71.0",
+  "version": "0.71.1",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "document-app-main.js",
   "scripts": {
     "dev": "electron .",
-    "test": "node --test test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js",
+    "test": "node --test --test-concurrency=2 test/*.test.js test/*.test.mjs test/spike-cm6/*.test.js test/cm6-write-view/*.test.js",
     "test:ci": "node tools/check-test-baseline.mjs",
     "test:e2e": "playwright test --config=e2e/playwright.config.cjs",
     "test:write-engine": "node --test test/write-engine.test.js",

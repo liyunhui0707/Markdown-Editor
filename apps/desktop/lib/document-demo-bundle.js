@@ -208,7 +208,7 @@
     if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || !value.isWellFormed() || source.slice(a, b) !== value) return null;
     if (code3) {
       if (value.includes("`") || source[a - 1] !== "`" || source[b] !== "`") return null;
-    } else if (/[<>{}\\`$|]/.test(value)) return null;
+    }
     if (bold || italic) {
       const marker = source.slice(child.position.start.offset, a);
       if (!(bold ? ["**", "__"] : ["*", "_"]).includes(marker) || source.slice(b, child.position.end.offset) !== marker) return null;
@@ -338,7 +338,7 @@
         parts.push({ ...leaf, frames: inlineFrames(leaf, source) });
         return true;
       }
-      if (typeof n.value !== "string" || raw.replace(/\r\n|\r/g, "\n") !== n.value.replace(/\r\n|\r/g, "\n") || /[\0<>{}\\`$|]/.test(raw) || !raw.isWellFormed()) return false;
+      if (typeof n.value !== "string" || raw.replace(/\r\n|\r/g, "\n") !== n.value.replace(/\r\n|\r/g, "\n") || /\0/.test(raw) || !raw.isWellFormed()) return false;
       for (const m of raw.matchAll(/\r\n|\n|\r|[^\r\n]+/g)) {
         const soft = /^[\r\n]/.test(m[0]);
         parts.push({ ...flags, text: soft ? " " : m[0], ...soft ? { raw: m[0], breakKind: "soft" } : {}, sourceFrom: a + m.index, sourceTo: a + m.index + m[0].length });
@@ -10862,7 +10862,7 @@
       const raw = source.slice(start, end), parts = [];
       let supported = ["paragraph", "heading"].includes(node2.type) && node2.position.start.line === node2.position.end.line && !/^(?:[:!]| {4}|\t)/.test(raw);
       if (node2.type === "heading" && !/^#{1,6}[ \t]+/.test(raw)) supported = false;
-      const soft = node2.type === "paragraph" && node2.position.start.line !== node2.position.end.line && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === raw && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
+      const soft = node2.type === "paragraph" && node2.position.start.line !== node2.position.end.line && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === raw && !/^(?:[:!]| {4}|\t)/m.test(raw);
       if (soft) {
         let textOffset = 0;
         for (const match of raw.matchAll(/[^\r\n]+/g)) {

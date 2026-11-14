@@ -1,3 +1,5 @@
+// Literal punctuation is safe only in exact parser text leaves; decoded escapes,
+// HTML/other node kinds and full projected-document changes stay protected.
 import {projectArticle,mapArticleRange} from './document-article-source.mjs';
 import {projectInlineParts} from './document-inline-tree.mjs';
 import {mapSoftRange} from './document-soft-edit.mjs';
@@ -111,7 +113,7 @@ export function projectSource(source) {
     // render as spaces with NO editable span; each source line keeps its own range.
     const soft = node.type === 'paragraph' && node.position.start.line !== node.position.end.line
       && node.children?.length === 1 && node.children[0].type === 'text' && node.children[0].value === raw
-      && !/^(?:[:!]| {4}|\t)/m.test(raw) && !/[<>{}\\`$|]/.test(raw);
+      && !/^(?:[:!]| {4}|\t)/m.test(raw);
     if (soft) {
       let textOffset = 0;
       for (const match of raw.matchAll(/[^\r\n]+/g)) {

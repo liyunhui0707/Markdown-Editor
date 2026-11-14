@@ -22,7 +22,7 @@ function harness(source){
 }
 
 test('article IME composition commits one physical text leaf once and keeps exact main history',async()=>{
- for(const source of ['First **bold\r\nsecond** tail.','First **bold**  \r\nsecond tail.']){
+ for(const source of ['First **bold\r\nsecond** tail.','First **bold**  \r\nsecond tail.','First **$100**\r\nsecond {price} | a < b.']){
   const h=harness(source),s=projectSource(source).spans.find(s=>s.text.startsWith('second')),at=s.from+1;assert(s);
   assert(h.controller.beginComposition());assert(h.edit(at,at,'n'));assert(h.edit(at,at+1,'ni'));assert(h.edit(at,at+2,'你'));assert.equal(h.requests.length,0);assert.equal(h.document.text,source);
   h.controller.endComposition();await h.controller.idle();const expected=source.replace('second','s你econd');assert.equal(h.document.text,expected);assert.equal(h.requests.filter(r=>r.operation==='edit').length,1);assert.equal(h.controller.state().recoveryRecords.length,0);

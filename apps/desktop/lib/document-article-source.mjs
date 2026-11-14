@@ -1,3 +1,5 @@
+// Literal punctuation is safe only in exact parser text leaves; decoded escapes,
+// HTML/other node kinds and full projected-document changes stay protected.
 import capacity from './document-capacity.js';
 import {projectInlineLeaf,inlineTextNode} from './document-inline-leaf.mjs';
 import {inlineFrames,renderInlineParts} from './document-inline-tree.mjs';
@@ -38,7 +40,7 @@ export function projectArticle(node,source,position,blockIndex){
    const leaf=projectInlineLeaf(n,source);if(frames.length||!leaf||(!leaf.code&&!leaf.link))return false;
    parts.push({...leaf,frames:inlineFrames(leaf,source)});return true;
   }
-  if(typeof n.value!=='string'||raw.replace(/\r\n|\r/g,'\n')!==n.value.replace(/\r\n|\r/g,'\n')||/[\0<>{}\\`$|]/.test(raw)||!raw.isWellFormed())return false;
+  if(typeof n.value!=='string'||raw.replace(/\r\n|\r/g,'\n')!==n.value.replace(/\r\n|\r/g,'\n')||/\0/.test(raw)||!raw.isWellFormed())return false;
   for(const m of raw.matchAll(/\r\n|\n|\r|[^\r\n]+/g)){
    const soft=/^[\r\n]/.test(m[0]);parts.push({...flags,text:soft?' ':m[0],...(soft?{raw:m[0],breakKind:'soft'}:{}),sourceFrom:a+m.index,sourceTo:a+m.index+m[0].length});
   }

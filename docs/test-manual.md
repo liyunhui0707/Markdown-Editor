@@ -1,5 +1,17 @@
 # Manual Test Checklist
 
+## Literal prose writing — 0.71.1
+
+In a disposable article, type prices (`$100`), braces (`{name}`), `a | b`, `a < b`
+and a literal path (`C:\Users\name`) into a paragraph/heading and supported
+emphasis/list/quote. They should remain ordinary editable prose. Select/replace,
+Undo/Redo, find/replace and switch to Source; untouched Markdown and line endings
+must remain unchanged. Save, export under a fresh filename, quit and restore.
+
+Decoded escape/entity syntax, actual HTML and unsupported structures still use
+Source mode. Controlled automation is separate from physical Chinese candidate
+input and spoken VoiceOver; no new human pass is recorded by this group.
+
 ## Cross-location APFS workflow — 0.71.0
 
 Use disposable documents in an owned ordinary non-Home folder or an external APFS volume with ownership enabled. Open, edit, Undo/Redo, Save, export under a fresh name and reopen. Exact text and attachments should survive; an existing export name must never be overwritten.

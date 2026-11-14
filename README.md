@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.71.0 development build with cross-location APFS saving and recovery.** This is not
+**0.71.1 development build with literal prose writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,22 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Ordinary prose punctuation — 0.71.1
+
+Write prices such as `$100`, `{name}`, `a | b`, comparisons such as `a < b`, and
+literal Windows paths as normal prose. These exact text leaves remain editable
+in paragraphs, headings, supported emphasis/link labels, lists, quotes and soft/
+hard-break articles. Selection, find/replace, history, source, backup, explicit
+Save/Save As and restart recovery use the existing exact-patch pipeline.
+
+This fixes over-restrictive character filtering, not Markdown decoding or a
+serializer. The parser must report literal text matching the source; complete
+projected-document comparison still protects structure changes. HTML nodes,
+entities/backslash escapes that decode to different text, reference syntax and
+unsupported combinations retain Source mode. The app does not execute inserted
+HTML, open new URLs, normalize files or broaden save permissions. Controlled
+composition tests do not establish new physical IME acceptance.
 
 ## Local and external APFS saving — 0.71.0
 
