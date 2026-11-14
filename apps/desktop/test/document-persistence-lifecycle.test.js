@@ -60,6 +60,7 @@ test('full save workspace archives only confirmed old versions, preserving inode
  for(let i=1;i<=128;i++)ids.push(version(root,i,{state:i===2?'save-unverified':'saved-confirmed'}));
  const r=b.list();assert.equal(r.capacity.records,128);assert(r.records.find(r=>r.id===ids[0]).manageToken);
  assert.equal(r.records.find(r=>r.id===ids[1]).manageToken,undefined);assert.equal(r.records.find(r=>r.id===ids[127]).manageToken,undefined);
+ fs.writeFileSync(path.join(root,ids[0],'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
  const old=path.join(root,ids[0],'previous.md'),identity=fs.statSync(old),token=r.records.find(r=>r.id===ids[0]).manageToken;
  assert.equal(b.offload(ids[0],token,[ids[0]]).ok,false);assert.equal(b.offload(ids[0],'0'.repeat(64)).ok,false);
  assert.equal(b.offload(ids[0],token).ok,true);assert.equal(b.list().capacity.records,127);assert.equal(b.list().archived.length,1);
@@ -81,7 +82,8 @@ test('image attachments and archive bytes survive offload/independent restoratio
  const attachment={name:'markdown-image-'+hash(png)+'.png',base64:png.toString('base64')};
  const data={id,label:'Image',revision:1,bytes:Buffer.from('![image]('+attachment.name+')'),attachments:[attachment]};
  const saved=s.save(data);assert.equal(saved.ok,true);assert.equal(s.manage(id,'offload',row(s,id).manageToken).ok,true);
- const a=s.list().archived.find(r=>r.offloaded);assert.equal(s.manage(a.id,'unarchive',a.manageToken).ok,true);
+ const a=s.list().archived.find(r=>r.offloaded);fs.writeFileSync(path.join(root+'-archive',a.id,'.DS_Store'),'synthetic Finder metadata',{mode:0o600});assert.equal(s.manage(a.id,'unarchive',a.manageToken).ok,true);
+ assert.equal(fs.readFileSync(path.join(root+'-archive',a.id,'.DS_Store'),'utf8'),'synthetic Finder metadata');
  const restored=s.recover(s.list().drafts[0].id);assert.deepEqual(restored.attachments,[attachment]);assert.deepEqual(restored.bytes,data.bytes);
  const file=path.join(root+'-archive',a.id,saved.token);fs.writeFileSync(file,'{damaged');
  assert.equal(s.manage(a.id,'unarchive',a.manageToken).ok,false);assert.deepEqual(s.recover(restored.id).bytes,data.bytes);

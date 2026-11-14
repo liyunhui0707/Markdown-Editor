@@ -18,6 +18,8 @@
   outcomes. Validate recovery hashes before moving. Both archive locations remain
   in the app's private storage; no Markdown original is changed or automatically
   deleted. Archival frees working slots, not disk space.
+- Finder `.DS_Store` metadata is retained and does not prevent restoring the
+  registered verified draft files. Other unexpected contents remain protected.
 - Copy/write/sync/removal failures preserve source or complete recovery evidence;
   partial source groups cannot fall back to older content as if offload succeeded.
   Reads and aggregate copying remain bounded. No new dependency or filesystem

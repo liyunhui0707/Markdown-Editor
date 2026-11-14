@@ -33,7 +33,7 @@ function createRecordArchive(root,{fs=nativeFs}={}){
   if(manifest.files.some(f=>!Number.isSafeInteger(f.size)||f.size<0||f.size>MAX_RECORD_BYTES||typeof f.sha256!=='string'||!/^[a-f0-9]{64}$/.test(f.sha256))||manifest.files.reduce((n,f)=>n+f.size,0)>2*MAX_RECORD_BYTES)fail('archive-capacity');
   const names=manifest.files.map(f=>f.name);
   if(new Set(names).size!==names.length||names.some(n=>typeof n!=='string'||!n.match(/^[a-zA-Z0-9.-]+$/)||['manifest.json','complete.json'].includes(n)))fail('invalid-archive');
-  const actual=fs.readdirSync(p).sort();if(JSON.stringify(actual)!==JSON.stringify([...names,'manifest.json','complete.json'].sort()))fail('archive-changed');
+  const actual=fs.readdirSync(p).filter(n=>n!=='.DS_Store').sort();if(JSON.stringify(actual)!==JSON.stringify([...names,'manifest.json','complete.json'].sort()))fail('archive-changed');
   const files=contents?manifest.files.map(f=>{const r=read(path.join(p,f.name));if(r.bytes.length!==f.size||hash(r.bytes)!==f.sha256)fail('archive-changed');return {...f,...r};}):undefined;
   verify();return {...manifest,token:hash(m.identity+':'+done.identity),files:files||manifest.files,folder:p};
  }

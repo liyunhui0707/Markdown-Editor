@@ -41,7 +41,7 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
  }catch{return {ok:false,code:'save-recovery-unavailable',records:[]};}}
  function locate(recordId){try{return directory(recordId);}catch{return directory(recordId,archiveRoot);}}
  function recordToken(recordId){const p=directory(recordId),names=fs.readdirSync(p).sort();
-  const allowed=new Set(['request.json','outcome.json','accepted.json','baseline.md','draft.md','exchanged.md','previous.md','prepared.json','confirmed.json']);
+  const allowed=new Set(['request.json','outcome.json','accepted.json','baseline.md','draft.md','exchanged.md','previous.md','prepared.json','confirmed.json','.DS_Store']);
   if(names.some(n=>!allowed.has(n)))fail('invalid-save-record');
   const sum=createHash('sha256');for(const n of names){const f=path.join(p,n),s=fs.lstatSync(f,{bigint:true});
    if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1n||s.uid!==BigInt(process.getuid())||(s.mode&0o022n))fail('invalid-save-record');
