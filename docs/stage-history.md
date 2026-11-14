@@ -1,5 +1,25 @@
 # Stage History
 
+## Long-writing verification calibration — runtime 0.70.1 unchanged (2026-11-14)
+
+- Attribute a reproducible hidden-window contribution to historical resource
+  measurements. Native window visibility can be false while the renderer says
+  visible; native performance-event/text-paint queues drain after the same window
+  is shown and allowed to produce frames. Preserve old results with that limit.
+- Shared test-only probe requires native visibility, renderer visibility and two
+  frame callbacks. Record API units, process IDs, natural samples and explicit
+  diagnostic collection separately. No product GC, purge or throttling change.
+- Apply the fence to image resources, fixed-record reuse and sustained writing;
+  retain exact history/content/recovery/file and DOM-budget assertions. Four new
+  unit cases, full Node baseline (3,388 pass, two existing skips) and three local
+  visible Electron workflows pass. Opt-in duration evidence remains distinct from
+  short CI and genuine human writing.
+- Verification-only group: installed 0.70.1 and package/dependency inputs unchanged;
+  no version bump or additional App copy. New helper/tests stay below 300 lines.
+  Long-term memory and deferred physical/spoken acceptance are not closed by it.
+- See [calibration evidence](audits/2026-11-14-long-writing-resource-validation.md).
+
+
 ## Repeated-image resource stability — 0.70.1 (2026-11-14)
 
 - Complete repeated-image article open/edit/Undo/Source/close/restore checks,

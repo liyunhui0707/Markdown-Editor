@@ -19,7 +19,20 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — resource lifecycle and local stability, 0.70.1
+### Current batch — valid long-writing resource acceptance, runtime 0.70.1 unchanged
+
+[Resource calibration](audits/2026-11-14-long-writing-resource-validation.md)
+reproduces hidden-window accumulation of native event/paint records and corrects
+three resource workflows to require native visibility and renderer frame callbacks.
+Keep natural and collected samples separate, with API units and process IDs.
+Product/runtime/layout/save authority remain unchanged; no version bump or
+reinstallation for verification-only changes. Run the same long-writing/history/
+source/recovery assertions under valid conditions before drawing resource conclusions.
+The earlier hidden-window trend is not a valid stand-alone leak acceptance gate;
+long-term stability and deferred genuine human checks remain open. Continue the
+approved file-editor roadmap without speculative product GC or framework changes.
+
+### Previous batch — resource lifecycle and local stability, 0.70.1
 
 Reproduce repeated managed-image references and compare bounded controlled
 writing/source/close cycles. Coalesce verified in-flight transfers within one

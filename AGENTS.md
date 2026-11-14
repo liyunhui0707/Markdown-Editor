@@ -4,6 +4,14 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**Resource acceptance calibration (2026-11-14), runtime 0.70.1 unchanged.**
+Resource E2E must use a visible native window, renderer visibility and frame
+callbacks. document.visibilityState alone can be visible for a hidden native
+window, allowing native event/paint queues to accumulate. Keep old hidden results
+but do not infer a product leak from their working set. Record renderer bytes and
+Electron main/process kilobytes separately, natural vs explicit collected samples.
+No product GC/purge/throttling workaround. See the dated calibration audit.
+
 **0.70.1 repeated-image resource fix.** Share only in-flight image previews by
 session/revision/managed href. Settled entries are removed; no lasting data-URL
 cache, cross-revision authority reuse or product forced GC. Clear the atom NodeView
