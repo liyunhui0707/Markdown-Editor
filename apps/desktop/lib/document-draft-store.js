@@ -24,7 +24,7 @@ function createDraftStore(root, { fs = nativeFs } = {}) {
   };
   verifyRoot();
   const names = () => {
-    verifyRoot(); const all = fs.readdirSync(root);
+    verifyRoot(); const all = fs.readdirSync(root).filter(n=>n!=='.DS_Store');
     if (all.length > 128 || all.some(n => !filename.test(n) || !uuid.test(n.split('.')[0]))) fail('draft-directory-needs-attention');
     return all;
   };

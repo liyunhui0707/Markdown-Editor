@@ -37,7 +37,7 @@ function createRecordArchive(root,{fs=nativeFs}={}){
   const files=contents?manifest.files.map(f=>{const r=read(path.join(p,f.name));if(r.bytes.length!==f.size||hash(r.bytes)!==f.sha256)fail('archive-changed');return {...f,...r};}):undefined;
   verify();return {...manifest,token:hash(m.identity+':'+done.identity),files:files||manifest.files,folder:p};
  }
- function list(){verify();return fs.readdirSync(root).map(id=>{try{return inspect(id);}catch{return {id,warning:'archive-needs-attention',metadata:{label:'需要检查的归档'}};}});}
+ function list(){verify();return fs.readdirSync(root).filter(n=>n!=='.DS_Store').map(id=>{try{return inspect(id);}catch{return {id,warning:'archive-needs-attention',metadata:{label:'需要检查的归档'}};}});}
  function put({metadata,source,files,verifySource,expected}){
   verify();verifySource();if(!files.length||files.length>128||files.some(n=>typeof n!=='string'||!n.match(/^[a-zA-Z0-9.-]+$/)||['manifest.json','complete.json'].includes(n)))fail('invalid-archive');
   const original=[];let total=0;for(const name of files){const r=read(path.join(source,name));total+=r.bytes.length;if(total>2*MAX_RECORD_BYTES)fail('archive-capacity');if(r.identity!==expected?.[name])fail('archive-source-changed');original.push({name,...r});}

@@ -13,6 +13,7 @@ test('persistence lifecycle: full workspace offload, automatic backup retry, ind
   for(const [name,value] of Object.entries({'request.json':{filePath:'/synthetic/文件.md',sha256,expectedSha256:hash('prior'),time,revision:time},'outcome.json':outcome,'confirmed.json':outcome,'accepted.json':{sha256,revision:time},'prepared.json':{sha256}}))fs.writeFileSync(path.join(dir,name),JSON.stringify(value),{mode:0o600});
   for(const name of ['baseline.md','previous.md','exchanged.md','draft.md'])fs.writeFileSync(path.join(dir,name),name==='draft.md'?'new':'prior',{mode:0o600});
  }
+ for(const dir of [drafts,drafts+'-archive',versions])fs.writeFileSync(path.join(dir,'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
  const app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+drafts,'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+versions],cwd:root,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
  const exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal}))),p=await app.firstWindow(),faults=[],requests=[];p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);

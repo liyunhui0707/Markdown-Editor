@@ -18,13 +18,13 @@
   outcomes. Validate recovery hashes before moving. Both archive locations remain
   in the app's private storage; no Markdown original is changed or automatically
   deleted. Archival frees working slots, not disk space.
-- Finder `.DS_Store` metadata is retained and does not prevent restoring the
-  registered verified draft files. Other unexpected contents remain protected.
+- Finder `.DS_Store` metadata is retained and excluded from working/catalog
+  counts; it does not prevent restoring registered verified draft files. Other unexpected contents remain protected.
 - Copy/write/sync/removal failures preserve source or complete recovery evidence;
   partial source groups cannot fall back to older content as if offload succeeded.
   Reads and aggregate copying remain bounded. No new dependency or filesystem
   destination authority is added. Existing records require no automatic migration.
-- Local full suite: 3,347 PASS / two existing performance skips. Nine lifecycle
+- Local full suite: 3,348 PASS / two existing performance skips. Ten lifecycle
   checks include a production-helper save at the 128-transaction ceiling after
   offload, exact managed images, corrupt/stale/link evidence and fault recovery.
   Final controlled Electron archive/restore/Finder and original-save workflows

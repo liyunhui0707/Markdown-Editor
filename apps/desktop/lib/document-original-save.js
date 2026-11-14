@@ -25,13 +25,13 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
   const buffer=Buffer.alloc(Number(before.size));let offset=0;while(offset<buffer.length){const n=fs.readSync(fd,buffer,offset,buffer.length-offset,offset);if(!n)fail('save-record-changed');offset+=n;}
   const text=buffer.toString('utf8'),after=fs.fstatSync(fd,{bigint:true}),named=fs.lstatSync(p,{bigint:true});if(named.ino!==before.ino||named.dev!==before.dev)fail('save-record-changed');if(after.ctimeNs!==before.ctimeNs||after.mtimeNs!==before.mtimeNs||after.size!==before.size)fail('save-record-changed');return JSON.parse(text);
  }finally{if(fd!==undefined)fs.closeSync(fd);}}
- function list(){try{verify();const names=fs.readdirSync(root);if(names.length>128)fail('save-recovery-capacity');
+ function list(){try{verify();const names=fs.readdirSync(root).filter(n=>n!=='.DS_Store');if(names.length>128)fail('save-recovery-capacity');
   const records=names.map(recordId=>{try{const p=directory(recordId),request=json(path.join(p,'request.json'));let outcome;
    let accepted=false;try{outcome=json(path.join(p,'outcome.json'));const ack=json(path.join(p,'accepted.json'));accepted=ack.sha256===outcome.sha256&&ack.revision===outcome.revision;}catch{/* Missing/partial outcome remains unknown. */}
    return {id:recordId,label:path.basename(request.filePath||''),filePath:request.filePath,revision:request.revision,time:request.time,
     state:outcome?.ok===true?(accepted?'saved-confirmed':'save-outcome-unknown'):outcome?.state||'save-outcome-unknown',code:outcome?.code||null};
   }catch{return {id:recordId,label:'无法验证的保存记录',state:'save-outcome-unknown'};}}).sort((a,b)=>(b.time||0)-(a.time||0));
-  let archived=[],archiveWarning=null;try{verifyArchive();archived=fs.readdirSync(archiveRoot).map(recordId=>{try{const request=json(path.join(directory(recordId,archiveRoot),'request.json'));return {id:recordId,label:path.basename(request.filePath),revision:request.revision,time:request.time,archived:true};}catch{return {id:recordId,label:'需要检查的归档',archived:true,warning:'archive-needs-attention'};}});}catch{archiveWarning='archive-unavailable';}
+  let archived=[],archiveWarning=null;try{verifyArchive();archived=fs.readdirSync(archiveRoot).filter(n=>n!=='.DS_Store').map(recordId=>{try{const request=json(path.join(directory(recordId,archiveRoot),'request.json'));return {id:recordId,label:path.basename(request.filePath),revision:request.revision,time:request.time,archived:true};}catch{return {id:recordId,label:'需要检查的归档',archived:true,warning:'archive-needs-attention'};}});}catch{archiveWarning='archive-unavailable';}
   const newest=new Map();for(const r of records)if(r.state==='saved-confirmed')newest.set(r.filePath,Math.max(newest.get(r.filePath)||0,r.time||0));for(const r of records){const first=(r.time||0)>=newest.get(r.filePath);
    if(!first&&r.state==='saved-confirmed'&&!active.has(r.filePath)&&!archived.some(a=>a.id===r.id)){
     try{r.manageToken=recordToken(r.id);}catch{/* Unsafe material stays visible, never movable. */}
@@ -77,7 +77,7 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
   active.add(key);
   try{
    if(!Buffer.isBuffer(bytes)||bytes.length>MAX_DOCUMENT_BYTES||!Number.isSafeInteger(revision)||!isAuthorized())fail('save-authorization-expired');
-   verify();if(fs.readdirSync(root).length>=128)fail('save-recovery-capacity');
+   verify();if(fs.readdirSync(root).filter(n=>n!=='.DS_Store').length>=128)fail('save-recovery-capacity');
    const state=persistentDirectory(path.dirname(key));
    if(state.identity.dev!==initial.dev)fail('unsupported-filesystem');
    // Decode and verify with the existing image contract before granting the helper bytes.

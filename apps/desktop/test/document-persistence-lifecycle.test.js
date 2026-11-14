@@ -10,6 +10,7 @@ function row(store,id){return [...store.list().drafts,...store.list().archived].
 test('full draft workspace offloads verified inactive generations and restores an independent exact draft after restart',()=>{
  const root=path.join(temp(),'drafts'),store=createDraftStore(root);let first;
  for(let i=0;i<64;i++){const a=save(store,'正文 '+i);if(!i)first=a;assert(a.ok);const r=row(store,a.id);assert(store.manage(a.id,'archive',r.manageToken).ok);}
+ for(const dir of [root,root+'-archive'])fs.writeFileSync(path.join(dir,'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
  assert.equal(store.list().capacity.records,128);assert.equal(save(store,'overflow').code,'draft-record-capacity');
  const before=fs.readdirSync(root).filter(n=>n.startsWith(first.id)).map(n=>[n,fs.readFileSync(path.join(root,n))]);
  assert.equal(store.manage(first.id,'offload',row(store,first.id).manageToken).state,'offloaded');
@@ -58,6 +59,7 @@ function version(root,time,{state='saved-confirmed',file='/synthetic/note.md'}={
 test('full save workspace archives only confirmed old versions, preserving inode, modes, content and latest/unknown records',()=>{
  const root=path.join(temp(),'versions'),b=createOriginalSave({root,binary:process.execPath});const ids=[];
  for(let i=1;i<=128;i++)ids.push(version(root,i,{state:i===2?'save-unverified':'saved-confirmed'}));
+ fs.writeFileSync(path.join(root,'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
  const r=b.list();assert.equal(r.capacity.records,128);assert(r.records.find(r=>r.id===ids[0]).manageToken);
  assert.equal(r.records.find(r=>r.id===ids[1]).manageToken,undefined);assert.equal(r.records.find(r=>r.id===ids[127]).manageToken,undefined);
  fs.writeFileSync(path.join(root,ids[0],'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
@@ -107,3 +109,14 @@ test('production helper saves again after offloading at the 128-transaction ceil
   assert.deepEqual(fs.readFileSync(file),bytes);assert.equal(b.list().capacity.records,128);assert.equal(fs.readFileSync(path.join(b.locate(old),'previous.md'),'utf8'),'prior');
  }finally{fixture.archive({quiescent:true});}
 });
+
+ test('capacity retry only retries failed capacity backups, never empty, uncertain or unrelated failures',()=>{
+  const {createDraftBackups}=require('../lib/document-draft-backups');let freed=false;const calls=[];
+  const store={newId:randomUUID,save(data){calls.push(data);if(data.label==='Unknown')return {ok:false,state:'draft-unverified',code:'uncertain'};
+   if(data.label==='Other')return {ok:false,state:'backup-failed',code:'EIO'};
+   return freed?{ok:true,state:'backed-up',id:data.id,revision:data.revision,token:data.id+'.1.json',fingerprint:'verified'}:{ok:false,state:'backup-failed',code:'draft-record-capacity'};}};
+  const backups=createDraftBackups(store),doc=text=>({text,revision:1,bytesForSave:()=>Buffer.from(text)}),empty=doc(''),writing=doc('writing'),unknown=doc('unknown'),other=doc('other');
+  backups.attach(empty,'Empty');backups.attach(writing,'Writing');backups.attach(unknown,'Unknown');backups.attach(other,'Other');backups.flushAll();assert.equal(calls.length,3);
+  freed=true;backups.retry();assert.equal(calls.length,4);assert.equal(calls.at(-1).label,'Writing');assert.equal(backups.status(writing).state,'backed-up');assert.equal(backups.status(empty).state,'not-backed-up');assert.equal(backups.status(unknown).state,'draft-unverified');
+  backups.retry();assert.equal(calls.length,4);for(const d of [empty,writing,unknown,other])backups.release(d);
+ });
