@@ -4,6 +4,16 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.66.0 installed development build: common inline compatibility.** Exact lexical emphasis frames
+project combined bold/italic text in supported single-line paragraphs/headings,
+explicit quote rows and tight list items. Inline typing, bounded selected-range
+replacement, compatible emphasis commands and continuation retain complete
+projection validation and main-owned exact inverses. Plain soft-line ranges can
+explicitly replace/join source lines or split inside a physical line. Other line
+ending bytes stay unchanged. Reference syntax, nested link/code combinations,
+formatted multiline paragraphs and unrepresentable edits remain protected. Native
+cross-frame composition remains conservative; controlled text is not physical IME.
+
 **0.65.1 installed development build: formatted long-document writing.** The two-revision AST
 cache can reparse one isolated single-line paragraph or ATX heading containing
 plain text, emphasis, inline code or strike. Require unchanged block type, exact
@@ -24,6 +34,8 @@ refuse; initial patch planning and overlapping delimiter re-planning are bounded
 **App delivery hygiene:** Only the installed App should remain registered with
 LaunchServices. After package tests, unregister disposable candidate/rollback
 App paths and retain them as `.app.disabled` with hashes and restore mapping.
+Unregister parked paths again after renaming and verify a fresh application lookup;
+macOS may refresh a moved bundle registration by its file identity.
 Consult `.local/APP-BACKUPS.json` and `.local/RELOCATION.md` before historical
 restore scripts. Do not reset the global LaunchServices database or alter unrelated
 associations. Set a default Markdown handler only with user authorization.

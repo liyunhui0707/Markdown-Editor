@@ -1,6 +1,7 @@
+import {projectInlineParts} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
-import {projectInlineLeaf,inlineTextNode} from './document-inline-leaf.mjs';
+import {inlineTextNode} from './document-inline-leaf.mjs';
 const inline=text=>text?[{type:'text',text}]:[];
 export const literalBlockPrefix=text=>/^(?:>|`{1,2}|```[A-Za-z0-9_+-]{0,32})$/.test(text);
 
@@ -28,7 +29,7 @@ export function projectStructuredBlock(node,source,position,blockIndex){
   const body=line.slice(2),bodyFrom=sourceAt+2,parts=[];
   if(body){
    const paragraph=node.children.find(n=>n.position.start.offset===bodyFrom);if(!paragraph)return null;used++;
-   for(const child of paragraph.children){const p=projectInlineLeaf(child,source);if(!p)return null;parts.push(p);}
+   for(const child of paragraph.children){const p=projectInlineParts(child,source);if(!p)return null;parts.push(...p);}
    if(parts.length===1&&!parts[0].bold&&!parts[0].italic&&!parts[0].code&&!parts[0].link){
     if(body.trimStart()!==body)return null;parts[0]={...parts[0],text:body,sourceFrom:bodyFrom,sourceTo:sourceAt+line.length};
    }else if(paragraph.position.end.offset!==sourceAt+line.length)return null;

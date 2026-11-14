@@ -1,3 +1,4 @@
+import {mapCombinedMark} from './document-tree-edit.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {mapImageEdit} from './document-image-edit.mjs';
@@ -32,6 +33,7 @@ export function mapFormatEdit(source, command) {
   const {action,from,to}=command;
   if(![...actions,...tableActions].includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
   const p=projectSource(source);
+  const combined=mapCombinedMark(source,p,command,projectSource);if(combined)return combined;
   if(tableActions.includes(action))return mapTableEdit(source,p,command,projectSource);
   if(p.blocks.some(b=>b?.cells&&from>b.from&&to<b.to))return reject();
   const selectedList=p.blocks.find(b=>b?.items&&from>b.from&&to<b.to);
@@ -39,7 +41,7 @@ export function mapFormatEdit(source, command) {
   if(['task-shortcut','toggle-task','indent-list','outdent-list'].includes(action)
       ||(action==='task-list'&&selectedList)||(['split-list','join-list'].includes(action)&&structuredList))
     return mapListEdit(source,p,command,projectSource);
-  if(['split-list','join-list','split-paragraph','join-paragraph'].includes(action)) return mapBoundaryEdit(source,p,command,projectSource);
+  if(['split-list','join-list','split-paragraph','join-paragraph','split-heading'].includes(action)) return mapBoundaryEdit(source,p,command,projectSource);
   const index=p.blocks.findIndex(b=>b && from>b.from && to<b.to);
   if(index<0) return reject();
   const structured=p.blocks[index].quoteRows||p.blocks[index].codeBody;
@@ -77,13 +79,6 @@ export function mapFormatEdit(source, command) {
     }
     parent.content=merge(parent.content);
     targetItem=selected.itemIndex??null;targetQuote=selected.quoteIndex??null; offset=to-(list?block.items[targetItem].from:targetQuote!==null?block.quoteRows[targetQuote].from:block.from+1);
-  } else if(action==='split-heading') {
-    if(node.type!=='heading'||!selected||selected.bold||selected.italic||selected.code||selected.link||node.content.length!==1||from!==to) return reject();
-    const at=from-selected.from;
-    if(at===0||splits(selected.text,at)) return reject();
-    a=b=selected.sourceFrom+at;text=nl+nl;
-    expected.content[index].content=inline(selected.text.slice(0,at));
-    expected.content.splice(index+1,0,paragraph(inline(selected.text.slice(at))));targetIndex=index+1;offset=0;
   } else if(list) {
     if(block.items.some(r=>r.path.length>1||r.checked!==null))return reject();
     if(!['paragraph','bullet-list','ordered-list'].includes(action)) return reject();

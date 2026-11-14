@@ -1,3 +1,4 @@
+import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject=()=>({ok:false,code:'unsafe-format-range'});
@@ -40,9 +41,18 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
  }else if(['split-quote','join-quote'].includes(action)){
   if(!row||from!==to)return reject();
   const spans=p.spans.filter(s=>s.blockIndex===index&&s.quoteIndex===rowIndex),current=node.content[rowIndex],value=current.content.map(n=>n.text).join('');
-  // Inline-mark boundary splitting is deliberately not guessed.
-  if(spans.length!==1||current.content.some(n=>n.marks?.length))return reject();
-  const at=from-row.from;if(cuts(value,at))return reject();
+  const rich=current.content.some(n=>n.marks?.length),at=from-row.from;if(cuts(value,at))return reject();
+  if(rich){
+   if(action!=='split-quote'||!value)return reject();
+   const left=[],right=[];let offset=at;
+   for(const s of spans){const n=Math.max(0,Math.min(offset,s.text.length)),frames=inlineFrames(s,source);
+    if(n)left.push({...s,frames,text:s.text.slice(0,n)});if(n<s.text.length)right.push({...s,frames,text:s.text.slice(n)});offset-=s.text.length;
+   }
+   if(renderInlineParts(spans,source)!==source.slice(row.bodyFrom,row.sourceTo))return reject();
+   a=row.bodyFrom;b=row.sourceTo;text=renderInlineParts(left,source)+nl+'> '+nl+'> '+renderInlineParts(right,source);
+   expected.content[index].content.splice(rowIndex,1,paragraph(inlineNodes(left)),paragraph(inlineNodes(right)));targetRow=rowIndex+1;
+  }else {
+  if(spans.length!==1)return reject();
   if(action==='split-quote'&&!value){
    if(rowIndex!==node.content.length-1)return reject();
    if(rowIndex===0){text='';expected.content[index]=paragraph([]);}
@@ -61,6 +71,7 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
     expected.content[index].content.splice(rowIndex-1,2,paragraph(inline(before+value)));targetRow=rowIndex-1;offset=before.length;
    }
   }else return reject();
+  }
  }else return reject();
  if(typeof text!=='string')return reject();
  // Trim equal edges before applying the existing bounded-edit limit.

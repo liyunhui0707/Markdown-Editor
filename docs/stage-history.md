@@ -1,5 +1,45 @@
 # Stage History
 
+## Common Markdown authoring compatibility — 0.66.0 (2026-11-14)
+
+Exact inline projection now admits common bold/italic combinations in supported
+single-line paragraphs/headings, quote rows and tight list/task items. Lexical
+wrapper frames preserve untouched delimiters; selected text replacement and
+compatible emphasis commands validate the complete intended document. Paragraph,
+heading, quote and list continuation retains marks and main-owned exact inverses.
+Plain soft-line selections can explicitly replace/remove physical source newlines,
+and Enter inside a physical line splits the paragraph. Other bytes, including BOM
+and mixed endings, are retained. All operations reuse existing IPC/history/write
+authority, capacity and full main validation. Complex nested links/code, formatted
+multiline content, hard breaks and ambiguous source changes remain protected.
+
+Initial projection/soft-line tests fail on the baseline. Differential matrices
+compare over 1,500 accepted edits against actual product ProseMirror semantics
+and byte-exact inverses; emphasis commands and find replacement are also compared.
+Existing protection cases are retained, with only the intentionally supported
+nested/soft-line cases converted to positive exact history checks. Controlled
+composition within combined marks commits as one edit; cross-frame composition
+still refuses conservatively. Full Node: 3,319 PASS, two expected skips.
+Four Electron workflows PASS: complete mixed article, existing mixed inline,
+Source editing and rich long writing. The article contains headings, combined
+marks, soft lines, tasks, quote, code, table, link, image reference and protected
+HTML; typing/formatting/continuation/find, Undo/Redo, exact export/reopen and restart
+recovery preserve untouched content. Native DOM selection is awaited before
+keyboard commands; initial unsynchronized fixture failure is retained.
+
+The existing source mapper is 319 lines and stays the integration point; new
+frame/projection, tree-edit and soft-edit logic is in 50/43/27-line modules rather
+than expanding it further. The existing large controller test reuses its lifecycle
+harness for a bounded composition/history addition. A 485k-unit sanity run remains
+about 10–11 ms per mapped edit; no broad latency or memory-stability claim.
+The package matches 81 runtime files and the universal production helper; the
+renderer rebuild is reproducible. Candidate/installed startup and normal exit
+preserve prior draft/recent/save-version records. Candidate/rollback bundles are
+retained disabled and unregistered, keeping the one installed .md default target.
+Physical IME, longer human writing and heading/table VoiceOver remain pending.
+Paid signing/notarization/public distribution remain deferred.
+
+
 ## Formatted long-document writing — 0.65.1 (2026-11-14)
 
 Formatted single-line paragraphs and ATX headings forced a full remark parse on

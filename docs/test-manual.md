@@ -1,5 +1,16 @@
 # Manual Test Checklist
 
+## Common inline compatibility — 0.66.0
+
+Use a disposable article with headings, combined bold/italic text, soft-wrapped
+plain paragraphs, task lists, quotes, code, tables, links and image references.
+Edit within/cross emphasis; toggle compatible emphasis on selected text; Enter
+continues paragraphs/headings, quote rows and list items. Select across plain soft
+source lines, replace or delete their displayed space, and split inside a line.
+Undo/Redo must restore exact source; unaffected code/table/link/image content stays
+unchanged. Save/reopen and quit/restore the draft. Native cross-frame/line IME
+remains guarded; physical-input and VoiceOver acceptance are NOT TESTED.
+
 ## Formatted long-document writing — 0.65.1
 
 On a disposable long article, type within a formatted paragraph near the start,

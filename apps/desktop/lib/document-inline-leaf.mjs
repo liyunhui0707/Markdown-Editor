@@ -30,7 +30,6 @@ export function projectInlineLeaf(child, source) {
 }
 
 export function inlineTextNode(part) {
-  const mark=part.link?{type:'link',attrs:part.link}:part.bold||part.italic||part.code
-    ?{type:part.bold?'bold':part.italic?'italic':'code'}:null;
-  return {type:'text',text:part.text,...(mark?{marks:[mark]}:{})};
+  const marks=[...(part.link?[{type:'link',attrs:part.link}]:[]),...(part.bold?[{type:'bold'}]:[]),...(part.code?[{type:'code'}]:[]),...(part.italic?[{type:'italic'}]:[])];
+  return {type:'text',text:part.text,...(marks.length?{marks}:{})};
 }

@@ -1,8 +1,10 @@
+import {projectInlineParts} from './document-inline-tree.mjs';
+import {mapSoftRange} from './document-soft-edit.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {projectImage} from './document-image-source.mjs';
 import {projectTable,mapTableText} from './document-table-source.mjs';
-import { projectInlineLeaf, inlineTextNode } from './document-inline-leaf.mjs';
+import { inlineTextNode } from './document-inline-leaf.mjs';
 import { mapInlineRange } from './document-inline-source.mjs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -121,9 +123,9 @@ export function projectSource(source) {
     } else if(literalBlockPrefix(pending)){
       parts.push({text:pending,sourceFrom:start,sourceTo:end,bold:false});
     } else for (const child of node.children || []) {
-      const part=projectInlineLeaf(child,source);
-      if(!part){supported=false;break;}
-      parts.push(part);
+      const chunk=projectInlineParts(child,source);
+      if(!chunk){supported=false;break;}
+      parts.push(...chunk);
     }
     if (supported && node.type === 'heading' && !parts.length && /^#{1,6} $/.test(raw)) {
       parts.push({text:'',sourceFrom:end,sourceTo:end,bold:false});
@@ -280,6 +282,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if(leaf===null&&paragraphSeparator===null){const table=mapTableText(source,projection,change,projectSource);if(table)return table;}
   if (leaf===null&&paragraphSeparator===null){const code=mapCodeText(source,projection,change,projectSource);if(code)return code;}
   if (leaf === null) {
+    const soft=mapSoftRange(source,projection,change,projectSource);if(soft)return soft;
     const paragraph = paragraphEdit(source, projection, change, true, paragraphSeparator);
     if (paragraph) return paragraph;
     const paste = paragraphReplace(source, projection, change, paragraphSeparator);

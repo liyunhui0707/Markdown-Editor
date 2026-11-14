@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.65.1 development build with formatted long-document writing improvements.** This is not
+**0.66.0 development build with common inline compatibility.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -34,6 +34,24 @@ updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
 
+## Common inline compatibility — 0.66.0
+
+Combined bold and italic text now remains editable in supported single-line
+paragraphs/headings, quote rows and tight list/task items. Supported selections
+can type, replace, add/remove the compatible emphasis, continue with Enter and
+Undo/Redo while preserving other marks. Find replacement uses the same gates.
+
+In ordinary soft-wrapped paragraphs, explicitly replacing a selection across
+source lines can join those lines. Enter inside a physical line splits the
+paragraph. Existing BOM and all source bytes outside the actual patch are retained;
+exact inverses support history, export and draft recovery. Finish composition
+before edits crossing formatting/source-line boundaries. Controlled composition
+and committed text do not replace physical input-method acceptance.
+
+Nested links/code, formatted multiline paragraphs, hard breaks, transformed
+entities and ambiguous structural edits remain protected in the visual editor;
+Source mode is available. This does not expand file permissions or size limits.
+
 ## Formatted long-document writing — 0.65.1
 
 Typing in isolated single-line formatted paragraphs and ATX headings now reuses
@@ -53,9 +71,10 @@ and source bytes are preserved. Continue typing, Undo/Redo, export and draft
 recovery use the existing main-confirmed edit/history path.
 
 Find Current/All replacement now handles the same mixed-format ranges atomically.
-Unsupported nested marks, soft-line boundaries, cross-item link ranges and changes
+Unsupported combinations, cross-item link ranges and changes
 whose formatting cannot be expressed equivalently in Markdown remain protected.
-Cross-format native IME selection replacement retains conservative composition
+The original combined-emphasis and plain soft-line restrictions are superseded
+by 0.66.0 above. Cross-format native IME selection replacement retains conservative composition
 guards and still needs physical acceptance. Dense batches that require repeated
 delimiter re-planning have a work budget;
 refine the query when refused. Source mode remains available for broader changes.
