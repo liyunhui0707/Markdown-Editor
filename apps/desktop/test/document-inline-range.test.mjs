@@ -52,7 +52,7 @@ test('inline range preserves delimiter style and merges surviving bold text acro
 });
 
 test('inline range rejects structural syntax, surrogate cuts, protected blocks and excessive ranges atomically', () => {
-  for (const raw of ['# A **bold** Z','- A **bold** Z\n\n1. Next','A ***nested*** Z','A [link](https://example.invalid) Z','A **bold**\nsoft wrap','A **bold**\n\nZ']) {
+  for (const raw of ['- A **bold** Z\n\n1. Next','A ***nested*** Z','A **bold**\nsoft wrap','A **bold**\n\nZ']) {
     const p=projectSource(raw),a=p.spans[0],b=p.spans.at(-1);
     if(a&&b) assert.equal(edit(raw,a.from+1,b.to-1,'X').ok,false,raw);
   }

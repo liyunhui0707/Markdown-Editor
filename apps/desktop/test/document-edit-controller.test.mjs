@@ -1155,7 +1155,9 @@ for(const prefix of ['', '## ', '- '])test(`link label history, controlled compo
  assert.equal(await h.controller.history('redo'),true);assert.equal(h.document.text,typed);
  const q=h.span('中文😀');h.controller.beginComposition();assert.equal(h.edit(q.from+1,q.from+1,'ni'),true);assert.equal(h.edit(q.from+1,q.from+3,'你'),true);
  h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,typed.replace('中文','中你文'));
- const r=h.span('中你文😀');assert.equal(h.edit(r.from,r.to,''),false);assert.equal(h.controller.state().locked,false);
+ const r=h.span('中你文😀');assert.equal(h.edit(r.from,r.to,''),true);await h.controller.idle();
+ assert.equal(h.document.text.includes('[中你文😀]'),false);assert.equal(await h.controller.history('undo'),true);
+ assert.equal(h.document.text,typed.replace('中文','中你文'));assert.equal(h.controller.state().locked,false);
  const t=h.span('Tail.');assert.equal(h.edit(t.to,t.to,' End'),true);await h.controller.idle();assert.equal(h.document.text.endsWith('Tail. End'),true);
  assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

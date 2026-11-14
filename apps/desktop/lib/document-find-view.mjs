@@ -97,7 +97,7 @@ export function createFindView({ byId, context }) {
     const plan=planDocumentReplace(state.confirmed.source,editor.state.doc,
       all?matches:[matches[active]],byId('find-replacement').value,editor.state.selection);
     const status=byId('find-replace-status');
-    if (!plan.ok) {status.textContent='匹配跨越格式或受保护结构，或替换会改变 Markdown 结构。请缩小范围或在源码中修改；本次未替换。';return;}
+    if (!plan.ok) {status.textContent='匹配跨越受保护结构、替换会改变 Markdown 结构，或批量处理超过当前限制。请缩小范围或在源码中修改；本次未替换。';return;}
     if(plan.source===state.confirmed.source){status.textContent='替换内容与原文相同，未修改。';return;}
     replacing=true;controls(true);let ok=false;
     try {ok=await controller.applySource(plan.source);} catch { /* controller retains unknown outcomes */ }

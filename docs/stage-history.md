@@ -1,5 +1,38 @@
 # Stage History
 
+## Mixed-format continuous writing — 0.65.0 (2026-11-14)
+
+Extend the existing exact inline mapper to headings and simple link labels,
+retaining selected-start formatting and surviving link destination/title bytes.
+Native DOM selection handling includes linked paragraphs and headings. A pure
+patch planner is shared with atomic Current/All replacement; ordinary main
+validation and final batch projection equality remain mandatory. Shared delimiter
+planning and re-planning are bounded. Cross-item linked ranges and unrepresentable Markdown
+formatting refuse. No source normalization or new filesystem authority.
+
+New tests first fail on the old cross-format refusal. A range matrix compares
+accepted edits with the actual product PM schema and exact source inverses.
+Controlled Electron exercises native selection/continued typing, heading and link
+ranges, batch Undo/Redo, export/reopen and restart recovery with exact original
+BOM/mixed-newline preservation. Historical refusal assertions are updated only
+for intentionally supported ranges; protection and PM-equality tests remain.
+
+Local delivery cleanup: user-authorized removal of duplicate application
+registrations preserves old bundles under disabled backup names with hash/path
+mapping. The user also authorized Markdown as the default .md handler; the new
+process handler query and NSWorkspace resolve the single installed application.
+No unrelated defaults or global registration database reset.
+
+Full Node regression: 3,307 PASS, two expected skips. The new cross-format matrix
+and controller/link checks pass, including exact inverse history and PM equality.
+Three Electron workflows pass (mixed inline, existing replacement, source editing).
+The final package matches 78 runtime files and the universal production helper;
+candidate and installed 0.65.0 startup/exit checks leave prior draft/recent/version
+records unchanged. Native IME selection replacement retains existing conservative composition guards;
+committed-text automation is not physical candidate-input acceptance. Future delivery
+keeps candidate/rollback apps unregistered and disabled when tests finish.
+
+
 ## Repeated-session resources — 0.64.1 (2026-11-14)
 
 Closed document IDs remained in window-local backup/export/save receipt maps.

@@ -6890,30 +6890,30 @@
 
   // lib/document-inline-source.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS2 } = import_document_capacity2.default;
-  function mapInlineRange(source, projection, change, project) {
+  function planInlineRange(source, projection, change) {
     const { from: from2, to, insert: insert2 } = change, reject7 = () => ({ ok: false, code: "unsafe-source-range" });
     const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
     if (index2 < 0) return null;
     const block = projection.blocks[index2], list3 = !!block.items;
     const quoteRow = block.quoteRows?.findIndex((r) => from2 >= r.from && to <= r.to);
     const quoted = quoteRow !== void 0 && quoteRow >= 0;
-    if (!list3 && !quoted && projection.doc.content[index2].type !== "paragraph") return null;
+    if (!list3 && !quoted && !["paragraph", "heading"].includes(projection.doc.content[index2].type)) return null;
     const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
     const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
     if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject7();
     const cross = list3 && endItem > itemIndex;
     if (cross && block.items.slice(itemIndex, endItem + 1).some((r) => !sameListParent(block.items[itemIndex], r) || r.subtreeTo !== r.sourceTo)) return reject7();
     const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : quoted ? s.quoteIndex === quoteRow : s.itemIndex === void 0));
-    if (spans.some((s) => s.link)) return reject7();
-    if (!list3 && !spans.some((s) => s.bold || s.italic || s.code) || spans.some((s) => s.textOffset !== void 0)) return null;
+    if (cross && spans.some((s) => s.link)) return reject7();
+    if (!list3 && !spans.some((s) => s.bold || s.italic || s.code || s.link) || spans.some((s) => s.textOffset !== void 0)) return null;
     const cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
     const tokens = spans.map((s) => ({
       ...s,
-      a: s.sourceFrom - (s.bold ? 2 : s.italic || s.code ? 1 : 0),
-      b: s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      a: s.link ? s.linkSource?.from : s.sourceFrom - (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      b: s.link ? s.linkSource?.to : s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
       marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : ""
     }));
-    if (tokens.some((s, i) => (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject7();
+    if (tokens.some((s, i) => !Number.isInteger(s.a) || !Number.isInteger(s.b) || (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject7();
     if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
       const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
       return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
@@ -6926,13 +6926,13 @@
     const append2 = (text6, token) => {
       if (!text6) return;
       const previous3 = pieces.at(-1);
-      if (previous3 && previous3.bold === token.bold && !!previous3.italic === !!token.italic && !!previous3.code === !!token.code) previous3.text += text6;
-      else pieces.push({ text: text6, bold: token.bold, italic: token.italic, code: token.code, marker: token.marker });
+      if (previous3 && previous3.bold === token.bold && !!previous3.italic === !!token.italic && !!previous3.code === !!token.code && JSON.stringify(previous3.link) === JSON.stringify(token.link)) previous3.text += text6;
+      else pieces.push({ ...token, text: text6 });
     };
     append2(first2.text.slice(0, from2 - first2.from), first2);
     append2(insert2, cross && from2 === block.items[itemIndex].to ? { bold: false, marker: "" } : first2);
     append2(last.text.slice(to - last.from), last);
-    const replacement = pieces.map((s) => s.marker + s.text + s.marker).join("");
+    const replacement = pieces.map((s) => s.link ? "[" + s.text + source.slice(s.sourceTo, s.b) : s.marker + s.text + s.marker).join("");
     const original = source.slice(first2.a, last.b);
     let start = 0, end = original.length, nextEnd = replacement.length;
     while (start < end && start < nextEnd && original[start] === replacement[start]) start++;
@@ -6952,7 +6952,7 @@
     const expected = structuredClone(projection.doc), nodes = [];
     const add2 = (s) => {
       if (!s.text) return;
-      const node2 = { type: "text", text: s.text, ...s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes.at(-1);
+      const node2 = { type: "text", text: s.text, ...s.link ? { marks: [{ type: "link", attrs: s.link }] } : s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes.at(-1);
       if (prev && JSON.stringify(prev.marks) === JSON.stringify(node2.marks)) prev.text += node2.text;
       else nodes.push(node2);
     };
@@ -6960,19 +6960,24 @@
     pieces.forEach(add2);
     for (const s of tokens.slice(tokens.indexOf(last) + 1)) add2(s);
     const target = list3 ? listNodeAt(expected.content[index2], block.items[itemIndex].path).content[0] : quoted ? expected.content[index2].content[quoteRow] : expected.content[index2];
+    if (list3 && !nodes.length && block.items.length === 1 && spans.some((s) => s.link)) return reject7();
     target.content = nodes;
     if (cross) listNodeAt(expected.content[index2], block.items[itemIndex].path.slice(0, -1)).content.splice(block.items[itemIndex].siblingIndex + 1, endItem - itemIndex);
-    const nextProjection = project(next);
-    if (JSON.stringify(nextProjection.doc) !== JSON.stringify(expected)) return reject7();
     return {
       ok: true,
       source: next,
-      projection: nextProjection,
+      expected,
       change: { from: a, to: b, insert: text5 },
       inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) },
       structural: true,
       selection: { from: from2 + insert2.length, to: from2 + insert2.length }
     };
+  }
+  function mapInlineRange(source, projection, change, project) {
+    const planned = planInlineRange(source, projection, change);
+    if (!planned?.ok) return planned;
+    const { expected, ...result } = planned, next = project(result.source);
+    return JSON.stringify(next.doc) === JSON.stringify(expected) ? { ...result, projection: next } : { ok: false, code: "unsafe-source-range" };
   }
 
   // node_modules/bail/index.js
@@ -18471,22 +18476,41 @@
       const projection = projectSource(source), schema = doc4.type.schema;
       if (!doc4.eq(schema.nodeFromJSON(projection.doc))) return fail("stale-replacement");
       const edits2 = [];
-      let end = -1;
+      let end = -1, planningWork = 0;
       for (const { from: from2, to } of matches2) {
         if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < end || to <= from2) return fail("invalid-replacement");
         const span = projection.spans.find((s) => from2 >= s.from && to <= s.to);
-        if (!span) return fail("protected-replacement");
+        if (!span || (span.bold || span.italic || span.code || span.link) && from2 === span.from && to === span.to && !insert2) {
+          planningWork += source.length;
+          if (planningWork > 32e6) return fail("replacement-budget");
+          const planned = planInlineRange(source, projection, { from: from2, to, insert: insert2 });
+          if (!planned?.ok) return fail("protected-replacement");
+          edits2.push({ from: from2, to, a: planned.change.from, b: planned.change.to, text: planned.change.insert });
+          end = to;
+          continue;
+        }
         const a = span.sourceFrom + from2 - span.from, b = span.sourceFrom + to - span.from;
         const text5 = source.slice(a, b);
         if (!text5.isWellFormed() || text5 !== doc4.textBetween(from2, to, "", "")) return fail("protected-replacement");
-        edits2.push({ from: from2, to, a, b });
+        edits2.push({ from: from2, to, a, b, text: insert2 });
         end = to;
       }
-      if (source.length + edits2.reduce((n, e) => n + insert2.length - (e.b - e.a), 0) > import_document_capacity12.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
+      const overlap = edits2.some((e, i) => i > 0 && edits2[i - 1].b > e.a);
+      if (overlap && source.length * matches2.length > 32e6) return fail("replacement-budget");
+      if (source.length + edits2.reduce((n, e) => n + e.text.length - (e.b - e.a), 0) > import_document_capacity12.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
       const tr2 = new Transform(doc4);
-      let candidate = source;
+      let candidate = source, work = 0;
       for (const e of edits2.toReversed()) {
-        candidate = candidate.slice(0, e.a) + insert2 + candidate.slice(e.b);
+        if (overlap) {
+          work += candidate.length;
+          if (work > 32e6) return fail("replacement-budget");
+          const current = projectSource(candidate), span = current.spans.find((s) => e.from >= s.from && e.to <= s.to);
+          const raw = span && insert2 && { from: span.sourceFrom + e.from - span.from, to: span.sourceFrom + e.to - span.from, insert: insert2 };
+          const planned = planInlineRange(candidate, current, { from: e.from, to: e.to, insert: insert2 });
+          if (planned?.ok) candidate = planned.source;
+          else if (raw) candidate = candidate.slice(0, raw.from) + insert2 + candidate.slice(raw.to);
+          else return fail("protected-replacement");
+        } else candidate = candidate.slice(0, e.a) + e.text + candidate.slice(e.b);
         const marks2 = doc4.nodeAt(e.from)?.marks || [];
         tr2.replaceWith(e.from, e.to, insert2 ? schema.text(insert2, marks2) : []);
       }
@@ -23917,7 +23941,7 @@
       );
       const status = byId2("find-replace-status");
       if (!plan.ok) {
-        status.textContent = "\u5339\u914D\u8DE8\u8D8A\u683C\u5F0F\u6216\u53D7\u4FDD\u62A4\u7ED3\u6784\uFF0C\u6216\u66FF\u6362\u4F1A\u6539\u53D8 Markdown \u7ED3\u6784\u3002\u8BF7\u7F29\u5C0F\u8303\u56F4\u6216\u5728\u6E90\u7801\u4E2D\u4FEE\u6539\uFF1B\u672C\u6B21\u672A\u66FF\u6362\u3002";
+        status.textContent = "\u5339\u914D\u8DE8\u8D8A\u53D7\u4FDD\u62A4\u7ED3\u6784\u3001\u66FF\u6362\u4F1A\u6539\u53D8 Markdown \u7ED3\u6784\uFF0C\u6216\u6279\u91CF\u5904\u7406\u8D85\u8FC7\u5F53\u524D\u9650\u5236\u3002\u8BF7\u7F29\u5C0F\u8303\u56F4\u6216\u5728\u6E90\u7801\u4E2D\u4FEE\u6539\uFF1B\u672C\u6B21\u672A\u66FF\u6362\u3002";
         return;
       }
       if (plan.source === state.confirmed.source) {
@@ -62973,7 +62997,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === "listItem";
     const crossItems = inItem && selection.$from.depth === selection.$to.depth && selection.$from.node(selection.$from.depth - 2) === selection.$to.node(selection.$to.depth - 2) && selection.$from.node(selection.$from.depth - 1) !== selection.$to.node(selection.$to.depth - 1) && selection.$to.parent.type.name === "paragraph";
     if (keyDelete && !crossItems) return false;
-    if (selection.$from.sameParent(selection.$to) && (selection.$from.parent.type.name !== "paragraph" || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => ["bold", "italic", "code"].includes(m.type.name))))) return false;
+    if (selection.$from.sameParent(selection.$to) && (!["paragraph", "heading"].includes(selection.$from.parent.type.name) || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => ["bold", "italic", "code", "link"].includes(m.type.name))))) return false;
     if (event.inputType === "insertText" && (typeof event.data !== "string" || !event.data)) return false;
     const rejectTarget = () => {
       event.preventDefault();
