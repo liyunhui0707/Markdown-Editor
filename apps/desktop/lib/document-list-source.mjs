@@ -1,4 +1,5 @@
-import { projectInlineLeaf, inlineTextNode } from './document-inline-leaf.mjs';
+import {projectInlineParts} from './document-inline-tree.mjs';
+import { inlineTextNode } from './document-inline-leaf.mjs';
 export const listNodeAt = (node, path) => path.reduce((n,i)=>n.content[i],node);
 export const sameListParent = (a,b) => JSON.stringify(a.path.slice(0,-1))===JSON.stringify(b.path.slice(0,-1));
 // Tight lists, one source line per item, at most six levels / 32 items total.
@@ -24,9 +25,10 @@ export function projectSimpleList(node, source, position, blockIndex) {
       if(item.checked!==null&&!task)return null;
       const inline=[],parts=[];let length=0;
       for(const child of bodyFrom===lineEnd?[]:paragraph?.children||[]) {
-        const part=projectInlineLeaf(child,source);if(!part||part.sourceFrom<bodyFrom)return null;
+        const chunk=projectInlineParts(child,source);if(!chunk)return null;
+        for(const part of chunk){if(part.sourceFrom<bodyFrom)return null;
         inline.push(inlineTextNode(part));parts.push({...part,from:offset+2+length,to:offset+2+length+part.text.length,
-          blockIndex,childIndex:childIndex++,itemIndex,itemPath,inlineIndex:inline.length-1});length+=part.text.length;
+          blockIndex,childIndex:childIndex++,itemIndex,itemPath,inlineIndex:inline.length-1});length+=part.text.length;}
       }
       if(inline.length===1&&!parts[0].bold&&!parts[0].italic&&!parts[0].code&&!parts[0].link) {
         const text=source.slice(bodyFrom,lineEnd);if(text.trimStart()!==text)return null;
@@ -35,7 +37,7 @@ export function projectSimpleList(node, source, position, blockIndex) {
         if(bodyFrom!==lineEnd)return null;
         parts.push({text:'',sourceFrom:lineEnd,sourceTo:lineEnd,bold:false,from:offset+2,to:offset+2,
           blockIndex,childIndex:childIndex++,itemIndex,itemPath,inlineIndex:0});
-      } else if(source.slice(bodyFrom,parts[0].sourceFrom)!==(parts[0].link?'[':parts[0].bold||parts[0].italic||parts[0].code?source.slice(parts[0].sourceFrom-(parts[0].bold?2:1),parts[0].sourceFrom):''))return null;
+      } else if(source.slice(bodyFrom,parts[0].sourceFrom)!==(parts[0].frames?source.slice(parts[0].frames[0].from,parts[0].sourceFrom):parts[0].link?'[':parts[0].bold||parts[0].italic||parts[0].code?source.slice(parts[0].sourceFrom-(parts[0].bold?2:1),parts[0].sourceFrom):''))return null;
       const row={sourceFrom:a,sourceTo:lineEnd,subtreeTo:b,lineFrom,indent,bodyFrom,marker,checked,
         path:itemPath,siblingIndex,from:offset+2,to:offset+2+length};items.push(row);spans.push(...parts);
       const itemContent=[{type:'paragraph',content:inline}];let size=length+4;

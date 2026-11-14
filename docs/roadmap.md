@@ -19,7 +19,18 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — formatted long-document compatibility, 0.65.1 (2026-11-14)
+### Current batch — common authoring compatibility, 0.66.0 (2026-11-14)
+
+Reduce everyday read-only/refusal cases as one complete article workflow: combined
+bold/italic projection, compatible commands, text/selection edits, paragraph/list/
+quote continuation, plain soft-line selection replacement, find, history, export
+and recovery. Keep exact-source and main-owned authority. Real native-input,
+longer genuine writing and heading/table VoiceOver remain acceptance work. Next
+finish file-use clarity and evaluate broader explicitly authorized local save
+locations as a separate group; do not assume sync/external locations are supported.
+Then close daily-use candidate acceptance; paid distribution stays deferred.
+
+### Previous batch — formatted long-document compatibility, 0.65.1 (2026-11-14)
 
 A measured full-reparse hotspot in formatted paragraphs/headings is addressed
 without changing the editor model or file authority. Cold-parser differentials

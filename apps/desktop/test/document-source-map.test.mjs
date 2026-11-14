@@ -129,7 +129,7 @@ for (const breaks of [['\n', '\n'], ['\r\n', '\r\n'], ['\r\n', '\n']]) {
     assert.equal(second.from - first.to, 1); assert.equal(third.from - second.to, 1);
   });
 }
-test('soft paragraph V1: soft-break deletion, crossing, structural edits and UTF-16 splits fail closed', () => {
+test('soft paragraph: explicit break edits work while unsafe crossings and UTF-16 splits fail closed', () => {
   const source = 'First 😀\r\nsecond.\n\nLast.', p = projectSource(source), [a,b,last] = p.spans;
   assert.equal(p.spans.length, 3);
   for (const edit of [
@@ -137,7 +137,7 @@ test('soft paragraph V1: soft-break deletion, crossing, structural edits and UTF
     { from:a.from,to:a.from,insert:'\n\n' }, { from:b.to,to:last.from,insert:'' },
     { from:b.from,to:b.to,insert:'' }, { from:a.to-1,to:a.to,insert:'X' },
     { from:b.from,to:b.from,insert:'\ud800' }, { from:b.from,to:b.from,insert:'- ' },
-  ]) assert.equal(mapTextEdit(source, edit).ok, false, JSON.stringify(edit));
+  ]) assert.equal(mapTextEdit(source, edit).ok, (edit.from===a.to&&edit.to===b.from&&edit.insert==='')||(edit.from===a.from&&edit.to===a.from&&edit.insert==='\n\n'), JSON.stringify(edit));
   for (const at of [a.from,a.to,b.from,b.to]) assert.equal(mapTextEdit(source,{from:at,to:at,insert:'字'}).ok,true);
 });
 test('soft paragraph V1: no new support for hard breaks, indents, markup or transformed entities', () => {

@@ -1,10 +1,11 @@
+import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const rejectListEdit=()=>({ok:false,code:'unsafe-format-range'});
 const cutsListSurrogate=(s,n)=>/[\uD800-\uDBFF]/.test(s[n-1]||'')&&/[\uDC00-\uDFFF]/.test(s[n]||'');
 const listMarkType=p=>p.bold?'bold':p.italic?'italic':p.code?'code':null;
-const listInlineNodes=pieces=>pieces.filter(p=>p.text).map(p=>({type:'text',text:p.text,...(listMarkType(p)?{marks:[{type:listMarkType(p)}]}:{})}));
-const renderListPieces=pieces=>pieces.map(p=>(p.marker||'')+p.text+(p.marker||'')).join('');
+const listInlineNodes=pieces=>pieces.some(p=>p.frames)?inlineNodes(pieces):pieces.filter(p=>p.text).map(p=>({type:'text',text:p.text,...(listMarkType(p)?{marks:[{type:listMarkType(p)}]}:{})}));
+const renderListPieces=pieces=>pieces.some(p=>p.frames)?renderInlineParts(pieces,''):pieces.map(p=>(p.marker||'')+p.text+(p.marker||'')).join('');
 // All commands are resolved against the current projection in main. A bounded
 // tree of original source lines permits moving subtrees without serializing Markdown.
 export function mapListEdit(source,p,{action,from,to},project) {
@@ -83,7 +84,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
       function pieces(value) {
         const parts=p.spans.filter(s=>s.blockIndex===index&&s.itemIndex===rows.indexOf(value.row));
         if(parts.some(s=>s.link||s.textOffset!==undefined))return null;
-        const values=parts.map(s=>({...s,marker:listMarkType(s)?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
+        const values=parts.map(s=>({...s,frames:inlineFrames(s,source),marker:listMarkType(s)?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
         return renderListPieces(values)===value.body?values:null;
       }
       const parts=pieces(selected);if(!parts)return rejectListEdit();
@@ -98,7 +99,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
       } else {
         if(offset!==0||i===0)return rejectListEdit();
         const previous=parentList.items[i-1],left=pieces(previous);if(!left||previous.child)return rejectListEdit();
-        const merged=[];for(const part of [...left,...parts]){if(!part.text)continue;const last=merged.at(-1);if(last&&listMarkType(last)===listMarkType(part))last.text+=part.text;else merged.push({...part});}
+        const merged=[];for(const part of [...left,...parts]){if(!part.text)continue;const last=merged.at(-1);if(last&&(last.frames||part.frames?JSON.stringify(last.frames?.map(f=>f.kind))===JSON.stringify(part.frames?.map(f=>f.kind)):listMarkType(last)===listMarkType(part)))last.text+=part.text;else merged.push({...part});}
         offset=left.map(p=>p.text).join('').length;previous.body=renderListPieces(merged);previous.content=listInlineNodes(merged);previous.child=selected.child;
         parentList.items.splice(i,1);target=previous;
       }

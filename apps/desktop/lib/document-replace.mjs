@@ -1,3 +1,4 @@
+import {planSoftRange} from './document-soft-edit.mjs';
 import {Transform} from '@tiptap/pm/transform';
 import capacity from './document-capacity.js';
 import {planInlineRange} from './document-inline-source.mjs';
@@ -19,7 +20,7 @@ export function planDocumentReplace(source, doc, matches, insert, selection = {f
       if (!span || ((span.bold||span.italic||span.code||span.link) && from===span.from && to===span.to && !insert)) {
         planningWork+=source.length;
         if(planningWork>32_000_000)return fail('replacement-budget');
-        const planned=planInlineRange(source,projection,{from,to,insert});
+        const planned=planInlineRange(source,projection,{from,to,insert})||planSoftRange(source,projection,{from,to,insert});
         if(!planned?.ok)return fail('protected-replacement');
         edits.push({from,to,a:planned.change.from,b:planned.change.to,text:planned.change.insert});end=to;continue;
       }
@@ -39,7 +40,7 @@ export function planDocumentReplace(source, doc, matches, insert, selection = {f
         work+=candidate.length;if(work>32_000_000)return fail('replacement-budget');
         const current=projectSource(candidate),span=current.spans.find(s=>e.from>=s.from&&e.to<=s.to);
         const raw=span && insert && {from:span.sourceFrom+e.from-span.from,to:span.sourceFrom+e.to-span.from,insert};
-        const planned=planInlineRange(candidate,current,{from:e.from,to:e.to,insert});
+        const planned=planInlineRange(candidate,current,{from:e.from,to:e.to,insert})||planSoftRange(candidate,current,{from:e.from,to:e.to,insert});
         if(planned?.ok)candidate=planned.source;
         else if(raw)candidate=candidate.slice(0,raw.from)+insert+candidate.slice(raw.to);
         else return fail('protected-replacement');

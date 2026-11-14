@@ -541,13 +541,15 @@ test('soft paragraph V1: controlled composition and queued typing preserve one s
   await tick();h.delayed=false;h.replies.shift()();await h.controller.idle();
   assert.equal(h.document.text,'First\r\nsAB中econd.');assert.equal(h.controller.state().pending,0);
 });
-test('soft paragraph V1: rejected break edits do not lock or contaminate history', async () => {
+test('soft paragraph: explicit break edits have exact history and invalid block crossings stay protected', async () => {
   const h=harness('First\nsecond.\n\nLast.'),a=h.span('First'),b=h.span('second.');assert.ok(a&&b);
   const before=h.request('snapshot').snapshot;
-  assert.equal(h.edit(a.to,b.from,''),false);assert.equal(h.controller.state().code,'unsafe-source-range');
-  h.select(a.from+1);let split;
-  assert.equal(splitBlock(h.state(),tr=>{split=tr;}),true);assert.equal(h.controller.prepare(split),false);
-  assert.deepEqual(h.request('snapshot').snapshot,before);assert.equal(h.controller.state().locked,false);
+  assert.equal(h.edit(a.to,b.from,''),true);await h.controller.idle();assert.equal(h.document.text,'Firstsecond.\n\nLast.');
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before.source);
+  h.select(a.from+1);let split;assert.equal(splitBlock(h.state(),tr=>{split=tr;}),true);
+  assert.equal(h.controller.prepare(split),true);h.apply(split);await h.controller.idle();assert.equal(h.document.text,'F\n\nirst\nsecond.\n\nLast.');
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before.source);
+  assert.equal(h.edit(a.from,h.span('Last.').to,'X'),false);assert.equal(h.controller.state().locked,false);
   assert.equal(h.edit(b.from,b.from+1,'S'),true);await h.controller.idle();
   assert.equal(h.document.text,'First\nSecond.\n\nLast.');assert.equal(await h.controller.history('undo'),true);
   assert.equal(h.document.text,'First\nsecond.\n\nLast.');assert.equal(h.request('snapshot').snapshot.canUndo,false);
@@ -589,7 +591,7 @@ test('plain paste: empty paragraph and bold leaf preserve projection, selection 
   paste(bold, '中文😀'); await bold.controller.idle(); assert.equal(bold.document.text, 'A **中文😀** end.');
   assert.equal(await bold.controller.history('undo'), true); assert.equal(bold.document.text, 'A **粗体** end.');
 });
-test('plain paste: multiline, control, oversized, unsafe syntax and source crossing are atomic refusals', async () => {
+test('plain paste: unsafe input refuses atomically and soft-line replacement has exact history', async () => {
   const h = harness('First line\r\nsecond line\r\n\r\nTail.');
   h.select(h.span('First line').from + 2); const before = h.controller.state(), selection = h.state().selection.toJSON();
   for (const value of ['a\n\n\nb', '\na', 'a\n', 'a\tb', 'a\u0000b', 'a\u2028b', 'a'.repeat(4097), '[x](https://example.invalid)', '<script>x</script>', '\ud800']) {
@@ -599,8 +601,9 @@ test('plain paste: multiline, control, oversized, unsafe syntax and source cross
     assert.equal(h.controller.state().pending, 0); assert.equal(h.controller.state().recoveryRecords.length, 0);
   }
   h.select(h.span('First line').to - 1, h.span('second line').from + 1);
-  assert.equal(paste(h, 'safe').messages.length, 1); assert.equal(h.document.text, before.source);
-  assert.equal(h.requests.length, 0);
+  assert.equal(paste(h, 'safe').messages.length, 0);await h.controller.idle();
+  assert.equal(h.document.text,'First linsafeecond line\r\n\r\nTail.');assert.equal(h.requests.length,1);
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before.source);assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });
 test('plain paste: composition, readonly, pending and unknown state cannot be bypassed', async () => {
   const h = harness('First.'); h.select(2); const original = h.document.text;
@@ -1364,4 +1367,13 @@ test('list Tab follows a verified native caret moved from another paragraph',asy
  assert.equal(applyStructuredKey(c.view,{key:'Tab',preventDefault(){}},{controller:h.controller}),true);
  await h.controller.idle();assert.equal(h.document.text,'- [x] Parent\n  - [ ] Child\n\nTail');
  assert.deepEqual(fs.readFileSync(h.file),h.disk);
+});
+
+test('combined emphasis: controlled composition, acknowledgement and history retain both marks',async()=>{
+ const source='A **bold *both* tail** Z',h=harness(source),s=h.span('both');
+ assert.equal(h.controller.beginComposition(),true);assert.equal(h.edit(s.from+1,s.from+2,'ni'),true);assert.equal(h.edit(s.from+1,s.from+3,'你'),true);
+ h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,source.replace('both','b你th'));assert.equal(h.document.revision,1);
+ assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,source);assert.equal(await h.controller.history('redo'),true);
+ const before=h.document.text,p=projectSource(before);h.controller.beginComposition();assert.equal(h.edit(p.spans[0].from,p.spans[2].to,'X'),false);
+ h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,before);assert.equal(h.controller.state().locked,false);assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

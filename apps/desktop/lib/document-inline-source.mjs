@@ -1,3 +1,4 @@
+import {planTreeRange} from './document-tree-edit.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {listNodeAt,sameListParent} from './document-list-source.mjs';
@@ -18,7 +19,8 @@ export function planInlineRange(source, projection, change) {
   const cross=list&&endItem>itemIndex;
   if(cross&&block.items.slice(itemIndex,endItem+1).some(r=>!sameListParent(block.items[itemIndex],r)||r.subtreeTo!==r.sourceTo))return reject();
   const spans=projection.spans.filter(s=>s.blockIndex===index&&(list?s.itemIndex>=itemIndex&&s.itemIndex<=endItem:quoted?s.quoteIndex===quoteRow:s.itemIndex===undefined));
-  if(cross && spans.some(s=>s.link))return reject();
+  if(cross && spans.some(s=>s.link||s.frames))return reject();
+  const tree=planTreeRange(source,projection,change,spans);if(tree)return tree;
   if((!list&&!spans.some(s=>s.bold||s.italic||s.code||s.link))||spans.some(s=>s.textOffset!==undefined)) return null;
   const cut=(s,n)=>n>0 && n<s.length && /[\uD800-\uDBFF]/.test(s[n-1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   const tokens=spans.map(s=>({...s,a:s.link?s.linkSource?.from:s.sourceFrom-(s.bold?2:s.italic||s.code?1:0),b:s.link?s.linkSource?.to:s.sourceTo+(s.bold?2:s.italic||s.code?1:0),

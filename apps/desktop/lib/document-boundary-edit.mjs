@@ -1,3 +1,4 @@
+import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject = () => ({ok:false,code:'unsafe-format-range'});
@@ -5,16 +6,16 @@ const paragraph = content => ({type:'paragraph',content});
 const item = content => ({type:'listItem',content:[paragraph(content)]});
 const cutsPair = (s,n) => /[\uD800-\uDBFF]/.test(s[n-1]||'') && /[\uDC00-\uDFFF]/.test(s[n]||'');
 const mark = marker => marker==='`'?'code':marker.length===2?'bold':marker?'italic':null;
-const render = pieces => pieces.map(p=>p.marker+p.text+p.marker).join('');
+const render = pieces => pieces.some(p=>p.frames)?renderInlineParts(pieces,''):pieces.map(p=>p.marker+p.text+p.marker).join('');
 function merge(pieces) {
   const result=[];
   for(const p of pieces.filter(p=>p.text)) {
-    if(result.length && mark(result.at(-1).marker)===mark(p.marker)) result.at(-1).text+=p.text;
+    if(result.length && (p.frames||result.at(-1).frames?JSON.stringify(p.frames?.map(f=>f.kind))===JSON.stringify(result.at(-1).frames?.map(f=>f.kind)):mark(result.at(-1).marker)===mark(p.marker))) result.at(-1).text+=p.text;
     else result.push({...p});
   }
   return result;
 }
-const content = pieces => merge(pieces).map(p=>({type:'text',text:p.text,...(p.marker?{marks:[{type:mark(p.marker)}]}:{})}));
+const content = pieces => pieces.some(p=>p.frames)?inlineNodes(pieces):merge(pieces).map(p=>({type:'text',text:p.text,...(p.marker?{marks:[{type:mark(p.marker)}]}:{})}));
 function split(pieces,at) {
   const left=[],right=[];
   for(const p of pieces) {
@@ -34,20 +35,26 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
   if(index<0)return reject();
   const block=p.blocks[index],node=p.doc.content[index],expected=structuredClone(p.doc);
   const nl=source.slice(block.sourceFrom,block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || '\n';
-  function body(i,rowIndex=null) {
+  function body(i,rowIndex=null,heading=false) {
     const b=p.blocks[i],n=p.doc.content[i];
-    if(!b || (rowIndex===null && n.type!=='paragraph'))return null;
+    if(!b || (rowIndex===null && n.type!=='paragraph'&&!(heading&&n.type==='heading')))return null;
     const row=rowIndex===null?null:b.items?.[rowIndex];
     if(rowIndex!==null&&!row)return null;
     const spans=p.spans.filter(s=>s.blockIndex===i&&(rowIndex===null?s.itemIndex===undefined:s.itemIndex===rowIndex));
     if(!spans.length||spans.some(s=>s.textOffset!==undefined||s.link))return null;
-    const pieces=spans.map(s=>({text:s.text,marker:s.bold||s.italic||s.code?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
-    const a=row?row.bodyFrom:b.sourceFrom,end=row?row.sourceTo:b.sourceTo;
-    if(pieces.some(s=>s.marker&&!['**','__','*','_','`'].includes(s.marker))||render(pieces)!==source.slice(a,end))return null;
+    const pieces=spans.map(s=>({...s,frames:inlineFrames(s,source),marker:s.bold||s.italic||s.code?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
+    const a=row?row.bodyFrom:heading?b.sourceFrom+(source.slice(b.sourceFrom,b.sourceTo).match(/^#{1,6}[ \t]+/)?.[0].length||0):b.sourceFrom,end=row?row.sourceTo:b.sourceTo;
+    if(pieces.some(s=>!s.frames&&s.marker&&!['**','__','*','_','`'].includes(s.marker))||render(pieces)!==source.slice(a,end))return null;
     return {pieces,text:pieces.map(s=>s.text).join(''),a,b:end,from:row?row.from:b.from+1};
   }
   let a,b,text,targetIndex=index,targetItem=null,offset=0;
-  if(action==='split-paragraph' && node.type==='paragraph' && from===block.to-1
+  if(action==='split-heading'){
+    if(node.type!=='heading')return reject();
+    const current=body(index,null,true);if(!current)return reject();
+    const at=from-current.from;if(!at||cutsPair(current.text,at))return reject();
+    const [left,right]=split(current.pieces,at);a=current.a;b=current.b;text=render(left)+nl+nl+render(right);
+    expected.content[index].content=content(left);expected.content.splice(index+1,0,paragraph(content(right)));targetIndex++;
+  } else if(action==='split-paragraph' && node.type==='paragraph' && from===block.to-1
       && p.spans.some(s=>s.blockIndex===index&&s.link) && !p.spans.some(s=>s.blockIndex===index&&s.textOffset!==undefined)) {
     // Continue after a linked paragraph without splitting/reconstructing its
     // labels, destinations or titles. Full reparse equality still gates the edit.

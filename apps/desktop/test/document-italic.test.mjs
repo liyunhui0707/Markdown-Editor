@@ -50,9 +50,9 @@ test('italic split/join preserves style and never conflates bold with italic',()
   }
   const before='**bold**\n\n*italic*';exact(command(before,'join-paragraph','italic'),before,'**bold***italic*');
 });
-test('italic refuses nested marks, partial removal, malformed payloads and protected syntax',()=>{
-  for(const raw of ['A ***nested*** Z','A *nested **bold*** Z','- A *[link](x)*','A *soft\nwrap*','``*code*``'])assert.equal(projectSource(raw).spans.length,0,raw);
-  for(const [s,a,t,f,e] of [['A **bold** Z','italic','bold',0,4],['A *italic* Z','bold','italic',0,6],['A *italic* Z','italic','italic',1,3],['A word Z','italic','A word Z',0,0],['A word Z','italic','A word Z',0,2],['A 😀 Z','italic','A 😀 Z',3,4]])assert.equal(command(s,a,t,f,e).ok,false);
+test('italic combinations preserve protected links, partial removal, malformed payloads and syntax',()=>{
+  for(const raw of ['A ***nested*** Z','A *nested **bold*** Z','- A *[link](x)*','A *soft\nwrap*','``*code*``'])assert.equal(projectSource(raw).spans.length>0,['A ***nested*** Z','A *nested **bold*** Z'].includes(raw),raw);
+  for(const [s,a,t,f,e] of [['A **bold** Z','italic','bold',0,4],['A *italic* Z','bold','italic',0,6],['A *italic* Z','italic','italic',1,3],['A word Z','italic','A word Z',0,0],['A word Z','italic','A word Z',0,2],['A 😀 Z','italic','A 😀 Z',3,4]])assert.equal(command(s,a,t,f,e).ok,(s==='A **bold** Z'&&a==='italic')||(s==='A *italic* Z'&&a==='bold'));
   assert.equal(mapFormatEdit('Text',{action:'italic',from:1,to:5,path:'/tmp/forged'}).ok,false);
   assert.equal(mapTextEdit('A *italic* Z',{from:3,to:9,insert:'**nested**'}).ok,false);
 });
