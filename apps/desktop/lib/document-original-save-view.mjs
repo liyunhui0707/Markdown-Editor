@@ -8,7 +8,7 @@ export function originalSaveRefusal(s, c = {}) {
   return null;
 }
 export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
-  const notices=new Map(),unknown=new Set();let listing=false;
+  const notices=new Map(),unknown=new Set();let listing=false,managementNotice='';
   const doc=byId('save-original').ownerDocument;
   function render(s){
     const c=context(),o=s.confirmed.originalSave,button=byId('save-original');
@@ -39,11 +39,26 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
     if(listing)return;listing=true;const host=byId('save-version-list');host.textContent='正在读取保存记录…';
     try{const r=await api.listSaveRecoveries();host.replaceChildren();
       if(!r?.ok){host.textContent='保存版本暂不可用。';return;}
+      if(managementNotice){const notice=doc.createElement('p');notice.textContent=managementNotice;notice.setAttribute?.('role','status');host.append(notice);}
+      const capacity=doc.createElement('p');capacity.textContent=`工作区保存版本 ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}；恢复归档 ${r.archived?.length ?? 0} 条。归档保留材料并腾出保存名额，仍占用磁盘空间。每个文件的最新版本及不确定记录不参与整理。`+(r.archiveWarning?' 归档区暂不可用，材料保留。':'');host.append(capacity);
       if(!r.records.length)host.textContent='尚无保存回原文件的记录。';
-      for(const record of r.records){const row=doc.createElement('div'),text=doc.createElement('p'),button=doc.createElement('button');row.className='save-version-row';
-        const state=record.state==='saved-confirmed'?'已确认':record.state==='not-saved'?'未写回':'需要检查';
+      for(const record of [...r.records,...(r.archived||[])]){const row=doc.createElement('div'),text=doc.createElement('p'),button=doc.createElement('button');row.className='save-version-row';row.dataset.recordId=record.id;
+        const state=record.archived?'恢复归档':record.state==='saved-confirmed'?'已确认':record.state==='not-saved'?'未写回':'需要检查';
         text.textContent=`${record.label} · ${state} · ${record.time?new Date(record.time).toLocaleString():'时间未知'}`;button.type='button';button.textContent='在 Finder 查看';
-        button.onclick=async()=>{const result=await api.revealSaveRecovery(record.id);if(!result?.ok)text.textContent+=' · 无法定位，记录保留。';};row.append(text,button);host.append(row);
+        button.onclick=async()=>{const result=await api.revealSaveRecovery(record.id);if(!result?.ok)text.textContent+=' · 无法定位，记录保留。';};row.append(text,button);
+        if(record.manageToken&&!record.archived){const offload=doc.createElement('button');offload.type='button';offload.textContent='归档旧版本';
+          offload.onclick=()=>{if(listing||context().loading)return;offload.hidden=true;
+            const prompt=doc.createElement('p'),yes=doc.createElement('button'),no=doc.createElement('button');
+            prompt.textContent='将整个保存版本移入恢复归档？保留所有文件及元数据，不改写 Markdown 原文件；可继续在 Finder 检查。';
+            yes.type=no.type='button';yes.textContent='确认归档旧版本';no.textContent='取消';row.append(prompt,yes,no);yes.focus?.();
+            no.onclick=()=>{prompt.remove();yes.remove();no.remove();offload.hidden=false;offload.focus?.();};
+            yes.onclick=async()=>{if(listing||context().loading)return;listing=true;busy(true);yes.disabled=no.disabled=true;
+              try{const result=await api.offloadSaveRecovery({recordId:record.id,expectedToken:record.manageToken});managementNotice=result?.ok?'已归档，保存名额已释放。':'归档未确认，材料保留；请刷新检查，不自动重试。';}
+              catch{managementNotice='归档结果未知，材料保留；请刷新检查，不自动重试。';}
+              finally{listing=false;busy(false);rerender();await refresh();byId('refresh-save-versions').focus?.();}
+            };
+          };row.append(offload);
+        }host.append(row);
       }
     }catch{host.textContent='无法读取保存记录，现有材料保留。';}finally{listing=false;}
   }

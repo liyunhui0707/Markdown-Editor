@@ -4,6 +4,16 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.68.0 sustained-use persistence lifecycle.** Explicit draft offload writes and
+verifies a complete recovery copy before releasing inactive working records;
+restoration creates a new independent backup and retains the archive. Native
+save offload renames the intact transaction directory, preserving metadata and
+displaced-inode evidence. Keep newest-per-file, live receipts and uncertain
+records protected. Working ceilings remain 32 active drafts / 128 draft records /
+128 save transactions; archives still occupy disk. Main owns IDs, tokens, live
+protection and backup retry. No automatic deletion, overwrite or save authority.
+See the dated direction review and roadmap before selecting another group.
+
 **Daily-use acceptance automation (2026-11-14), runtime 0.67.0 unchanged.**
 The controlled input matrix, AX/keyboard checks and opt-in sustained-writing test
 are development evidence, not physical IME/VoiceOver acceptance. Sustained results

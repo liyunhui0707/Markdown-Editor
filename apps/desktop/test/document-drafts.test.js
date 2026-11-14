@@ -242,7 +242,7 @@ test('management IPC rejects forged authority and active drafts; unrelated writi
   f.call({ operation: 'edit', sessionId: s.sessionId, expectedRevision: 0, from: 1, to: 1, insert: 'Keep writing' }); f.manager.flushDrafts();
   const before = f.call({ operation: 'snapshot', sessionId: s.sessionId }).snapshot;
   const active = f.call({ operation: 'list-drafts' }).drafts.find(x => x.active);
-  assert.equal(f.call({ ...request, draftId: active.id, expectedToken: active.manageToken }).code, 'draft-already-open');
+  for(const action of ['archive','offload'])assert.equal(f.call({ ...request, action, draftId: active.id, expectedToken: active.manageToken }).code, 'draft-already-open');
   assert.equal(f.call(request).ok, true);
   assert.deepEqual(f.call({ operation: 'snapshot', sessionId: s.sessionId }).snapshot, before);
   assert.equal(f.call({ operation: 'restore-draft', draftId: d.id }).code, 'draft-archived');

@@ -19,7 +19,22 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — daily-use acceptance automation (2026-11-14)
+### Current batch — sustained-use persistence lifecycle, 0.68.0
+
+The [2026-11-14 direction review](audits/2026-11-14-product-direction-review.md)
+is the continuation baseline. Complete capacity visibility, explicit recoverable
+offload, continued backups and restart recovery as one workflow. Keep unknown,
+partial and live records protected. Offload frees working slots, not disk space;
+never silently delete history or simply raise capacity limits. Draft offload
+restores as a new independent backup; saved-file recovery remains explicit.
+
+Then improve everyday file operations, common article/image compatibility and
+local stable-candidate acceptance in that order. Keep the visual baseline and
+current architecture. Memory growth still needs attribution: bounded stable-JS
+samples do not prove stable whole-process memory. No product forced GC. Preserve
+pending human checks and the user's deferral of paid public distribution.
+
+### Previous batch — daily-use acceptance automation (2026-11-14)
 
 Keep the installed 0.67.0 product runtime and accepted visual baseline unchanged
 unless a reproducible product defect appears. Extend complete continuous-writing

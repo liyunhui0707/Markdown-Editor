@@ -23,7 +23,7 @@ export function createDraftView({ api, byId, context, restore }) {
       : ['backup-failed', 'draft-unverified'].includes(r?.state) ? `草稿备份未确认：${r.code}；${last}。当前文字保留，请另存新文件。`
       : '尚未备份。输入内容后会备份已确认正文。';
     if (r?.code === 'draft-capacity') node.textContent += ' 待恢复草稿已满，请归档不再使用的草稿；下次确认编辑时会再次尝试备份。';
-    if (r?.code === 'draft-record-capacity') node.textContent += ' 本地记录已达上限；归档不释放磁盘记录，请先另存新文件。';
+    if (r?.code === 'draft-record-capacity') node.textContent += ' 工作区记录已满；请在草稿面板将闲置草稿“移入恢复归档”，保留内容并腾出备份名额。';
     if (unsettled) node.textContent += ' 当前输入或操作尚未确认，不包含在备份保证中。';
     node.dataset.tone = ['backup-failed', 'draft-unverified'].includes(r?.state) ? 'error' : '';
     summary.dataset.tone = node.dataset.tone;
@@ -42,9 +42,10 @@ export function createDraftView({ api, byId, context, restore }) {
   function choose(d, action) {
     if (busy || blocked()) { byId('draft-operation-status').textContent = '请先完成当前输入或操作。'; return; }
     selection = { draftId: d.id, action, expectedToken: d.manageToken };
-    byId('draft-management-description').textContent = `${action === 'archive' ? '归档' : '放回'}“${d.label}”（${d.id.slice(0, 8)} · 修订 ${d.revision}）？`
-      + (action === 'archive' ? '将移出待恢复列表，内容仍留在本机，可在“已归档”中放回。不会删除 Markdown 文件。' : '将重新占用一份待恢复草稿名额；不会打开文档或改写任何 Markdown 文件。');
-    byId('confirm-draft-management').textContent = action === 'archive' ? '确认归档' : '确认放回';
+    const offload=action==='offload';
+    byId('draft-management-description').textContent = `${offload ? '移入恢复归档' : action === 'archive' ? '归档' : d.offloaded ? '恢复为新草稿' : '放回'}“${d.label}”（${d.id.slice(0, 8)} · 修订 ${d.revision}）？`
+      + (offload ? '完整校验并保留各代正文和图片后，释放工作区名额。仍占用磁盘空间，可在已归档中恢复为新草稿；不会删除 Markdown 文件。' : d.offloaded ? '将建立一份新的独立草稿备份，归档原件仍保留。不恢复旧 Undo 历史或保存授权。' : action === 'archive' ? '将移出待恢复列表，内容仍留在本机，可在“已归档”中放回。不会删除 Markdown 文件。' : '将重新占用一份待恢复草稿名额；不会打开文档或改写任何 Markdown 文件。');
+    byId('confirm-draft-management').textContent = offload ? '确认移入恢复归档' : action === 'archive' ? '确认归档' : d.offloaded ? '确认恢复为新草稿' : '确认放回';
     byId('draft-management-confirmation').hidden = false;
   }
   function addRows(panel, drafts, archived) {
@@ -72,9 +73,12 @@ export function createDraftView({ api, byId, context, restore }) {
         };
         restoreButton.className = 'primary-action'; actions.append(restoreButton);
       }
-      const manage = document.createElement('button'); manage.textContent = archived ? '放回待恢复列表' : '归档';
+      const manage = document.createElement('button'); manage.textContent = d.offloaded ? '恢复为新草稿' : archived ? '放回待恢复列表' : '归档';
       manage.disabled = d.active || !d.manageToken;
       manage.onclick = () => choose(d, archived ? 'unarchive' : 'archive');
+      if(d.offloaded){const reveal=document.createElement('button');reveal.textContent='在 Finder 查看归档';reveal.onclick=async()=>{if(busy||blocked())return;try{const r=await api.revealDraftArchive(d.id);if(!r?.ok)byId('draft-operation-status').textContent='暂时无法定位归档，材料保留。';}catch{byId('draft-operation-status').textContent='暂时无法定位归档，材料保留。';}};actions.append(reveal);}
+      if(!d.offloaded){const offload=document.createElement('button');offload.textContent='移入恢复归档';offload.disabled=d.active||!d.manageToken;
+        offload.onclick=()=>choose(d,'offload');actions.append(offload);}
       actions.append(manage); row.append(actions); panel.append(row);
     }
   }
@@ -94,7 +98,8 @@ export function createDraftView({ api, byId, context, restore }) {
       byId('draft-empty').hidden = result.drafts.length > 0;
       status.textContent = `待恢复 ${result.drafts.length} / ${c?.limit ?? 32} 份，已归档 ${result.archived?.length ?? 0} 份。`
         + (c ? ` 本地记录 ${c.records} / ${c.maxRecords}。` : '')
-        + (c?.records >= c?.maxRecords ? ' 记录已满，归档不能释放磁盘记录；请先另存新文件。' : c?.active >= c?.limit ? ' 待恢复名额已满，可归档不再使用的草稿。' : '')
+        + (c?.records >= c?.maxRecords ? ' 工作区记录已满，请将闲置草稿移入恢复归档，再继续备份。' : c?.active >= c?.limit ? ' 待恢复名额已满，可归档不再使用的草稿。' : '')
+        + (result.archiveWarning ? ' 恢复归档区暂不可用，现有材料保留。' : '')
         + ' 仅恢复已确认正文，不恢复旧 Undo 历史或保存授权。';
       addRows(panel, result.drafts, false); addRows(archive, result.archived || [], true);
       byId('draft-archive-empty').hidden = !!result.archived?.length;
@@ -116,11 +121,11 @@ export function createDraftView({ api, byId, context, restore }) {
     try {
       const r = await api.manageDraft(request);
       output.dataset.tone = r.ok ? 'success' : 'error';
-      output.textContent = r.ok ? (request.action === 'archive' ? '已归档，可在“已归档”中放回。' : '已放回待恢复列表。')
+      output.textContent = r.ok ? (request.action === 'offload' ? '已移入恢复归档，工作区名额已释放；归档仍占用磁盘空间，可恢复为新草稿。' : request.action === 'archive' ? '已归档，可在“已归档”中放回。' : '已放回待恢复列表。')
         : `草稿整理未确认：${r.code}。` + (r.state === 'draft-unverified' || ['draft-operation-unknown', 'ipc-outcome-unknown'].includes(r.code)
           ? '结果可能已发生变化，记录保留；请刷新核对，不自动重试。'
           : r.code === 'draft-capacity' ? '待恢复名额已满，请先归档其他闲置草稿。'
-          : r.code === 'draft-record-capacity' ? '本地记录已满，归档不释放磁盘记录；请先另存新文件。' : '请刷新列表核对；当前写作保留。');
+          : r.code === 'draft-record-capacity' ? '工作区记录已满，请将闲置草稿移入恢复归档。' : '请刷新列表核对；当前写作保留。');
     } catch { output.dataset.tone = 'error'; output.textContent = '草稿整理通信中断，结果未知。记录保留，请刷新核对，不自动重试。'; }
     finally {
       busy = false; cancel();

@@ -209,6 +209,7 @@
   }
   function originalSaveNotice(current) {
     const o = current.originalSave, r = o?.receipt;
+    if (r?.committed === false && r.code === "save-recovery-capacity") return "\u4FDD\u5B58\u7248\u672C\u5DE5\u4F5C\u533A\u5DF2\u6EE1\u3002\u8BF7\u6253\u5F00\u201C\u8349\u7A3F\u201D\uFF0C\u5C06\u5DF2\u786E\u8BA4\u7684\u65E7\u4FDD\u5B58\u7248\u672C\u79FB\u5165\u6062\u590D\u5F52\u6863\uFF0C\u518D\u4FDD\u5B58\uFF1B\u5F53\u524D\u6B63\u6587\u4FDD\u7559\u3002";
     if (r?.ok === false && r.committed !== false) return "\u672C\u6B21\u4FDD\u5B58\u672A\u786E\u8BA4\uFF0C\u539F\u8DEF\u5F84\u53EF\u80FD\u5DF2\u7ECF\u66F4\u65B0\u3002\u5404\u7248\u672C\u5DF2\u4FDD\u7559\uFF0C\u8BF7\u68C0\u67E5\u6062\u590D\u6750\u6599\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u91CD\u8BD5\u6216\u56DE\u9000\u3002";
     if (o?.stopped) return ["changed", "missing"].includes(current.linkedFile?.checked?.state) ? "\u4FDD\u5B58\u5DF2\u6682\u505C\uFF1A\u78C1\u76D8\u6587\u4EF6\u5DF2\u53D8\u5316\u6216\u79FB\u8D70\uFF0C\u5F53\u524D\u8349\u7A3F\u4FDD\u7559\u3002\u8BF7\u6253\u5F00\u78C1\u76D8\u7248\u6838\u5BF9\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "\u4FDD\u5B58\u4ECD\u6682\u505C\uFF1A\u518D\u6B21\u68C0\u67E5\u4E0D\u4F1A\u6062\u590D\u5199\u56DE\u3002\u5F53\u524D\u8349\u7A3F\u4FDD\u7559\uFF0C\u8BF7\u6253\u5F00\u78C1\u76D8\u7248\u6838\u5BF9\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
     return r?.ok === false ? "\u672A\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u3002\u8BF7\u4FDD\u7559\u8349\u7A3F\uFF0C\u91CD\u65B0\u6253\u5F00\u539F\u6587\u4EF6\u6838\u5BF9\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "";
@@ -62467,7 +62468,7 @@ ${prefix}
   }
   function createOriginalSaveView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
     const notices = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
-    let listing = false;
+    let listing = false, managementNotice = "";
     const doc4 = byId2("save-original").ownerDocument;
     function render4(s) {
       const c = context(), o = s.confirmed.originalSave, button = byId2("save-original");
@@ -62554,11 +62555,21 @@ SHA-256: ${last.sha256}` : "";
           host.textContent = "\u4FDD\u5B58\u7248\u672C\u6682\u4E0D\u53EF\u7528\u3002";
           return;
         }
+        if (managementNotice) {
+          const notice = doc4.createElement("p");
+          notice.textContent = managementNotice;
+          notice.setAttribute?.("role", "status");
+          host.append(notice);
+        }
+        const capacity16 = doc4.createElement("p");
+        capacity16.textContent = `\u5DE5\u4F5C\u533A\u4FDD\u5B58\u7248\u672C ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}\uFF1B\u6062\u590D\u5F52\u6863 ${r.archived?.length ?? 0} \u6761\u3002\u5F52\u6863\u4FDD\u7559\u6750\u6599\u5E76\u817E\u51FA\u4FDD\u5B58\u540D\u989D\uFF0C\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\u3002\u6BCF\u4E2A\u6587\u4EF6\u7684\u6700\u65B0\u7248\u672C\u53CA\u4E0D\u786E\u5B9A\u8BB0\u5F55\u4E0D\u53C2\u4E0E\u6574\u7406\u3002` + (r.archiveWarning ? " \u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u6750\u6599\u4FDD\u7559\u3002" : "");
+        host.append(capacity16);
         if (!r.records.length) host.textContent = "\u5C1A\u65E0\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u7684\u8BB0\u5F55\u3002";
-        for (const record of r.records) {
+        for (const record of [...r.records, ...r.archived || []]) {
           const row = doc4.createElement("div"), text5 = doc4.createElement("p"), button = doc4.createElement("button");
           row.className = "save-version-row";
-          const state = record.state === "saved-confirmed" ? "\u5DF2\u786E\u8BA4" : record.state === "not-saved" ? "\u672A\u5199\u56DE" : "\u9700\u8981\u68C0\u67E5";
+          row.dataset.recordId = record.id;
+          const state = record.archived ? "\u6062\u590D\u5F52\u6863" : record.state === "saved-confirmed" ? "\u5DF2\u786E\u8BA4" : record.state === "not-saved" ? "\u672A\u5199\u56DE" : "\u9700\u8981\u68C0\u67E5";
           text5.textContent = `${record.label} \xB7 ${state} \xB7 ${record.time ? new Date(record.time).toLocaleString() : "\u65F6\u95F4\u672A\u77E5"}`;
           button.type = "button";
           button.textContent = "\u5728 Finder \u67E5\u770B";
@@ -62567,6 +62578,48 @@ SHA-256: ${last.sha256}` : "";
             if (!result?.ok) text5.textContent += " \xB7 \u65E0\u6CD5\u5B9A\u4F4D\uFF0C\u8BB0\u5F55\u4FDD\u7559\u3002";
           };
           row.append(text5, button);
+          if (record.manageToken && !record.archived) {
+            const offload = doc4.createElement("button");
+            offload.type = "button";
+            offload.textContent = "\u5F52\u6863\u65E7\u7248\u672C";
+            offload.onclick = () => {
+              if (listing || context().loading) return;
+              offload.hidden = true;
+              const prompt = doc4.createElement("p"), yes = doc4.createElement("button"), no = doc4.createElement("button");
+              prompt.textContent = "\u5C06\u6574\u4E2A\u4FDD\u5B58\u7248\u672C\u79FB\u5165\u6062\u590D\u5F52\u6863\uFF1F\u4FDD\u7559\u6240\u6709\u6587\u4EF6\u53CA\u5143\u6570\u636E\uFF0C\u4E0D\u6539\u5199 Markdown \u539F\u6587\u4EF6\uFF1B\u53EF\u7EE7\u7EED\u5728 Finder \u68C0\u67E5\u3002";
+              yes.type = no.type = "button";
+              yes.textContent = "\u786E\u8BA4\u5F52\u6863\u65E7\u7248\u672C";
+              no.textContent = "\u53D6\u6D88";
+              row.append(prompt, yes, no);
+              yes.focus?.();
+              no.onclick = () => {
+                prompt.remove();
+                yes.remove();
+                no.remove();
+                offload.hidden = false;
+                offload.focus?.();
+              };
+              yes.onclick = async () => {
+                if (listing || context().loading) return;
+                listing = true;
+                busy(true);
+                yes.disabled = no.disabled = true;
+                try {
+                  const result = await api2.offloadSaveRecovery({ recordId: record.id, expectedToken: record.manageToken });
+                  managementNotice = result?.ok ? "\u5DF2\u5F52\u6863\uFF0C\u4FDD\u5B58\u540D\u989D\u5DF2\u91CA\u653E\u3002" : "\u5F52\u6863\u672A\u786E\u8BA4\uFF0C\u6750\u6599\u4FDD\u7559\uFF1B\u8BF7\u5237\u65B0\u68C0\u67E5\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002";
+                } catch {
+                  managementNotice = "\u5F52\u6863\u7ED3\u679C\u672A\u77E5\uFF0C\u6750\u6599\u4FDD\u7559\uFF1B\u8BF7\u5237\u65B0\u68C0\u67E5\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002";
+                } finally {
+                  listing = false;
+                  busy(false);
+                  rerender();
+                  await refresh();
+                  byId2("refresh-save-versions").focus?.();
+                }
+              };
+            };
+            row.append(offload);
+          }
           host.append(row);
         }
       } catch {
@@ -63642,7 +63695,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const unsettled = s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords?.length || s.locked || s.source !== s.confirmed.source || context().invalid;
       node2.textContent = r?.state === "backed-up" && r.revision === s.confirmed.revision ? `\u672C\u5730\u8349\u7A3F\u5DF2\u5907\u4EFD\uFF08\u4FEE\u8BA2 ${r.revision}\uFF09\u3002\u5907\u4EFD\u7528\u4E8E\u6062\u590D\u8349\u7A3F\uFF1B\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002` : r?.state === "backup-pending" ? `\u6B63\u5728\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\uFF1B${last}\u3002` : ["backup-failed", "draft-unverified"].includes(r?.state) ? `\u8349\u7A3F\u5907\u4EFD\u672A\u786E\u8BA4\uFF1A${r.code}\uFF1B${last}\u3002\u5F53\u524D\u6587\u5B57\u4FDD\u7559\uFF0C\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u3002` : "\u5C1A\u672A\u5907\u4EFD\u3002\u8F93\u5165\u5185\u5BB9\u540E\u4F1A\u5907\u4EFD\u5DF2\u786E\u8BA4\u6B63\u6587\u3002";
       if (r?.code === "draft-capacity") node2.textContent += " \u5F85\u6062\u590D\u8349\u7A3F\u5DF2\u6EE1\uFF0C\u8BF7\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\uFF1B\u4E0B\u6B21\u786E\u8BA4\u7F16\u8F91\u65F6\u4F1A\u518D\u6B21\u5C1D\u8BD5\u5907\u4EFD\u3002";
-      if (r?.code === "draft-record-capacity") node2.textContent += " \u672C\u5730\u8BB0\u5F55\u5DF2\u8FBE\u4E0A\u9650\uFF1B\u5F52\u6863\u4E0D\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF0C\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
+      if (r?.code === "draft-record-capacity") node2.textContent += " \u5DE5\u4F5C\u533A\u8BB0\u5F55\u5DF2\u6EE1\uFF1B\u8BF7\u5728\u8349\u7A3F\u9762\u677F\u5C06\u95F2\u7F6E\u8349\u7A3F\u201C\u79FB\u5165\u6062\u590D\u5F52\u6863\u201D\uFF0C\u4FDD\u7559\u5185\u5BB9\u5E76\u817E\u51FA\u5907\u4EFD\u540D\u989D\u3002";
       if (unsettled) node2.textContent += " \u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u5305\u542B\u5728\u5907\u4EFD\u4FDD\u8BC1\u4E2D\u3002";
       node2.dataset.tone = ["backup-failed", "draft-unverified"].includes(r?.state) ? "error" : "";
       summary.dataset.tone = node2.dataset.tone;
@@ -63662,8 +63715,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         return;
       }
       selection = { draftId: d.id, action, expectedToken: d.manageToken };
-      byId2("draft-management-description").textContent = `${action === "archive" ? "\u5F52\u6863" : "\u653E\u56DE"}\u201C${d.label}\u201D\uFF08${d.id.slice(0, 8)} \xB7 \u4FEE\u8BA2 ${d.revision}\uFF09\uFF1F` + (action === "archive" ? "\u5C06\u79FB\u51FA\u5F85\u6062\u590D\u5217\u8868\uFF0C\u5185\u5BB9\u4ECD\u7559\u5728\u672C\u673A\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002\u4E0D\u4F1A\u5220\u9664 Markdown \u6587\u4EF6\u3002" : "\u5C06\u91CD\u65B0\u5360\u7528\u4E00\u4EFD\u5F85\u6062\u590D\u8349\u7A3F\u540D\u989D\uFF1B\u4E0D\u4F1A\u6253\u5F00\u6587\u6863\u6216\u6539\u5199\u4EFB\u4F55 Markdown \u6587\u4EF6\u3002");
-      byId2("confirm-draft-management").textContent = action === "archive" ? "\u786E\u8BA4\u5F52\u6863" : "\u786E\u8BA4\u653E\u56DE";
+      const offload = action === "offload";
+      byId2("draft-management-description").textContent = `${offload ? "\u79FB\u5165\u6062\u590D\u5F52\u6863" : action === "archive" ? "\u5F52\u6863" : d.offloaded ? "\u6062\u590D\u4E3A\u65B0\u8349\u7A3F" : "\u653E\u56DE"}\u201C${d.label}\u201D\uFF08${d.id.slice(0, 8)} \xB7 \u4FEE\u8BA2 ${d.revision}\uFF09\uFF1F` + (offload ? "\u5B8C\u6574\u6821\u9A8C\u5E76\u4FDD\u7559\u5404\u4EE3\u6B63\u6587\u548C\u56FE\u7247\u540E\uFF0C\u91CA\u653E\u5DE5\u4F5C\u533A\u540D\u989D\u3002\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\uFF0C\u53EF\u5728\u5DF2\u5F52\u6863\u4E2D\u6062\u590D\u4E3A\u65B0\u8349\u7A3F\uFF1B\u4E0D\u4F1A\u5220\u9664 Markdown \u6587\u4EF6\u3002" : d.offloaded ? "\u5C06\u5EFA\u7ACB\u4E00\u4EFD\u65B0\u7684\u72EC\u7ACB\u8349\u7A3F\u5907\u4EFD\uFF0C\u5F52\u6863\u539F\u4EF6\u4ECD\u4FDD\u7559\u3002\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002" : action === "archive" ? "\u5C06\u79FB\u51FA\u5F85\u6062\u590D\u5217\u8868\uFF0C\u5185\u5BB9\u4ECD\u7559\u5728\u672C\u673A\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002\u4E0D\u4F1A\u5220\u9664 Markdown \u6587\u4EF6\u3002" : "\u5C06\u91CD\u65B0\u5360\u7528\u4E00\u4EFD\u5F85\u6062\u590D\u8349\u7A3F\u540D\u989D\uFF1B\u4E0D\u4F1A\u6253\u5F00\u6587\u6863\u6216\u6539\u5199\u4EFB\u4F55 Markdown \u6587\u4EF6\u3002");
+      byId2("confirm-draft-management").textContent = offload ? "\u786E\u8BA4\u79FB\u5165\u6062\u590D\u5F52\u6863" : action === "archive" ? "\u786E\u8BA4\u5F52\u6863" : d.offloaded ? "\u786E\u8BA4\u6062\u590D\u4E3A\u65B0\u8349\u7A3F" : "\u786E\u8BA4\u653E\u56DE";
       byId2("draft-management-confirmation").hidden = false;
     }
     function addRows(panel, drafts2, archived) {
@@ -63704,9 +63758,30 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
           actions2.append(restoreButton);
         }
         const manage = document.createElement("button");
-        manage.textContent = archived ? "\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868" : "\u5F52\u6863";
+        manage.textContent = d.offloaded ? "\u6062\u590D\u4E3A\u65B0\u8349\u7A3F" : archived ? "\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868" : "\u5F52\u6863";
         manage.disabled = d.active || !d.manageToken;
         manage.onclick = () => choose(d, archived ? "unarchive" : "archive");
+        if (d.offloaded) {
+          const reveal = document.createElement("button");
+          reveal.textContent = "\u5728 Finder \u67E5\u770B\u5F52\u6863";
+          reveal.onclick = async () => {
+            if (busy || blocked()) return;
+            try {
+              const r = await api2.revealDraftArchive(d.id);
+              if (!r?.ok) byId2("draft-operation-status").textContent = "\u6682\u65F6\u65E0\u6CD5\u5B9A\u4F4D\u5F52\u6863\uFF0C\u6750\u6599\u4FDD\u7559\u3002";
+            } catch {
+              byId2("draft-operation-status").textContent = "\u6682\u65F6\u65E0\u6CD5\u5B9A\u4F4D\u5F52\u6863\uFF0C\u6750\u6599\u4FDD\u7559\u3002";
+            }
+          };
+          actions2.append(reveal);
+        }
+        if (!d.offloaded) {
+          const offload = document.createElement("button");
+          offload.textContent = "\u79FB\u5165\u6062\u590D\u5F52\u6863";
+          offload.disabled = d.active || !d.manageToken;
+          offload.onclick = () => choose(d, "offload");
+          actions2.append(offload);
+        }
         actions2.append(manage);
         row.append(actions2);
         panel.append(row);
@@ -63732,7 +63807,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         }
         const c = result.capacity;
         byId2("draft-empty").hidden = result.drafts.length > 0;
-        status.textContent = `\u5F85\u6062\u590D ${result.drafts.length} / ${c?.limit ?? 32} \u4EFD\uFF0C\u5DF2\u5F52\u6863 ${result.archived?.length ?? 0} \u4EFD\u3002` + (c ? ` \u672C\u5730\u8BB0\u5F55 ${c.records} / ${c.maxRecords}\u3002` : "") + (c?.records >= c?.maxRecords ? " \u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u5F52\u6863\u4E0D\u80FD\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF1B\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : c?.active >= c?.limit ? " \u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u53EF\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\u3002" : "") + " \u4EC5\u6062\u590D\u5DF2\u786E\u8BA4\u6B63\u6587\uFF0C\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002";
+        status.textContent = `\u5F85\u6062\u590D ${result.drafts.length} / ${c?.limit ?? 32} \u4EFD\uFF0C\u5DF2\u5F52\u6863 ${result.archived?.length ?? 0} \u4EFD\u3002` + (c ? ` \u672C\u5730\u8BB0\u5F55 ${c.records} / ${c.maxRecords}\u3002` : "") + (c?.records >= c?.maxRecords ? " \u5DE5\u4F5C\u533A\u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u8BF7\u5C06\u95F2\u7F6E\u8349\u7A3F\u79FB\u5165\u6062\u590D\u5F52\u6863\uFF0C\u518D\u7EE7\u7EED\u5907\u4EFD\u3002" : c?.active >= c?.limit ? " \u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u53EF\u5F52\u6863\u4E0D\u518D\u4F7F\u7528\u7684\u8349\u7A3F\u3002" : "") + (result.archiveWarning ? " \u6062\u590D\u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u73B0\u6709\u6750\u6599\u4FDD\u7559\u3002" : "") + " \u4EC5\u6062\u590D\u5DF2\u786E\u8BA4\u6B63\u6587\uFF0C\u4E0D\u6062\u590D\u65E7 Undo \u5386\u53F2\u6216\u4FDD\u5B58\u6388\u6743\u3002";
         addRows(panel, result.drafts, false);
         addRows(archive, result.archived || [], true);
         byId2("draft-archive-empty").hidden = !!result.archived?.length;
@@ -63765,7 +63840,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       try {
         const r = await api2.manageDraft(request);
         output.dataset.tone = r.ok ? "success" : "error";
-        output.textContent = r.ok ? request.action === "archive" ? "\u5DF2\u5F52\u6863\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002" : "\u5DF2\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868\u3002" : `\u8349\u7A3F\u6574\u7406\u672A\u786E\u8BA4\uFF1A${r.code}\u3002` + (r.state === "draft-unverified" || ["draft-operation-unknown", "ipc-outcome-unknown"].includes(r.code) ? "\u7ED3\u679C\u53EF\u80FD\u5DF2\u53D1\u751F\u53D8\u5316\uFF0C\u8BB0\u5F55\u4FDD\u7559\uFF1B\u8BF7\u5237\u65B0\u6838\u5BF9\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002" : r.code === "draft-capacity" ? "\u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u8BF7\u5148\u5F52\u6863\u5176\u4ED6\u95F2\u7F6E\u8349\u7A3F\u3002" : r.code === "draft-record-capacity" ? "\u672C\u5730\u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u5F52\u6863\u4E0D\u91CA\u653E\u78C1\u76D8\u8BB0\u5F55\uFF1B\u8BF7\u5148\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "\u8BF7\u5237\u65B0\u5217\u8868\u6838\u5BF9\uFF1B\u5F53\u524D\u5199\u4F5C\u4FDD\u7559\u3002");
+        output.textContent = r.ok ? request.action === "offload" ? "\u5DF2\u79FB\u5165\u6062\u590D\u5F52\u6863\uFF0C\u5DE5\u4F5C\u533A\u540D\u989D\u5DF2\u91CA\u653E\uFF1B\u5F52\u6863\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\uFF0C\u53EF\u6062\u590D\u4E3A\u65B0\u8349\u7A3F\u3002" : request.action === "archive" ? "\u5DF2\u5F52\u6863\uFF0C\u53EF\u5728\u201C\u5DF2\u5F52\u6863\u201D\u4E2D\u653E\u56DE\u3002" : "\u5DF2\u653E\u56DE\u5F85\u6062\u590D\u5217\u8868\u3002" : `\u8349\u7A3F\u6574\u7406\u672A\u786E\u8BA4\uFF1A${r.code}\u3002` + (r.state === "draft-unverified" || ["draft-operation-unknown", "ipc-outcome-unknown"].includes(r.code) ? "\u7ED3\u679C\u53EF\u80FD\u5DF2\u53D1\u751F\u53D8\u5316\uFF0C\u8BB0\u5F55\u4FDD\u7559\uFF1B\u8BF7\u5237\u65B0\u6838\u5BF9\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002" : r.code === "draft-capacity" ? "\u5F85\u6062\u590D\u540D\u989D\u5DF2\u6EE1\uFF0C\u8BF7\u5148\u5F52\u6863\u5176\u4ED6\u95F2\u7F6E\u8349\u7A3F\u3002" : r.code === "draft-record-capacity" ? "\u5DE5\u4F5C\u533A\u8BB0\u5F55\u5DF2\u6EE1\uFF0C\u8BF7\u5C06\u95F2\u7F6E\u8349\u7A3F\u79FB\u5165\u6062\u590D\u5F52\u6863\u3002" : "\u8BF7\u5237\u65B0\u5217\u8868\u6838\u5BF9\uFF1B\u5F53\u524D\u5199\u4F5C\u4FDD\u7559\u3002");
       } catch {
         output.dataset.tone = "error";
         output.textContent = "\u8349\u7A3F\u6574\u7406\u901A\u4FE1\u4E2D\u65AD\uFF0C\u7ED3\u679C\u672A\u77E5\u3002\u8BB0\u5F55\u4FDD\u7559\uFF0C\u8BF7\u5237\u65B0\u6838\u5BF9\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002";

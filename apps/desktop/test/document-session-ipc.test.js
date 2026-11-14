@@ -679,3 +679,12 @@ test('image preload accepts the full image byte budget and refuses oversized or 
  const source=fs.readFileSync(path.join(__dirname,'../lib/document-demo-preload.js'),'utf8');
  assert.match(source,new RegExp(`MAX_IMAGE_DATA_URL = ${base64Limit(MAX_IMAGE_BYTES)+26}`));
 });
+
+ test('offload preload validates receipts and fences lost outcomes, composition and overlapping operations',async()=>{
+  for(const method of ['offloadSaveRecovery','manageDraft']){
+   const request=method==='manageDraft'?{draftId:'draft',action:'offload',expectedToken:'a'.repeat(64)}:{recordId:'version',expectedToken:'a'.repeat(64)};
+   const f=preloadFixture(),pending=f.api[method](request);f.pending[0].resolve({ok:true,state:'offloaded'});assert.equal((await pending).ok,true);
+   const bad=preloadFixture(),invalid=bad.api[method](request);bad.pending[0].resolve({ok:true,state:'available'});assert.equal((await invalid).code,'draft-operation-unknown');
+   assert.equal((await bad.api[method](request)).code,'draft-operation-unknown');
+  }
+ });

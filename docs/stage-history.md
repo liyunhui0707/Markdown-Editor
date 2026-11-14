@@ -1,5 +1,47 @@
 # Stage History
 
+## Sustained-use persistence lifecycle — 0.68.0 (2026-11-14)
+
+- Record the [product-direction review](audits/2026-11-14-product-direction-review.md)
+  and ordered workflow groups. Keep the accepted visual baseline and main-owned
+  Document architecture. Development integration is not public release acceptance.
+- Draft recovery offload copies all verified generations, verifies exact hashes
+  and durability, then releases inactive working records. It works at the
+  128-record ceiling. The private archive remains inspectable in Finder and
+  restores as a new independent backup with exact text/managed images, without
+  old Undo history or original-file save authority. Existing logical archive
+  remains reversible but does not release working records. Successful management
+  retries pending confirmed backups; stopped/uncertain live backups stay stopped.
+- Native-save offload renames the complete old transaction, preserving inodes,
+  permissions and displaced-object evidence. Protect the newest confirmed version
+  for each path, live current/last-confirmed receipts, stale tokens and uncertain
+  outcomes. Validate recovery hashes before moving. Both archive locations remain
+  in the app's private storage; no Markdown original is changed or automatically
+  deleted. Archival frees working slots, not disk space.
+- Finder `.DS_Store` metadata is retained and excluded from working/catalog
+  counts; it does not prevent restoring registered verified draft files. Other unexpected contents remain protected.
+- Copy/write/sync/removal failures preserve source or complete recovery evidence;
+  partial source groups cannot fall back to older content as if offload succeeded.
+  Reads and aggregate copying remain bounded. No new dependency or filesystem
+  destination authority is added. Existing records require no automatic migration.
+- Local full suite: 3,348 PASS / two existing performance skips. Ten lifecycle
+  checks include a production-helper save at the 128-transaction ceiling after
+  offload, exact managed images, corrupt/stale/link evidence and fault recovery.
+  Final controlled Electron archive/restore/Finder and original-save workflows
+  PASS. Earlier sandbox launch and locator-harness failures are retained separately.
+  Regression checks against the unchanged 0.67.0 baseline fail as expected.
+- Eight fixed-draft restore/source/close cycles retain 1,229 DOM nodes and 225
+  listeners. Forced-GC JS heap is 14.36–15.23 MiB at first/last samples; Tab working
+  set goes from 212.66 to 235.48 MiB. This does not establish the cause or removal
+  of earlier long-writing working-set growth. No product GC is introduced.
+- New archive helper/store/view tests stay below normal file-size caps. The
+  existing session router remains over 300 lines because sender/session/revision
+  authority must be reviewed together; additions are bounded operations, not an
+  unrelated router refactor. Runtime packaging/CI/installation evidence belongs
+  to the private `persistence-lifecycle-20261114` run, not an assumed release pass.
+- Longer genuine writing, fresh physical input and heading/table VoiceOver remain
+  pending per the user's deferral. Paid signing/notarization remains deferred.
+
 ## Daily-use acceptance automation — 0.67.0 runtime unchanged (2026-11-14)
 
 - This is one test/documentation group; no application code, generated renderer,
