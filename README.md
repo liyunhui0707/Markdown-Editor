@@ -109,13 +109,18 @@ automatic updater. See the [manual checks](docs/test-manual.md).
 
 ## Daily-use verification
 
-The 0.67.0 runtime now has controlled input/history checks across common writing
+The Document runtime has controlled input/history checks across common writing
 contexts, heading/table accessibility-tree and keyboard checks, repeated recovery
 with a fixed draft catalog, and opt-in sustained long-document writing followed
 by restart and continued editing. These tests do not enable new file locations
 or replace physical Chinese input, human VoiceOver or genuine longer writing.
 Remaining human checks are summarized in [the manual guide](docs/test-manual.md);
 the [development guide](DEVELOPMENT.md) describes bounded automated runs.
+Resource samples require a visible native test window and frame callbacks, with
+memory units recorded explicitly. Earlier hidden-window measurements have a
+[documented interpretation limit](docs/audits/2026-11-14-long-writing-resource-validation.md);
+they do not by themselves establish a product memory leak or its elimination.
+
 
 ## Everyday file workflow — 0.67.0
 

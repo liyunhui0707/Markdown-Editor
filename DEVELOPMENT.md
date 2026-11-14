@@ -142,8 +142,18 @@ evidence. `DOCUMENT_WRITING_SOAK_MINUTES=20` extends the existing sustained test
 accepted integers are 0–30, with 0 selecting the normal six-cycle regression.
 The extended mode is opt-in, not a mandatory 20-minute CI step. It writes bounded
 `progress.json` and terminal progress, exact source/history/backup checks, natural
-heap/process samples, six forced-GC comparison points, and restart/continued-writing
+heap/process samples, explicit diagnostic collection at open/closed checkpoints, and restart/continued-writing
 results. GC is test-only and never used by the product to mask resource behavior.
+Resource workflows keep the isolated native window visible without activation.
+The schema-2 probe refuses hidden/minimized native windows, hidden renderer state
+or missing frame progress; renderer visibility alone is insufficient. Consecutive
+callbacks can share a timestamp; wait up to five seconds for two distinct times,
+record callback count and reject a clock that does not progress. Samples
+label CDP byte units separately from Electron main/process kilobytes and retain
+PIDs/types. Natural samples and explicit diagnostic collection remain separate.
+Historical hidden-window snapshots remain archived with that measurement limit;
+see [the calibration audit](docs/audits/2026-11-14-long-writing-resource-validation.md).
+
 The fixed-draft workflow repeats eight restore/close cycles with one retained
 record to separate catalog growth from session reuse. Working-set measurements are
 observations, not a generic memory limit or proof that every leak is fixed.

@@ -1,4 +1,5 @@
 const {test,expect,_electron}=require('@playwright/test');
+const {createResourceProbe}=require('./helpers/document-resource-probe.cjs');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
 const {syntheticPNG}=require('../test/helpers/synthetic-raster.cjs');
 test('image resource lifecycle: repeated references share transfers and closed surfaces stay released',async({},info)=>{
@@ -10,10 +11,11 @@ test('image resource lifecycle: repeated references share transfers and closed s
  const app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+path.join(root,'drafts'),'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+path.join(root,'versions')],cwd:root,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
  const exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal}))),p=await app.firstWindow(),cdp=await p.context().newCDPSession(p),faults=[],network=[],samples=[];
  p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
+ const probe=createResourceProbe({app,page:p,cdp});
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const backup=()=>expect.poll(async()=>{const s=await snap();return s?.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
  const transfers=()=>app.evaluate(()=>globalThis.syntheticPreviewTransfers);
- async function sample(label){samples.push({label,heap:await cdp.send('Runtime.getHeapUsage'),dom:await cdp.send('Memory.getDOMCounters'),processes:await app.evaluate(({app})=>app.getAppMetrics().map(m=>({pid:m.pid,type:m.type,memory:m.memory}))),transfers:await transfers()});}
+ async function sample(label,collect=false){samples.push({label,...await probe.sample({collect}),transfers:await transfers()});}
  let passed=false,firstTransfers;
  try{
   await app.evaluate(({ipcMain,dialog,BrowserWindow},original)=>{
@@ -21,7 +23,7 @@ test('image resource lifecycle: repeated references share transfers and closed s
    const handler=ipcMain._invokeHandlers.get('document-demo:request');if(typeof handler!=='function')throw Error('test IPC observer unavailable');
    globalThis.syntheticPreviewTransfers={requests:0,bytes:0};ipcMain.removeHandler('document-demo:request');
    ipcMain.handle('document-demo:request',async(event,data)=>{const r=await handler(event,data);if(data?.operation==='image-preview'){globalThis.syntheticPreviewTransfers.requests++;if(r?.ok)globalThis.syntheticPreviewTransfers.bytes+=Buffer.byteLength(r.dataUrl);}return r;});
-   dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();
+   dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();
   },original);
   await expect(p.locator('#empty-open')).toBeEnabled();await sample('empty');await p.locator('#empty-open').click();
   await expect(p.locator('#editor img.document-local-image:not([hidden])')).toHaveCount(40);
@@ -41,7 +43,7 @@ test('image resource lifecycle: repeated references share transfers and closed s
    expect((await p.evaluate(()=>window.documentDemo.listDrafts())).drafts.map(d=>d.id)).toEqual([id]);expect((await p.evaluate(id=>window.documentDemo.snapshot({sessionId:id}),current.sessionId)).ok).toBe(false);await sample('closed-'+cycle);
   }
   // Separate a diagnostic test-only collection from natural samples; never force GC in product.
-  await cdp.send('HeapProfiler.collectGarbage');await sample('closed-diagnostic-collection');
+  await sample('closed-diagnostic-collection',true);
   expect(samples.at(-1).dom.nodes).toBeLessThan(samples[0].dom.nodes+1000);
   expect(await fs.readFile(original,'utf8')).toBe(source);expect(await fs.readFile(path.join(root,href))).toEqual(png);expect(faults).toEqual([]);expect(network).toEqual([]);passed=true;
  }finally{

@@ -1,4 +1,5 @@
 const {test,expect,_electron}=require('@playwright/test');
+const {createResourceProbe}=require('./helpers/document-resource-probe.cjs');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 
 test('sustained writing: repeated long-document sessions preserve edits, close and release renderer state',async({},info)=>{
@@ -12,15 +13,10 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   +'| Name | Value |\n| --- | --- |\n| 中文 | intact |\n\n> Preserved quote.\n\n```text\nprotected payload\n```\n';
  const bytes=Buffer.from('\ufeff'+source),hash=b=>crypto.createHash('sha256').update(b).digest('hex');await fs.writeFile(original,bytes,{flag:'wx',mode:0o600});
  const evidence={root,textUnits:source.length,requestedSoakMinutes:minutes,keyDelayMs:keyDelay,startedAt:Date.now(),cycles:[],samples:[],exits:[],sessionRoots:[],nativeIME:'NOT VERIFIED',nativeDialogs:'controlled',passed:false};
- let app,p,cdp,exit,lastSample=0;const faults=[],network=[],retained=[];
+ let app,p,cdp,exit,probe,lastSample=0;const faults=[],network=[],retained=[];
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=()=>expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>s.pending===0&&!s.locked&&!s.historyPending)).toBe(true);
- async function natural(){return {renderer:await cdp.send('Runtime.getHeapUsage'),dom:await cdp.send('Memory.getDOMCounters'),
-  main:await app.evaluate(()=>process.getHeapStatistics()),processes:await app.evaluate(({app})=>app.getAppMetrics().map(m=>({type:m.type,memory:m.memory})))};}
- async function sample(){
-  const beforeCollection=await natural();await cdp.send('HeapProfiler.collectGarbage');
-  return {beforeCollection,...await natural()}; // Forced GC belongs only to the test, never the product.
- }
+ const natural=()=>probe.sample(),sample=()=>probe.sample({collect:true});
  async function progress(label){
   if(evidence.samples.length>=40)throw Error('bounded sample capacity exceeded');
   const sample={label,elapsedMs:Date.now()-evidence.startedAt,...await natural()};evidence.samples.push(sample);lastSample=Date.now();
@@ -32,10 +28,10 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy',
    '--document-drafts-test-root='+path.join(root,'drafts'),'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+path.join(root,'versions')],
    cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
-  exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));p=await app.firstWindow();cdp=await p.context().newCDPSession(p);
+  exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));p=await app.firstWindow();cdp=await p.context().newCDPSession(p);probe=createResourceProbe({app,page:p,cdp});
   p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;
-   const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
+   const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();
  }
  async function stop(){if(app){await app.close();app=null;const result=await exit;evidence.exits.push(result);expect(result).toEqual({code:0,signal:null});}}
