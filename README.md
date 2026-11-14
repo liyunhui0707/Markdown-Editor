@@ -6,13 +6,32 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.67.0 development build with explicit disk-version inspection.** This is not
+**0.68.0 development build with recoverable persistence offload.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
 The Document installation excludes the retired Toast UI dependency files, including
 its old embedded sanitizer. Historical Vault source/dependencies remain available
 for development; this is not a claim that their SEC-01 issue is fixed.
+
+## Sustained-use persistence — 0.68.0
+
+In **草稿**, **移入恢复归档** makes a durable, hash-verified copy of all generations
+of an inactive, verifiable draft before removing its working records. It works
+at the 128-record ceiling and automatically retries pending confirmed backups.
+The existing logical **归档** only changes list membership; use recovery offload
+to free working-record slots. Neither action changes Markdown files.
+
+Offloaded drafts remain under **已归档**. **恢复为新草稿** creates a new independent
+backup with exact text and managed images; the archive remains. Old Undo history
+and original-file save authority are not restored. Active, corrupt, stale and
+unverifiable groups cannot be offloaded. Interrupted operations keep recovery
+material and require inspection; they never automatically retry. These archives
+are local disk storage, not protection against disk loss or free disk space.
+
+See [the direction review](docs/audits/2026-11-14-product-direction-review.md) and
+[roadmap](docs/roadmap.md). Longer genuine writing and heading/table VoiceOver
+remain pending; paid signing/notarization stays deferred.
 
 ## Keyboard access and local delivery — 0.63.0
 
@@ -245,8 +264,12 @@ Use **草稿 → 保存版本 → 在 Finder 查看** to inspect retained versio
 restart. Copy a needed `baseline.md` / `draft.md` / `previous.md` to a new location
 before reopening; `exchanged.md` retains the displaced object and can still be
 changed by another process holding it open. Recovery never automatically writes
-back or restores save authority. The private local store stops at 128 records;
-it never automatically deletes them. It is not a backup against disk loss.
+back or restores save authority. The working store stops at 128 records. In
+**草稿 → 保存版本**, explicitly confirm **归档旧版本** to move a verified older
+transaction intact into the private recovery archive and free a working slot.
+The newest version for each file, live receipts and uncertain records stay put.
+Archived versions remain inspectable in Finder. Nothing is automatically deleted;
+archives still consume disk space. It is not a backup against disk loss.
 
 The same ordinary local Home-descendant APFS directory policy applies. Unknown
 ACLs/attributes, synced/network/external-volume locations and unsupported files
@@ -685,11 +708,12 @@ list and retains its content locally; **已归档 → 放回待恢复列表** re
 Active drafts and groups with unreadable records cannot be organized. Cancel does
 not change records. An uncertain result is shown separately and never auto-retried.
 
-At most 32 non-archived drafts and 128 total snapshot records are supported,
-normally retaining two verified generations per draft. Archiving frees a recovery
-slot, not disk records. Archived, damaged and partial records still count toward
-the record ceiling; reaching it stops writes and asks users to export new Markdown
-files. There is no permanent-delete UI or automatic dismissal after export.
+At most 32 non-archived drafts and 128 working snapshot records are supported,
+normally retaining two verified generations per draft. Logical archiving frees
+an active slot, not working records; explicit recovery offload frees working-record
+slots while retaining complete material. Damaged/partial groups stay protected.
+If all remaining records are active or unverifiable, keep writing in the window
+and export new Markdown files before investigating. There is no permanent-delete UI or automatic dismissal after export.
 Close/Quit still asks before discarding. The document selector retains temporary
 sessions while viewing real files. The eight-session limit is a development
 constraint. Native macOS IME remains unaccepted; this is not daily-writing or

@@ -2742,3 +2742,27 @@ to remain untested, so they are NOT TESTED. The report does not specify
 a 20–30 minute genuine-writing duration or cover all dialogs/native panels.
 These remaining scenarios and broad accessibility acceptance stay open;
 do not ask the user to repeat the passed basic checks without a regression.
+
+
+## Sustained-use persistence lifecycle — 0.68.0
+
+Use synthetic/disposable drafts only. Existing user records are not test fixtures.
+
+1. In **草稿**, choose an inactive draft, **移入恢复归档**, then cancel: lists,
+   text and counts remain unchanged. Confirm once: working-record count falls,
+   the recovery archive remains in **已归档**, and no Markdown file changes.
+2. Choose **恢复为新草稿** for that archive. A new independent recovery card has
+   exact text/images; restoring it grants no old file-save authority or Undo.
+   The archived copy remains available after restarting the app.
+3. Active/uncertain draft controls stay disabled. At a synthetic full-record
+   ceiling, offloading idle records permits pending confirmed backups to resume.
+   Logical archive alone does not free working records.
+4. In **保存版本**, newest and uncertain versions have no offload action. Confirm
+   **归档旧版本** for an eligible old version; it remains in Finder with all
+   native transaction files/metadata and frees one working save slot. A live
+   receipt remains protected even when a newer save exists in another session.
+5. Interrupt/fault tests must preserve originals or complete recovery material,
+   report unconfirmed outcomes, and never silently retry or delete evidence.
+
+Controlled automation is separate from physical IME and VoiceOver speech.
+The postponed longer real-writing and heading/table checks remain untested.

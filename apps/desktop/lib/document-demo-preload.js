@@ -37,8 +37,10 @@ const request = async (operation, data = {}) => {
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
   }
+  const archiveRevealing=operation==='reveal-draft-archive';
+  if(archiveRevealing&&(composing||pending||unknown.size))return {ok:false,code:composing?'composition-active':pending?'document-busy':'ipc-outcome-unknown'};
   const importing = operation === 'import-image';
-  const managing = operation === 'manage-draft';
+  const managing = operation === 'manage-draft' || operation === 'offload-save-recovery';
   if (operation === 'source-edit' && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
   if (['format','source-edit'].includes(operation) && composing) return { ok: false, code: 'composition-active' };
   if (['format','source-edit'].includes(operation) && pending) return { ok: false, code: 'document-busy' };
@@ -94,7 +96,7 @@ const request = async (operation, data = {}) => {
     unknown.set(undefined, 'ipc-outcome-unknown'); return { ok: false, code: 'ipc-outcome-unknown' };
   }
   if (managing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
-      result.state !== (data.action === 'archive' ? 'archived' : 'available')))) {
+      result.state !== (operation==='offload-save-recovery'||data.action==='offload' ? 'offloaded' : data.action === 'archive' ? 'archived' : 'available')))) {
     draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' };
   }
   if (forking && (!result || typeof result.ok !== 'boolean' || (result.ok &&
@@ -157,6 +159,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   openFile: () => request('open-file'),
   newTemporary: () => request('new-temporary'),
   listDrafts: () => request('list-drafts'),
+  revealDraftArchive: draftId => request('reveal-draft-archive',{draftId}),
   manageDraft: data => request('manage-draft', data),
   restoreDraft: draftId => request('restore-draft', { draftId }),
   onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
@@ -166,6 +169,7 @@ contextBridge.exposeInMainWorld('documentDemo', {
   openLinkedFile: data => request('open-linked-file',data),
   revealLinkedFile: data => request('reveal-linked-file',data),
   saveOriginal: data => request('save-original',data),
+  offloadSaveRecovery: data => request('offload-save-recovery',data),
   listSaveRecoveries: () => request('list-save-recoveries'),
   revealSaveRecovery: recordId => request('reveal-save-recovery',{recordId}),
   openConfirmedCopy: data => request('open-confirmed-copy', data),

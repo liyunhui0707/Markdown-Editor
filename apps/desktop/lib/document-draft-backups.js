@@ -62,7 +62,7 @@ function createDraftBackups(store, notify = () => {}, attachmentsFor = () => [])
     return false;
   }
   function release(document) { flush(document); entries.delete(document); }
-  return { attach, changed, status, release, flush, verifyForClose, rename,
+  return { retry(){for(const doc of entries.keys()){changed(doc);flush(doc);}}, attach, changed, status, release, flush, verifyForClose, rename,
     flushAll: () => { for (const doc of entries.keys()) flush(doc); },
     active: id => [...entries.values()].some(e => e.id === id) };
 }

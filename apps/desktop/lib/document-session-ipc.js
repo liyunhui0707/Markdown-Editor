@@ -247,7 +247,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'inspect-linked-file':['operation','sessionId','expectedRevision'], 'open-linked-file':['operation','sessionId','expectedRevision'], 'reveal-linked-file':['operation','sessionId','expectedRevision'], 'save-original':['operation','sessionId','expectedRevision'], 'list-save-recoveries':['operation'], 'reveal-save-recovery':['operation','recordId'], 'list-native-opens': ['operation'], 'dismiss-native-open': ['operation', 'requestId'], 'open-native-file': ['operation', 'requestId'], 'import-image': ['operation', 'sessionId', 'expectedRevision'], 'image-preview': ['operation', 'sessionId', 'expectedRevision', 'href'], 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'inspect-linked-file':['operation','sessionId','expectedRevision'], 'open-linked-file':['operation','sessionId','expectedRevision'], 'reveal-linked-file':['operation','sessionId','expectedRevision'], 'save-original':['operation','sessionId','expectedRevision'], 'offload-save-recovery':['operation','recordId','expectedToken'], 'reveal-draft-archive':['operation','draftId'], 'list-save-recoveries':['operation'], 'reveal-save-recovery':['operation','recordId'], 'list-native-opens': ['operation'], 'dismiss-native-open': ['operation', 'requestId'], 'open-native-file': ['operation', 'requestId'], 'import-image': ['operation', 'sessionId', 'expectedRevision'], 'image-preview': ['operation', 'sessionId', 'expectedRevision', 'href'], 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action', 'label', 'href'],
       'source-edit': ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
@@ -265,11 +265,19 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
         return { ...failure('open-busy'), requestId: payload.requestId };
       return nativeOpens.consume(payload.requestId, file => openPath(event, binding, file, null, true));
     }
-    if(payload.operation==='list-save-recoveries')return service.listSaveRecoveries();
+    if(payload.operation==='offload-save-recovery'){
+      if(typeof payload.recordId!=='string'||!/^[a-f0-9-]{36}$/.test(payload.recordId)||typeof payload.expectedToken!=='string'||!/^[a-f0-9]{64}$/.test(payload.expectedToken))return failure('invalid-request');
+      if(binding.opening||[...sessions.values()].some(s=>s.copying||s.closing))return failure('document-busy');
+      const protectedIds=[...sessions.values()].flatMap(s=>{const state=service.getOriginalState(s.document);return [state?.receipt?.recordId,state?.lastConfirmed?.recordId];}).filter(Boolean);
+      return service.offloadSaveRecovery(payload.recordId,payload.expectedToken,protectedIds);
+    }
+    if(payload.operation==='list-save-recoveries'){const result=service.listSaveRecoveries();const live=new Set([...sessions.values()].flatMap(s=>{const state=service.getOriginalState(s.document);return [state?.receipt?.recordId,state?.lastConfirmed?.recordId];}));
+      return {...result,records:result.records.map(r=>live.has(r.id)?{...r,manageToken:null}:r)};}
     if(payload.operation==='reveal-save-recovery'){try{const p=service.locateSaveRecovery(payload.recordId);if(!p||!revealFile)return failure('save-recovery-unavailable');revealFile(p);return {ok:true};}catch{return failure('save-recovery-unavailable');}}
     if (payload.operation === 'list-recents') return recentFiles?.list() || failure('recents-unavailable');
     if (payload.operation === 'clear-recents') return recentFiles?.clear() || failure('recents-unavailable');
     if (payload.operation === 'open-recent') return openRecent(event, binding, payload.recentId);
+    if(payload.operation==='reveal-draft-archive'){try{if(!draftStore||!revealFile)return failure('archive-unavailable');const p=draftStore.locateArchive(payload.draftId);revealFile(p);return {ok:true,draftId:payload.draftId};}catch{return failure('archive-unavailable');}}
     if (['list-drafts', 'restore-draft', 'manage-draft'].includes(payload.operation)) {
       if (!draftStore) return failure('drafts-unavailable');
       try {
@@ -280,9 +288,11 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
         if (typeof payload.draftId !== 'string' || !/^[a-f0-9-]{36}$/.test(payload.draftId)) return failure('invalid-draft');
         if (backups.active(payload.draftId)) return failure('draft-already-open');
         if (payload.operation === 'manage-draft') {
-          if (!['archive', 'unarchive'].includes(payload.action) || typeof payload.expectedToken !== 'string'
+          if (!['archive', 'unarchive', 'offload'].includes(payload.action) || typeof payload.expectedToken !== 'string'
               || !/^[a-f0-9]{64}$/.test(payload.expectedToken)) return failure('invalid-draft-operation');
-          return draftStore.manage(payload.draftId, payload.action, payload.expectedToken);
+          const result=draftStore.manage(payload.draftId, payload.action, payload.expectedToken);
+          if(result.ok)backups.retry();
+          return result;
         }
         const recovered = draftStore.recover(payload.draftId);
         if (!recovered.ok) return failure(recovered.code);
