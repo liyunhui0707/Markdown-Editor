@@ -2816,3 +2816,14 @@ a link/code span, an ordinary paragraph and an unsupported literal block.
 Controlled event paste does not use the user's system clipboard and does not
 establish physical clipboard/IME/VoiceOver or long-duration acceptance. Existing
 manual acceptance deferrals remain. Keep original sidecars and recovery evidence.
+
+
+## Repeated picture lifecycle — 0.70.1
+
+Use a disposable article containing the same managed PNG/JPEG reference several
+times. Check that each occurrence previews, editing/Undo and Source return retain
+the references, and closing/reopening the draft preserves images and exact text.
+A missing image should remain a placeholder; remote URLs must not load. This is
+optional human coverage, not a claim it was executed. Controlled IPC counts and
+resource samples live in the dated engineering evidence; screenshots/RSS alone
+cannot establish a leak or physical IME/VoiceOver acceptance.

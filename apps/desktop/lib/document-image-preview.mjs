@@ -1,6 +1,15 @@
 // Main supplies verified raster data only. Markdown URLs never become browser requests.
 export function createImagePreviews({api,context}) {
- const nodes=new Set();
+ const nodes=new Set(),pending=new Map();
+ // Coalesce only in-flight requests at the same authority revision. Once settled,
+ // the response lives only in current image nodes, not in a persistent URL cache.
+ function preview(key,request){
+  if(pending.has(key))return pending.get(key);
+  const result=Promise.resolve().then(()=>api.imagePreview(request));
+  pending.set(key,result);
+  const release=()=>{if(pending.get(key)===result)pending.delete(key);};
+  void result.then(release,release);return result;
+ }
  function sync(){
   const c=context(),s=c.state;if(!s||c.loading||s.pending||s.historyPending||s.source!==s.confirmed.source)return;
   for(const item of nodes){
@@ -10,7 +19,7 @@ export function createImagePreviews({api,context}) {
    item.dom.classList.remove('has-preview');item.img.removeAttribute('src');item.img.hidden=true;item.note.textContent='图片引用 · 未加载预览';
    if(!/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(href))continue;
    const request={sessionId:s.confirmed.sessionId,expectedRevision:s.confirmed.revision,href};
-   void api.imagePreview(request).then(r=>{
+   void preview(key,request).then(r=>{
     if(!nodes.has(item)||item.key!==key||context().state?.confirmed.sessionId!==request.sessionId)return;
     if(!r?.ok){item.note.textContent='本地图片不可用 · 请保留附件或重新选择';return;}
     item.loaded=`${request.sessionId}:${href}`;item.dom.classList.add('has-preview');item.img.src=r.dataUrl;item.img.hidden=false;item.note.textContent='本地图片 · 随新文件导出';
@@ -24,7 +33,12 @@ export function createImagePreviews({api,context}) {
   const target=document.createElement('span');target.className='image-reference-target';target.textContent=node.attrs.src;
   const note=document.createElement('small');note.textContent='图片引用 · 未加载预览';dom.append(img,label,target,note);
   const item={node,dom,img,note,key:null,loaded:null};nodes.add(item);queueMicrotask(sync);
-  return {dom,ignoreMutation:()=>true,destroy(){nodes.delete(item);img.removeAttribute('src');}};
+  return {dom,ignoreMutation:()=>true,destroy(){
+   nodes.delete(item);img.removeAttribute('src');
+   // Blink may retain an image viewport listener after removal. Break its parent
+   // chain so it cannot retain the detached article and other editing surfaces.
+   dom.replaceChildren();
+  }};
  }
  return {nodeView,sync};
 }

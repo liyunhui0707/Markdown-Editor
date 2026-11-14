@@ -4,6 +4,14 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.70.1 repeated-image resource fix.** Share only in-flight image previews by
+session/revision/managed href. Settled entries are removed; no lasting data-URL
+cache, cross-revision authority reuse or product forced GC. Clear the atom NodeView
+subtree on destroy: a retained Blink image viewport listener must not keep its
+parent article alive. Per-node close/stale response checks and main/preload
+verification remain. RSS is an observation, not
+proof of retained objects or leak elimination.
+
 **0.70.0 article paragraphs and pasted rasters.** Exact lexical article projection
 supports top-level formatted multiline paragraphs, including soft spaces and real
 hard breaks. Main and renderer share the same patch planner; compare the complete

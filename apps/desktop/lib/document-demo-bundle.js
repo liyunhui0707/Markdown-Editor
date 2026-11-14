@@ -11672,7 +11672,17 @@
 
   // lib/document-image-preview.mjs
   function createImagePreviews({ api: api2, context }) {
-    const nodes2 = /* @__PURE__ */ new Set();
+    const nodes2 = /* @__PURE__ */ new Set(), pending = /* @__PURE__ */ new Map();
+    function preview(key2, request) {
+      if (pending.has(key2)) return pending.get(key2);
+      const result = Promise.resolve().then(() => api2.imagePreview(request));
+      pending.set(key2, result);
+      const release = () => {
+        if (pending.get(key2) === result) pending.delete(key2);
+      };
+      void result.then(release, release);
+      return result;
+    }
     function sync() {
       const c = context(), s = c.state;
       if (!s || c.loading || s.pending || s.historyPending || s.source !== s.confirmed.source) return;
@@ -11687,7 +11697,7 @@
         item3.note.textContent = "\u56FE\u7247\u5F15\u7528 \xB7 \u672A\u52A0\u8F7D\u9884\u89C8";
         if (!/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(href)) continue;
         const request = { sessionId: s.confirmed.sessionId, expectedRevision: s.confirmed.revision, href };
-        void api2.imagePreview(request).then((r) => {
+        void preview(key2, request).then((r) => {
           if (!nodes2.has(item3) || item3.key !== key2 || context().state?.confirmed.sessionId !== request.sessionId) return;
           if (!r?.ok) {
             item3.note.textContent = "\u672C\u5730\u56FE\u7247\u4E0D\u53EF\u7528 \xB7 \u8BF7\u4FDD\u7559\u9644\u4EF6\u6216\u91CD\u65B0\u9009\u62E9";
@@ -11727,6 +11737,7 @@
       return { dom, ignoreMutation: () => true, destroy() {
         nodes2.delete(item3);
         img.removeAttribute("src");
+        dom.replaceChildren();
       } };
     }
     return { nodeView, sync };
