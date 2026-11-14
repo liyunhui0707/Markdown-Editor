@@ -6,13 +6,37 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.69.0 development build with direct file writing and conflict comparison.** This is not
+**0.70.0 development build with multiline article writing and image paste.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
 The Document installation excludes the retired Toast UI dependency files, including
 its old embedded sanitizer. Historical Vault source/dependencies remain available
 for development; this is not a claim that their SEC-01 issue is fixed.
+
+## Article writing and pasted images — 0.70.0
+
+Supported top-level formatted multiline paragraphs render and edit as ordinary
+writing. Soft Markdown source lines display as spaces; existing two-space or
+backslash hard breaks display as line breaks. Type, select/replace across those
+lines, apply supported bold/italic ranges, find/replace and press Enter to split
+paragraphs. Only touched ranges change; untouched Markdown, BOM and CR/LF bytes,
+complete main-owned Undo/Redo and backup remain exact. Unsupported references,
+escaped normalization or complex structures remain available in **源码**.
+
+Paste one PNG/JPEG screenshot/image into a supported paragraph (or onto a selected
+image card). The app reads only raster bytes in that paste event, verifies them
+in main, inserts a managed reference as one undoable action, and includes the
+attachment in draft backup, native Save and Save As. No system clipboard polling,
+clipboard HTML, remote image requests or arbitrary filesystem reads. After export,
+keep the Markdown and same-folder `markdown-image-…` attachments together.
+Per-image/document/session limits still apply; files, multiple images and SVG are
+refused without replacing current text. Ordinary text paste is unchanged.
+
+Standalone reference cards still require explicit local-file import for arbitrary
+relative images. Drag/drop, automatic relative-path loading and unrestricted
+inline/nested image structures are not delivered by this group. Physical IME and
+spoken VoiceOver acceptance remain separate from controlled automation.
 
 ## Everyday file writing — 0.69.0
 

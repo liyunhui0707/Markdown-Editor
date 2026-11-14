@@ -702,3 +702,17 @@ test('comparison preload validates source, revision and new binding receipts and
  assert.equal((await bad.api.editComparedFile({...request,comparisonToken:'a'.repeat(36)})).ok,false);
  const lost=preloadFixture(),unknown=lost.api.editComparedFile({...request,comparisonToken:'a'.repeat(36)});lost.pending[0].reject(Error('synthetic'));assert.equal((await unknown).code,'comparison-outcome-unknown');assert.equal((await lost.api.compareLinkedFile(request)).ok,false);
 });
+
+test('pasted-image preload checks receipts, busy composition and unknown import fences',async()=>{
+ const q={sessionId:'source',expectedRevision:2,base64:'aGVsbG8='};
+ const good=preloadFixture(),p=good.api.importPastedImage(q);good.pending[0].resolve({ok:true,sessionId:'source',revision:2,href:'markdown-image-'+'a'.repeat(64)+'.png'});assert.equal((await p).ok,true);
+ const bad=preloadFixture(),r=bad.api.importPastedImage(q);bad.pending[0].resolve({ok:true,sessionId:'other',revision:2,href:'markdown-image-'+'a'.repeat(64)+'.png'});assert.equal((await r).code,'image-import-unknown');
+ assert.equal((await bad.api.importPastedImage(q)).ok,false);
+ const oversized=preloadFixture();assert.equal((await oversized.api.importPastedImage({...q,base64:'A'.repeat(5592435)})).ok,false);assert.equal(oversized.pending.length,0);
+});
+
+test('pasted image import refuses an overlapping read without uncertain import or automatic retry',async()=>{
+ const f=preloadFixture(),reading=f.api.snapshot({sessionId:'source'}),q={sessionId:'source',expectedRevision:0,base64:'aGVsbG8='};
+ assert.equal((await f.api.importPastedImage(q)).code,'document-busy');assert.equal(f.pending.length,1);f.pending[0].resolve({ok:true,snapshot:{sessionId:'source',revision:0}});await reading;
+ const pasted=f.api.importPastedImage(q);assert.equal(f.pending.length,2);f.pending[1].resolve({ok:true,sessionId:'source',revision:0,href:'markdown-image-'+'a'.repeat(64)+'.png'});assert((await pasted).ok);
+});

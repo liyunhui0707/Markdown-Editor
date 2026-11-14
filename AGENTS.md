@@ -4,6 +4,22 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.70.0 article paragraphs and pasted rasters.** Exact lexical article projection
+supports top-level formatted multiline paragraphs, including soft spaces and real
+hard breaks. Main and renderer share the same patch planner; compare the complete
+expected projection, keep exact inverses and retain untouched CR/LF/BOM/delimiters.
+A raw-equivalent edit within one physical text leaf is non-structural so existing
+composition can commit/cancel; cross-line/frame composition retains the guard.
+No whole-file serialization. Cross-line replacement, emphasis and paragraph split
+remain bounded; references, escaped normalization, arbitrary nested links/code and
+unsupported structures stay protected/Source-editable. Raster paste reads only
+one explicit event File; main validates canonical base64/decoded PNG/JPEG and
+existing budgets before caching it. Import does not change text or create a save
+receipt; one existing format action inserts a managed reference. Preload keeps
+sender/session/revision, composition, pending and unknown-outcome fences. No HTML,
+global clipboard read, arbitrary path, network or new save-location authority.
+
+
 **0.69.0 direct file writing and conflict continuation.** The product's trusted
 main entry enables direct bound writing buffers for dialog/recent/Finder opens;
 source development remains explicitly read-only unless `--document-writing-open`

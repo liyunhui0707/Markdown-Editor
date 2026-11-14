@@ -16,7 +16,7 @@ export function pastePlainText(view, event, { state, blocked = false, report }) 
   try {
     const data = event.clipboardData;
     if (!data || data.files?.length || !Array.from(data.types || []).includes('text/plain')) {
-      return reject('未粘贴：剪贴板没有可用的纯文本。图片和文件暂不支持。');
+      return reject('未粘贴：剪贴板没有可用的纯文本或单张 PNG/JPEG 图片。文件路径暂不支持。');
     }
     text = data.getData('text/plain');
   } catch { return reject('未粘贴：无法读取剪贴板文字。当前文字未改变。'); }

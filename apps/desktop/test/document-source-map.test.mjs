@@ -34,7 +34,7 @@ test('surrogate splitting, cross-block edits and structural syntax fail closed',
   ]) assert.equal(mapTextEdit(source, change).ok, false);
 });
 test('HTML, images, tables, unknown syntax, escaped/entities and unsupported multiline syntax are not editable', () => {
-  for (const s of ['<script>synthetic</script>', '![p](../x.png)', '| a |\n| - |\n| b |', '::: unknown', 'a &amp; b', 'a\\*b', 'one  \ntwo']) {
+  for (const s of ['<script>synthetic</script>', '![p](../x.png)', '| a |\n| - |\n| b |', '::: unknown', 'a &amp; b', 'a\\*b']) {
     assert.equal(projectSource(s).spans.length, 0, s);
     assert.equal(mapTextEdit(s, { from: 1, to: 2, insert: 'x' }).ok, false);
   }
@@ -267,4 +267,8 @@ test('line margins remain exact across mixed newline kinds and intervening prote
  assert.deepEqual(projectSource(mixed).spans.map(s=>s.text),['  First  ','Title','  Second  ','  Third  ','Tail']);
  const soft='start\nsecond\n\n  after  ';
  assert.deepEqual(projectSource(soft).spans.map(s=>s.text),['start','second','  after  ']);
+});
+
+test('plain hard-break articles are editable without changing their Markdown break bytes',()=>{
+ const source='one  \ntwo',p=projectSource(source);assert(p.blocks[0].article);assert(p.doc.content[0].content.some(n=>n.type==='hardBreak'));const r=mapTextEdit(source,{from:1,to:2,insert:'x'});assert(r.ok);assert.equal(r.source,'xne  \ntwo');
 });
