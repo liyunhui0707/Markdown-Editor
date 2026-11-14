@@ -61,7 +61,8 @@ test('full save workspace archives only confirmed old versions, preserving inode
  const r=b.list();assert.equal(r.capacity.records,128);assert(r.records.find(r=>r.id===ids[0]).manageToken);
  assert.equal(r.records.find(r=>r.id===ids[1]).manageToken,undefined);assert.equal(r.records.find(r=>r.id===ids[127]).manageToken,undefined);
  fs.writeFileSync(path.join(root,ids[0],'.DS_Store'),'synthetic Finder metadata',{mode:0o600});
- const old=path.join(root,ids[0],'previous.md'),identity=fs.statSync(old),token=r.records.find(r=>r.id===ids[0]).manageToken;
+ const old=path.join(root,ids[0],'previous.md'),identity=fs.statSync(old),token=b.list().records.find(r=>r.id===ids[0]).manageToken;
+ assert.equal(b.offload(ids[0],r.records.find(r=>r.id===ids[0]).manageToken).ok,false);
  assert.equal(b.offload(ids[0],token,[ids[0]]).ok,false);assert.equal(b.offload(ids[0],'0'.repeat(64)).ok,false);
  assert.equal(b.offload(ids[0],token).ok,true);assert.equal(b.list().capacity.records,127);assert.equal(b.list().archived.length,1);
  const fresh=createOriginalSave({root,binary:process.execPath}),archived=path.join(fresh.locate(ids[0]),'previous.md'),after=fs.statSync(archived);
