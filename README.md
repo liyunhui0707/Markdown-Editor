@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.64.1 development build with closed-document resource cleanup.** This is not
+**0.65.0 development build with mixed-format continuous editing.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -34,6 +34,23 @@ updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
 
+## Mixed-format writing — 0.65.0
+
+Select and replace text across ordinary/bold/italic/inline-code/simple-link text
+within a paragraph, heading, quote row or list item. Replacement inherits the
+first selected text's format. Surviving link text keeps its original destination
+and title; deleting its entire label removes the selected link. Unselected text
+and source bytes are preserved. Continue typing, Undo/Redo, export and draft
+recovery use the existing main-confirmed edit/history path.
+
+Find Current/All replacement now handles the same mixed-format ranges atomically.
+Unsupported nested marks, soft-line boundaries, cross-item link ranges and changes
+whose formatting cannot be expressed equivalently in Markdown remain protected.
+Cross-format native IME selection replacement retains conservative composition
+guards and still needs physical acceptance. Dense batches that require repeated
+delimiter re-planning have a work budget;
+refine the query when refused. Source mode remains available for broader changes.
+
 ## Repeated document sessions — 0.64.1
 
 Confirmed document closing now releases that session's window-local backup,
@@ -51,8 +68,9 @@ each action is one main-confirmed source edit and one Undo step. Empty replaceme
 removes matching text where the resulting Markdown remains equivalent.
 
 Search does not include link destinations or image paths and does not join blocks.
-Replacement must stay within exact editable source spans; cross-format/protected
+Replacement must stay within exact editable source spans; protected
 matches or changes that introduce Markdown structure refuse the whole action.
+The original cross-format restriction is superseded by 0.65.0 as described above.
 Use Source mode for those changes. Replace All supports at most 1,000 matches;
 refine the query when there are more. Read-only originals remain searchable.
 IME preedit and pending edits pause replacement; Escape returns focus to the editor.

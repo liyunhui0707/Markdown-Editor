@@ -17,12 +17,13 @@ test('only exact single-line text labels project; references/nesting/autolinks r
  for(const s of ['[label](../other.md#section)','[label](a(b))',"[label](target 'title')",'[label](javascript:alert(1))','[label](data:text/html,test)'])assert.equal(span(s).text,'label');
  for(const s of ['[**label**](x)','*[label](x)*','[a &amp; b](x)','[a\\[b](x)','[a\nb](x)','[label][ref]\n\n[ref]: target','<https://example.test>','https://example.test','![label](x)','[]()'])assert.equal(projectSource(s).spans.length,0,s);
 });
-test('link boundaries and empty labels refuse safely; ordinary surrounding text remains editable',()=>{
+test('link structural edits refuse safely; surrounding text and selected label deletion remain editable',()=>{
  const s='A [label](target "title") **bold** Z',p=span(s);
- for(const c of [{from:p.from,to:p.to,insert:''},{from:p.from-1,to:p.from+1,insert:'x'},{from:p.to-1,to:p.to+1,insert:'x'},{from:p.from,to:p.from,insert:'x'},{from:p.to,to:p.to,insert:'x'},{from:p.from+1,to:p.from+1,insert:'](other)'},{from:p.from+1,to:p.from+1,insert:'\n'}])assert.equal(mapTextEdit(s,c).ok,false,JSON.stringify(c));
+ for(const c of [{from:p.from+1,to:p.from+1,insert:'](other)'},{from:p.from+1,to:p.from+1,insert:'\n'}])assert.equal(mapTextEdit(s,c).ok,false,JSON.stringify(c));
  for(const action of ['bold','italic','code','split-paragraph'])assert.equal(mapFormatEdit(s,{action,from:p.from+1,to:action==='split-paragraph'?p.from+1:p.to-1}).ok,false,action);
  const plain=projectSource(s).spans[0];assert.equal(mapTextEdit(s,{from:plain.from+1,to:plain.from+1,insert:'new'}).source,'Anew [label](target "title") **bold** Z');
- for(const prefix of ['','- ']){const all=span(prefix+'[label](x)');assert.equal(mapTextEdit(prefix+'[label](x)',{from:all.from,to:all.to,insert:''}).ok,false);}
+ const all=span('[label](x)');assert.equal(mapTextEdit('[label](x)',{from:all.from,to:all.to,insert:''}).source,'');
+ const item=span('- [label](x)');assert.equal(mapTextEdit('- [label](x)',{from:item.from,to:item.to,insert:''}).ok,false);
 });
 
 test('every accepted link edit agrees with the product ProseMirror schema',async()=>{

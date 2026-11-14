@@ -19,8 +19,8 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
     && selection.$to.parent.type.name === 'paragraph';
   if (keyDelete && !crossItems) return false;
   if (selection.$from.sameParent(selection.$to)
-      && (selection.$from.parent.type.name !== 'paragraph'
-        || (!inItem && !selection.$from.parent.content.content.some(n => n.marks.some(m => ['bold','italic','code'].includes(m.type.name)))))) return false;
+      && (!['paragraph','heading'].includes(selection.$from.parent.type.name)
+        || (!inItem && !selection.$from.parent.content.content.some(n => n.marks.some(m => ['bold','italic','code','link'].includes(m.type.name)))))) return false;
   if (event.inputType === 'insertText' && (typeof event.data !== 'string' || !event.data)) return false;
   const rejectTarget = () => {
     event.preventDefault();

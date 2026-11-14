@@ -4,7 +4,22 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
-**0.64.1 installed development build: closed-session presentation cleanup.** Only a confirmed
+**0.65.0 installed development build: mixed-format continuous authoring.** Exact inline patch
+planning supports plain/bold/italic/code/simple-link ranges in paragraphs,
+headings, quote rows and individual list items. Preserve first selected marks
+and surviving link destination/title bytes. Regular edits validate a complete
+projection; batch replacement verifies the whole intended PM result before one
+source-edit submission. Protected/ambiguous/structurally changing edits still
+refuse; initial patch planning and overlapping delimiter re-planning are bounded. No new IPC/write authority.
+
+**App delivery hygiene:** Only the installed App should remain registered with
+LaunchServices. After package tests, unregister disposable candidate/rollback
+App paths and retain them as `.app.disabled` with hashes and restore mapping.
+Consult `.local/APP-BACKUPS.json` and `.local/RELOCATION.md` before historical
+restore scripts. Do not reset the global LaunchServices database or alter unrelated
+associations. Set a default Markdown handler only with user authorization.
+
+**Previous 0.64.1 installed development build: closed-session presentation cleanup.** Only a confirmed
 main-owned document-close receipt releases window-local backup/export/save notices.
 Late backup notices for IDs absent from the live document list are ignored. Clear
 hidden receipt/recovery text after closing. Main/preload invalidation fences and

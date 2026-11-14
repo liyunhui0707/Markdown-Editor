@@ -1,5 +1,14 @@
 # Manual Test Checklist
 
+## Mixed-format writing — 0.65.0
+
+Select across ordinary/bold/italic/code/link text in one supported text block.
+Type replacement text, continue typing, Undo/Redo, save and reopen. The first
+selected text format should carry to inserted text; surviving link URLs/titles
+stay intact. Repeat using Find Current/All. Unsupported structural changes must
+retain source and show refusal. Genuine IME/VoiceOver checks remain NOT TESTED.
+
+
 ## Repeated document sessions — 0.64.1
 
 On disposable files, open two documents, edit and close one, then continue
@@ -13,7 +22,7 @@ text should not remain in the empty workspace. Human check remains NOT TESTED.
 In a disposable editing copy use ⌘F, search repeated Chinese/English text,
 replace current and then all matches. Undo each action in one step, Redo,
 close search with Escape and continue typing. Check case sensitivity, empty
-replacement, and a cross-bold match (whole action should refuse). During genuine
+replacement, and a cross-bold match (supported starting in 0.65.0). During genuine
 candidate input in either field, Enter/Escape should belong to the input method.
 Check controls with VoiceOver when convenient. These human checks are NOT TESTED.
 

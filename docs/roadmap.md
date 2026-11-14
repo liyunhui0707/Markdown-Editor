@@ -19,7 +19,16 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — repeated-session resources, 0.64.1 (2026-11-14)
+### Current batch — mixed-format writing, 0.65.0 (2026-11-14)
+
+Complete the select/type/continue/history/find-replace/export/reopen/recover path
+across supported inline formats, including simple links and headings. Retain the
+accepted workspace, exact source model and protected complex structures. Local
+App registration cleanup keeps one installed entry and recoverable disabled
+backups. Longer real writing, heading/table VoiceOver and memory trends remain
+acceptance work; paid distribution stays deferred.
+
+### Previous batch — repeated-session resources, 0.64.1 (2026-11-14)
 
 Release per-session presentation notices after confirmed close, clear hidden
 workspace text, reject late notices for closed documents and preserve disk
