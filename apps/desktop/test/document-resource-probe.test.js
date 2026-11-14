@@ -19,7 +19,7 @@ test('diagnostic collection is explicit and keeps the separate natural snapshot'
 });
 test('native hidden/minimized windows are refused even when the renderer says visible',async()=>{
  for(const change of [{visible:false},{minimized:true}]){
-  const f=fixture();Object.assign(f.host.window,change);await assert.rejects(f.probe.sample({collect:true}),/visible native window/);assert.deepEqual(f.calls,[]);
+  const f=fixture();Object.assign(f.host.window,change);await assert.rejects(f.probe.sample({collect:true}),error=>{const state=JSON.parse(error.message.slice(error.message.indexOf(': ')+2));assert.equal(state.presentation.visibility,'visible');assert.deepEqual(state.nativeWindow,f.host.window);return true;});assert.deepEqual(f.calls,[]);
  }
 });
 test('hidden renderer or missing/invalid frame timestamps cannot become acceptance evidence',async()=>{

@@ -17,7 +17,7 @@ function createResourceProbe({app,page,cdp}) {
   // window. Check both, rather than measuring unpresented event/paint queues.
   if(!host.window.visible||host.window.minimized||presentation.visibility!=='visible'||presentation.hidden
       ||presentation.frames.length!==2||!presentation.frames.every(Number.isFinite)||presentation.frames[1]<=presentation.frames[0])
-   throw Error('Resource sample requires a visible native window and two renderer frames');
+   throw Error('Resource sample requires a visible native window and two renderer frames: '+JSON.stringify({presentation,nativeWindow:host.window}));
   return {schema:2,observedAt:Date.now(),units:{renderer:'bytes',main:'kilobytes',processes:'kilobytes'},
    presentation:{...presentation,...host.window},renderer:await cdp.send('Runtime.getHeapUsage'),
    dom:await cdp.send('Memory.getDOMCounters'),main:host.main,processes:host.processes};
