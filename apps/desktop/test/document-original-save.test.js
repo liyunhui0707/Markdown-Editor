@@ -91,3 +91,41 @@ test('preload original save fences input and rejects a mismatched success withou
 test('production helper rejects test-only protocol controls', {skip:!process.env.DOCUMENT_NATIVE_SAVE_PRODUCTION_BINARY},()=>{
  const r=require('node:child_process').spawnSync(process.env.DOCUMENT_NATIVE_SAVE_PRODUCTION_BINARY,[],{input:'{"testPoint":"before-swap"}\n',encoding:'utf8',timeout:2000});assert.equal(r.status,64);assert.equal(r.stdout,'');
 });
+test('linked disk check uses bound original rather than temp; keeps dirty/history baseline and stops conflict retry',async()=>{
+ const f=fixture();f.edit('Local');assert(f.service.inspectLinkedFile(f.document).ok);assert.equal(f.service.getLinkedFile(f.document).checked.state,'unchanged');
+ assert.equal(f.service.getLinkedFile(f.document).filePath,f.file);assert.equal(f.service.getLinkedFile(f.document).baselineSha256,hash(f.bytes));
+ await f.save();assert.equal(f.service.getLinkedFile(f.document).checked,null);const saved=fs.readFileSync(f.file);f.edit('Unsaved');
+ fs.writeFileSync(f.file,'Outside');assert(f.service.inspectLinkedFile(f.document).ok);assert.equal(f.service.getLinkedFile(f.document).checked.state,'changed');assert(f.service.getOriginalState(f.document).stopped);
+ const local=f.document.text,opened=f.service.openLinkedFile(f.document);assert(opened.ok);assert.equal(opened.document.text,'Outside');assert.equal(f.document.text,local);assert(f.document.dirty);
+ fs.writeFileSync(f.file,saved);f.service.inspectLinkedFile(f.document);assert(f.service.getOriginalState(f.document).stopped);assert.equal((await f.save()).code,'unresolved-save-state');assert.equal(f.writer.calls,1);
+});
+test('linked IPC is revision/window scoped, opens a separate read-only disk version and retains draft history',()=>{
+ const f=sessionFixture(async()=>true),sid=f.draft.sessionId,request={sessionId:sid,expectedRevision:0};
+ assert.equal(f.call({operation:'inspect-linked-file',...request,filePath:f.temp}).code,'invalid-request');
+ assert.equal(f.call({operation:'open-linked-file',...request,expectedRevision:2}).code,'stale-revision');
+ assert.equal(f.manager.request({sender:{},senderFrame:f.event.senderFrame},{operation:'inspect-linked-file',...request}).code,'unauthorized-sender');
+ assert.equal(f.call({operation:'inspect-linked-file',...request}).snapshot.linkedFile.checked.state,'unchanged');
+ const edit=f.call({operation:'source-edit',...request,from:0,to:0,insert:'Local'});assert(edit.ok);fs.writeFileSync(f.file,'External');
+ const result=f.call({operation:'open-linked-file',sessionId:sid,expectedRevision:1});assert(result.ok);assert.equal(result.sessionId,sid);assert.equal(result.requestRevision,1);assert.equal(result.snapshot.source,'External');assert(result.snapshot.readOnly);assert.notEqual(result.snapshot.sessionId,sid);
+ const retained=f.call({operation:'snapshot',sessionId:sid}).snapshot;assert.equal(retained.source,edit.snapshot.source);assert(retained.canUndo);assert(f.call({operation:'undo',sessionId:sid,expectedRevision:1}).ok);assert.deepEqual(fs.readFileSync(f.file),Buffer.from('External'));
+ f.win.emit('closed');assert.equal(f.call({operation:'inspect-linked-file',...request}).code,'unauthorized-sender');
+});
+test('linked preload fences composition, pending edits, unknown outcomes and malformed result identity',async()=>{
+ const {EventEmitter}=require('node:events'),{runInNewContext}=require('node:vm');
+ for(const method of ['inspectLinkedFile','openLinkedFile','revealLinkedFile']){
+  const events=new EventEmitter(),dom=new EventEmitter(),pending=[];let api;events.invoke=(_c,payload)=>new Promise((resolve,reject)=>pending.push({payload,resolve,reject}));
+  runInNewContext(fs.readFileSync(path.join(__dirname,'../lib/document-demo-preload.js'),'utf8'),{document:{addEventListener:(n,f)=>dom.on(n,f)},require:()=>({ipcRenderer:events,contextBridge:{exposeInMainWorld:(_n,v)=>api=v}})});
+  const request={sessionId:'a',expectedRevision:3};dom.emit('compositionstart');assert.equal((await api[method](request)).code,'composition-active');dom.emit('compositionend');
+  const action=api[method](request);assert.equal((await api.sourceEdit(request)).code,'document-busy');assert.equal((await api.undo(request)).code,'copy-in-progress');
+  pending[0].resolve({ok:true,sessionId:'other',requestRevision:3,snapshot:{sessionId:'a',revision:4,readOnly:true}});assert.equal((await action).code,'linked-action-unknown');assert.equal((await api[method](request)).code,'linked-action-unknown');assert.equal(pending.length,1);
+ }
+});
+test('unbound temporary documents have no linked path; opening at session capacity preserves all sessions',()=>{
+ const f=sessionFixture(async()=>true),unbound=f.call({operation:'new-temporary'}).snapshot;
+ assert.equal(unbound.linkedFile,null);assert.equal(f.call({operation:'inspect-linked-file',sessionId:unbound.sessionId,expectedRevision:0}).code,'linked-file-unavailable');
+ assert.equal(f.call({operation:'open-linked-file',sessionId:unbound.sessionId,expectedRevision:0}).code,'linked-file-unavailable');
+ while(f.call({operation:'list'}).sessions.length<8)f.manager.provision(f.win,f.original,'Extra',{readOnly:true});
+ const ids=f.call({operation:'list'}).sessions.map(s=>s.sessionId);
+ assert.equal(f.call({operation:'open-linked-file',sessionId:f.draft.sessionId,expectedRevision:0}).code,'session-limit');
+ assert.deepEqual(f.call({operation:'list'}).sessions.map(s=>s.sessionId),ids);assert.equal(f.call({operation:'inspect-linked-file',sessionId:f.id,expectedRevision:0}).ok,true);f.win.emit('closed');
+});

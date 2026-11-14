@@ -19,16 +19,27 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — common authoring compatibility, 0.66.0 (2026-11-14)
+### Current batch — everyday file workflow, 0.67.0 (2026-11-14)
 
-Reduce everyday read-only/refusal cases as one complete article workflow: combined
-bold/italic projection, compatible commands, text/selection edits, paragraph/list/
-quote continuation, plain soft-line selection replacement, find, history, export
-and recovery. Keep exact-source and main-owned authority. Real native-input,
-longer genuine writing and heading/table VoiceOver remain acceptance work. Next
-finish file-use clarity and evaluate broader explicitly authorized local save
-locations as a separate group; do not assume sync/external locations are supported.
-Then close daily-use candidate acceptance; paid distribution stays deferred.
+Complete explicit disk inspection, read-only current-version opening and Finder
+reveal for opened originals/bound drafts. Preserve local source/history and separate
+backup from file-save status. Changed/missing files pause writing back; rechecking
+never restores stopped authority. Existing Save As allows retaining current writing
+under a new filename. No automatic reload/merge or watcher is introduced.
+
+Broader save locations were evaluated: the current native replacement/recovery
+contract assumes the same local device, and ancestor/location checks are Home-based.
+Supporting external volumes requires bounded per-volume native staging and recovery
+verification, not removing a prefix guard. Keep this a concrete separate delivery
+group, with external/network/sync support unclaimed. Next close genuine daily-use
+acceptance (longer writing, physical input and heading/table VoiceOver), fixing
+reproduced failures together. Paid distribution remains deferred.
+
+### Previous batch — common authoring compatibility, 0.66.0 (2026-11-14)
+
+Combined bold/italic authoring and plain soft-line selection now use the complete
+edit/history/find/export/recovery workflow. Preserve source validation and the
+accepted visual baseline. Native cross-format/line input remains conservative.
 
 ### Previous batch — formatted long-document compatibility, 0.65.1 (2026-11-14)
 

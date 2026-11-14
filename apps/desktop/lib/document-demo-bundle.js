@@ -189,6 +189,94 @@
     }
   });
 
+  // lib/document-file-presentation.mjs
+  function filePresentation(current, state) {
+    if (!current) return { label: "\u672A\u6253\u5F00\u6587\u6863", kind: "\u672A\u6253\u5F00\u6587\u6863", location: "" };
+    const file = current.linkedFile, o = current.originalSave;
+    if (!current.temporary) return { label: "\u539F\u6587\u53EA\u8BFB", kind: "\u539F\u6587\u4EF6 \xB7 \u53EA\u8BFB", location: file?.filePath || current.location || "" };
+    if (!file) return { label: "\u672C\u5730\u8349\u7A3F", kind: "\u72EC\u7ACB\u8349\u7A3F", location: "\u72EC\u7ACB\u8349\u7A3F\uFF0C\u5C1A\u672A\u5173\u8054\u6587\u4EF6\u3002" };
+    const blocked = o?.stopped, known = file.checked?.state;
+    const pending = state && (state.pending || state.historyPending || state.composing || state.compositionInvalid || state.source !== current.source);
+    const label = blocked ? "\u4FDD\u5B58\u5DF2\u6682\u505C" : pending ? "\u8F93\u5165\u5F85\u786E\u8BA4" : known === "changed" ? "\u78C1\u76D8\u6587\u4EF6\u5DF2\u53D8\u5316" : known === "missing" ? "\u78C1\u76D8\u6587\u4EF6\u5DF2\u79FB\u52A8\u6216\u5220\u9664" : known === "unavailable" ? "\u78C1\u76D8\u6587\u4EF6\u6682\u4E0D\u53EF\u6838\u5BF9" : typeof current.copySha256 === "string" && current.copySha256 === file.baselineSha256 ? "\u6B63\u6587\u5DF2\u4FDD\u5B58" : "\u4FEE\u6539\u672A\u4FDD\u5B58";
+    return { label, kind: "\u6587\u4EF6\u8349\u7A3F \xB7 " + label, location: file.filePath };
+  }
+  function linkedFileMessage(file, stopped = false) {
+    if (!file) return "\u6B64\u8349\u7A3F\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u53EF\u5728\u8FD9\u91CC\u6838\u5BF9\u3002";
+    const checked = file.checked;
+    if (!checked) return "\u5C1A\u672A\u68C0\u67E5\u78C1\u76D8\u53D8\u5316\u3002\u68C0\u67E5\u4E0D\u4F1A\u66FF\u6362\u6B63\u6587\uFF1B\u6253\u5F00\u78C1\u76D8\u7248\u4F1A\u4FDD\u7559\u5F53\u524D\u6587\u6863\u3002";
+    const messages2 = { unchanged: "\u68C0\u67E5\u65F6\u78C1\u76D8\u6587\u4EF6\u4E0E\u5DF2\u6253\u5F00\u6216\u4E0A\u6B21\u4FDD\u5B58\u7684\u7248\u672C\u4E00\u81F4\u3002", changed: "\u78C1\u76D8\u6587\u4EF6\u5DF2\u53D8\u5316\u3002\u5F53\u524D\u6B63\u6587\u4E0E\u64A4\u9500\u5386\u53F2\u4FDD\u7559\uFF1B\u8BF7\u6253\u5F00\u78C1\u76D8\u7248\u6838\u5BF9\uFF0C\u6216\u5C06\u5F53\u524D\u5185\u5BB9\u53E6\u5B58\u65B0\u6587\u4EF6\u3002", missing: "\u539F\u8DEF\u5F84\u7684\u6587\u4EF6\u5DF2\u79FB\u52A8\u6216\u5220\u9664\u3002\u5F53\u524D\u6B63\u6587\u4FDD\u7559\uFF0C\u53EF\u53E6\u5B58\u65B0\u6587\u4EF6\uFF1B\u6587\u4EF6\u79FB\u56DE\u540E\u53EF\u91CD\u65B0\u68C0\u67E5\u3002", unavailable: "\u65E0\u6CD5\u6838\u5BF9\u8BE5\u6587\u4EF6\uFF0C\u8BF7\u68C0\u67E5\u6743\u9650\u4E0E\u6587\u4EF6\u7C7B\u578B\u3002\u5F53\u524D\u6B63\u6587\u4FDD\u7559\u3002" };
+    return (messages2[checked.state] || "\u672A\u80FD\u786E\u8BA4\u78C1\u76D8\u72B6\u6001\u3002") + (stopped ? " \u5F53\u524D\u4F1A\u8BDD\u4E0D\u4F1A\u6062\u590D\u5199\u56DE\uFF1B\u8BF7\u4ECE\u6838\u5BF9\u540E\u7684\u78C1\u76D8\u7248\u521B\u5EFA\u65B0\u7F16\u8F91\u526F\u672C\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "");
+  }
+  function originalSaveNotice(current) {
+    const o = current.originalSave, r = o?.receipt;
+    if (r?.ok === false && r.committed !== false) return "\u672C\u6B21\u4FDD\u5B58\u672A\u786E\u8BA4\uFF0C\u539F\u8DEF\u5F84\u53EF\u80FD\u5DF2\u7ECF\u66F4\u65B0\u3002\u5404\u7248\u672C\u5DF2\u4FDD\u7559\uFF0C\u8BF7\u68C0\u67E5\u6062\u590D\u6750\u6599\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u91CD\u8BD5\u6216\u56DE\u9000\u3002";
+    if (o?.stopped) return ["changed", "missing"].includes(current.linkedFile?.checked?.state) ? "\u4FDD\u5B58\u5DF2\u6682\u505C\uFF1A\u78C1\u76D8\u6587\u4EF6\u5DF2\u53D8\u5316\u6216\u79FB\u8D70\uFF0C\u5F53\u524D\u8349\u7A3F\u4FDD\u7559\u3002\u8BF7\u6253\u5F00\u78C1\u76D8\u7248\u6838\u5BF9\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "\u4FDD\u5B58\u4ECD\u6682\u505C\uFF1A\u518D\u6B21\u68C0\u67E5\u4E0D\u4F1A\u6062\u590D\u5199\u56DE\u3002\u5F53\u524D\u8349\u7A3F\u4FDD\u7559\uFF0C\u8BF7\u6253\u5F00\u78C1\u76D8\u7248\u6838\u5BF9\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002";
+    return r?.ok === false ? "\u672A\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u3002\u8BF7\u4FDD\u7559\u8349\u7A3F\uFF0C\u91CD\u65B0\u6253\u5F00\u539F\u6587\u4EF6\u6838\u5BF9\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "";
+  }
+
+  // lib/document-linked-file-view.mjs
+  function createLinkedFileView({ api: api2, byId: byId2, context, busy, rerender, open }) {
+    const messages2 = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
+    function current() {
+      const c = context(), s = c.controller?.state();
+      return { c, s, file: s?.confirmed.linkedFile, blocked: !s?.confirmed.linkedFile || c.loading || c.invalid || s.locked || s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source || unknown.has(c.selected) };
+    }
+    function render4() {
+      const { c, s, file, blocked } = current(), panel = byId2("linked-file-card");
+      panel.hidden = !s;
+      byId2("linked-file-path").textContent = file?.filePath || "\u5C1A\u672A\u5173\u8054\u6587\u4EF6";
+      const checked = file?.checked;
+      byId2("linked-file-status").textContent = messages2.get(c.selected) || linkedFileMessage(file, s?.confirmed.originalSave?.stopped);
+      byId2("linked-file-checked").textContent = checked ? `\u4E0A\u6B21\u68C0\u67E5\uFF1A${new Date(checked.checkedAt).toLocaleString()}\uFF08\u4E0D\u662F\u5B9E\u65F6\u76D1\u6D4B\uFF09` : "";
+      for (const id2 of ["inspect-linked-file", "open-linked-file", "reveal-linked-file"]) {
+        byId2(id2).hidden = !file;
+        byId2(id2).disabled = !!blocked;
+      }
+    }
+    for (const id2 of ["inspect-linked-file", "open-linked-file", "reveal-linked-file"]) {
+      byId2(id2).onpointerdown = (e) => {
+        if (current().blocked) e.preventDefault();
+      };
+      byId2(id2).onclick = async () => {
+        const { c, s, blocked } = current();
+        if (blocked) return;
+        const request = { sessionId: c.selected, expectedRevision: s.confirmed.revision };
+        if (id2 === "open-linked-file") {
+          const result = await open(request);
+          if (!result?.ok) {
+            if (["linked-action-unknown", "ipc-outcome-unknown"].includes(result?.code)) unknown.add(c.selected);
+            messages2.set(c.selected, unknown.has(c.selected) ? "\u6253\u5F00\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u8BF7\u4FDD\u7559\u5F53\u524D\u6587\u6863\u5E76\u68C0\u67E5\u4FA7\u680F\uFF1B\u4E0D\u8981\u91CD\u590D\u64CD\u4F5C\u3002" : result?.code === "session-limit" ? "\u5F53\u524D\u7A97\u53E3\u5DF2\u8FBE\u5230\u516B\u4EFD\u6587\u6863\u4E0A\u9650\uFF0C\u8BF7\u5173\u95ED\u4E00\u4EFD\u540E\u518D\u6253\u5F00\u78C1\u76D8\u7248\u3002" : "\u672A\u6253\u5F00\u78C1\u76D8\u7248\u3002\u5F53\u524D\u6587\u6863\u4FDD\u7559\uFF0C\u8BF7\u68C0\u67E5\u6587\u4EF6\u6216\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u3002");
+            rerender();
+          }
+          return;
+        }
+        messages2.delete(c.selected);
+        busy(true);
+        rerender();
+        try {
+          const result = await api2[id2 === "inspect-linked-file" ? "inspectLinkedFile" : "revealLinkedFile"](request), now = context();
+          if (now.controller !== c.controller || now.selected !== c.selected) return;
+          if (result?.code === "linked-action-unknown" || !result || typeof result.ok !== "boolean") throw Error();
+          if (id2 === "inspect-linked-file") {
+            if (!result.snapshot || result.snapshot.sessionId !== c.selected || result.snapshot.revision !== request.expectedRevision || result.snapshot.source !== s.confirmed.source) throw Error();
+            c.controller.refresh(result);
+            if (!result.ok) messages2.set(c.selected, "\u6682\u65F6\u65E0\u6CD5\u68C0\u67E5\uFF0C\u5F53\u524D\u6587\u6863\u4FDD\u7559\u3002");
+          } else messages2.set(c.selected, result.ok ? "\u5DF2\u8BF7\u6C42\u5728 Finder \u4E2D\u663E\u793A\u5F53\u524D\u78C1\u76D8\u6587\u4EF6\u3002" : "\u6587\u4EF6\u5DF2\u79FB\u52A8\u3001\u4E0D\u53EF\u8BFB\u53D6\u6216\u4E0D\u662F\u666E\u901A\u6587\u4EF6\uFF0C\u672A\u8BF7\u6C42 Finder \u5B9A\u4F4D\u3002");
+        } catch {
+          unknown.add(c.selected);
+          messages2.set(c.selected, "\u64CD\u4F5C\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u8BF7\u4FDD\u7559\u5F53\u524D\u6587\u6863\uFF0C\u4E0D\u8981\u91CD\u590D\u64CD\u4F5C\u3002");
+        } finally {
+          busy(false);
+          rerender();
+        }
+      };
+    }
+    return { render: render4, release(id2) {
+      messages2.delete(id2);
+      unknown.delete(id2);
+    } };
+  }
+
   // lib/document-accessibility-view.mjs
   function createAccessibilityView({ byId: byId2, context }) {
     const doc4 = byId2("writing-app").ownerDocument;
@@ -62398,14 +62486,25 @@ SHA-256: ${last.sha256}` : "";
       const r = o.receipt;
       if (last) {
         const text5 = doc4.createElement("p");
-        text5.textContent = `\u5DF2\u4FDD\u5B58\u56DE ${last.filePath.split("/").pop()} \xB7 ${s.confirmed.dirty ? "\u4E4B\u540E\u7684\u4FEE\u6539\u5C1A\u672A\u4FDD\u5B58" : "\u5F53\u524D\u6B63\u6587\u5DF2\u4FDD\u5B58"}\u3002`;
+        text5.textContent = `\u5DF2\u4FDD\u5B58\u56DE ${last.filePath.split("/").pop()} \xB7 ${o.stopped ? "\u5F53\u524D\u6587\u4EF6\u72B6\u6001\u9700\u6838\u5BF9" : s.confirmed.dirty ? "\u4E4B\u540E\u7684\u4FEE\u6539\u5C1A\u672A\u4FDD\u5B58" : "\u5F53\u524D\u6B63\u6587\u5DF2\u4FDD\u5B58"}\u3002`;
         alert.append(text5);
       }
-      const message = notices.get(c.selected) || (r?.ok === false ? r.committed === false ? "\u672A\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u3002\u8BF7\u4FDD\u7559\u8349\u7A3F\uFF0C\u91CD\u65B0\u6253\u5F00\u539F\u6587\u4EF6\u6838\u5BF9\uFF0C\u6216\u53E6\u5B58\u65B0\u6587\u4EF6\u3002" : "\u672C\u6B21\u4FDD\u5B58\u672A\u786E\u8BA4\uFF0C\u539F\u8DEF\u5F84\u53EF\u80FD\u5DF2\u7ECF\u66F4\u65B0\u3002\u5404\u7248\u672C\u5DF2\u4FDD\u7559\uFF0C\u8BF7\u68C0\u67E5\u6062\u590D\u6750\u6599\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u91CD\u8BD5\u6216\u56DE\u9000\u3002" : "");
+      const message = originalSaveNotice(s.confirmed) || notices.get(c.selected) || "";
       if (message) {
         const text5 = doc4.createElement("p");
         text5.textContent = message + (r?.code ? `\uFF08${r.code}\uFF09` : "");
         alert.append(text5);
+      }
+      if (o.stopped && s.confirmed.linkedFile) {
+        for (const [label, id2] of [["\u6253\u5F00\u78C1\u76D8\u7248", "open-linked-file"], ["\u53E6\u5B58\u65B0\u6587\u4EF6\u2026", "create-test-copy"]]) {
+          const b = doc4.createElement("button");
+          b.type = "button";
+          b.textContent = label;
+          b.disabled = !!(c.loading || c.invalid || s.locked || s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source);
+          b.onpointerdown = (e) => byId2(id2).onpointerdown?.(e);
+          b.onclick = () => byId2(id2).click();
+          alert.append(b);
+        }
       }
       if (r?.recordId) {
         const reveal = doc4.createElement("button");
@@ -63301,7 +63400,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     function syncNavigation() {
       if (!enabled) return;
       const c = context(), confirmed = c.state?.confirmed, select = byId2("documents");
-      if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly });
+      if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly, detail: filePresentation(confirmed).kind });
       const options = [...select.options], ids = new Set(options.map((o) => o.value));
       for (const [id2, row] of rows) if (!ids.has(id2)) {
         row.button.remove();
@@ -63329,7 +63428,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         button.title = option.textContent;
         button.setAttribute("aria-current", String(id2 === confirmed?.sessionId));
         button.disabled = !!(blocked() || select.disabled || c.unavailable?.(id2));
-        detail.textContent = c.unavailable?.(id2) ? "\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528" : c.pendingSession === id2 ? "\u6B63\u5728\u5207\u6362\u2026" : m?.temporary ? "\u72EC\u7ACB\u8349\u7A3F" : m?.readOnly ? "\u539F\u6587\u53EA\u8BFB" : "\u5DF2\u6253\u5F00\u6587\u6863";
+        detail.textContent = c.unavailable?.(id2) ? "\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528" : c.pendingSession === id2 ? "\u6B63\u5728\u5207\u6362\u2026" : m?.detail || (m?.temporary ? "\u72EC\u7ACB\u8349\u7A3F" : m?.readOnly ? "\u539F\u6587\u53EA\u8BFB" : "\u5DF2\u6253\u5F00\u6587\u6863");
         button.hidden = !option.textContent.toLocaleLowerCase().includes(byId2("session-filter").value.trim().toLocaleLowerCase());
       }
       byId2("session-count").textContent = String(options.length);
@@ -63352,8 +63451,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         previousSession = current?.sessionId;
       }
       byId2("details-document-name").textContent = current?.label || "\u672A\u6253\u5F00\u6587\u6863";
-      byId2("details-document-kind").textContent = current?.temporary ? current.originalSave?.lastConfirmed ? current.dirty ? "\u6587\u4EF6\u8349\u7A3F \xB7 \u4FEE\u6539\u672A\u4FDD\u5B58" : "\u6587\u4EF6\u8349\u7A3F \xB7 \u6B63\u6587\u5DF2\u4FDD\u5B58" : "\u72EC\u7ACB\u8349\u7A3F" : "\u539F\u6587\u4EF6 \xB7 \u53EA\u8BFB";
-      byId2("details-document-location").textContent = current?.temporary ? current.originalSave?.filePath || "\u72EC\u7ACB\u8349\u7A3F\uFF0C\u5C1A\u672A\u5173\u8054\u6587\u4EF6\u3002" : current?.location || "";
+      const file = filePresentation(current);
+      byId2("details-document-kind").textContent = file.kind;
+      byId2("details-document-location").textContent = file.location;
       byId2("details-document-revision").textContent = String(current?.revision ?? "\u2014");
       byId2("details-document-count").textContent = current ? current.source.replace(/\s/gu, "").length.toLocaleString() : "\u2014";
       byId2("details-backup-card").hidden = !current?.temporary;
@@ -63383,7 +63483,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       byId2("draft-recovery-panel").open = true;
       byId2("details-writing-help").append(byId2("temporary-notice"));
       byId2("details-backup-content").append(byId2("draft-backup-status"));
-      byId2("document-details-content").append(byId2("original-save-receipt"), byId2("test-copy-panel"));
+      byId2("document-details-content").append(byId2("linked-file-card"), byId2("original-save-receipt"), byId2("test-copy-panel"));
       confirmation.append(byId2("test-copy-confirmation"));
       for (const id2 of ["composition-status", "composition-warning", "composition-copy-panel", "input-pressure-panel", "recovery-panel"]) byId2("input-alerts").append(byId2(id2));
       sidebar(!media?.matches);
@@ -64077,6 +64177,18 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (editor?.isEditable) editor.view.focus();
     }
   });
+  var linkedFileView = createLinkedFileView({
+    api,
+    byId,
+    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    busy: (value) => {
+      loading = value;
+    },
+    rerender: () => {
+      if (controller) render3(controller.state());
+    },
+    open: (request) => openDocument(false, false, null, null, null, null, request)
+  });
   var originalSaveView = createOriginalSaveView({
     api,
     byId,
@@ -64174,9 +64286,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("document-full-name").textContent = current.label;
       byId("document-location").textContent = temporary ? current.originalSave?.available ? "\u4FDD\u5B58\u76EE\u6807\uFF1A" + current.originalSave.filePath : "\u72EC\u7ACB\u7F16\u8F91\u526F\u672C \xB7 \u5C1A\u672A\u5173\u8054\u6587\u4EF6" : current.location;
       byId("document-info").querySelector("summary").title = current.label;
-      byId("readonly-badge").textContent = temporary ? "\u672C\u5730\u8349\u7A3F" : "\u539F\u6587\u53EA\u8BFB";
+      byId("readonly-badge").textContent = filePresentation(current, s).label;
       byId("readonly-badge").title = temporary ? "\u672C\u5730\u5907\u4EFD\u4E0E\u53E6\u5B58\u6587\u4EF6\u662F\u4E0D\u540C\u72B6\u6001\uFF0C\u8BF7\u67E5\u770B\u65C1\u8FB9\u7684\u5907\u4EFD\u63D0\u793A\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u7F16\u8F91\u526F\u672C\u53EF\u901A\u8FC7\u4FDD\u5B58\u6309\u94AE\u5199\u56DE\u652F\u6301\u7684\u672C\u5730\u6587\u4EF6\u3002";
-      byId("document-info-note").textContent = temporary ? current.originalSave?.available ? "\u5DF2\u5173\u8054\u6587\u4EF6\u3002\u53EA\u6709\u70B9\u51FB\u4FDD\u5B58\u624D\u4F1A\u5199\u56DE\uFF1B\u65E7\u7248\u672C\u4FDD\u7559\uFF0C\u53EF\u5728\u8349\u7A3F\u9762\u677F\u67E5\u770B\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u4ECD\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u6807\u3002" : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "\u539F\u6587\u4EF6\u53EA\u8BFB\u3002\u6682\u4E0D\u652F\u6301\u7684 Markdown \u683C\u5F0F\u6309\u539F\u6587\u663E\u793A\u3002";
+      byId("document-info-note").textContent = temporary ? current.originalSave?.available ? "\u5DF2\u5173\u8054\u6587\u4EF6\u3002\u4FDD\u5B58\u9700\u70B9\u51FB\u4FDD\u5B58\uFF1B\u78C1\u76D8\u68C0\u67E5\u548C\u6253\u5F00\u78C1\u76D8\u7248\u5728\u8BE6\u60C5\u4E2D\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u6807\u3002" : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "\u539F\u6587\u4EF6\u53EA\u8BFB\u3002\u6682\u4E0D\u652F\u6301\u7684 Markdown \u683C\u5F0F\u6309\u539F\u6587\u663E\u793A\u3002";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
       document.title = current.label + (temporary ? " \u2014 \u8349\u7A3F" : " \u2014 \u539F\u6587\u53EA\u8BFB");
@@ -64190,6 +64302,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     draftView.render(s);
     testCopyView.render(s);
     originalSaveView.render(s);
+    linkedFileView.render();
     copyActionsView.render();
     renderCompositionCopies(s);
     writingShell.sync();
@@ -64493,6 +64606,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     draftView.release(id2);
     testCopyView.release(id2);
     originalSaveView.release(id2);
+    linkedFileView.release(id2);
     copyActionsView.release(copyId);
     options[index2]?.remove();
     drafts.delete(id2);
@@ -64517,6 +64631,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       "create-test-copy",
       "temporary-notice",
       "writing-status",
+      "linked-file-card",
       "original-save-status",
       "save-original",
       "copy-summary-compact",
@@ -64535,6 +64650,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       "test-copy-result",
       "test-copy-summary",
       "test-copy-operation",
+      "linked-file-path",
+      "linked-file-status",
+      "linked-file-checked",
       "original-save-receipt",
       "draft-backup-status",
       "copy-action-status",
@@ -64573,11 +64691,12 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (node2.textContent !== message) node2.textContent = message;
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
-  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null) {
+  async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null) {
     const state = controller?.state();
     if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
     const original = state?.confirmed;
     if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length || state.source !== original.source || confirmedCopy.sessionId !== selected || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
+    if (linkedRequest && (activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source || linkedRequest.sessionId !== selected || linkedRequest.expectedRevision !== original.revision || !original.linkedFile)) return;
     if (editingCopy && (!original?.readOnly || !original.editCopyEnabled || activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source)) return;
     loading = true;
     const epoch = ++switchEpoch;
@@ -64588,9 +64707,9 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     viewerStatus(editingCopy ? "\u6B63\u5728\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\u2026" : temporary ? "\u6B63\u5728\u65B0\u5EFA\u8349\u7A3F\u2026" : "\u6B63\u5728\u6253\u5F00\u2026");
     let candidate = null, reused = false;
     try {
-      const r = await (nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
+      const r = await (linkedRequest ? api.openLinkedFile(linkedRequest) : nativeRequestId ? api.openNativeFile(nativeRequestId) : recentId ? api.openRecent(recentId) : confirmedCopy ? api.openConfirmedCopy(confirmedCopy) : draftId ? api.restoreDraft(draftId) : editingCopy ? api.editCopy({ sessionId: original.sessionId, expectedRevision: original.revision, expectedSha256: original.editCopySha256 }) : temporary ? api.newTemporary() : api.openFile());
       if (epoch !== switchEpoch) return;
-      if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId)) throw Error("Source session invalidated");
+      if (confirmedCopy && lifecycles.has(confirmedCopy.sessionId) || linkedRequest && lifecycles.has(linkedRequest.sessionId)) throw Error("Source session invalidated");
       if (!r.ok) {
         const messages2 = {
           "recent-file-unavailable": "\u6700\u8FD1\u6587\u6863\u5DF2\u53D8\u5316\u3001\u88AB\u79FB\u52A8\u6216\u65E0\u6CD5\u9A8C\u8BC1\uFF0C\u8BF7\u901A\u8FC7\u300C\u6253\u5F00\u2026\u300D\u91CD\u65B0\u9009\u62E9\u3002",
@@ -64620,6 +64739,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
         viewerStatus((messages2[r.code] || "\u65E0\u6CD5\u6253\u5F00\u6240\u9009\u6587\u4EF6\u3002") + " \u5F53\u524D\u6587\u6863\u672A\u6539\u53D8\u3002", true);
         return r;
       }
+      if (linkedRequest && (r.sessionId !== linkedRequest.sessionId || r.requestRevision !== linkedRequest.expectedRevision)) throw Error("Linked request mismatch");
       reused = r.reused === true;
       candidate = r.snapshot;
       if (!candidate || nativeRequestId && r.requestId !== nativeRequestId || recentId && r.recentId !== recentId || (temporary ? candidate.temporary !== true || candidate.readOnly !== false : candidate.readOnly !== true || typeof candidate.location !== "string") || lifecycles.has(candidate.sessionId) || typeof candidate.label !== "string") throw Error("Invalid read-only snapshot");
@@ -64639,14 +64759,14 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("empty-state").hidden = true;
       document.body.dataset.documentState = "open";
       window.scrollTo(0, 0);
-      if (!nativeRequestId && !editingCopy && previous3?.readOnly && previous3.sessionId !== candidate.sessionId) {
+      if (!linkedRequest && !nativeRequestId && !editingCopy && previous3?.readOnly && previous3.sessionId !== candidate.sessionId) {
         try {
           const closed = await api.close({ sessionId: previous3.sessionId, expectedRevision: previous3.revision });
           if (closed.ok) [...byId("documents").options].find((o) => o.value === previous3.sessionId)?.remove();
         } catch {
         }
       }
-      viewerStatus(draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : editingCopy ? "\u5DF2\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u53EA\u8BFB\uFF1B\u78C1\u76D8\u4E0A\u7684\u540E\u7EED\u53D8\u5316\u4E0D\u4F1A\u81EA\u52A8\u5BFC\u5165\u3002" : temporary ? "\u8349\u7A3F\u5DF2\u5C31\u7EEA\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u70B9\u51FB\u300C\u7F16\u8F91\u526F\u672C\u300D\u5F00\u59CB\u4FEE\u6539\u3002");
+      viewerStatus(linkedRequest ? "\u5DF2\u5355\u72EC\u6253\u5F00\u78C1\u76D8\u7248\uFF0C\u539F\u6587\u4E0E\u8349\u7A3F\u4FDD\u7559\u3002\u9700\u8981\u7F16\u8F91\u6B64\u7248\u672C\uFF0C\u8BF7\u521B\u5EFA\u7F16\u8F91\u526F\u672C\u3002" : draftId ? r.recovered?.warning ? "\u5DF2\u6062\u590D\u8F83\u65E9\u7684\u53EF\u9A8C\u8BC1\u8349\u7A3F\uFF0C\u8F83\u65B0\u8BB0\u5F55\u65E0\u6CD5\u786E\u8BA4\u4E14\u5DF2\u4FDD\u7559\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : "\u5DF2\u6062\u590D\u672C\u5730\u8349\u7A3F\u4E3A\u72EC\u7ACB\u526F\u672C\u3002\u64A4\u9500\u5386\u53F2\u4ECE\u6B64\u5904\u91CD\u65B0\u5F00\u59CB\uFF1B\u5F53\u524D\u4E3A\u72EC\u7ACB\u8349\u7A3F\u3002" : editingCopy ? "\u5DF2\u521B\u5EFA\u72EC\u7ACB\u7F16\u8F91\u526F\u672C\uFF0C\u539F\u6587\u4EF6\u4FDD\u6301\u53EA\u8BFB\uFF1B\u78C1\u76D8\u4E0A\u7684\u540E\u7EED\u53D8\u5316\u4E0D\u4F1A\u81EA\u52A8\u5BFC\u5165\u3002" : temporary ? "\u8349\u7A3F\u5DF2\u5C31\u7EEA\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u540E\u624D\u80FD\u5728 Finder \u4E2D\u627E\u5230\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF1B\u70B9\u51FB\u300C\u7F16\u8F91\u526F\u672C\u300D\u5F00\u59CB\u4FEE\u6539\u3002");
       return { ok: true };
     } catch {
       if (!reused && candidate && selected !== candidate.sessionId) {

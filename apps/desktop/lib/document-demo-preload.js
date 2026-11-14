@@ -26,6 +26,7 @@ const request = async (operation, data = {}) => {
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: 'ipc-outcome-unknown' };
   }
+  const linkedAction=['inspect-linked-file','open-linked-file','reveal-linked-file'].includes(operation);
   const originalSaving=operation==='save-original';
   const forking = operation === 'edit-copy' || operation === 'restore-draft';
   const following = operation === 'open-confirmed-copy' || operation === 'reveal-confirmed-copy';
@@ -43,7 +44,7 @@ const request = async (operation, data = {}) => {
   if (['format','source-edit'].includes(operation) && pending) return { ok: false, code: 'document-busy' };
   if (managing && draftManagementUnknown) return { ok: false, code: 'draft-operation-unknown' };
   const creating = operation === 'create-test-copy' || operation === 'create-persistent-copy';
-  if (originalSaving || creating || forking || managing || following || importing) {
+  if (linkedAction || originalSaving || creating || forking || managing || following || importing) {
     if ((operation === 'restore-draft' || managing) && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: unknown.get(sessionId) || unknown.get(undefined) };
     if (composing) return { ok: false, code: 'composition-active' };
@@ -60,10 +61,17 @@ const request = async (operation, data = {}) => {
     if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
     if (managing) { draftManagementUnknown = true; return { ok: false, code: 'draft-operation-unknown' }; }
     unknown.set(sessionId, forking ? 'edit-copy-outcome-unknown' : creating ? 'copy-outcome-unknown' : 'ipc-outcome-unknown');
-    if (originalSaving || creating || forking || managing || following || importing || renaming || nativeOpening) return { ok: false, code: unknown.get(sessionId) };
+    if (linkedAction || originalSaving || creating || forking || managing || following || importing || renaming || nativeOpening) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
+  } finally { --pending; if (linkedAction || originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
+  if(linkedAction&&(!result||typeof result.ok!=='boolean'||(result.ok&&
+    (operation==='inspect-linked-file'
+      ? result.snapshot?.sessionId!==sessionId||result.snapshot.revision!==data.expectedRevision
+      : result.sessionId!==sessionId||result.requestRevision!==data.expectedRevision||
+        (operation==='open-linked-file'&&(typeof result.snapshot?.sessionId!=='string'||result.snapshot.sessionId===sessionId||result.snapshot.readOnly!==true||result.snapshot.temporary===true||states.has(result.snapshot.sessionId))))))){
+    unknown.set(sessionId,'linked-action-unknown');return {ok:false,code:'linked-action-unknown'};
+  }
   if(originalSaving&&(!result||typeof result.ok!=='boolean'||(result.ok&&(result.snapshot?.sessionId!==sessionId||result.snapshot.revision!==data.expectedRevision||result.snapshot.originalSave?.receipt?.state!=='saved-confirmed')))){unknown.set(sessionId,'save-outcome-unknown');return {ok:false,code:'save-outcome-unknown'};}
   if (importing && (!result || typeof result.ok !== 'boolean' || (result.ok &&
       (result.sessionId !== sessionId || result.revision !== data.expectedRevision || !/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(result.href))))) {
@@ -154,6 +162,9 @@ contextBridge.exposeInMainWorld('documentDemo', {
   onDraftStatus: handler => ipcRenderer.on('document-demo:draft-status', (_event, data) => {
     if (typeof data?.sessionId === 'string' && !states.has(data.sessionId)) handler(data);
   }),
+  inspectLinkedFile: data => request('inspect-linked-file',data),
+  openLinkedFile: data => request('open-linked-file',data),
+  revealLinkedFile: data => request('reveal-linked-file',data),
   saveOriginal: data => request('save-original',data),
   listSaveRecoveries: () => request('list-save-recoveries'),
   revealSaveRecovery: recordId => request('reveal-save-recovery',{recordId}),

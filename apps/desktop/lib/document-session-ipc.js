@@ -63,7 +63,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     if (allowTestCopies && s.temporary && !s.document.blocked) {
       try { copySha256 = sourceHash(s.document.bytesForSave()); } catch { /* No create authority for unconvertible contents. */ }
     }
-    return { originalSave: service.getOriginalState?.(s.document) || null, ...(backups?.status(s.document) ? { draftBackup: backups.status(s.document) } : {}), ...(allowTestCopies && s.temporary ? { copyEnabled: true, persistentCopyEnabled: typeof chooseCopy === 'function', copySha256, copyState: copyState(s), confirmedCopy: copyState(s, service.getConfirmedCopy(s.document)) } : {}), sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath), editCopyEnabled: typeof createTemporary === 'function', editCopySha256: s.document.blocked ? null : sourceHash(s.document.bytesForSave()) } : {}), source: s.document.text, revision: s.document.revision,
+    return { linkedFile: service.getLinkedFile?.(s.document) || null, originalSave: service.getOriginalState?.(s.document) || null, ...(backups?.status(s.document) ? { draftBackup: backups.status(s.document) } : {}), ...(allowTestCopies && s.temporary ? { copyEnabled: true, persistentCopyEnabled: typeof chooseCopy === 'function', copySha256, copyState: copyState(s), confirmedCopy: copyState(s, service.getConfirmedCopy(s.document)) } : {}), sessionId: id, label: s.label, ...(s.temporary ? { temporary: true, readOnly: false } : {}), ...(s.readOnly ? { readOnly: true, location: path.dirname(s.document.filePath), editCopyEnabled: typeof createTemporary === 'function', editCopySha256: s.document.blocked ? null : sourceHash(s.document.bytesForSave()) } : {}), source: s.document.text, revision: s.document.revision,
       dirty: s.document.dirty, blocked: s.document.blocked, bom: s.document.bom, encoding: s.document.encoding,
       canUndo: s.undo.length > 0, canRedo: s.redo.length > 0,
       lineEndings: { ...s.document.lineEndings }, saveState: { ...service.getSaveState(s.document) } };
@@ -209,6 +209,24 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     } catch { return failure(opening ? 'copy-open-failed' : 'copy-reveal-failed'); }
     finally { s.copying = false; if (result?.document && !kept) service.close(result.document); }
   }
+  function followLinked(event,binding,id,s,payload){
+    const opening=payload.operation==='open-linked-file';
+    if(opening&&sessions.size>=8)return failure('session-limit');
+    if(!opening&&typeof revealFile!=='function')return failure('copy-reveal-unavailable');
+    s.copying=true;let result,kept=false;
+    try{
+      result=opening?service.openLinkedFile(s.document,projectSource):service.locateLinkedFile(s.document);
+      if(authorizedBinding(event)!==binding||sessions.get(id)!==s)return failure('unknown-session');
+      if(!result.ok)return failure(result.code||'linked-file-unavailable');
+      if(!opening){revealFile(result.filePath);return {ok:true,sessionId:id,requestRevision:payload.expectedRevision};}
+      images?.open(result.document);
+      const next=provision(binding.win,result.document,path.basename(result.document.filePath),{readOnly:true});
+      const view=snapshot(next,sessions.get(next));kept=true;
+      try{recentFiles?.remember(result.document);}catch{/* Navigation history does not affect verified reading. */}
+      return {ok:true,sessionId:id,requestRevision:payload.expectedRevision,snapshot:view};
+    }catch{return failure('linked-file-unavailable');}
+    finally{s.copying=false;if(result?.document&&!kept)service.close(result.document);}
+  }
   async function saveOriginal(event,binding,id,s,payload){
     if(!s.temporary||s.readOnly||!confirmOriginalSave||!service.getOriginalState(s.document))return failure('original-save-unavailable');
     s.copying=true;
@@ -229,7 +247,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function request(event, payload) {
     const binding = authorizedBinding(event);
     if (!binding) return failure('unauthorized-sender');
-    const fields = { 'save-original':['operation','sessionId','expectedRevision'], 'list-save-recoveries':['operation'], 'reveal-save-recovery':['operation','recordId'], 'list-native-opens': ['operation'], 'dismiss-native-open': ['operation', 'requestId'], 'open-native-file': ['operation', 'requestId'], 'import-image': ['operation', 'sessionId', 'expectedRevision'], 'image-preview': ['operation', 'sessionId', 'expectedRevision', 'href'], 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
+    const fields = { 'inspect-linked-file':['operation','sessionId','expectedRevision'], 'open-linked-file':['operation','sessionId','expectedRevision'], 'reveal-linked-file':['operation','sessionId','expectedRevision'], 'save-original':['operation','sessionId','expectedRevision'], 'list-save-recoveries':['operation'], 'reveal-save-recovery':['operation','recordId'], 'list-native-opens': ['operation'], 'dismiss-native-open': ['operation', 'requestId'], 'open-native-file': ['operation', 'requestId'], 'import-image': ['operation', 'sessionId', 'expectedRevision'], 'image-preview': ['operation', 'sessionId', 'expectedRevision', 'href'], 'rename-draft': ['operation', 'sessionId', 'expectedRevision', 'expectedLabel', 'label'], 'list-recents': ['operation'], 'clear-recents': ['operation'], 'open-recent': ['operation', 'recentId'], 'close-document': ['operation', 'sessionId', 'expectedRevision'], 'open-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'reveal-confirmed-copy': ['operation', 'sessionId', 'expectedRevision', 'copyId'], 'edit-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-persistent-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'create-test-copy': ['operation', 'sessionId', 'expectedRevision', 'expectedSha256'], 'manage-draft': ['operation', 'draftId', 'action', 'expectedToken'], 'list-drafts': ['operation'], 'restore-draft': ['operation', 'draftId'], 'new-temporary': ['operation'], 'open-file': ['operation'], list: ['operation'], snapshot: ['operation', 'sessionId'], check: ['operation', 'sessionId'],
       format: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'action', 'label', 'href'],
       'source-edit': ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
       edit: ['operation', 'sessionId', 'expectedRevision', 'from', 'to', 'insert'],
@@ -287,12 +305,14 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
     if (s.copying) return reply(failure('copy-in-progress'));
     if (s.temporary && payload.operation === 'save') return reply(failure('temporary-not-persistable'));
     if (s.readOnly && ['save-original', 'import-image', 'rename-draft', 'format', 'source-edit', 'edit', 'save', 'undo', 'redo', 'check', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) return reply(failure('read-only-document'));
-    if (['save-original', 'import-image', 'image-preview', 'rename-draft', 'open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'source-edit', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
+    if (['inspect-linked-file','open-linked-file','reveal-linked-file','save-original', 'import-image', 'image-preview', 'rename-draft', 'open-confirmed-copy', 'reveal-confirmed-copy', 'format', 'source-edit', 'edit-copy', 'edit', 'save', 'close', 'undo', 'redo', 'create-test-copy', 'create-persistent-copy'].includes(payload.operation)) {
       if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) return reply(failure('invalid-revision'));
       if (payload.expectedRevision !== s.document.revision) return reply(failure('stale-revision'));
     }
     try {
       switch (payload.operation) {
+        case 'inspect-linked-file': return reply(service.inspectLinkedFile(s.document));
+        case 'open-linked-file': case 'reveal-linked-file': return followLinked(event,binding,id,s,payload);
         case 'save-original': return saveOriginal(event,binding,id,s,payload);
         case 'import-image': return importImage(event, binding, id, s, payload);
         case 'image-preview': return images ? {ok: true, sessionId: id, revision: s.document.revision, href: payload.href, dataUrl: images.preview(s.document, payload.href)} : failure('image-preview-unavailable');
