@@ -1,5 +1,6 @@
 // One bounded coordinated transaction. All input is main-owned; no renderer IPC.
 #import "document-save-io.h"
+#import "document-save-staging.h"
 
 static void checkpoint(NSDictionary *request,NSString *step) {
 #ifdef DOCUMENT_SAVE_TESTING
@@ -37,7 +38,7 @@ static void verifyAssets(int dir,NSArray *proofs){
 }
 static NSDictionary *transaction(NSDictionary *r) {
   __block BOOL exchanged=NO,attempted=NO;BOOL journalReady=NO;__block NSDictionary *receipt;
-  __block int target=-1,recovery=-1,original=-1,candidate=-1;
+  __block int target=-1,recovery=-1,original=-1,candidate=-1,swap=-1,stageRoot=-1;
   NSString *file=r[@"filePath"],*directory=[file stringByDeletingLastPathComponent],*name=[file lastPathComponent];
   NSString *root=r[@"recoveryPath"];
   @try {
@@ -55,7 +56,7 @@ static NSDictionary *transaction(NSDictionary *r) {
         verifyAncestors(r[@"ancestors"]);
         target=open(directory.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(target<0)refuse(@"directory-changed");
         if(!same(identity(target),[r[@"ancestors"] lastObject][@"identity"],posixKeys()))refuse(@"directory-changed");
-        struct statfs disk;if(fstatfs(target,&disk)||strcmp(disk.f_fstypename,"apfs")||!(disk.f_flags&MNT_LOCAL)||![identity(target)[@"dev"] isEqual:identity(recovery)[@"dev"]])refuse(@"unsupported-filesystem");
+        struct statfs disk;if(fstatfs(target,&disk)||strcmp(disk.f_fstypename,"apfs")||!(disk.f_flags&MNT_LOCAL)||(disk.f_flags&MNT_RDONLY)||(disk.f_flags&MNT_IGNORE_OWNERSHIP))refuse(@"unsupported-filesystem");
         NSDictionary *baseline=namedState(target,name.fileSystemRepresentation);
         if(![baseline[@"identity"] isEqual:r[@"expectedIdentity"]]||![baseline[@"sha256"] isEqual:r[@"expectedSha256"]])refuse(@"external-change");
         if(([baseline[@"identity"][@"mode"] intValue]&0222)==0||([baseline[@"identity"][@"mode"] intValue]&0022))refuse(@"read-only");
@@ -63,11 +64,17 @@ static NSDictionary *transaction(NSDictionary *r) {
         if(![identity(original) isEqual:baseline[@"identity"]])refuse(@"external-change");
         int copy=createBytes(recovery,"baseline.md",readBytes(original));close(copy);
         int draft=createBytes(recovery,"draft.md",bytes);close(draft);
-        candidate=createBytes(recovery,"exchanged.md",bytes);
+        if(fsync(recovery))refuse(@"sync-failed");
+        NSDictionary *stage=nil;swap=recovery;
+        if(![identity(target)[@"dev"] isEqual:identity(recovery)[@"dev"]]){
+          if(![r[@"volume"] isEqual:localVolume(directory)])refuse(@"staging-volume-changed");
+          swap=-1;stage=prepareStaging(r,target,recovery,&stageRoot,&swap);
+        }
+        candidate=createBytes(swap,"exchanged.md",bytes);
         // Preserve supported native metadata, never drop unknown attributes/ACL.
         if(fcopyfile(original,candidate,NULL,COPYFILE_METADATA)||fchmod(candidate,[baseline[@"identity"][@"mode"] intValue]))refuse(@"metadata-copy-failed");
         if(!same(identity(candidate),baseline[@"identity"],@[@"mode",@"uid",@"gid"])||![attributes(candidate) isEqual:baseline[@"attributes"]])refuse(@"metadata-copy-failed");
-        if(fsync(candidate)||fsync(recovery))refuse(@"sync-failed");
+        if(fsync(candidate)||fsync(swap)||fsync(recovery))refuse(@"sync-failed");
         NSDictionary *prepared=identity(candidate);
         writeJSON(recovery,"prepared.json",@{@"version":@1,@"filePath":file,@"revision":r[@"revision"],@"expected":baseline,@"candidateIdentity":prepared,@"sha256":r[@"sha256"],@"state":@"prepared",@"assets":[r[@"assets"]?:@[] valueForKey:@"name"]});
         NSArray *assets=prepareAssets(target,r[@"assets"]?:@[]);
@@ -76,21 +83,23 @@ static NSDictionary *transaction(NSDictionary *r) {
         if(![namedState(target,name.fileSystemRepresentation) isEqual:baseline])refuse(@"external-change");
         if(![digest(readBytes(candidate)) isEqual:r[@"sha256"]]||![attributes(candidate) isEqual:baseline[@"attributes"]])refuse(@"candidate-changed");
         checkpoint(r,@"before-swap");
+        verifyStaging(r,stage,target,stageRoot,swap);
         attempted=YES;
         // A single-component exchange retains whatever occupied the target. It
         // is NOT an inode CAS. Never unlink the displaced object or auto-swap back.
-        if(renameatx_np(recovery,"exchanged.md",target,name.fileSystemRepresentation,RENAME_SWAP|RENAME_NOFOLLOW_ANY))refuse(@"exchange-unconfirmed");
+        if(renameatx_np(swap,"exchanged.md",target,name.fileSystemRepresentation,RENAME_SWAP|RENAME_NOFOLLOW_ANY))refuse(@"exchange-unconfirmed");
         exchanged=YES;checkpoint(r,@"after-swap");
-        NSDictionary *displaced=namedState(recovery,"exchanged.md");
+        NSDictionary *displaced=namedState(swap,"exchanged.md");
         if(!same(displaced[@"identity"],baseline[@"identity"],@[@"dev",@"ino",@"size",@"mtimeNs",@"mode",@"uid",@"gid"])||![displaced[@"sha256"] isEqual:baseline[@"sha256"]]||![displaced[@"attributes"] isEqual:baseline[@"attributes"]])refuse(@"conflict-after-exchange");
         NSDictionary *current=namedState(target,name.fileSystemRepresentation);
         if(!same(current[@"identity"],prepared,@[@"dev",@"ino",@"size",@"mtimeNs",@"mode",@"uid",@"gid"])||![current[@"sha256"] isEqual:r[@"sha256"]]||![current[@"attributes"] isEqual:baseline[@"attributes"]])refuse(@"target-changed-after-exchange");
-        verifyAncestors(r[@"ancestors"]);verifyAssets(target,assets);checkpoint(r,@"sync");
-        if(fsync(candidate)||fsync(original)||fsync(target)||fsync(recovery))refuse(@"durability-uncertain");
+        verifyAncestors(r[@"ancestors"]);verifyStaging(r,stage,target,stageRoot,swap);verifyAssets(target,assets);checkpoint(r,@"sync");
+        if(fsync(candidate)||fsync(original)||fsync(target)||fsync(swap)||fsync(recovery))refuse(@"durability-uncertain");
         // Immutable recovery copy of the verified displaced bytes. The exchanged
         // inode also remains, but another holder may continue writing through it.
         int previous=createBytes(recovery,"previous.md",readBytes(original));close(previous);
-        if(![namedState(recovery,"exchanged.md") isEqual:displaced]||![namedState(target,name.fileSystemRepresentation) isEqual:current])refuse(@"post-verification-change");
+        if(![namedState(swap,"exchanged.md") isEqual:displaced]||![namedState(target,name.fileSystemRepresentation) isEqual:current])refuse(@"post-verification-change");
+        verifyStaging(r,stage,target,stageRoot,swap);
         receipt=@{@"ok":@YES,@"state":@"saved-confirmed",@"committed":@YES,@"identity":current[@"identity"],@"sha256":r[@"sha256"],@"revision":r[@"revision"]};
         writeJSON(recovery,"confirmed.json",receipt);
       }@catch(NSException *e){
@@ -105,14 +114,15 @@ static NSDictionary *transaction(NSDictionary *r) {
  fprintf(stderr,"%s: %s\n",e.name.UTF8String,e.reason.UTF8String);
 #endif
  receipt=@{@"ok":@NO,@"state":exchanged?@"save-unverified":attempted?@"save-outcome-unknown":@"not-saved",@"committed":exchanged?@YES:attempted?(id)NSNull.null:@NO,@"code":e.name};}
+  if(swap>=0&&swap!=recovery)close(swap);if(stageRoot>=0)close(stageRoot);
   // Exclusive, append-only terminal record. A missing record is unresolved on restart.
   if(journalReady){@try{writeJSON(recovery,"outcome.json",receipt);}@catch(NSException *e){(void)e;receipt=@{@"ok":@NO,@"state":@"save-outcome-unknown",@"committed":attempted?(id)NSNull.null:@NO,@"code":@"journal-unconfirmed"};}}
   for(NSNumber *number in @[@(candidate),@(original),@(target),@(recovery)])if(number.intValue>=0)close(number.intValue);
   return receipt;
 }
 int main(int argc,const char **argv){@autoreleasepool {
-  if(argc==3&&!strcmp(argv[1],"--inspect-directory")){
-    NSDictionary *result=inspectDirectoryLocation([NSString stringWithUTF8String:argv[2]]);
+  if(argc==3&&(!strcmp(argv[1],"--inspect-directory")||!strcmp(argv[1],"--inspect-volume"))){
+    NSDictionary *result=!strcmp(argv[1],"--inspect-volume")?inspectLocalVolume([NSString stringWithUTF8String:argv[2]]):inspectDirectoryLocation([NSString stringWithUTF8String:argv[2]]);
     NSData *output=[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
     fwrite(output.bytes,1,output.length,stdout);putchar('\n');return 0;
   }
@@ -122,7 +132,7 @@ int main(int argc,const char **argv){@autoreleasepool {
   while((c=getchar())!='\n'&&c!=EOF){if(data.length>=DOCUMENT_MAX_REQUEST_BYTES)return 64;unsigned char b=c;[data appendBytes:&b length:1];}
   NSDictionary *request=[NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
   if(![request isKindOfClass:NSDictionary.class])return 64;
-  NSMutableSet *keys=[NSMutableSet setWithArray:@[@"filePath",@"recoveryPath",@"recoveryIdentity",@"body",@"sha256",@"expectedIdentity",@"expectedSha256",@"ancestors",@"revision",@"assets"]];
+  NSMutableSet *keys=[NSMutableSet setWithArray:@[@"filePath",@"recoveryPath",@"recoveryIdentity",@"body",@"sha256",@"expectedIdentity",@"expectedSha256",@"ancestors",@"revision",@"assets",@"volume"]];
 #ifdef DOCUMENT_SAVE_TESTING
   [keys addObjectsFromArray:@[@"testPoint",@"testFault"]];
 #endif

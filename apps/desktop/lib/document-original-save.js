@@ -13,6 +13,8 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
  if(!path.isAbsolute(root)||!path.isAbsolute(binary))fail('invalid-save-configuration');
  try{fs.mkdirSync(root,{mode:0o700});}catch(e){if(e.code!=='EEXIST')throw e;}
  const executable=fs.lstatSync(binary);if(!executable.isFile()||executable.isSymbolicLink()||(executable.mode&0o022))fail('save-helper-unavailable');fs.accessSync(binary,fs.constants.X_OK);
+ const {validateStageRecord,locateStage}=require('./document-save-stage-record');
+ const stageProof=(p,recordId,filePath)=>validateStageRecord(json(path.join(p,'staging.json')),{root,recordId,filePath});
  const archiveRoot=root+'-archive';let archiveIdentity=null;
  function verifyArchive(){try{fs.mkdirSync(archiveRoot,{mode:0o700});}catch(e){if(e.code!=='EEXIST')throw e;}const s=fs.lstatSync(archiveRoot,{bigint:true});if(!s.isDirectory()||s.isSymbolicLink()||s.uid!==BigInt(process.getuid())||(s.mode&0o7777n)!==0o700n||fs.realpathSync(archiveRoot)!==archiveRoot)fail('archive-unavailable');if(archiveIdentity&&!same(id(s),archiveIdentity))fail('archive-changed');archiveIdentity=id(s);}
  const initial=id(fs.lstatSync(root,{bigint:true}));const active=new Set(),children=new Set();
@@ -29,9 +31,9 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
   const records=names.map(recordId=>{try{const p=directory(recordId),request=json(path.join(p,'request.json'));let outcome;
    let accepted=false;try{outcome=json(path.join(p,'outcome.json'));const ack=json(path.join(p,'accepted.json'));accepted=ack.sha256===outcome.sha256&&ack.revision===outcome.revision;}catch{/* Missing/partial outcome remains unknown. */}
    return {id:recordId,label:path.basename(request.filePath||''),filePath:request.filePath,revision:request.revision,time:request.time,
-    state:outcome?.ok===true?(accepted?'saved-confirmed':'save-outcome-unknown'):outcome?.state||'save-outcome-unknown',code:outcome?.code||null};
+    externalStaging:fs.existsSync(path.join(p,'staging.json')),state:outcome?.ok===true?(accepted?'saved-confirmed':'save-outcome-unknown'):outcome?.state||'save-outcome-unknown',code:outcome?.code||null};
   }catch{return {id:recordId,label:'无法验证的保存记录',state:'save-outcome-unknown'};}}).sort((a,b)=>(b.time||0)-(a.time||0));
-  let archived=[],archiveWarning=null;try{verifyArchive();archived=fs.readdirSync(archiveRoot).filter(n=>n!=='.DS_Store').map(recordId=>{try{const request=json(path.join(directory(recordId,archiveRoot),'request.json'));return {id:recordId,label:path.basename(request.filePath),revision:request.revision,time:request.time,archived:true};}catch{return {id:recordId,label:'需要检查的归档',archived:true,warning:'archive-needs-attention'};}});}catch{archiveWarning='archive-unavailable';}
+  let archived=[],archiveWarning=null;try{verifyArchive();archived=fs.readdirSync(archiveRoot).filter(n=>n!=='.DS_Store').map(recordId=>{try{const request=json(path.join(directory(recordId,archiveRoot),'request.json'));return {id:recordId,label:path.basename(request.filePath),revision:request.revision,time:request.time,externalStaging:fs.existsSync(path.join(directory(recordId,archiveRoot),'staging.json')),archived:true};}catch{return {id:recordId,label:'需要检查的归档',archived:true,warning:'archive-needs-attention'};}});}catch{archiveWarning='archive-unavailable';}
   const newest=new Map();for(const r of records)if(r.state==='saved-confirmed')newest.set(r.filePath,Math.max(newest.get(r.filePath)||0,r.time||0));for(const r of records){const first=(r.time||0)>=newest.get(r.filePath);
    if(!first&&r.state==='saved-confirmed'&&!active.has(r.filePath)&&!archived.some(a=>a.id===r.id)){
     try{r.manageToken=recordToken(r.id);}catch{/* Unsafe material stays visible, never movable. */}
@@ -41,7 +43,7 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
  }catch{return {ok:false,code:'save-recovery-unavailable',records:[]};}}
  function locate(recordId){try{return directory(recordId);}catch{return directory(recordId,archiveRoot);}}
  function recordToken(recordId){const p=directory(recordId),names=fs.readdirSync(p).sort();
-  const allowed=new Set(['request.json','outcome.json','accepted.json','baseline.md','draft.md','exchanged.md','previous.md','prepared.json','confirmed.json','.DS_Store']);
+  const allowed=new Set(['request.json','outcome.json','accepted.json','baseline.md','draft.md','exchanged.md','previous.md','prepared.json','confirmed.json','stage-plan.json','staging.json','.DS_Store']);
   if(names.some(n=>!allowed.has(n)))fail('invalid-save-record');
   const sum=createHash('sha256');for(const n of names){const f=path.join(p,n),s=fs.lstatSync(f,{bigint:true});
    if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1n||s.uid!==BigInt(process.getuid())||(s.mode&0o022n))fail('invalid-save-record');
@@ -57,7 +59,10 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
   if(!outcome.ok||outcome.committed!==true||outcome.state!=='saved-confirmed'||!/^[a-f0-9]{64}$/.test(request.sha256)||outcome.sha256!==request.sha256||ack.sha256!==request.sha256||outcome.revision!==request.revision||ack.revision!==request.revision)fail('invalid-save-record');
   const expected=request.expectedSha256;
   if(!/^[a-f0-9]{64}$/.test(expected)||!same(json(path.join(p,'confirmed.json')),outcome))fail('invalid-save-record');
-  for(const [name,wanted] of [['draft.md',request.sha256],['baseline.md',expected],['previous.md',expected],['exchanged.md',expected]]){
+  const copies=[['draft.md',request.sha256],['baseline.md',expected],['previous.md',expected]];
+  if(!fs.existsSync(path.join(p,'staging.json')))copies.push(['exchanged.md',expected]);
+  else stageProof(p,recordId,request.filePath);
+  for(const [name,wanted] of copies){
    const file=path.join(p,name),before=recordToken(recordId),fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
    try{const stat=fs.fstatSync(fd);if(stat.size>MAX_DOCUMENT_BYTES)fail('save-record-changed');const bytes=Buffer.alloc(stat.size);let offset=0;while(offset<bytes.length){const n=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);if(!n)fail('save-record-changed');offset+=n;}if(hash(bytes)!==wanted)fail('save-record-changed');}finally{fs.closeSync(fd);}
    if(recordToken(recordId)!==before)fail('save-record-changed');
@@ -79,12 +84,12 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
    if(!Buffer.isBuffer(bytes)||bytes.length>MAX_DOCUMENT_BYTES||!Number.isSafeInteger(revision)||!isAuthorized())fail('save-authorization-expired');
    verify();if(fs.readdirSync(root).filter(n=>n!=='.DS_Store').length>=128)fail('save-recovery-capacity');
    const state=persistentDirectory(path.dirname(key));
-   if(state.identity.dev!==initial.dev)fail('unsupported-filesystem');
+   // A different APFS device uses native same-volume staging, with local copies.
    // Decode and verify with the existing image contract before granting the helper bytes.
    const assets=require('./document-local-images').decodeAttachments(attachments).map(a=>({name:a.name,body:a.bytes.toString('base64'),sha256:a.sha256}));
    recordId=randomUUID();tx=path.join(root,recordId);fs.mkdirSync(tx,{mode:0o700});
    const request={filePath:key,recoveryPath:tx,recoveryIdentity:id(fs.lstatSync(tx,{bigint:true})),
-    expectedIdentity:expected.identity,expectedSha256:expected.sha256,body:bytes.toString('base64'),sha256:hash(bytes),revision,ancestors:state.ancestors,assets};
+    expectedIdentity:expected.identity,expectedSha256:expected.sha256,body:bytes.toString('base64'),sha256:hash(bytes),revision,ancestors:state.ancestors,assets,...(state.volume?{volume:state.volume}:{})};
    const file=path.join(tx,'request.json');const fd=fs.openSync(file,'wx',0o600);
    try{fs.writeFileSync(fd,JSON.stringify({version:1,filePath:key,revision,time:Date.now(),expectedSha256:expected.sha256,sha256:request.sha256}));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
    for(const p of [tx,root]){const d=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW);try{fs.fsyncSync(d);}finally{fs.closeSync(d);}}
@@ -116,6 +121,7 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
   const fd=fs.openSync(path.join(p,'accepted.json'),'wx',0o600);try{fs.writeFileSync(fd,JSON.stringify({sha256:receipt.sha256,revision:receipt.revision}));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
   const dir=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW);try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}
  }
- return {replace,list,locate,offload,acknowledge,cancelAll(){for(const child of children)child.kill('SIGKILL');}};
+ function locateStaging(recordId){const p=locate(recordId),request=json(path.join(p,'request.json')),options={root,recordId,filePath:request.filePath};return locateStage(stageProof(p,recordId,request.filePath),options,json);}
+ return {replace,list,locate,locateStaging,offload,acknowledge,cancelAll(){for(const child of children)child.kill('SIGKILL');}};
 }
 module.exports={createOriginalSave};

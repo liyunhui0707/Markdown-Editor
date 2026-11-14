@@ -1,5 +1,13 @@
 # Stage History
 
+## Cross-location APFS saving and recovery — 0.71.0 (2026-11-15)
+
+- Extend explicit destination grants to ordinary local folders outside Home and attached writable APFS volumes, with canonical ancestry, ownership and metadata checks. Root-owned transit flags stay confined to directory ancestry; file flags remain strict.
+- Preserve local baseline/draft before native same-volume staging and coordinated atomic exchange. Target hidden namespaces use owner markers, exclusive publication and private UUID transactions; identities are rechecked before exchange and confirmation. No automatic deletion or swapback.
+- Keep local recovery available offline; verify volume UUID and directory inode/permissions before explicit target-area reveal. Local archive retains target-volume material and uncertain records remain protected.
+- Add bounded synthetic APFS acceptance for conflict entries, killed/sync-failed saves, assets, full-volume refusal and detach/reconnect/read-only semantics, plus offline record and preload regressions. Production helper remains universal and rejects test protocol. New modules stay below 300 lines; pre-existing large service/IPC modules receive only the new locator route.
+- Physical unplug/power failure, broad filesystem/sync support and public distribution are not established by synthetic automation.
+
 ## Long-writing verification calibration — runtime 0.70.1 unchanged (2026-11-14)
 
 - Attribute a reproducible hidden-window contribution to historical resource

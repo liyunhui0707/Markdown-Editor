@@ -282,6 +282,7 @@ function createDocumentService(options = {}) {
   function listSaveRecoveries(){return originalWriter?.list()||{ok:false,records:[]};}
   function offloadSaveRecovery(id,token,protectedIds){return originalWriter?.offload(id,token,protectedIds)||{ok:false,code:'save-recovery-unavailable'};}
   function locateSaveRecovery(id){return originalWriter?.locate(id);}
+  function locateSaveStaging(id){return originalWriter?.locateStaging(id);}
   function close(document) {
     const session = sessions.get(document);
     if (!session) return unknown();
@@ -293,7 +294,7 @@ function createDocumentService(options = {}) {
   }
 
   const linked=require('./document-linked-file').createLinkedFileAccess({store,sessions,openSnapshot,closeDocument:close});
-  return { ...linked, bindOriginal, getOriginalState, saveOriginal, listSaveRecoveries, locateSaveRecovery, offloadSaveRecovery, open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
+  return { ...linked, bindOriginal, getOriginalState, saveOriginal, listSaveRecoveries, locateSaveRecovery, locateSaveStaging, offloadSaveRecovery, open, save, checkExternal, close, getSaveState, retryDurability, createIsolatedCopy, createPersistentCopy, getCopyState, getConfirmedCopy, openConfirmedCopy, locateConfirmedCopy };
 }
 
 module.exports = { createDocumentService };

@@ -46,10 +46,12 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
         const state=record.archived?'恢复归档':record.state==='saved-confirmed'?'已确认':record.state==='not-saved'?'未写回':'需要检查';
         text.textContent=`${record.label} · ${state} · ${record.time?new Date(record.time).toLocaleString():'时间未知'}`;button.type='button';button.textContent='在 Finder 查看';
         button.onclick=async()=>{const result=await api.revealSaveRecovery(record.id);if(!result?.ok)text.textContent+=' · 无法定位，记录保留。';};row.append(text,button);
+        if(record.externalStaging){const note=doc.createElement('p'),stage=doc.createElement('button');note.textContent='原文与新正文副本保留在本机；交换材料保留在目标卷。请保持恢复目录原样。';stage.type='button';stage.textContent='查看目标卷恢复区';stage.onclick=async()=>{const result=await api.revealSaveStaging(record.id);if(!result?.ok)note.textContent='目标卷未连接或身份核对未通过。本机恢复材料仍保留，请连接原卷后重试。';};row.append(note,stage);}
+
         if(record.manageToken&&!record.archived){const offload=doc.createElement('button');offload.type='button';offload.textContent='归档旧版本';
           offload.onclick=()=>{if(listing||context().loading)return;offload.hidden=true;
             const prompt=doc.createElement('p'),yes=doc.createElement('button'),no=doc.createElement('button');
-            prompt.textContent='将整个保存版本移入恢复归档？保留所有文件及元数据，不改写 Markdown 原文件；可继续在 Finder 检查。';
+            prompt.textContent='将本机保存记录移入恢复归档？保留本机材料与元数据；目标卷的交换恢复区保持原样。不改写 Markdown 原文件，可继续在 Finder 检查。';
             yes.type=no.type='button';yes.textContent='确认归档旧版本';no.textContent='取消';row.append(prompt,yes,no);yes.focus?.();
             no.onclick=()=>{prompt.remove();yes.remove();no.remove();offload.hidden=false;offload.focus?.();};
             yes.onclick=async()=>{if(listing||context().loading)return;listing=true;busy(true);yes.disabled=no.disabled=true;

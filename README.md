@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.70.1 development build with multiline article writing and image paste.** This is not
+**0.71.0 development build with cross-location APFS saving and recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,38 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Local and external APFS saving — 0.71.0
+
+Save As and explicitly bound-file Save support ordinary writable, user-owned local
+APFS folders outside Home and on attached APFS volumes after ownership, metadata,
+canonical ancestry and volume checks. Existing Home folders retain their checks.
+Read-only, ownership-disabled, network/non-APFS, known cloud/sync, system/hidden,
+symlink and unsupported-permission locations remain refused. Confirm that your
+chosen folder is not managed by an unrecognized third-party sync tool.
+
+Cross-volume Save keeps exact original/new-text recovery copies in the local
+private recovery store **before** swapping. A private hidden
+`.markdown-recovery-…` namespace beside the target holds per-save exchange material
+on that same APFS volume. The native coordinated atomic exchange retains whatever
+occupied the target, including unexpected conflict entries. Never automatically
+swap back, delete, or adopt an unknown recovery folder. Keep this hidden folder
+in place; moving the Markdown alone does not move its exchange evidence.
+
+In **草稿 → 保存版本**, **在 Finder 查看** opens the local record; **查看目标卷恢复区**
+checks volume UUID and directory identities before revealing external exchange
+material. When a volume is offline, local original/draft copies and records remain
+inspectable. Reconnect the original volume to inspect its exchange area. An
+interrupted or uncertain save stays protected; it is not automatically retried.
+Use a freshly verified disk version or Save As to continue retained writing.
+**归档旧版本** archives only the local record and does not remove target-volume
+material. Both stores consume disk space. Recovery is not a backup against loss
+of the local disk or the external volume.
+
+Synthetic APFS acceptance covers actual different-device exchange, exact bytes,
+conflicts, process termination, storage-full refusal, offline local recovery,
+reconnection and read-only refusal. It does not establish physical power-loss or
+hardware reliability. Cloud/network/other filesystems remain separate work.
 
 ## Article writing and pasted images — 0.70.0
 
@@ -136,9 +168,9 @@ files pause writing back; checking again does not restore stopped authority.
 Create an editing copy of the verified disk version, or export the retained draft
 under a new filename. Saving still revalidates the file independently.
 
-Home-descendant ordinary local APFS destinations remain the supported scope.
-Cross-volume replacement needs a separate native staging/recovery design; this
-batch does not enable external, network or cloud/sync destinations.
+0.67.0 initially limited saves to Home-descendant APFS folders. The 0.71.0
+cross-location group above extends ordinary local and attached APFS destinations;
+network and cloud/sync locations remain excluded.
 
 ## Common inline compatibility — 0.66.0
 
@@ -243,7 +275,8 @@ folders. This applies to new-file export and explicitly bound-file saving.
 iCloud-managed Desktop/Documents remain refused with a specific explanation.
 If macOS cannot confirm the location, nothing is created. The app does not change
 sync settings or folder permissions. Home itself, system/hidden/provider folders,
-network and external volumes remain outside the supported save scope.
+network and cloud/sync locations remain excluded. External APFS support was added
+by 0.71.0 above.
 
 ## Daily writing — 0.62.2
 
@@ -330,9 +363,9 @@ The newest version for each file, live receipts and uncertain records stay put.
 Archived versions remain inspectable in Finder. Nothing is automatically deleted;
 archives still consume disk space. It is not a backup against disk loss.
 
-The same ordinary local Home-descendant APFS directory policy applies. Unknown
-ACLs/attributes, synced/network/external-volume locations and unsupported files
-remain refused. Current text/image limits remain. Building on macOS now compiles
+The ordinary local APFS directory policy applies, with 0.71.0 extending
+non-Home and attached APFS locations. Unknown ACLs/attributes, synced/network
+locations and unsupported files remain refused. Current text/image limits remain. Building on macOS now compiles
 a small Foundation helper (`npm run build:document-save`); packaging includes its
 production arm64/x86_64 binary. Native IME, broader OS acceptance, full CI/security
 and signed/notarized release gates remain separate.

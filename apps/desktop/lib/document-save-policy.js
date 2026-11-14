@@ -7,7 +7,7 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const deny = code => { throw Object.assign(Error(code.replaceAll('-', ' ')), { code, status: 'blocked' }); };
 
-function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform, newFileDirectory = false, newlyCreatedFile = false } = {}) {
+function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform, newFileDirectory = false, newlyCreatedFile = false, trustedTransit = false } = {}) {
   if (platform !== 'darwin') return deny('metadata-inspection-unavailable');
   function command(executable, args) {
     const result = spawn(executable, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 128 * 1024,
@@ -32,7 +32,7 @@ function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.pl
   }
   const flags = command('/usr/bin/stat', ['-f', '%f', filePath]).trim();
   if (!/^\d+$/.test(flags)) return deny('metadata-inspection-unavailable');
-  if (BigInt(flags) !== 0n) return deny('unsupported-flags');
+  if (BigInt(flags) !== 0n && !trustedTransit) return deny('unsupported-flags');
   const names = command('/usr/bin/xattr', [filePath]);
   if (names !== '' && (!names.endsWith('\n') || names.slice(0, -1).split('\n').some(name => !name))) return deny('unsupported-xattrs');
   const attributes = names === '' ? [] : names.slice(0, -1).split('\n');
@@ -160,11 +160,13 @@ const unsupportedFolder = name => name.startsWith('.')
 function persistentDirectory(root) {
   const home = nativeFs.realpathSync(os.homedir());
   if (process.platform !== 'darwin' || typeof root !== 'string' || !path.isAbsolute(root)
-      || root !== path.normalize(root) || !root.startsWith(home + path.sep)) return deny('unsupported-copy-directory');
+      || root !== path.normalize(root) || root === home) return deny('unsupported-copy-directory');
+  if (!root.startsWith(home + path.sep)) return require('./document-save-locations').captureLocalDirectory(root, inspectMacMetadata);
   const parts = root.slice(home.length + 1).split(path.sep);
   if (parts.length > 32 || parts.some(unsupportedFolder)
       || nativeFs.realpathSync(root) !== root) return deny('unsupported-copy-directory');
   const homeStat = nativeFs.lstatSync(home, { bigint: true });
+  if (nativeFs.lstatSync(root, { bigint: true }).dev !== homeStat.dev) return require('./document-save-locations').captureLocalDirectory(root, inspectMacMetadata);
   const locations = [home];
   for (const part of parts) locations.push(path.join(locations.at(-1), part));
   const ancestors = locations.map(location => {
