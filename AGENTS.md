@@ -4,6 +4,8 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-15) — READ FIRST
 
+**0.71.1 literal prose stability.** Ordinary punctuation is accepted only after parser text equals exact source (line-ending-aware inside articles). Remove redundant punctuation character bans, not AST-kind, escape/entity mismatch, full projected-document, Unicode/range/composition/history or file guards. Keep the two-revision parser conservative. No serializer/HTML execution/new save authority; preserve unsupported structures in Source. Controlled literal-article IME remains separate from physical acceptance.
+
 **0.71.0 cross-location APFS saving.** Explicit ordinary non-Home and attached APFS destinations require canonical, ownership, metadata and native volume proof. Cross-device Save first fsyncs local baseline/draft, then uses a private verified target-volume exchange namespace and NSFileCoordinator/RENAME_SWAP. Actual displaced entries remain on the target volume; local immutable copies stay available offline. Never auto-delete, auto-swapback or adopt unknown staging. Explicit target reveal binds volume UUID plus directory identity after reconnect. Local archive retains target material. Network/non-APFS/sync and ownership-disabled/read-only volumes stay excluded; physical unplug/power-loss acceptance is separate.
 
 **Resource acceptance calibration (2026-11-14), runtime 0.70.1 unchanged.**

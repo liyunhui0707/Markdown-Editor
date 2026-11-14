@@ -1,5 +1,13 @@
 # Stage History
 
+## Literal prose writing stability — 0.71.1 (2026-11-15)
+
+- Reproduce ordinary `$100`, `{name}`, `a | b`, `a < b` and literal Windows paths becoming opaque code blocks or refusing typed text in 0.71.0. Remove redundant punctuation rejection only after exact parser text/source validation; retain full expected-document equality and existing Unicode, range, composition and history guards.
+- Cover paragraphs/headings, emphasis, simple link labels, lists/quotes and soft/hard-break articles with native ProseMirror differential edits and byte-exact inverse checks. Retain HTML, decoded entities/escapes, reference and structural refusal cases. Exercise literal-article composition through the main/controller history path.
+- Complete controlled typing, selected/find replacement, Undo/Redo, Source return, local backup, original save, fresh export and exact restart recovery. Welcome copy now describes file-state-based editing and explicit Save; layout stays unchanged.
+- The first default-parallel local run exposed nine legacy timer/parser-budget failures; the complete unchanged suite passes with concurrency 2. Bound the full Node test command to two workers on local and CI hosts; retain every test, assertion, timeout and baseline gate.
+- New tests stay below 300 lines. The existing source-map file remains over 300 lines; this bounded fix removes one guard and does not refactor its established planner boundaries. Native helper, dependencies and save authority are unchanged. Physical IME/VoiceOver and actual long writing retain prior scoped/deferred status.
+
 ## Cross-location APFS saving and recovery — 0.71.0 (2026-11-15)
 
 - Extend explicit destination grants to ordinary local folders outside Home and attached writable APFS volumes, with canonical ancestry, ownership and metadata checks. Root-owned transit flags stay confined to directory ancestry; file flags remain strict.

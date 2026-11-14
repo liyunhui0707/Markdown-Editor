@@ -1,3 +1,5 @@
+// Literal punctuation is safe only in exact parser text leaves; decoded escapes,
+// HTML/other node kinds and full projected-document changes stay protected.
 // Exact inline source leaves only. No Markdown normalization or nested marks.
 export function projectInlineLeaf(child, source) {
   const bold=child.type==='strong', italic=child.type==='emphasis', code=child.type==='inlineCode', link=child.type==='link';
@@ -11,7 +13,7 @@ export function projectInlineLeaf(child, source) {
   if(code) {
     // One backtick pair; reject padding removal, multiline normalization and embedded delimiters.
     if(value.includes('`') || source[a-1]!=='`' || source[b]!=='`')return null;
-  } else if(/[<>{}\\`$|]/.test(value))return null;
+  }
   if(bold||italic){
     const marker=source.slice(child.position.start.offset,a);
     if(!(bold?['**','__']:['*','_']).includes(marker) || source.slice(b,child.position.end.offset)!==marker)return null;
