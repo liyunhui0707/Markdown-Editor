@@ -16698,7 +16698,8 @@
   function createSourceParser(parseFull) {
     const cached = /* @__PURE__ */ new Map();
     const blankGap = (text5) => /^[\r\n]+$/.test(text5) && text5.replaceAll("\r\n", "\n").length >= 2;
-    const literal2 = (node2, text5) => node2?.type === "paragraph" && node2.children?.length === 1 && node2.children[0].type === "text" && node2.children[0].value === text5 && node2.position.start.column === 1 && node2.position.start.line === node2.position.end.line && text5.length > 0 && !/[\r\n\[\]<>\\`*_~|]/.test(text5);
+    const inline5 = (node2) => ["text", "inlineCode"].includes(node2.type) || ["strong", "emphasis", "delete"].includes(node2.type) && node2.children?.every(inline5);
+    const isolated = (node2, text5) => ["paragraph", "heading"].includes(node2?.type) && node2.children?.length > 0 && node2.children.every(inline5) && node2.position.start.column === 1 && node2.position.start.line === node2.position.end.line && text5.length > 0 && !/[\r\n\[\]<>\\|]/.test(text5) && !/[ \t]$/.test(text5);
     function translate(value, point3) {
       if (Array.isArray(value)) return value.map((v) => translate(v, point3));
       if (!value || typeof value !== "object") return value;
@@ -16717,13 +16718,13 @@
       if (index2 < 0) return null;
       const node2 = tree.children[index2], start = node2.position.start.offset, stop = node2.position.end.offset;
       const raw = before.slice(start, stop), delta = source.length - before.length;
-      if (!literal2(node2, raw)) return null;
+      if (!isolated(node2, raw)) return null;
       if (index2 ? !blankGap(before.slice(tree.children[index2 - 1].position.end.offset, start)) : start !== 0) return null;
       if (index2 + 1 < tree.children.length ? !blankGap(before.slice(stop, tree.children[index2 + 1].position.start.offset)) : !/^[\r\n]*$/.test(before.slice(stop))) return null;
       const nextRaw = source.slice(start, stop + delta);
-      if (!nextRaw || /[\r\n\[\]<>\\`*_~|]/.test(nextRaw)) return null;
+      if (!nextRaw || /[\r\n\[\]<>\\|]/.test(nextRaw)) return null;
       const fragment = parseFull(nextRaw);
-      if (fragment.children.length !== 1 || !literal2(fragment.children[0], nextRaw)) return null;
+      if (fragment.children.length !== 1 || fragment.children[0].type !== node2.type || !isolated(fragment.children[0], nextRaw)) return null;
       const replacement = translate(fragment.children[0], (p) => ({
         ...p,
         offset: p.offset + start,

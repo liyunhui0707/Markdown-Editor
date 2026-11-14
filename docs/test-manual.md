@@ -1,5 +1,13 @@
 # Manual Test Checklist
 
+## Formatted long-document writing — 0.65.1
+
+On a disposable long article, type within a formatted paragraph near the start,
+a heading in the middle, and a paragraph near the end. Check Undo/Redo, Source
+return, find, save/reopen and quit/recovery without lost text or changed formatting.
+Physical IME and VoiceOver results remain pending; committed-text automation is
+separate. The broader 20–30 minute human writing check remains pending.
+
 ## Mixed-format writing — 0.65.0
 
 Select across ordinary/bold/italic/code/link text in one supported text block.

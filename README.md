@@ -6,7 +6,7 @@ local draft backups, explicitly export a new `.md` file, and save back to a
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.65.0 development build with mixed-format continuous editing.** This is not
+**0.65.1 development build with formatted long-document writing improvements.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -33,6 +33,15 @@ Document App, Finder association, keyboard controls, verified local ZIPs,
 updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
+
+## Formatted long-document writing — 0.65.1
+
+Typing in isolated single-line formatted paragraphs and ATX headings now reuses
+surrounding parsed content, as ordinary paragraphs already did. The changed block
+is reparsed; ambiguous syntax uses the full parser. Source bytes, supported edit
+scope, main validation, Undo/Redo, backup and save permissions stay the same.
+Controlled long-document measurements show lower mapping cost; they do not prove
+universal responsiveness, physical IME acceptance or long-term memory stability.
 
 ## Mixed-format writing — 0.65.0
 
