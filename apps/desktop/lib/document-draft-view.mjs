@@ -17,7 +17,7 @@ export function createDraftView({ api, byId, context, restore }) {
     remember(s.confirmed.sessionId, s.confirmed.draftBackup);
     const r = receipts.get(s.confirmed.sessionId), last = r?.revision == null ? '尚无已确认备份' : `最后已备份修订 ${r.revision}`;
     const unsettled = s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords?.length || s.locked || s.source !== s.confirmed.source || context().invalid;
-    node.textContent = r?.state === 'backed-up' && r.revision === s.confirmed.revision
+    node.textContent = r?.state==='file-unmodified'?'尚未修改此文档，打开时的内容未新增恢复草稿。确认修改后会开始备份。':r?.state === 'backed-up' && r.revision === s.confirmed.revision
       ? `本地草稿已备份（修订 ${r.revision}）。备份用于恢复草稿；另存新文件后才能在 Finder 中找到。`
       : r?.state === 'backup-pending' ? `正在备份已确认正文；${last}。`
       : ['backup-failed', 'draft-unverified'].includes(r?.state) ? `草稿备份未确认：${r.code}；${last}。当前文字保留，请另存新文件。`
@@ -31,7 +31,7 @@ export function createDraftView({ api, byId, context, restore }) {
       : s.inputPaused ? '输入已暂停 · 未确认修改仅保留在当前窗口'
       : s.composing && !s.compositionInvalid ? '输入中…'
       : unsettled ? '正在确认修改…'
-      : r?.state === 'backed-up' && r.revision === s.confirmed.revision ? '已备份'
+      : r?.state==='file-unmodified'?'尚无修改': r?.state === 'backed-up' && r.revision === s.confirmed.revision ? '已备份'
       : r?.state === 'backup-pending' ? '正在备份…' : '尚未备份';
   }
   const blocked = () => {

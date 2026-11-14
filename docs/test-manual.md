@@ -2766,3 +2766,29 @@ Use synthetic/disposable drafts only. Existing user records are not test fixture
 
 Controlled automation is separate from physical IME and VoiceOver speech.
 The postponed longer real-writing and heading/table checks remain untested.
+
+
+## Direct file writing and conflict continuation — 0.69.0
+
+Use a disposable `.md` copy in a supported local folder.
+
+1. Open from the native dialog, recent list and Finder. One editable document
+   appears without **编辑副本**. Repeat-open it with unsaved text: session/content/
+   Undo remain, without another tab. Opening alone leaves disk bytes unchanged.
+2. Open/close an untouched file: no recovery draft is added. Type, wait for backup,
+   Save, Undo/Redo: file saving and recovery remain separate. Source/BOM/endings
+   stay exact. A confirmed save/export remains reopenable from recent files.
+3. While local edits exist, change the disposable file externally, then Save.
+   Saving pauses. Choose **核对两份内容**: two named read-only Markdown panes show
+   local/disk content. Escape returns without editing, and closed panes clear.
+4. Change disk again while comparison is open. **编辑这份磁盘版本** refuses the
+   stale snapshot. Refresh, then choose it: a separate editable document appears;
+   the old local text/history remain. Save the new version only explicitly.
+5. Return to the retained local document, compare, choose **另存当前写作…**. The
+   new file contains exact local content and the original keeps its disk version.
+6. Check narrow/light/dark comparison layout and keyboard Tab/Escape. A Finder
+   request arriving during comparison remains deferred and can be skipped.
+   Native composition/unknown operations retain existing fences.
+
+Controlled automation is not physical IME/VoiceOver acceptance. The user's
+postponed longer-writing and heading/table checks remain pending.

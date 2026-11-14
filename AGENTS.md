@@ -4,6 +4,20 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**0.69.0 direct file writing and conflict continuation.** The product's trusted
+main entry enables direct bound writing buffers for dialog/recent/Finder opens;
+source development remains explicitly read-only unless `--document-writing-open`
+is selected. No original bytes are written by opening. Reuse unchanged live
+writing without rebasing its snapshot or history; failed bindings fall back to
+read-only originals. Back up on first confirmed edit, not mere browsing.
+Unmodified document close freshly checks the file; composition/preload/unknown
+and whole-window warnings remain. Confirmed save/export updates trusted recent
+metadata. Conflict comparison is read-only, with one tiny fingerprint/token per
+source document: revision-bound, single-use, fresh-read verified. Opening the
+compared disk version creates a separate bound document and preserves the old
+writing/history/stopped state. Never accept renderer text/paths as a comparison
+or write baseline. Current save-location/size/image limits stay in force.
+
 **0.68.0 sustained-use persistence lifecycle.** Explicit draft offload writes and
 verifies a complete recovery copy before releasing inactive working records;
 restoration creates a new independent backup and retains the archive. Native

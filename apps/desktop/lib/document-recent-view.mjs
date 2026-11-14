@@ -1,6 +1,6 @@
 // Navigation only. IDs come from main; existing open/recovery paths own sessions.
 export function createRecentView({ api, byId, context, open, restore }) {
-  let enabled = false, draftsEnabled = false, busy = false, refreshing = false, sequence = 0;
+  let openForWriting=false;let enabled = false, draftsEnabled = false, busy = false, refreshing = false, sequence = 0;
   const dialog = byId('recent-dialog');
   const blocked = () => {
     const c = context(), s = c.state;
@@ -40,7 +40,7 @@ export function createRecentView({ api, byId, context, open, restore }) {
           const button = row(panel, e.label, e.location, () => open(e.id)); button.dataset.recentId = e.id;
         }
       }
-      const status = recent.ok ? (entries.length ? '点击后以只读方式重新验证并打开。' : '尚无最近文档。通过「打开…」选择一份 Markdown 开始。')
+      const status = recent.ok ? (entries.length ? (openForWriting?'点击后重新验证文件并开始写作；当前文档保留。':'点击后以只读方式重新验证并打开。') : '尚无最近文档。通过「打开…」选择一份 Markdown 开始。')
         : '最近列表暂不可用，已有记录保留。仍可通过「打开…」选择文件。';
       byId('welcome-recent-status').textContent = status; byId('recent-status').textContent = status;
       const available = drafts?.ok ? drafts.drafts : [];
@@ -74,5 +74,5 @@ export function createRecentView({ api, byId, context, open, restore }) {
     finally { busy = false; await refresh(); }
     if (!ok) byId('recent-status').textContent = '清空结果未确认，记录保留，不自动重试。Markdown 文件未改变。';
   };
-  return { sync, refresh, configure(data) { enabled = true; draftsEnabled = data.draftsEnabled === true; void refresh(); } };
+  return { sync, refresh, configure(data) { openForWriting=data.openForWriting===true;enabled = true; draftsEnabled = data.draftsEnabled === true; void refresh(); } };
 }

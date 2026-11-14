@@ -15,7 +15,11 @@ async function closeDocumentSession({ id, session: s, revision, authorized, serv
     const state = service.getSaveState(s.document), copy = service.getCopyState(s.document);
     if (!state.ok || state.durabilityUncertain || state.replacementUnverified
         || (copy.created !== false && !copy.ok)) return fail('unresolved-save-state');
-    if (s.temporary) {
+    let unchangedFile=false;
+    if(s.fileDocument&&s.document.revision===0&&!s.document.dirty&&backups?.status(s.document)?.state==='file-unmodified'){
+      service.inspectLinkedFile(s.document);unchangedFile=service.getLinkedFile(s.document)?.checked?.state==='unchanged';
+    }
+    if (s.temporary&&!unchangedFile) {
       if (typeof confirm !== 'function') return fail('close-unavailable');
       const accepted = await confirm(s.win, s.label);
       if (!authorized()) return { ok: false, code: 'close-outcome-unknown' };
