@@ -347,7 +347,13 @@
     }
     if (!node2.children.every((n) => walk(n)) || !parts.length) return null;
     const tail = node2.children.at(-1).position.end.offset, end = node2.position.end.offset, suffix = source.slice(tail, end);
-    if (/^ +$/.test(suffix)) parts.push({ text: suffix, sourceFrom: tail, sourceTo: end, bold: false, italic: false, frames: [] });
+    if (/^ +$/.test(suffix)) {
+      const last = parts.at(-1);
+      if (!last.breakKind && !last.frames.length && !last.code && !last.link) {
+        last.text += suffix;
+        last.sourceTo = end;
+      } else parts.push({ text: suffix, sourceFrom: tail, sourceTo: end, bold: false, italic: false, frames: [] });
+    }
     if (render(parts, source) !== source.slice(node2.position.start.offset, node2.position.end.offset)) return null;
     let at = position2 + 1;
     const spans = [];
@@ -404,7 +410,13 @@
     delete added.breakKind;
     const parts = [...a[0], added, ...b[1]], expected = structuredClone(p.doc);
     expected.content[i] = paragraph(nodes(parts));
-    return patch(source, p, i, parts, expected, { from: from2 + insert2.length, to: from2 + insert2.length });
+    const result = patch(source, p, i, parts, expected, { from: from2 + insert2.length, to: from2 + insert2.length });
+    const leaf = p.spans.find((s) => s.blockIndex === i && from2 >= s.from && to <= s.to);
+    if (result.ok && leaf) {
+      const a2 = leaf.sourceFrom + from2 - leaf.from, b2 = leaf.sourceFrom + to - leaf.from;
+      if (source.slice(0, a2) + insert2 + source.slice(b2) === result.source) result.structural = false;
+    }
+    return result;
   }
   function mapArticleRange(source, p, change, project) {
     const plan = change.insert === "\n\n" && change.from === change.to ? planArticleSplit(source, p, change.from) : planArticleRange(source, p, change);

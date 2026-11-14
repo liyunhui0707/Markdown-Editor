@@ -8,6 +8,8 @@ This file provides guidance to Codex when working with code in this repository.
 supports top-level formatted multiline paragraphs, including soft spaces and real
 hard breaks. Main and renderer share the same patch planner; compare the complete
 expected projection, keep exact inverses and retain untouched CR/LF/BOM/delimiters.
+A raw-equivalent edit within one physical text leaf is non-structural so existing
+composition can commit/cancel; cross-line/frame composition retains the guard.
 No whole-file serialization. Cross-line replacement, emphasis and paragraph split
 remain bounded; references, escaped normalization, arbitrary nested links/code and
 unsupported structures stay protected/Source-editable. Raster paste reads only

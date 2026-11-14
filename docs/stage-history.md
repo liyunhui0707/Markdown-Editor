@@ -18,6 +18,11 @@
 - Preserve composition/pending/revision/revoked-sender/unknown guards and stale
   read/selection checks. Refused imports preserve text; final failure notices
   survive the busy-state render. No HTML fallback or remote request.
+- Single-physical-leaf composition uses a non-structural result only when its
+  source equals the exact raw text splice; cross-line/frame changes keep the
+  existing structural composition guard. Controlled commit/cancel tests verify
+  one main revision, no-op cancellation and exact history. Keep final plain
+  margin spaces in the same leaf so candidate completion stays stable.
 - TDD covers multiline projection, native PM selection differentials, exact
   inverses, emphasis, replacement, split, unsafe structures and asset authority.
   Update prior protected-case assertions only for newly supported article cases;
@@ -26,8 +31,9 @@
   undo/redo, cross-line replace/split, native save with sidecar bytes, independent
   export, read-only reopen and recovery after source sidecar relocation. Invalid
   raster and test-directory failures remain in private verification evidence.
-- Final local verification: 3,373 Node passes, two existing skips, no failures;
-  four complete Electron workflows pass. Controlled event paste does not verify
+- Final local verification: 3,375 Node passes, two existing skips, no failures;
+  five complete Electron workflows pass, including controlled article and existing
+  IME lifecycle matrices. Controlled event paste does not verify
   the physical system clipboard, native IME or spoken VoiceOver.
 - New modules remain below 300 lines. Existing source-map/router/entry files are
   already over the guideline; integrate bounded helpers without unrelated splits.

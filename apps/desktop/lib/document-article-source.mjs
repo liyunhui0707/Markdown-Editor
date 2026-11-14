@@ -48,7 +48,11 @@ export function projectArticle(node,source,position,blockIndex){
  // remark omits final margin spaces. Keep a word-separating Space visible and
  // editable before the next character, just as the single-line projection does.
  const tail=node.children.at(-1).position.end.offset,end=node.position.end.offset,suffix=source.slice(tail,end);
- if(/^ +$/.test(suffix))parts.push({text:suffix,sourceFrom:tail,sourceTo:end,bold:false,italic:false,frames:[]});
+ if(/^ +$/.test(suffix)){
+  const last=parts.at(-1);
+  if(!last.breakKind&&!last.frames.length&&!last.code&&!last.link){last.text+=suffix;last.sourceTo=end;}
+  else parts.push({text:suffix,sourceFrom:tail,sourceTo:end,bold:false,italic:false,frames:[]});
+ }
  if(render(parts,source)!==source.slice(node.position.start.offset,node.position.end.offset))return null;
  let at=position+1;const spans=[];
  for(const p of parts){p.from=at;p.to=at+(p.breakKind==='hard'?1:p.text.length);at=p.to;if(!p.breakKind)spans.push({...p,blockIndex,childIndex:spans.length,article:true});}
@@ -83,7 +87,15 @@ export function planArticleRange(source,p,{from,to,insert}){
  const first=from===to?(block.parts.find(t=>from>t.from&&from<=t.to)||block.parts[0]):(block.parts.find(t=>from>=t.from&&from<t.to)||block.parts.at(-1));
  const added={...first,text:insert};delete added.raw;delete added.breakKind;
  const parts=[...a[0],added,...b[1]],expected=structuredClone(p.doc);expected.content[i]=paragraph(nodes(parts));
- return patch(source,p,i,parts,expected,{from:from+insert.length,to:from+insert.length});
+ const result=patch(source,p,i,parts,expected,{from:from+insert.length,to:from+insert.length});
+ // Keep the existing composition guard: only an exact edit inside one physical
+ // source text leaf is non-structural. Newlines/delimiters/cross-frame changes
+ // remain structural even when they can be represented as a bounded patch.
+ const leaf=p.spans.find(s=>s.blockIndex===i&&from>=s.from&&to<=s.to);
+ if(result.ok&&leaf){const a=leaf.sourceFrom+from-leaf.from,b=leaf.sourceFrom+to-leaf.from;
+  if(source.slice(0,a)+insert+source.slice(b)===result.source)result.structural=false;
+ }
+ return result;
 }
 export function mapArticleRange(source,p,change,project){
  const plan=change.insert==='\n\n'&&change.from===change.to?planArticleSplit(source,p,change.from):planArticleRange(source,p,change);
