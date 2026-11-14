@@ -1,3 +1,4 @@
+import {mapArticleFormat} from './document-article-source.mjs';
 import {mapCombinedMark} from './document-tree-edit.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
@@ -33,6 +34,7 @@ export function mapFormatEdit(source, command) {
   const {action,from,to}=command;
   if(![...actions,...tableActions].includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
   const p=projectSource(source);
+  const article=mapArticleFormat(source,p,command,projectSource);if(article)return article;
   const combined=mapCombinedMark(source,p,command,projectSource);if(combined)return combined;
   if(tableActions.includes(action))return mapTableEdit(source,p,command,projectSource);
   if(p.blocks.some(b=>b?.cells&&from>b.from&&to<b.to))return reject();

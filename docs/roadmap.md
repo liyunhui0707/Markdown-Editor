@@ -19,7 +19,30 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — direct file writing and conflict continuation, 0.69.0
+### Current batch — article writing and pasted pictures, 0.70.0
+
+Complete top-level formatted multiline paragraph editing and explicit PNG/JPEG
+paste through history, source, find/replace, backup, native save, portable export
+and restart recovery. Soft line endings project as spaces; existing hard breaks
+project as real breaks. Exact lexical frames and full projection checks retain
+untouched delimiter/newline bytes. Explicit cross-line replacement can remove
+touched breaks; Enter splits a supported paragraph without normalizing the file.
+Bold/italic commands operate on supported article ranges. Ambiguous/unsupported
+structures retain Source mode rather than silently changing their meaning.
+
+Image paste reads only one bounded raster File from that paste event; no system
+clipboard read, HTML parsing, arbitrary path, automatic relative-image read or
+network loading. Main verifies canonical bytes, decode/dimensions and existing
+session/document budgets. A verified existing format command inserts the managed
+reference with one history step. Backup/save/export use the same attachment chain.
+
+Next consolidate the local stable candidate around realistic articles/attachments,
+resource-growth attribution and reproducible failures, before adding more controls.
+The user-deferred genuine long-writing/heading-table VoiceOver checks remain open.
+External volumes still require native per-volume staging/recovery; paid public
+distribution remains deferred. No 1.0 or unrestricted Markdown claim.
+
+### Previous batch — direct file writing and conflict continuation, 0.69.0
 
 Deliver one complete open/write/save/conflict workflow on the accepted workspace.
 The installed product opens native selections, recent files and Finder intents as

@@ -1,5 +1,42 @@
 # Stage History
 
+## Article writing and image paste — 0.70.0 (2026-11-14)
+
+- Complete formatted multiline article → editing/emphasis/cross-line replacement
+  → exact history/source → screenshot paste → backup/native save/portable export
+  → exported-file open and restart recovery. Accepted layout/framework unchanged.
+- Add a bounded lexical projection for top-level formatted multiline paragraphs.
+  Preserve soft/hard break source tokens and emphasis/link/code frames; main and
+  renderer compare complete projections after each patch. Untouched source and
+  inverse bytes remain exact. Retain trailing margin spaces so the next word
+  can follow Space. Existing soft-line-only behavior is retained.
+- Explicit paste imports only one event-provided PNG/JPEG File. Validate size
+  before/after reading; main checks canonical base64, raster decode/dimensions and
+  current asset budgets. No renderer path or global clipboard capability. Import
+  itself changes no text; the existing image format command provides one history
+  entry and the existing managed attachment backup/save/export chain.
+- Preserve composition/pending/revision/revoked-sender/unknown guards and stale
+  read/selection checks. Refused imports preserve text; final failure notices
+  survive the busy-state render. No HTML fallback or remote request.
+- TDD covers multiline projection, native PM selection differentials, exact
+  inverses, emphasis, replacement, split, unsafe structures and asset authority.
+  Update prior protected-case assertions only for newly supported article cases;
+  retain all other structural/Unicode/unknown-IPC guards.
+- The integrated synthetic Electron scenario verifies real decoder acceptance,
+  undo/redo, cross-line replace/split, native save with sidecar bytes, independent
+  export, read-only reopen and recovery after source sidecar relocation. Invalid
+  raster and test-directory failures remain in private verification evidence.
+- Final local verification: 3,373 Node passes, two existing skips, no failures;
+  four complete Electron workflows pass. Controlled event paste does not verify
+  the physical system clipboard, native IME or spoken VoiceOver.
+- New modules remain below 300 lines. Existing source-map/router/entry files are
+  already over the guideline; integrate bounded helpers without unrelated splits.
+- New feature checkpoint 0.70.0; no dependency changes, broader save destinations,
+  relative-image auto-loading, arbitrary drop support or 1.0/public release claim.
+  Genuine longer-writing, heading/table VoiceOver and paid distribution deferrals
+  remain unchanged. Resource-growth attribution remains open.
+
+
 ## Direct file writing and conflict continuation — 0.69.0 (2026-11-14)
 
 - Complete dialog/recent/Finder open → write → save/history → conflict comparison

@@ -2792,3 +2792,27 @@ Use a disposable `.md` copy in a supported local folder.
 
 Controlled automation is not physical IME/VoiceOver acceptance. The user's
 postponed longer-writing and heading/table checks remain pending.
+
+
+## Article writing and pasted images — 0.70.0
+
+Use a disposable article with a bold/italic soft-wrapped paragraph, a hard break,
+a link/code span, an ordinary paragraph and an unsupported literal block.
+
+1. Open directly; multiline prose renders as text. Type and replace selected text
+   across marks/soft/hard breaks; Undo/Redo restores exact source and line endings.
+2. Select a supported range for bold/italic, use find/replace across a soft line,
+   split a formatted paragraph with Enter, then undo. Other blocks stay intact.
+3. Paste one PNG/JPEG screenshot at a paragraph cursor. A local preview appears;
+   Undo removes the reference and Redo restores it. Text paste still works. During
+   Chinese composition/pending operations, paste refuses without committing input.
+4. Invalid/oversized/multiple images, SVG, files, readonly contexts and uncertain
+   receipts retain text and give a useful notice. No HTML or remote image loads.
+5. Wait for backup, Save, then Save As into another supported local folder. Verify
+   Markdown and same-folder managed attachment bytes. Reopen that exported file.
+6. Exit and recover the draft after moving the synthetic original sidecar aside:
+   recovery contains the backed-up picture without old Undo/save authority.
+
+Controlled event paste does not use the user's system clipboard and does not
+establish physical clipboard/IME/VoiceOver or long-duration acceptance. Existing
+manual acceptance deferrals remain. Keep original sidecars and recovery evidence.

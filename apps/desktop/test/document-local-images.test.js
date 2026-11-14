@@ -101,3 +101,19 @@ test('opaque protected blocks do not break attachment lookup or read-only openin
   assert.deepEqual(images.attachments(document),[]);
   assert.doesNotThrow(()=>images.validateChange(document,document.text+'\nMore text.'));
 });
+
+test('pasted image IPC validates bounded bytes, source revision and sender before importing',async()=>{
+ const {EventEmitter}=require('node:events'),{projectSource,mapTextEdit}=await import('../lib/document-source-map.mjs'),{mapFormatEdit}=await import('../lib/document-format-edit.mjs');
+ const {createDocumentSessions}=require('../lib/document-session-ipc'),{createDocumentService}=require('../lib/document-service'),{createLocalImages}=require('../lib/document-local-images');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'document-image-pasted-ipc-'))),service=createDocumentService(),images=createLocalImages({projectSource,validateRaster:()=>true});
+ const wc=new EventEmitter(),win=new EventEmitter(),frame={url:'file:///synthetic/app.html'};Object.assign(wc,{mainFrame:frame,isDestroyed:()=>false,getURL:()=>frame.url,send(){}});Object.assign(win,{webContents:wc,isDestroyed:()=>false});
+ const manager=createDocumentSessions({service,images,projectSource,mapTextEdit,mapFormatEdit,windowFor:()=>win,createTemporary:bytes=>{const f=path.join(root,'seed.md');fs.writeFileSync(f,bytes);return service.open(f);}});manager.grant(win,frame.url);
+ const event={sender:wc,senderFrame:frame},made=manager.request(event,{operation:'new-temporary'}),id=made.snapshot.sessionId,q={operation:'import-pasted-image',sessionId:id,expectedRevision:0,base64:png.toString('base64')};
+ assert.equal(manager.request(event,{...q,expectedRevision:1}).code,'stale-revision');assert.equal(manager.request(event,{...q,filePath:'/private/file.png'}).ok,false);assert.equal(manager.request({...event,senderFrame:{}},q).code,'unauthorized-sender');
+ for(const base64 of ['bad',png.toString('base64')+' ',Buffer.from('<svg/>').toString('base64'),'A'.repeat(5592409)])assert.equal(manager.request(event,{...q,base64}).ok,false);
+ const imported=manager.request(event,q);assert(imported.ok);assert.equal(manager.request(event,{operation:'snapshot',sessionId:id}).snapshot.source,'');assert.equal(manager.request(event,{operation:'image-preview',sessionId:id,expectedRevision:0,href:imported.href}).ok,false);
+ const inserted=manager.request(event,{operation:'format',sessionId:id,expectedRevision:0,action:'set-image',from:1,to:1,label:'Screenshot',href:imported.href});assert(inserted.ok);assert.equal(inserted.snapshot.canUndo,true);
+ const preview=manager.request(event,{operation:'image-preview',sessionId:id,expectedRevision:1,href:imported.href});assert(preview.ok);assert.equal(preview.dataUrl,'data:image/png;base64,'+png.toString('base64'));
+ const undo=manager.request(event,{operation:'undo',sessionId:id,expectedRevision:1});assert(undo.ok);assert.equal(undo.snapshot.source,'');const redo=manager.request(event,{operation:'redo',sessionId:id,expectedRevision:2});assert(redo.ok);assert.equal(redo.snapshot.source,inserted.snapshot.source);
+ manager.revoke(win);assert.equal(manager.request(event,q).code,'unauthorized-sender');
+});

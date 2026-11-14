@@ -1,3 +1,4 @@
+import {projectArticle,mapArticleRange} from './document-article-source.mjs';
 import {projectInlineParts} from './document-inline-tree.mjs';
 import {mapSoftRange} from './document-soft-edit.mjs';
 import capacity from './document-capacity.js';
@@ -78,12 +79,12 @@ export function projectSource(source) {
       type: 'paragraph', position: node.position,
       children: [{type:'text',value:pending,position:node.position}],
     };
-    let structured=projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+    let structured=projectArticle(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
     if(structured){
       const gap=lines(source.slice(previousEnd,start));
       if((!content.length&&!fm&&gap.length>=2)||(content.length&&gap.length>=4)){
         emptyParagraph(!content.length?0:previousEnd+gap[0].length+gap[1].length);
-        structured=projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+        structured=projectArticle(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
       }
       blocks.push(structured.block);content.push(structured.doc);spans.push(...structured.spans);
       position+=structured.size;previousEnd=end;continue;
@@ -272,6 +273,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   const { from, to, insert } = change;
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
   const projection = projectSource(source);
+  if(leaf===null&&paragraphSeparator===null){const article=mapArticleRange(source,projection,change,projectSource);if(article)return article;}
   // Only trusted history supplies this identity. IPC edit payloads cannot.
   if (leaf !== null && (!leaf || Object.getPrototypeOf(leaf) !== Object.prototype
       || Object.keys(leaf).length !== 3 || Object.keys(leaf).some(k => !['blockIndex', 'childIndex', 'bold'].includes(k))

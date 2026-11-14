@@ -91,9 +91,17 @@ function createLocalImages({projectSource, validateRaster}) {
   }
   function importFile(document,file) {
     const assets = documents.get(document); if (!assets) fail('image-session-unavailable');
-    const a = verified(readImageFile(file));
+    return keep(assets,verified(readImageFile(file)));
+  }
+  function keep(assets,a){
     budget([...assets.values()].filter(value=>value.name!==a.name).concat(a),true); // Includes undo/cancel references.
     assets.set(a.name,a); return a.name;
+  }
+  function importBytes(document,base64){
+    const assets=documents.get(document);if(!assets)fail('image-session-unavailable');
+    if(typeof base64!=='string'||base64.length>base64Limit(MAX_IMAGE))fail('image-size-limit');
+    const bytes=Buffer.from(base64,'base64');if(bytes.toString('base64')!==base64)fail('invalid-image-attachment');
+    return keep(assets,verified(imageAsset(bytes)));
   }
   function validateChange(document, source) {
     const before = refs(document), names = refs(document,source);
@@ -114,6 +122,6 @@ function createLocalImages({projectSource, validateRaster}) {
     const a = documents.get(document)?.get(name); if (!a) fail('image-preview-unavailable');
     return `data:${a.mime};base64,${a.bytes.toString('base64')}`;
   }
-  return {attach,open,importFile,validateChange,attachments,preview};
+  return {attach,open,importFile,importBytes,validateChange,attachments,preview};
 }
 module.exports = {MAX_IMAGE,MAX_IMAGES,managedName,imageAsset,decodeAttachments,readImageFile,createLocalImages};

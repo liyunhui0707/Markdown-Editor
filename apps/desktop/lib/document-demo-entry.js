@@ -1,3 +1,4 @@
+import {createImagePaste} from './document-image-paste.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
@@ -40,6 +41,7 @@ const drafts = new Map(), lifecycles = new Map();
 const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const tableView=createTableView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const imagePreviews=createImagePreviews({api,context:()=>({state:controller?.state(),loading})});
+const imagePaste=createImagePaste({api,context:()=>({controller,editor,state:controller?.state(),selected,loading,invalid:activeInvalid()}),busy:value=>{loading=value;if(controller)render(controller.state());},report:viewerStatus});
 const imageView=createImageView({api,byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
@@ -288,7 +290,7 @@ function install(snapshot) {
           return false; // Existing Tiptap Backspace command and source gate perform the edit.
         },
         mousedown: finishCompositionForPointer,
-        paste: (view, event) => pastePlainText(view, event, { state: controller?.state(),
+        paste: (view, event) => imagePaste.paste(event)||pastePlainText(view, event, { state: controller?.state(),
           blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus }),
         drop: (_view, event) => { event.preventDefault(); show('unsupported-drop'); return true; },
         compositionstart: () => { if (activeInvalid()) return true; controller.beginComposition(); return false; },
