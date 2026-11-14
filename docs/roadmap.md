@@ -19,7 +19,19 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — article writing and pasted pictures, 0.70.0
+### Current batch — resource lifecycle and local stability, 0.70.1
+
+Reproduce repeated managed-image references and compare bounded controlled
+writing/source/close cycles. Coalesce verified in-flight transfers within one
+session/revision, release settled entries, clear destroyed image-preview subtrees,
+and retain existing per-node lifecycle guards. Keep exact history, backup, save/export and recovery regression coverage.
+The [resource investigation](audits/2026-11-14-image-resource-lifecycle.md) records
+the reproduced IPC amplification and detached-image article tree fixes.
+The earlier no-image RSS/embedder trend is a separate open attribution question;
+do not substitute forced GC or larger caps for evidence. Genuine long-writing and
+spoken heading/table VoiceOver remain deferred, as does paid public distribution.
+
+### Previous batch — article writing and pasted pictures, 0.70.0
 
 Complete top-level formatted multiline paragraph editing and explicit PNG/JPEG
 paste through history, source, find/replace, backup, native save, portable export

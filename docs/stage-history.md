@@ -1,5 +1,29 @@
 # Stage History
 
+## Repeated-image resource stability — 0.70.1 (2026-11-14)
+
+- Complete repeated-image article open/edit/Undo/Source/close/restore checks,
+  with exact disk bytes and fixed recovery-record count. Accepted layout unchanged.
+- Coalesce in-flight verified preview transfers only within one session/revision/
+  managed href; release settled entries and preserve late-response guards. One
+  40-occurrence PNG open drops from 40 responses (62,965,680 data-URL bytes) to
+  one (1,574,142 bytes), without a persistent cache or new file authority.
+- Heap evidence identifies an image viewport-listener/parent-chain path into
+  detached article DOM. Clear atomic NodeView children during destroy. The same
+  eight-cycle workload drops from 127,336 collected closed DOM nodes to 1,266;
+  an explicit baseline-relative Electron assertion protects this release path.
+- Nine focused Node cases and the complete Node baseline pass: 3,384 passes, two
+  existing skips, no failures. Article persistence, controlled input lifecycle,
+  fixed-record resource reuse and sustained-writing regression workflows cover
+  the unchanged save/history/recovery chain. CI includes the new image workflow.
+- New source/test modules stay below 300 lines. Renderer bundle is regenerated;
+  dependency inputs and native save helper are unchanged. Patch 0.70.1.
+- Earlier no-image RSS growth remains unattributed; do not claim whole-app leak
+  elimination or add product GC. Human longer-writing/heading-table VoiceOver and
+  physical clipboard/IME acceptance stay scoped/deferred; paid distribution stays
+  deferred. See [resource investigation](audits/2026-11-14-image-resource-lifecycle.md).
+
+
 ## Article writing and image paste — 0.70.0 (2026-11-14)
 
 - Complete formatted multiline article → editing/emphasis/cross-line replacement

@@ -6,13 +6,17 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.70.0 development build with multiline article writing and image paste.** This is not
+**0.70.1 development build with multiline article writing and image paste.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
 The Document installation excludes the retired Toast UI dependency files, including
 its old embedded sanitizer. Historical Vault source/dependencies remain available
 for development; this is not a claim that their SEC-01 issue is fixed.
+
+Repeated occurrences of one managed picture share an in-flight verified preview
+request at the same document revision. Closing a surface clears its image-preview subtree;
+this does not establish whole-app memory stability.
 
 ## Article writing and pasted images — 0.70.0
 
