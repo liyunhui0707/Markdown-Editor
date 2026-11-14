@@ -1,5 +1,43 @@
 # Stage History
 
+## Daily-use acceptance automation — 0.67.0 runtime unchanged (2026-11-14)
+
+- This is one test/documentation group; no application code, generated renderer,
+  dependencies, permissions, save authority or visual layout changes. Keep 0.67.0
+  and the existing installed App. No reinstall or version bump for test-only work.
+- Extend sustained writing to a 480,929-unit article with combined emphasis,
+  headings, a table, quote and code. Six start/middle/end sessions verify exact
+  source/Undo/Redo, backup, close revocation and cleared hidden presentation.
+  Restart restores exact text with no old save binding/history, then continues
+  writing. The short path passes; opt-in 0–30 minute runs emit bounded progress,
+  natural process/heap samples and explicitly test-only GC comparison samples.
+  Long-duration results belong to the named run evidence, not an assumed PASS.
+- Add a complete Chromium composition matrix across headings, ordinary/bold/
+  combined-emphasis text, list items and table cells. Preedit stays out of confirmed
+  source/backup; navigation/save/source controls retain their fences. Commit is
+  one revision/Undo item, cancel is a no-op with redo preserved. Source cancellation
+  is checked separately. This controlled input workflow passes, not physical IME.
+- Accessibility now examines actual Chromium AX heading levels, column-header and
+  cell roles/text in original and editing modes. Preserve raw AX names while
+  comparing visible text without Markdown cell padding. Keyboard Details/check/
+  Escape return joins existing focus/contrast/composition checks. Controlled PASS
+  does not claim that VoiceOver speech was heard or accepted by a human.
+- A fixed single-record test performs eight restore/source/close cycles, verifies
+  surface disposal, exact source and revoked session IDs, and records heap/DOM/
+  process observations. This passes; unchanged draft count avoids attributing
+  intentional catalog growth to a leak. Memory samples are not a universal bound
+  or proof of leak elimination. No product GC or arbitrary memory gate is added.
+- All new tests stay below 100 lines; reuse the existing sustained and keyboard
+  workflows. CI adds the two targeted workflows while leaving the long-duration
+  mode opt-in. Local evidence is below the control checkout's ignored
+  `.local/verification/daily-acceptance-20261114/`; all inputs/profiles are new
+  synthetic OS-temporary files, with no Home fixture or user document.
+- The user explicitly postponed genuine 20–30 minute writing and heading/table
+  VoiceOver. Keep them pending, preserve scoped historical passes, and avoid
+  asking for the already passed basic checks again. Paid distribution and broader
+  save-volume support remain separate work with their existing prerequisites.
+
+
 ## Everyday file workflow — 0.67.0 (2026-11-14)
 
 - A complete open/edit/save/external-change group keeps the accepted workspace.

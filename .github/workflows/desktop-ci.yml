@@ -61,8 +61,8 @@ jobs:
           E2E_ELECTRON_EXECUTABLE="$PWD/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" \
             ./node_modules/.bin/playwright test --config=e2e/playwright.config.cjs \
             e2e/dependency-rendering.spec.cjs e2e/document-p1-regressions.spec.cjs \
-            e2e/document-accessibility.spec.cjs e2e/document-replace.spec.cjs e2e/document-sustained-writing.spec.cjs e2e/document-mixed-inline.spec.cjs e2e/document-rich-writing.spec.cjs e2e/document-common-compat.spec.cjs e2e/document-file-workflow.spec.cjs \
-            --grep 'updated math|document-first read-only opens|confirmed export shortcuts|keyboard workspace|document replace|sustained writing|mixed inline authoring|rich long writing|common Markdown compatibility|daily file workflow'
+            e2e/document-accessibility.spec.cjs e2e/document-replace.spec.cjs e2e/document-sustained-writing.spec.cjs e2e/document-mixed-inline.spec.cjs e2e/document-rich-writing.spec.cjs e2e/document-common-compat.spec.cjs e2e/document-file-workflow.spec.cjs e2e/document-input-lifecycle.spec.cjs e2e/document-resource-reuse.spec.cjs \
+            --grep 'updated math|document-first read-only opens|confirmed export shortcuts|keyboard workspace|document replace|sustained writing|mixed inline authoring|rich long writing|common Markdown compatibility|daily file workflow|controlled input lifecycle|fixed draft reuse'
 
       - name: Package unsigned macOS app
         run: npm run pack

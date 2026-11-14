@@ -4,6 +4,14 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-14) — READ FIRST
 
+**Daily-use acceptance automation (2026-11-14), runtime 0.67.0 unchanged.**
+The controlled input matrix, AX/keyboard checks and opt-in sustained-writing test
+are development evidence, not physical IME/VoiceOver acceptance. Sustained results
+include exact restart/continued writing and resource samples; a fixed-record loop
+separates retained-draft growth from session reuse. Do not infer leak elimination
+from a bounded sample or run GC in product code. The user postponed the remaining
+human checks; keep scoped historical passes and untested outcomes distinct.
+
 **0.67.0 file-use clarity.** Main derives linked read/check/reveal capabilities
 only from opened-original or bound-file snapshots; renderer supplies session/revision,
 never paths. Disk observations are explicit and timestamped; opening a disk version

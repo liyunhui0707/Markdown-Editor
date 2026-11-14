@@ -34,6 +34,16 @@ updates, private records and recoverable rollback. No terminal is needed to run
 an installed App. This batch is not a signed/notarized public release or an
 automatic updater. See the [manual checks](docs/test-manual.md).
 
+## Daily-use verification
+
+The 0.67.0 runtime now has controlled input/history checks across common writing
+contexts, heading/table accessibility-tree and keyboard checks, repeated recovery
+with a fixed draft catalog, and opt-in sustained long-document writing followed
+by restart and continued editing. These tests do not enable new file locations
+or replace physical Chinese input, human VoiceOver or genuine longer writing.
+Remaining human checks are summarized in [the manual guide](docs/test-manual.md);
+the [development guide](DEVELOPMENT.md) describes bounded automated runs.
+
 ## Everyday file workflow — 0.67.0
 
 The footer/sidebar/details distinguish an independent draft, unsaved bound-file
