@@ -17017,8 +17017,35 @@
   function createSourceParser(parseFull) {
     const cached = /* @__PURE__ */ new Map();
     const blankGap = (text5) => /^[\r\n]+$/.test(text5) && text5.replaceAll("\r\n", "\n").length >= 2;
-    const inline5 = (node2) => ["text", "inlineCode"].includes(node2.type) || ["strong", "emphasis", "delete"].includes(node2.type) && node2.children?.every(inline5);
-    const isolated = (node2, text5) => ["paragraph", "heading"].includes(node2?.type) && node2.children?.length > 0 && node2.children.every(inline5) && node2.position.start.column === 1 && node2.position.start.line === node2.position.end.line && text5.length > 0 && !/[\r\n\[\]<>\\|]/.test(text5) && !/[ \t]$/.test(text5);
+    const inline5 = (node2, source, depth2 = 0) => {
+      if (depth2 > 6 || !node2.position?.start || !node2.position?.end) return false;
+      if (node2.type === "text") return !/[\[\]<\\|]/.test(source.slice(node2.position.start.offset, node2.position.end.offset));
+      if (["inlineCode", "break"].includes(node2.type)) return true;
+      if (node2.type === "link" && source[node2.position.start.offset] !== "[") return false;
+      return ["strong", "emphasis", "delete", "link"].includes(node2.type) && node2.children?.length > 0 && node2.children.every((n) => inline5(n, source, depth2 + 1));
+    };
+    const supported = (node2, source, depth2 = 0) => {
+      if (depth2 > 16 || !node2.children?.length) return false;
+      if (["paragraph", "heading"].includes(node2.type)) return node2.children.every((n) => inline5(n, source));
+      if (node2.type === "list") return node2.children.every((n) => n.type === "listItem" && supported(n, source, depth2 + 1));
+      if (node2.type === "listItem") return node2.children.length <= 2 && node2.children[0].type === "paragraph" && (node2.children.length === 1 || node2.children[1].type === "list") && node2.children.every((n) => supported(n, source, depth2 + 1));
+      if (node2.type === "blockquote") return node2.children.every((n) => n.type === "paragraph" && supported(n, source, depth2 + 1));
+      return false;
+    };
+    const isolated = (node2, text5, source) => node2?.position?.start.column === 1 && (!["paragraph", "heading"].includes(node2.type) || node2.position.start.line === node2.position.end.line) && text5.length > 0 && supported(node2, source);
+    const shape = (node2) => {
+      const { position: position2, children, ...rest } = node2;
+      return ["paragraph", "heading"].includes(node2.type) ? rest : { ...rest, children: children.map(shape) };
+    };
+    function ownsInlineChange(node2, from2, to) {
+      const pending = [node2];
+      while (pending.length) {
+        const n = pending.pop();
+        if (["text", "inlineCode"].includes(n.type) && n.position && from2 >= n.position.start.offset && to <= n.position.end.offset) return true;
+        if (n.children) pending.push(...n.children);
+      }
+      return false;
+    }
     function translate(value, point3) {
       if (Array.isArray(value)) return value.map((v) => translate(v, point3));
       if (!value || typeof value !== "object") return value;
@@ -17037,13 +17064,20 @@
       if (index2 < 0) return null;
       const node2 = tree.children[index2], start = node2.position.start.offset, stop = node2.position.end.offset;
       const raw = before.slice(start, stop), delta = source.length - before.length;
-      if (!isolated(node2, raw)) return null;
+      const container = ["list", "blockquote"].includes(node2.type);
+      if (!isolated(node2, raw, before) || container && !ownsInlineChange(node2, from2, to) || /[\r\n]/.test(before.slice(from2, to) + source.slice(from2, end))) return null;
       if (index2 ? !blankGap(before.slice(tree.children[index2 - 1].position.end.offset, start)) : start !== 0) return null;
       if (index2 + 1 < tree.children.length ? !blankGap(before.slice(stop, tree.children[index2 + 1].position.start.offset)) : !/^[\r\n]*$/.test(before.slice(stop))) return null;
       const nextRaw = source.slice(start, stop + delta);
-      if (!nextRaw || /[\r\n\[\]<>\\|]/.test(nextRaw)) return null;
+      if (!nextRaw || raw.match(/[ \t]*$/)[0] !== nextRaw.match(/[ \t]*$/)[0]) return null;
+      const breaks = (text5) => text5.match(/\r\n|\n|\r/g) || [];
+      if (JSON.stringify(breaks(raw)) !== JSON.stringify(breaks(nextRaw))) return null;
+      const editedLine = node2.position.start.line + breaks(raw.slice(0, from2 - start)).length;
+      const original = parseFull(raw);
+      const point3 = (p) => ({ ...p, offset: p.offset + start, line: p.line + node2.position.start.line - 1 });
+      if (original.children.length !== 1 || JSON.stringify(translate(original.children[0], point3)) !== JSON.stringify(node2)) return null;
       const fragment = parseFull(nextRaw);
-      if (fragment.children.length !== 1 || fragment.children[0].type !== node2.type || !isolated(fragment.children[0], nextRaw)) return null;
+      if (fragment.children.length !== 1 || fragment.children[0].type !== node2.type || !isolated(fragment.children[0], nextRaw, nextRaw) || fragment.children[0].position.end.offset !== nextRaw.length || JSON.stringify(shape(fragment.children[0])) !== JSON.stringify(shape(node2))) return null;
       const replacement = translate(fragment.children[0], (p) => ({
         ...p,
         offset: p.offset + start,
@@ -17052,7 +17086,7 @@
       const shift2 = (p) => ({
         ...p,
         offset: p.offset + delta,
-        column: p.column + (p.line === node2.position.end.line ? delta : 0)
+        column: p.column + (p.line === editedLine ? delta : 0)
       });
       return {
         ...tree,
@@ -17071,7 +17105,12 @@
         cached.set(source, tree2);
         return tree2;
       }
-      const tree = local(source, [...cached].at(-1)) || parseFull(source), pending = [tree];
+      let reused;
+      try {
+        reused = local(source, [...cached].at(-1));
+      } catch {
+      }
+      const tree = reused || parseFull(source), pending = [tree];
       while (pending.length) {
         const value = pending.pop();
         if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;

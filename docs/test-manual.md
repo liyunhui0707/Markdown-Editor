@@ -1,5 +1,16 @@
 # Manual Test Checklist
 
+## Mixed long-article input performance — 0.77.2
+
+Use the existing [actual-writing check](daily-use-check.md) with a disposable long
+article containing linked/bold prose, wrapped list/task items and explicit quotes.
+Type words and separating Spaces in each context, commit/cancel Chinese candidates,
+then Undo/Redo, Source, Save/export and restart. Confirm no missed characters,
+changed neighbour markup or stalled pending state. Existing read-only/unsafe
+structures still use Source. Note actual article size, input method, duration and
+observed delay; automated parser timings do not replace this acceptance.
+
+
 ## Separating Space at formatting boundaries — 0.77.1
 
 In a disposable paragraph, heading, list/task, single-level quote and table cell,
