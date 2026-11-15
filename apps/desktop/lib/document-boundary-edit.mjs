@@ -1,5 +1,5 @@
 import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
-import {mapProseRange} from './document-prose-range.mjs';
+import {mapProseRange,joinProseParts,canonicalDocument} from './document-prose-range.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject = () => ({ok:false,code:'unsafe-format-range'});
@@ -69,7 +69,7 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
     } else {
       const previous=body(index-1);
       if(at!==0||!previous||(!previous.text&&!current.text)||source.slice(previous.b,current.a)!==nl+nl)return reject();
-      const pieces=merge([...previous.pieces,...current.pieces]);
+      const pieces=joinProseParts(previous.pieces,current.pieces);
       a=previous.a;b=current.b;text=render(pieces);
       expected.content.splice(index-1,2,paragraph(content(pieces)));targetIndex--;offset=previous.text.length;
     }
@@ -104,7 +104,7 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
         expected.content.splice(index,1,paragraph(content(current.pieces)),...(rows.length>1?[remainder(1)]:[]));
       } else {
         const previous=body(index,i-1);if(!previous)return reject();
-        const pieces=merge([...previous.pieces,...current.pieces]);
+        const pieces=joinProseParts(previous.pieces,current.pieces);
         a=previous.a;b=current.b;text=render(pieces);
         items.splice(i-1,2,item(content(pieces)));targetItem=i-1;offset=previous.text.length;
       }
@@ -119,7 +119,7 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
   b=a+end;a+=start;text=text.slice(start,nextEnd);
   if(text.length>4096||b-a>4096)return reject();
   const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
-  const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject();
+  const projection=project(next);if(JSON.stringify(canonicalDocument(projection.doc))!==JSON.stringify(canonicalDocument(expected)))return reject();
   const target=projection.blocks[targetIndex];
   const position=(targetItem===null?target?.from+1:target?.items?.[targetItem]?.from)+offset;
   if(!Number.isSafeInteger(position)||position>=target.to)return reject();

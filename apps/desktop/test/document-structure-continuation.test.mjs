@@ -67,9 +67,9 @@ test('ambiguous structures, cross selections and malformed commands remain prote
  assert.equal(mapFormatEdit('[word](target)',{action:'split-paragraph',from:3,to:4}).ok,false);
 });
 
-test('joins preserve distinct target/title identities and refuse ambiguous equal-mark wrapper normalization',()=>{
+test('joins preserve unequal lexical link wrappers without normalizing their equal semantic marks',()=>{
  const source='- [one](x "same")\n- [two](<x> \'same\')',p=projectSource(source),row=p.blocks[0].items[1];
- assert.equal(mapFormatEdit(source,{action:'join-list',from:row.from,to:row.from}).ok,false);
+ const joined=mapFormatEdit(source,{action:'join-list',from:row.from,to:row.from});inverse(joined,source);assert.equal(joined.source,source.replace('\n- ',''));
  const unicode='> **😀first**\n> \n> [second](target "keep")',q=projectSource(unicode),s=q.spans.find(s=>s.text==='😀first');
  assert.equal(mapFormatEdit(unicode,{action:'split-quote',from:s.from+1,to:s.from+1}).ok,false);
  for(const before of ['![picture](assets/image.png)','<div>protected</div>']){

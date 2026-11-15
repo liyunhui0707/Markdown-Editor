@@ -1,4 +1,5 @@
-import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {joinProseParts,canonicalDocument} from './document-prose-range.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const rejectListEdit=()=>({ok:false,code:'unsafe-format-range'});
@@ -99,7 +100,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
       } else {
         if(offset!==0||i===0)return rejectListEdit();
         const previous=parentList.items[i-1],left=pieces(previous);if(!left||previous.child)return rejectListEdit();
-        const merged=mergeInlineParts([...left,...parts]);
+        const merged=joinProseParts(left,parts);
         offset=left.map(p=>p.text).join('').length;previous.body=renderListPieces(merged);previous.content=listInlineNodes(merged);previous.child=selected.child;
         parentList.items.splice(i,1);target=previous;
       }
@@ -118,7 +119,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
   a+=start;b=block.sourceFrom+end;text=text.slice(start,nextEnd);
   if(text.length>4096||b-a>4096)return rejectListEdit();
   const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return rejectListEdit();
-  const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return rejectListEdit();
+  const projection=project(next);if(JSON.stringify(canonicalDocument(projection.doc))!==JSON.stringify(canonicalDocument(expected)))return rejectListEdit();
   const flattened=[];const flatten=l=>{for(const v of l.items){flattened.push(v);if(v.child)flatten(v.child);}};flatten(tree);
   const pos=target?projection.blocks[index]?.items?.[flattened.indexOf(target)]?.from+offset:projection.blocks[targetIndex]?.from+1;
   if(!Number.isSafeInteger(pos))return rejectListEdit();

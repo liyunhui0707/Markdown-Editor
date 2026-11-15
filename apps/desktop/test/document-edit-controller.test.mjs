@@ -1023,11 +1023,12 @@ for(const body of ['Plain','**Bold**','A **bold** tail'])test(`list full-text de
   await h.controller.history('redo');assert.equal(h.document.text,'- \n- Keep');
   assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });
-test('list selection refuses cross-block/multiline/composition safely and resumes',async()=>{
+test('list selection permits sibling paste, refuses cross-block/composition safely and resumes',async()=>{
   const h=harness('- A **bold** tail\n\nNext'),before=h.document.text,from=h.span('A ').from,to=h.span('bold').from+2;
   h.select(from,h.span('Next').to);assert.deepEqual(rangeInput(h),{handled:true,prevented:true});
   assert.equal(h.document.text,before);assert.equal(h.requests.length,0);
-  h.select(from,to);assert.equal(paste(h,'One\nTwo').messages.length,1);assert.equal(h.document.text,before);
+  h.select(from,to);assert.equal(paste(h,'One\nTwo').messages.length,0);await h.controller.idle();assert.equal(h.document.text,'- One\n- Two**ld** tail\n\nNext');
+  assert(await h.controller.history('undo'));assert.equal(h.document.text,before);
   assert.equal(paste(h,'').messages.length,0);assert.equal(h.document.text,before);
   h.controller.beginComposition();assert.equal(h.edit(from,to,'组合'),false);
   assert.equal(paste(h,'组合').messages.length,1);h.controller.endComposition();await h.controller.idle();
@@ -1080,7 +1081,8 @@ test('cross-list key input keeps DOM selection, focus, IME and permission guards
   assert.equal(h.requests.length,0);
   h.controller.beginComposition();assert.equal(h.edit(h.span('A ').from,h.span('Last').to,'组合'),false);
   h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,before);
-  assert.equal(paste(h,'One\nTwo').messages.length,1);assert.equal(h.document.text,before);
+  h.select(h.span('A ').from,h.span('Last').to);assert.equal(paste(h,'One\nTwo').messages.length,0);await h.controller.idle();assert.equal(h.document.text,'- One\n- Two');
+  assert(await h.controller.history('undo'));assert.equal(h.document.text,before);
   h.select(h.span('A ').from,h.span('Last').to);assert.equal(paste(h,'Safe').messages.length,0);await h.controller.idle();
   assert.equal(h.document.text,'- Safe');assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });

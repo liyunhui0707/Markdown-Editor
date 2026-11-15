@@ -27,6 +27,9 @@ function transactionEdit(source, tr) {
       && step.slice.content.content.every(node => node.type.name === 'paragraph' && node.content.size
         && node.content.content.every(child => child.isText && !child.marks.length))) {
     insert = step.slice.content.content.map(node => node.textContent).join('\n\n');
+  } else if(step.slice.openStart===2&&step.slice.openEnd===2&&step.slice.content.childCount>=2&&step.slice.content.childCount<=32
+      &&step.slice.content.content.every(n=>n.type.name==='listItem'&&n.childCount===1&&n.firstChild.type.name==='paragraph'&&n.firstChild.content.size&&n.firstChild.content.content.every(c=>c.isText&&!c.marks.length))){
+    insert=step.slice.content.content.map(n=>n.textContent).join('\n\n');
   } else return null;
   const edit = { from: step.from, to: step.to, insert };
   const mapped = mapTextEdit(source, edit), schema = tr.doc.type.schema;

@@ -1,5 +1,6 @@
 import {continueInProse} from './document-prose-continuation.mjs';
-import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {joinProseParts,canonicalDocument} from './document-prose-range.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject=()=>({ok:false,code:'unsafe-format-range'});
@@ -53,7 +54,7 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
    }else{
     const prev=block.quoteRows[rowIndex-1],before=p.spans.filter(s=>s.blockIndex===index&&s.quoteIndex===rowIndex-1).map(s=>({...s,frames:inlineFrames(s,source)}));
     if(renderInlineParts(before,source)!==source.slice(prev.bodyFrom,prev.sourceTo))return reject();
-    const joined=mergeInlineParts([...before,...parts]);a=prev.bodyFrom;b=row.sourceTo;text=renderInlineParts(joined,source);
+    const joined=joinProseParts(before,parts);a=prev.bodyFrom;b=row.sourceTo;text=renderInlineParts(joined,source);
     expected.content[index].content.splice(rowIndex-1,2,paragraph(inlineNodes(joined)));targetRow=rowIndex-1;offset=before.map(s=>s.text).join('').length;
    }
   }else if(!value){
@@ -79,7 +80,7 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
  b=a+right;a+=left;text=text.slice(left,end);
  if(text.length>4096||b-a>4096)return reject();
  const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
- const projection=project(next);if(JSON.stringify(expected)!==JSON.stringify(projection.doc))return reject();
+ const projection=project(next);if(JSON.stringify(canonicalDocument(expected))!==JSON.stringify(canonicalDocument(projection.doc)))return reject();
  const target=projection.blocks[targetIndex],pos=(targetRow===null?target?.from+1:target?.quoteRows?.[targetRow]?.from)+offset;
  if(!Number.isSafeInteger(pos)||pos>=target.to)return reject();
  return {ok:true,source:next,projection,change:{from:a,to:b,insert:text},inverseSource:{from:a,to:a+text.length,insert:source.slice(a,b)},selection:{from:pos,to:pos}};

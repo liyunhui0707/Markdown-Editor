@@ -44,13 +44,14 @@ test('cross-list numbering is not normalized and 32 items are bounded',()=>{
   const tooMany=source+'\n33. Extra';assert.equal(projectSource(tooMany).blocks[0],null);
 });
 test('cross-list refusals: different lists, unsupported items, multiline, source size and forged fields',()=>{
-  for(const raw of ['- First\n\n1. Last','- First\n\n# Heading\n\n- Last','- First\n- [x] Task\n  continuation\n- Last','- First\n  - Nested\n- Last','- First\n\n- Last','- First\n- ***nested***\n- Last']) {
+  for(const raw of ['- First\n\n1. Last','- First\n\n# Heading\n\n- Last','- First\n- [x] Task\n  continuation\n- Last','- First\n  - Nested\n- Last','- First\n\n- Last','- First\n- &amp;\n- Last']) {
     const p=projectSource(raw),a=p.spans[0],b=p.spans.at(-1);
     assert.equal(mapTextEdit(raw,{from:a?.from??3,to:b?.to??20,insert:'X'}).ok,false,raw);
   }
   const raw='- A中😀 **bold**\n- End',p=projectSource(raw),[left,right]=p.blocks[0].items;
   const change={from:left.from+1,to:right.to,insert:'X'};
-  for(const insert of ['One\nTwo','One\n\nTwo','\ud800','[link](x)','**bold**','x'.repeat(4097)])assert.equal(mapTextEdit(raw,{...change,insert}).ok,false);
+  for(const insert of ['One\nTwo','One\n\n','\ud800','[link](x)','**bold**','x'.repeat(4097)])assert.equal(mapTextEdit(raw,{...change,insert}).ok,false);
+  assert.equal(mapTextEdit(raw,{...change,insert:'One\n\nTwo'}).source,'- AOne\n- Two');
   assert.equal(mapTextEdit(raw,{...change,from:left.from+3}).ok,false);
   for(const extra of [{itemIndex:0},{inverseSource:{}},{path:'/other.md'},{leaf:null}])assert.equal(mapTextEdit(raw,{...change,...extra}).ok,false);
   const huge='- '+'A'.repeat(4096)+'\n- B',rows=projectSource(huge).blocks[0].items;

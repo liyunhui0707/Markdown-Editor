@@ -40,6 +40,7 @@ function canonical(node){
  }
  return {...node,content};
 }
+export {join as joinProseParts,canonical as canonicalDocument};
 
 // Explicit cross-paragraph selection or multi-paragraph plain paste. Existing
 // simple-prose operations keep their history protocol. No caller source offsets,

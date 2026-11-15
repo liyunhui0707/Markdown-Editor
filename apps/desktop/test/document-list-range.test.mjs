@@ -50,12 +50,13 @@ test('list range matrix agrees with PM marks and exact inverse including reverse
   }
   assert(accepted>100);
 });
-test('list ranges refuse cross-block, multiline, protected syntax and excessive input atomically',()=>{
+test('list ranges refuse cross-block, ambiguous multiline, protected syntax and excessive input atomically',()=>{
   const raw='- A **bold** tail\n- Next\n\nEnd',p=projectSource(raw),a=p.spans.find(s=>s.text==='A '),b=p.spans.find(s=>s.text==='Next');
   check(raw,a.from,b.to,'X','- X\n\nEnd');
   assert.equal(mapTextEdit(raw,{from:a.from,to:p.spans.at(-1).to,insert:'X'}).ok,false);
-  for(const insert of ['One\nTwo','One\n\nTwo','\ud800','[x](url)','**new**','x'.repeat(4097)])
+  for(const insert of ['One\nTwo','One\n\n','\ud800','[x](url)','**new**','x'.repeat(4097)])
     assert.equal(mapTextEdit(raw,{from:a.from,to:a.to+2,insert}).ok,false);
+  assert.equal(mapTextEdit(raw,{from:a.from,to:a.to+2,insert:'One\n\nTwo'}).source,'- One\n- Two**ld** tail\n- Next\n\nEnd');
   for(const source of ['- [x] Task\n  continuation','- A\n  - Nested\n    continuation','- A\n\n- Loose','- A ***nested***','- A [**link &amp;**](x)','- A\n  soft'])
     assert.equal(mapTextEdit(source,{from:3,to:4,insert:'X'}).ok,source==='- A ***nested***',source);
   const pair='- A **😀bold** tail',point=projectSource(pair).spans.find(s=>s.bold).from;
