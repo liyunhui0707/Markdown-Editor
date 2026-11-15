@@ -19,7 +19,21 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — common formatted inline writing, 0.72.0
+### Current batch — structural writing continuation, 0.73.0
+
+Complete linked paragraph/heading/list/task continuation, compatible rich quote
+joins/unwrapping and table-before/after prose as one workflow through keyboard,
+source, exact history, local backup, native Save, fresh export and restart recovery.
+Reuse adjacent editable prose without a new revision; retain full source projection,
+link metadata and composition/file-authority fences. Keep the visual baseline.
+
+Next consolidate broader article/list/table interoperability from reproduced
+failures and sustained real writing. Do not replace the editor framework, normalize
+arbitrary syntax or expand cloud/file permissions speculatively. Human native-input,
+VoiceOver and longer daily-use acceptance remain scoped; paid public distribution
+stays deferred. Development integration is not 1.0 acceptance.
+
+### Previous batch — common formatted inline writing, 0.72.0
 
 Complete common emphasis/link/code combinations as one article workflow: projection,
 typing/selection, mark toggles, formatted link creation, address editing/unlink,

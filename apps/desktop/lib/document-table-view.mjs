@@ -4,7 +4,7 @@ import {mapFormatEdit} from './document-format-edit.mjs';
 import {TABLE_ROWS,TABLE_COLUMNS} from './document-table-source.mjs';
 
 export function createTableView({byId,context,report}) {
-  const ids=['insert-table','table-add-row','table-delete-row','table-add-column','table-delete-column','table-exit'];
+  const ids=['insert-table','table-add-row','table-delete-row','table-add-column','table-delete-column','table-before','table-exit'];
   const blocked=c=>!c.state||!c.editor||c.loading||c.invalid||c.state.confirmed.readOnly||c.state.locked
     ||c.state.historyPending||c.state.composing||c.state.compositionInvalid||c.state.recoveryRecords.length||c.editor.view.composing;
   function locate(c) {
@@ -49,10 +49,10 @@ export function createTableView({byId,context,report}) {
     const {from,to,empty}=view.state.selection,{block,cell}=at;
     const plain=!event.metaKey&&!event.ctrlKey&&!event.altKey;
     let action=null,target=null;
-    if((event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key==='Enter')action='table-exit';
+    if((event.metaKey||event.ctrlKey)&&!event.altKey&&event.key==='Enter')action=event.shiftKey?'table-before':'table-exit';
     else if(plain&&event.key==='Tab'&&empty) {
       const cells=block.cells.flat(),i=cells.indexOf(cell)+(event.shiftKey?-1:1);
-      target=cells[i];if(!target&&i===cells.length)action='table-add-row';
+      target=cells[i];if(!target)action=i===cells.length?'table-add-row':'table-before';
     } else if(plain&&event.key==='Enter'&&empty&&!event.shiftKey){
       target=block.cells[cell.tableRow+1]?.[cell.tableCol];if(!target)action='table-add-row';
     } else if(plain&&empty&&((event.key==='Backspace'&&from===cell.from)||(event.key==='Delete'&&from===cell.to))){event.preventDefault();return true;}

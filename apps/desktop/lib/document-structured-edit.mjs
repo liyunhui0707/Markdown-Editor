@@ -1,4 +1,5 @@
-import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {continueInProse} from './document-prose-continuation.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject=()=>({ok:false,code:'unsafe-format-range'});
@@ -37,40 +38,35 @@ export function mapStructuredEdit(source,p,{action,from,to},project){
   }else return reject();
  }else if(action==='exit-block'){
   if(from!==to||(!block.quoteRows&&!block.codeBody))return reject();
-  a=b; text=nl+nl;expected.content.splice(index+1,0,paragraph([]));targetIndex++;
+  return continueInProse(source,p,index,false,project);
  }else if(['split-quote','join-quote'].includes(action)){
   if(!row||from!==to)return reject();
   const spans=p.spans.filter(s=>s.blockIndex===index&&s.quoteIndex===rowIndex),current=node.content[rowIndex],value=current.content.map(n=>n.text).join('');
-  const rich=current.content.some(n=>n.marks?.length),at=from-row.from;if(cuts(value,at))return reject();
-  if(rich){
-   if(action!=='split-quote'||!value)return reject();
-   const left=[],right=[];let offset=at;
-   for(const s of spans){const n=Math.max(0,Math.min(offset,s.text.length)),frames=inlineFrames(s,source);
-    if(n)left.push({...s,frames,text:s.text.slice(0,n)});if(n<s.text.length)right.push({...s,frames,text:s.text.slice(n)});offset-=s.text.length;
+  const at=from-row.from;if(cuts(value,at))return reject();
+  const parts=spans.map(s=>({...s,frames:inlineFrames(s,source)}));
+  if(renderInlineParts(parts,source)!==source.slice(row.bodyFrom,row.sourceTo))return reject();
+  if(action==='join-quote'){
+   if(at!==0)return reject();
+   if(rowIndex===0){
+    b=block.quoteRows[1]?.sourceFrom??block.sourceTo;text=source.slice(row.bodyFrom,row.sourceTo)+(node.content.length>1?nl+nl:'');
+    expected.content.splice(index,1,paragraph(current.content),...(node.content.length>1?[quote(node.content.slice(1))]:[]));
+   }else{
+    const prev=block.quoteRows[rowIndex-1],before=p.spans.filter(s=>s.blockIndex===index&&s.quoteIndex===rowIndex-1).map(s=>({...s,frames:inlineFrames(s,source)}));
+    if(renderInlineParts(before,source)!==source.slice(prev.bodyFrom,prev.sourceTo))return reject();
+    const joined=mergeInlineParts([...before,...parts]);a=prev.bodyFrom;b=row.sourceTo;text=renderInlineParts(joined,source);
+    expected.content[index].content.splice(rowIndex-1,2,paragraph(inlineNodes(joined)));targetRow=rowIndex-1;offset=before.map(s=>s.text).join('').length;
    }
-   if(renderInlineParts(spans,source)!==source.slice(row.bodyFrom,row.sourceTo))return reject();
-   a=row.bodyFrom;b=row.sourceTo;text=renderInlineParts(left,source)+nl+'> '+nl+'> '+renderInlineParts(right,source);
-   expected.content[index].content.splice(rowIndex,1,paragraph(inlineNodes(left)),paragraph(inlineNodes(right)));targetRow=rowIndex+1;
-  }else {
-  if(spans.length!==1)return reject();
-  if(action==='split-quote'&&!value){
+  }else if(!value){
    if(rowIndex!==node.content.length-1)return reject();
    if(rowIndex===0){text='';expected.content[index]=paragraph([]);}
    else {a=block.quoteRows[rowIndex-1].sourceTo;text=nl+nl;expected.content[index].content.pop();expected.content.splice(index+1,0,paragraph([]));targetIndex++;}
-  }else if(action==='split-quote'){
-   a=b=row.bodyFrom+at;text=nl+'> '+nl+'> ';
-   expected.content[index].content.splice(rowIndex,1,paragraph(inline(value.slice(0,at))),paragraph(inline(value.slice(at))));targetRow=rowIndex+1;
-  }else if(at===0){
-   if(rowIndex===0){
-    // Unwrap only the first paragraph; the following quote keeps its markers.
-    b=block.quoteRows[1]?.sourceFrom??block.sourceTo;text=value+(node.content.length>1?nl+nl:'');
-    expected.content.splice(index,1,paragraph(current.content),...(node.content.length>1?[quote(node.content.slice(1))]:[]));
-   }else{
-    const prev=block.quoteRows[rowIndex-1],prevNode=node.content[rowIndex-1];if(prevNode.content.some(n=>n.marks?.length))return reject();
-    const before=prevNode.content.map(n=>n.text).join('');a=prev.sourceTo;b=row.bodyFrom;text='';
-    expected.content[index].content.splice(rowIndex-1,2,paragraph(inline(before+value)));targetRow=rowIndex-1;offset=before.length;
+  }else{
+   const left=[],right=[];let offset=at;
+   for(const part of parts){const n=Math.max(0,Math.min(offset,part.text.length));
+    if(n)left.push({...part,text:part.text.slice(0,n)});if(n<part.text.length)right.push({...part,text:part.text.slice(n)});offset-=part.text.length;
    }
-  }else return reject();
+   a=row.bodyFrom;b=row.sourceTo;text=renderInlineParts(left,source)+nl+'> '+nl+'> '+renderInlineParts(right,source);
+   expected.content[index].content.splice(rowIndex,1,paragraph(inlineNodes(left)),paragraph(inlineNodes(right)));targetRow=rowIndex+1;
   }
  }else return reject();
  if(typeof text!=='string')return reject();

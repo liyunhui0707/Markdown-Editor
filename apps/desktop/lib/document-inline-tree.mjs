@@ -78,3 +78,21 @@ export function toggleInlineFrames(part,action,source,remove=!!part[action]){
  const at=action==='code'?frames.length:frames.findIndex(f=>f.kind==='code');
  return {...part,[action]:true,frames:at<0?[...frames,frame]:[...frames.slice(0,at),frame,...frames.slice(at)]};
 }
+
+// Structural joins may coalesce ordinary mark runs, but distinct source links
+// retain their own destination/title bytes unless all lexical wrappers match.
+export function mergeInlineParts(parts){
+ const out=[],wrappers=p=>p.frames?.map(f=>[f.kind,f.open,f.close]);
+ for(const value of parts){
+  if(!value.text)continue;let part={...value};const last=out.at(-1);
+  const sameLink=last&&JSON.stringify(last.link)===JSON.stringify(part.link);
+  if(sameLink&&part.link){
+   const at=part.frames.findIndex(f=>f.kind==='link'),previous=last.frames.findIndex(f=>f.kind==='link');
+   if(at===previous&&at>=0&&JSON.stringify(wrappers(last).slice(0,at+1))===JSON.stringify(wrappers(part).slice(0,at+1)))
+    part.frames=[...last.frames.slice(0,at+1),...part.frames.slice(at+1)];
+  }
+  const sameFrames=last&&JSON.stringify(last.frames?.map(f=>f.kind))===JSON.stringify(part.frames?.map(f=>f.kind));
+  if(sameFrames&&sameLink&&(!part.link||JSON.stringify(wrappers(last))===JSON.stringify(wrappers(part))))last.text+=part.text;
+  else out.push(part);
+ }return out;
+}

@@ -1,4 +1,4 @@
-import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const rejectListEdit=()=>({ok:false,code:'unsafe-format-range'});
@@ -83,7 +83,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
     } else if(action==='split-list'||action==='join-list') {
       function pieces(value) {
         const parts=p.spans.filter(s=>s.blockIndex===index&&s.itemIndex===rows.indexOf(value.row));
-        if(parts.some(s=>s.link||s.textOffset!==undefined))return null;
+        if(parts.some(s=>s.textOffset!==undefined))return null;
         const values=parts.map(s=>({...s,frames:inlineFrames(s,source),marker:listMarkType(s)?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
         return renderListPieces(values)===value.body?values:null;
       }
@@ -99,7 +99,7 @@ export function mapListEdit(source,p,{action,from,to},project) {
       } else {
         if(offset!==0||i===0)return rejectListEdit();
         const previous=parentList.items[i-1],left=pieces(previous);if(!left||previous.child)return rejectListEdit();
-        const merged=[];for(const part of [...left,...parts]){if(!part.text)continue;const last=merged.at(-1);if(last&&(last.frames||part.frames?JSON.stringify(last.frames?.map(f=>f.kind))===JSON.stringify(part.frames?.map(f=>f.kind)):listMarkType(last)===listMarkType(part)))last.text+=part.text;else merged.push({...part});}
+        const merged=mergeInlineParts([...left,...parts]);
         offset=left.map(p=>p.text).join('').length;previous.body=renderListPieces(merged);previous.content=listInlineNodes(merged);previous.child=selected.child;
         parentList.items.splice(i,1);target=previous;
       }

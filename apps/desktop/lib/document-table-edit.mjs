@@ -1,9 +1,9 @@
+import {continueInProse} from './document-prose-continuation.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {TABLE_ROWS,TABLE_COLUMNS,tableCell} from './document-table-source.mjs';
 const reject=()=>({ok:false,code:'unsafe-format-range'});
-export const tableActions=['insert-table','table-add-row','table-delete-row','table-add-column','table-delete-column','table-exit'];
-const emptyParagraph=()=>({type:'paragraph',content:[]});
+export const tableActions=['insert-table','table-add-row','table-delete-row','table-add-column','table-delete-column','table-before','table-exit'];
 
 // Main and renderer run the same bounded mapper. No new IPC, save capability,
 // arbitrary source offsets or whole-document serializer is introduced.
@@ -12,7 +12,7 @@ export function mapTableEdit(source,p,{action,from,to},project) {
   const index=p.blocks.findIndex(b=>b&&from>b.from&&from<b.to);if(index<0)return reject();
   const block=p.blocks[index],expected=structuredClone(p.doc),node=expected.content[index];
   const nl=source.slice(block.sourceFrom,block.sourceTo).match(/\r\n|\n|\r/)?.[0]||source.match(/\r\n|\n|\r/)?.[0]||'\n';
-  let a,b,text,targetIndex=index,targetRow=0,targetCol=0,prose=false;
+  let a,b,text,targetIndex=index,targetRow=0,targetCol=0;
   if(action==='insert-table') {
     if(node.type!=='paragraph'||!p.spans.some(s=>s.blockIndex===index&&s.textOffset===undefined&&from>=s.from&&from<=s.to))return reject();
     const created={type:'table',content:[{type:'tableRow',content:[tableCell('列 1',true),tableCell('列 2',true)]},
@@ -42,13 +42,8 @@ export function mapTableEdit(source,p,{action,from,to},project) {
       for(const [i,line] of lines.entries())line.values.splice(col,add?0:1,...(add?[i===1?'---':'']:[]));
       for(const [i,row] of node.content.entries())row.content.splice(col,add?0:1,...(add?[tableCell('',i===0)]:[]));
       targetCol=add?col:Math.min(col,cols-2);
-    } else if(action==='table-exit') {
-      // Reuse an already editable prose block; otherwise insert one exact gap.
-      const next=p.blocks[index+1];
-      if(expected.content[index+1]?.type==='paragraph'&&next){
-        return {ok:true,source,projection:p,change:{from:b,to:b,insert:''},inverseSource:{from:b,to:b,insert:''},selection:{from:next.from+1,to:next.from+1}};
-      }
-      a=b;text=nl+nl;expected.content.splice(index+1,0,emptyParagraph());targetIndex++;prose=true;
+    } else if(action==='table-exit'||action==='table-before') {
+      return continueInProse(source,p,index,action==='table-before',project);
     } else return reject();
     if(text===undefined)text=lines.map(l=>'|'+l.values.join('|')+'|'+l.eol).join('');
   }
@@ -64,7 +59,7 @@ export function mapTableEdit(source,p,{action,from,to},project) {
   if(text.length>4096||b-a>4096)return reject();
   const next=source.slice(0,a)+text+source.slice(b);if(next.length>MAX_SOURCE_UNITS)return reject();
   const projection=project(next);if(JSON.stringify(projection.doc)!==JSON.stringify(expected))return reject();
-  const target=projection.blocks[targetIndex],pos=prose?target?.from+1:target?.cells?.[targetRow]?.[targetCol]?.from;
+  const target=projection.blocks[targetIndex],pos=target?.cells?.[targetRow]?.[targetCol]?.from;
   if(!Number.isSafeInteger(pos))return reject();
   return {ok:true,source:next,projection,change:{from:a,to:b,insert:text},inverseSource:{from:a,to:a+text.length,insert:source.slice(a,b)},selection:{from:pos,to:pos}};
 }

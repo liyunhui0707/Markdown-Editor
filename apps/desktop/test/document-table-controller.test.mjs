@@ -88,3 +88,33 @@ test('ordinary typing and paragraph selection do not request a whole-source tabl
  table.sync();assert.equal(byId('table-tools').hidden,true);
  for(const key of ['a','ArrowLeft','Tab','Enter','Backspace','Delete'])assert.equal(table.key(c.editor.view,{key}),false);
 });
+
+test('before/after prose navigation reuses adjacent text without a main history edit',async()=>{
+ const source='Before.\n\n|A|B|\n|---|---|\n|c|d|\n\nAfter.',h=harness(source),p=projectSource(source);
+ h.select(h.cells()[0].from);assert(h.key('Tab',{shiftKey:true}));await h.controller.idle();
+ assert.equal(h.view.state.selection.from,p.blocks[0].to-1);assert.equal(h.document.revision,0);assert.equal(h.requests.length,0);
+ h.select(h.cells()[0].from);assert(h.key('Enter',{metaKey:true}));await h.controller.idle();
+ assert.equal(h.view.state.selection.from,p.blocks[2].from+1);assert.equal(h.document.text,source);assert.equal(h.document.revision,0);
+ assert.equal(h.controller.state().confirmed.canUndo,false);
+ h.select(h.cells()[0].from);assert(await h.table.run('table-before'));assert.equal(h.document.revision,0);assert.equal(h.controller.state().confirmed.canUndo,false);
+});
+test('new table-before keyboard action uses main exact history and all composition/readonly gates',async()=>{
+ const source='|A|B|\r\n|---|---|\r\n|c|d|',h=harness(source);h.select(h.cells()[0].from);
+ assert(h.controller.beginComposition());assert.equal(h.key('Enter',{metaKey:true,shiftKey:true}),false);
+ assert.equal(await h.table.run('table-before'),false);h.controller.endComposition();await h.controller.idle();assert.equal(h.requests.length,0);
+ assert(h.key('Enter',{metaKey:true,shiftKey:true}));await h.controller.idle();assert.equal(h.document.text,'\r\n\r\n'+source);
+ assert.equal(h.document.revision,1);assert.equal(h.view.state.selection.from,1);
+ assert(await h.controller.history('undo'));assert.equal(h.document.text,source);assert(await h.controller.history('redo'));assert.equal(h.document.text,'\r\n\r\n'+source);
+ assert.equal(fs.readFileSync(h.file,'utf8'),source);
+ const ro=harness(source,true);ro.select(ro.cells()[0].from);assert.equal(ro.key('Enter',{metaKey:true,shiftKey:true}),false);
+ assert.equal(await ro.table.run('table-before'),false);assert.equal(ro.request('format',{expectedRevision:0,action:'table-before',from:4,to:4}).code,'read-only-document');
+});
+
+test('table-before queues after pending cell text and retains exact acknowledged history',async()=>{
+ const source='|A|\n|---|\n||',h=harness(source),cell=h.cells().at(-1);h.select(cell.from);h.delayed=true;
+ h.view.dispatch(h.view.state.tr.insertText('待确认'));assert(h.key('Enter',{metaKey:true,shiftKey:true}));
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(h.controller.state().pending,2);
+ h.delayed=false;h.replies.shift()();await h.controller.idle();assert.equal(h.document.text,'\n\n|A|\n|---|\n|待确认|');
+ assert.equal(h.controller.state().recoveryRecords.length,0);assert(await h.controller.history('undo'));assert.equal(h.document.text,'|A|\n|---|\n|待确认|');
+ assert(await h.controller.history('undo'));assert.equal(h.document.text,source);assert.equal(fs.readFileSync(h.file,'utf8'),source);
+});

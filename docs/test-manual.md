@@ -1,5 +1,24 @@
 # Manual Test Checklist
 
+## Structural writing continuation — 0.73.0
+
+Use a disposable article with linked/emphasized paragraphs, a checked task list,
+two explicitly prefixed quote rows, an ordinary table and a basic code block.
+
+- Enter inside a linked word in prose or a task item; the new item must be
+  unchecked. Type more text, then Backspace at the new row start. Compatible
+  links rejoin with their original address/title. Undo/Redo preserves exact bytes.
+- Backspace at the second rich quote row start joins it into the previous row;
+  at the first row start it becomes ordinary prose and following rows stay quoted.
+  Different link targets/titles and all unselected text must survive.
+- From the table use **表格前写作**, Cmd-Shift-Enter or Shift-Tab in its first
+  cell; type prose before it. Use Cmd-Enter / **回到正文** after it. Repeating
+  the command must reuse existing adjacent prose without new Undo entries.
+- Compare Source, save/export, restart and recover: confirmed writing and untouched
+  table/quote/link bytes agree. Finish/cancel Chinese preedit before structural
+  commands. Read-only, ambiguous/unsupported structures and surrogate boundaries
+  must still refuse safely; automation does not establish physical IME acceptance.
+
 ## Formatted inline writing — 0.72.0
 
 Use a disposable article with ``**`code`**``, a link containing bold/plain/italic

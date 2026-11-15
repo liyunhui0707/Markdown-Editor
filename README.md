@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.72.0 development build with common formatted inline writing and cross-location APFS recovery.** This is not
+**0.73.0 development build with continuous structured writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,25 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Continuous writing around lists, quotes and tables — 0.73.0
+
+Enter can split supported linked paragraphs, headings and tight list/task items
+while retaining label formatting, addresses and titles. Backspace at a compatible
+paragraph/list/quote boundary joins the text; quote first-row Backspace unwraps
+that row. New task items start unchecked. Undo/Redo retains exact original bytes.
+Distinct link targets/titles stay separate; ambiguous wrapper normalization,
+unsupported structures and cross-block composition remain protected.
+
+In a table use **表格前写作**, Cmd-Shift-Enter, or Shift-Tab from the first cell
+to continue in prose before it. Cmd-Enter / **回到正文** goes after the table.
+Existing adjacent editable prose is reused without adding a content revision or
+Undo entry. Otherwise one bounded blank prose slot is inserted, leaving table
+bytes unchanged. Cmd-Enter after a quote or code block also reuses adjacent prose.
+
+These commands use the existing main-owned exact patch/history/save/recovery
+workflow. The accepted workspace, plain-text table scope, source limits and
+native-input safety guards remain; no whole-file serialization or new file authority.
 
 ## Formatted links and inline code — 0.72.0
 
@@ -595,25 +614,29 @@ returns it to a paragraph, and Backspace at a heading start removes its format.
 Undo/Redo uses the existing document history. Heading levels 1–6 are also in
 the format menu. Type `>` then Space for a single-level quote, or three backticks
 (optionally followed by a simple language name) then Enter for a fenced code block.
-The block menu also offers quote/code creation. Plain quote paragraphs split with
+The block menu also offers quote/code creation. Supported quote paragraphs split with
 Enter; Enter on the last empty quote paragraph returns to prose. Code supports
 literal Enter/Tab and multiline plain-text paste, including blank lines. **Cmd+Enter**
-exits either block into prose. Undo/Redo and new-file export/reopen preserve source
-markers and line endings. Nested/lazy/soft-wrapped quotes, splitting marked quote
-paragraphs, unclosed/metadata-bearing fences and code execution stay unsupported.
+exits either block into existing adjacent prose or a new bounded prose slot. Undo/Redo and new-file export/reopen preserve source
+markers and line endings. Compatible rich quote rows also join with Backspace.
+Nested/lazy/soft-wrapped quotes, unclosed/metadata-bearing fences and code execution
+stay unsupported.
 Code-to-prose conversion is limited to one line; use Cmd+Enter for multiline code.
-The installed app includes the task/nested-list subset introduced in 0.52.0. Nested inline marks remain protected.
+The installed app includes tight task/nested lists and common inline mark combinations.
+Unsupported syntax remains protected and can be edited in Source.
 The link button or **Cmd+K** opens an insert/edit panel. Select plain text or place
 the caret to insert; place the caret in a simple link to edit its text/address or
 remove the link while retaining its text. Cancel/Escape preserves the document;
 Undo/Redo covers the complete change. Unchanged addresses and existing titles
-retain their source spelling. Enter at the end of a linked paragraph continues
-with a new paragraph without rewriting the link. Links stay inert; cross-link selection/splitting,
-nested marks and title editing remain unsupported. The panel accepts http(s),
+retain their source spelling. Enter splits supported linked paragraphs/headings/list
+items, and compatible boundary joins retain link metadata. Existing formatted-link
+words are edited in the body; their address panel preserves styling. Links stay
+inert; cross-format link creation, ambiguous wrapper normalization and title editing
+remain unsupported. The panel accepts http(s),
 mailto, relative and fragment targets, rejecting script/file protocols, credentials,
 whitespace and control characters. No URL is opened or fetched.
-The installed app is now **0.54.0**; the previous 0.53.0 bundle is retained locally
-for recovery; user documents and existing drafts were not migrated. The 0.48.0
+The installed development build is **0.73.0**; the previous 0.72.0 bundle is retained
+locally for recovery. User documents and existing drafts are not migrated. The 0.48.0
 checkpoint is `dd0eef4`; the 0.49.0 local WIP `d8a3f25` preserves quote/code and authoring closeout.
 The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
 existing final newline, and structural keys arriving before text acknowledgements.
