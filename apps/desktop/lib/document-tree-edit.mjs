@@ -3,7 +3,7 @@ import {inlineFrames,renderInlineParts,inlineNodes,toggleInlineFrames} from './d
 import {listNodeAt} from './document-list-source.mjs';
 const reject=()=>({ok:false,code:'unsafe-source-range'});
 const cut=(s,n)=>n>0&&n<s.length&&/[\uD800-\uDBFF]/.test(s[n-1])&&/[\uDC00-\uDFFF]/.test(s[n]);
-export const inlineTarget=(doc,s)=>s.itemIndex!==undefined?listNodeAt(doc.content[s.blockIndex],s.itemPath??[s.itemIndex]).content[0]:s.quoteIndex!==undefined?doc.content[s.blockIndex].content[s.quoteIndex]:doc.content[s.blockIndex];
+export const inlineTarget=(doc,s)=>s.tableRow!==undefined?doc.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0]:s.itemIndex!==undefined?listNodeAt(doc.content[s.blockIndex],s.itemPath??[s.itemIndex]).content[0]:s.quoteIndex!==undefined?doc.content[s.blockIndex].content[s.quoteIndex]:doc.content[s.blockIndex];
 export function patchInlineParts(source,p,spans,pieces,selection){
  const frames=spans.map(s=>inlineFrames(s,source));
  const a=frames[0][0]?.from??spans[0].sourceFrom,b=frames.at(-1)[0]?.to??spans.at(-1).sourceTo;
@@ -30,10 +30,10 @@ export function planTreeRange(source,p,{from,to,insert},spans){
 export function mapCombinedMark(source,p,{action,from,to},project){
  if(!['bold','italic','code'].includes(action))return null;
  const s=p.spans.find(s=>from>=s.from&&to<=s.to);
- if(!s||s.article||s.tableRow!==undefined||s.codeBlock||s.textOffset!==undefined||(!s.frames&&!s.link&&!['bold','italic','code'].some(k=>k!==action&&s[k])))return null;
+ if(!s||s.article||s.codeBlock||s.textOffset!==undefined||(!s.frames&&!s.link&&!['bold','italic','code'].some(k=>k!==action&&s[k])))return null;
  if(from===to||cut(s.text,from-s.from)||cut(s.text,to-s.from))return {ok:false,code:'unsafe-format-range'};
  const value=s.text.slice(from-s.from,to-s.from);if(value.trim()!==value||!value||(action==='code'&&value.includes('`')))return {ok:false,code:'unsafe-format-range'};
- const spans=p.spans.filter(n=>n.blockIndex===s.blockIndex&&n.itemIndex===s.itemIndex&&n.quoteIndex===s.quoteIndex);
+ const spans=p.spans.filter(n=>n.blockIndex===s.blockIndex&&n.itemIndex===s.itemIndex&&n.quoteIndex===s.quoteIndex&&n.tableRow===s.tableRow&&n.tableCol===s.tableCol);
  const selected=toggleInlineFrames({...s,text:value},action,source);
  const i=spans.indexOf(s),pieces=[...spans.slice(0,i),{...s,text:s.text.slice(0,from-s.from)},selected,{...s,text:s.text.slice(to-s.from)},...spans.slice(i+1)];
  const plan=patchInlineParts(source,p,spans,pieces,{from,to});

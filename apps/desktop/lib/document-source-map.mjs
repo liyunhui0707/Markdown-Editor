@@ -16,7 +16,7 @@ import {createSourceParser} from './document-source-parse.mjs';
 import { projectSimpleList, listNodeAt } from './document-list-source.mjs';
 import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
-export const spanBlock = (projection, span) => span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
+export const spanBlock = (projection, span) => span.tableRow!==undefined?projection.doc.content[span.blockIndex].content[span.tableRow].content[span.tableCol].content[0]:span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
   : listNodeAt(projection.doc.content[span.blockIndex],span.itemPath??[span.itemIndex]).content[0];
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.

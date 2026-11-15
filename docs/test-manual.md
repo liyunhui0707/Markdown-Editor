@@ -1,5 +1,23 @@
 # Manual Test Checklist
 
+## Formatted table writing — 0.74.0
+
+Use a disposable rectangular pipe table with padded/aligned cells, bold/italic
+headers, a code word and a link with a mixed-format label.
+
+- Select a word inside a cell and toggle bold, italic and code. Type Chinese text,
+  replace across two formatted runs, paste one line of plain text and Undo/Redo.
+  Other cells and raw padding/alignment must stay unchanged.
+- Create a link in a cell; on a mixed label, Cmd+K shows its words read-only and
+  permits address changes/unlink. Edit its words in the body. No browser opens;
+  label styles and raw title bytes survive. Cancel/Escape returns focus.
+- Add/remove a row and column, navigate before/after the table, find/replace a
+  phrase across marks inside one cell, inspect Source, save/export and recover
+  after restart. Untouched formatted cells keep their original source spelling.
+- Cross-cell ranges, multiline/TSV paste, escaped pipes and unsupported decoded/
+  reference/HTML/image syntax remain protected. Finish/cancel native candidates
+  before format commands. Automation is not a new physical IME/VoiceOver pass.
+
 ## Structural writing continuation — 0.73.0
 
 Use a disposable article with linked/emphasized paragraphs, a checked task list,

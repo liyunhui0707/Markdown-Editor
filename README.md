@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.73.0 development build with continuous structured writing and cross-location APFS recovery.** This is not
+**0.74.0 development build with formatted table writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,25 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Formatted table writing — 0.74.0
+
+Ordinary rectangular pipe tables now support bold, italic, inline code, links and
+their common combinations in both headers and data cells. Select one supported
+text leaf and use the format bar / Cmd+B, Cmd+I, Cmd+E or Cmd+K. Formatted-link
+words are edited in the body; the address panel preserves their styles and title.
+Links remain inert. Single-line plain-text paste and selected replacement can
+cross supported mark runs inside one cell; find/replace also stays cell-scoped.
+
+Adding/removing rows or columns retains the raw spelling of untouched formatted
+cells, padding, alignment markers and line endings. Undo/Redo, Source, backup,
+Save/Save As and restart recovery use the same exact source-patch workflow.
+
+Tables remain limited to 8 columns / 32 rows, with one text paragraph per cell.
+Cross-cell editing/TSV paste, escaped pipes, decoded entities/escapes, references,
+images/HTML and unsupported multiline/code syntax retain Source mode. Same-leaf
+controlled composition does not establish new physical-input acceptance. No table
+serializer, new file authority or workspace redesign is introduced.
 
 ## Continuous writing around lists, quotes and tables — 0.73.0
 
@@ -34,7 +53,7 @@ Undo entry. Otherwise one bounded blank prose slot is inserted, leaving table
 bytes unchanged. Cmd-Enter after a quote or code block also reuses adjacent prose.
 
 These commands use the existing main-owned exact patch/history/save/recovery
-workflow. The accepted workspace, plain-text table scope, source limits and
+workflow. The accepted workspace, table/cell scope, source limits and
 native-input safety guards remain; no whole-file serialization or new file authority.
 
 ## Formatted links and inline code — 0.72.0
@@ -561,17 +580,17 @@ add a column to the right, or delete a data row/column; Undo/Redo restores them.
 The header and final column cannot be deleted. Existing alignment and untouched
 source bytes are retained through export, readonly reopen and draft recovery.
 
-This first subset supports rectangular, outer-pipe GFM tables with plain-text
+The original 0.53.0 subset supported rectangular, outer-pipe GFM tables with plain-text
 cells, at most 8 columns and 32 rows including the header. Separator cells need
 at least three hyphens. Cell padding remains editable source text. Inline marks,
 links, escaped pipes/backslashes, merged cells, formulas, cell newlines and
 spreadsheet/cross-cell paste remain protected; they are not silently normalized.
 
-421 targeted Node checks, two Pro source Electron workflows (table and prior
+Historical 0.53.0 acceptance: 421 targeted Node checks, two Pro source Electron workflows (table and prior
 list regression), actual-package table/history/export/restart recovery and installed
 startup/recent-panel checks pass. Prior draft/catalog records remain unchanged.
 Native dialog choices/composition are controlled, not native IME acceptance.
-Original files remain read-only; export only creates a new file. Human table/list
+At that stage original files were read-only and export only created new files. Human table/list
 acceptance, native IME, SEC-01 and existing release limitations remain open.
 
 ## Structured lists — introduced in 0.52.0 (2026-11-06)
@@ -635,7 +654,7 @@ inert; cross-format link creation, ambiguous wrapper normalization and title edi
 remain unsupported. The panel accepts http(s),
 mailto, relative and fragment targets, rejecting script/file protocols, credentials,
 whitespace and control characters. No URL is opened or fetched.
-The installed development build is **0.73.0**; the previous 0.72.0 bundle is retained
+The installed development build is **0.74.0**; the previous 0.73.0 bundle is retained
 locally for recovery. User documents and existing drafts are not migrated. The 0.48.0
 checkpoint is `dd0eef4`; the 0.49.0 local WIP `d8a3f25` preserves quote/code and authoring closeout.
 The mixed writing closeout fixes typed heading and mixed-paragraph spaces, fence prefixes before an
