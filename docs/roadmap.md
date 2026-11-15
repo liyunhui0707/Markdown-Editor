@@ -19,7 +19,22 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — formatted list and quote ranges, 0.76.0
+### Current batch — multiline list and quote writing, 0.77.0
+
+Complete explicit multi-source-line list/task and quote paragraphs as one writing
+workflow: typing, physical-line selection/deletion, sibling paste, split/join,
+common marks, exact history, Source, backup, native Save/export and restart recovery.
+Keep source prefixes and lexical bytes; one paragraph per list item, six list levels,
+32 rows and bounded patches. Loose sibling gaps are supported, not arbitrary
+multi-paragraph list items, lazy/nested quotes or general syntax normalization.
+
+Next prepare the local stable candidate around repeated realistic articles and
+remaining reproduced failures, including the retained intermittent sustained-test
+idle timeout. Do not keep extending compatibility indefinitely or add controls for
+their own sake. Physical input/VoiceOver/human soak remain scoped acceptance gates;
+paid signing, notarization and public distribution remain deferred by the user.
+
+### Previous batch — formatted list and quote ranges, 0.76.0
 
 Complete same-parent leaf list/task and explicit quote selection, replacement,
 delete and multi-paragraph plain paste as sibling rows, followed by continued

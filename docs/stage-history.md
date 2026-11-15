@@ -1,5 +1,30 @@
 # Stage History
 
+## Multiline list and quote writing — 0.77.0 (2026-11-15)
+
+- Reproduce whole-container refusal for ordinary indented list continuations and
+  explicitly prefixed wrapped quotes. Retain one paragraph per item and exact
+  marker/prefix ownership; support blank-separated siblings without general AST
+  serialization. Reuse the exact article soft/hard-break lexical model.
+- Remap virtual-paragraph text/frame/link offsets to original UTF-16 source;
+  retained newline/prefix pairs are source-only break tokens. Text/range/paste
+  and split/join/mark planners compare the complete canonical PM document and
+  retain exact source inverses. Preserve child subtrees on same-row typing;
+  cross-parent/subtree ranges and structural composition remain guarded.
+- New tasks are unchecked. New marker widths translate only owned continuation
+  prefixes; untouched numbering/task spelling, gaps, delimiters, link titles,
+  BOM and line endings stay exact. First root leaf-list/quote unwrap removes only
+  that row's owned prefixes. No file-authority/runtime-helper/dependency/layout change.
+- New focused modules/tests stay below 300 lines. Existing source-map (>300 lines)
+  gets one projection dispatch; existing large test harnesses receive only scoped
+  historical-refusal updates. Splitting them would add unrelated stage scope.
+- Verify real PM transactions, same-leaf and protected composition, exact main
+  history, target mismatch/lost replies, source budgets and malformed Unicode.
+  Complete Electron workflow includes continued input, Enter/Backspace, range
+  deletion, sibling paste, Source, backup, BOM/CRLF native Save, fresh export and
+  independent restart restore. Human input/VoiceOver/soak remain separate; paid
+  signing/public release stay deferred. Development integration is not 1.0 acceptance.
+
 ## Formatted list and quote ranges — 0.76.0 (2026-11-15)
 
 - Reproduce rejection of cross-link/combined-format list selections and explicit

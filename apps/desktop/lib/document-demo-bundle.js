@@ -62,42 +62,6 @@
     }
   });
 
-  // lib/document-source-edit.js
-  var require_document_source_edit = __commonJS({
-    "lib/document-source-edit.js"(exports, module) {
-      "use strict";
-      var { MAX_SOURCE_UNITS: LIMIT } = require_document_capacity();
-      var valid2 = (s) => typeof s === "string" && s.length <= LIMIT && !s.includes("\0") && s.isWellFormed();
-      var splits5 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-      function sourceChange(source, change) {
-        const { from: from2, to, insert: insert2 } = change || {};
-        if (!valid2(source) || !valid2(insert2) || !Number.isInteger(from2) || !Number.isInteger(to) || from2 < 0 || to < from2 || to > source.length || splits5(source, from2) || splits5(source, to) || source.length - (to - from2) + insert2.length > LIMIT) return { ok: false, code: "invalid-source-edit" };
-        return {
-          ok: true,
-          source: source.slice(0, from2) + insert2 + source.slice(to),
-          change: { from: from2, to, insert: insert2 },
-          inverse: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }
-        };
-      }
-      function sourceDifference(before, after) {
-        if (!valid2(before) || !valid2(after)) return { ok: false, code: "invalid-source-edit" };
-        let from2 = 0, to = before.length, end = after.length;
-        while (from2 < to && from2 < end && before[from2] === after[from2]) from2++;
-        while (to > from2 && end > from2 && before[to - 1] === after[end - 1]) {
-          to--;
-          end--;
-        }
-        if (splits5(before, from2) || splits5(after, from2)) from2--;
-        if (splits5(before, to) || splits5(after, end)) {
-          to++;
-          end++;
-        }
-        return sourceChange(before, { from: from2, to, insert: after.slice(from2, end) });
-      }
-      module.exports = { sourceChange, sourceDifference };
-    }
-  });
-
   // node_modules/extend/index.js
   var require_extend = __commonJS({
     "node_modules/extend/index.js"(exports, module) {
@@ -189,873 +153,44 @@
     }
   });
 
+  // lib/document-source-edit.js
+  var require_document_source_edit = __commonJS({
+    "lib/document-source-edit.js"(exports, module) {
+      "use strict";
+      var { MAX_SOURCE_UNITS: LIMIT } = require_document_capacity();
+      var valid2 = (s) => typeof s === "string" && s.length <= LIMIT && !s.includes("\0") && s.isWellFormed();
+      var splits5 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+      function sourceChange(source, change) {
+        const { from: from2, to, insert: insert2 } = change || {};
+        if (!valid2(source) || !valid2(insert2) || !Number.isInteger(from2) || !Number.isInteger(to) || from2 < 0 || to < from2 || to > source.length || splits5(source, from2) || splits5(source, to) || source.length - (to - from2) + insert2.length > LIMIT) return { ok: false, code: "invalid-source-edit" };
+        return {
+          ok: true,
+          source: source.slice(0, from2) + insert2 + source.slice(to),
+          change: { from: from2, to, insert: insert2 },
+          inverse: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }
+        };
+      }
+      function sourceDifference(before, after) {
+        if (!valid2(before) || !valid2(after)) return { ok: false, code: "invalid-source-edit" };
+        let from2 = 0, to = before.length, end = after.length;
+        while (from2 < to && from2 < end && before[from2] === after[from2]) from2++;
+        while (to > from2 && end > from2 && before[to - 1] === after[end - 1]) {
+          to--;
+          end--;
+        }
+        if (splits5(before, from2) || splits5(after, from2)) from2--;
+        if (splits5(before, to) || splits5(after, end)) {
+          to++;
+          end++;
+        }
+        return sourceChange(before, { from: from2, to, insert: after.slice(from2, end) });
+      }
+      module.exports = { sourceChange, sourceDifference };
+    }
+  });
+
   // lib/document-image-edit.mjs
   var import_document_capacity8 = __toESM(require_document_capacity(), 1);
-
-  // lib/document-article-source.mjs
-  var import_document_capacity = __toESM(require_document_capacity(), 1);
-
-  // lib/document-inline-leaf.mjs
-  function projectInlineLeaf(child, source) {
-    const bold = child.type === "strong", italic = child.type === "emphasis", code3 = child.type === "inlineCode", link2 = child.type === "link";
-    const leaf = (bold || italic || link2) && child.children?.length === 1 ? child.children[0] : child;
-    let a = leaf.position?.start.offset, b = leaf.position?.end.offset;
-    if (code3) {
-      a++;
-      b--;
-    }
-    const value = leaf.value;
-    if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || !value.isWellFormed() || source.slice(a, b) !== value) return null;
-    if (code3) {
-      if (value.includes("`") || source[a - 1] !== "`" || source[b] !== "`") return null;
-    }
-    if (bold || italic) {
-      const marker = source.slice(child.position.start.offset, a);
-      if (!(bold ? ["**", "__"] : ["*", "_"]).includes(marker) || source.slice(b, child.position.end.offset) !== marker) return null;
-    }
-    if (link2 && (child.position.start.line !== child.position.end.line || source.slice(child.position.start.offset, a) !== "[" || source.slice(b, b + 2) !== "](" || source[child.position.end.offset - 1] !== ")")) return null;
-    let linkSource;
-    if (link2) {
-      const tail = source.slice(b + 2, child.position.end.offset - 1);
-      const match = tail.match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
-      if (match) linkSource = {
-        from: child.position.start.offset,
-        to: child.position.end.offset,
-        labelFrom: a,
-        labelTo: b,
-        destinationFrom: b + 2 + match[1].length,
-        destinationTo: b + 2 + match[1].length + match[2].length
-      };
-    }
-    return { ...linkSource ? { linkSource } : {}, text: value, sourceFrom: a, sourceTo: b, bold, ...italic ? { italic: true } : {}, ...code3 ? { code: true } : {}, ...link2 ? { link: { href: child.url, title: child.title ?? null } } : {} };
-  }
-  function inlineTextNode(part) {
-    const marks2 = [...part.link ? [{ type: "link", attrs: part.link }] : [], ...part.bold ? [{ type: "bold" }] : [], ...part.code ? [{ type: "code" }] : [], ...part.italic ? [{ type: "italic" }] : []];
-    return { type: "text", text: part.text, ...marks2.length ? { marks: marks2 } : {} };
-  }
-
-  // lib/document-inline-tree.mjs
-  function linkFrame(node2, source) {
-    const from2 = node2.position.start.offset, to = node2.position.end.offset;
-    const labelFrom = node2.children?.[0]?.position.start.offset, labelTo = node2.children?.at(-1)?.position.end.offset;
-    if (node2.position.start.line !== node2.position.end.line || labelFrom !== from2 + 1 || source[from2] !== "[" || source.slice(labelTo, labelTo + 2) !== "](" || source[to - 1] !== ")") return null;
-    const match = source.slice(labelTo + 2, to - 1).match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
-    if (!match) return null;
-    return {
-      kind: "link",
-      from: from2,
-      to,
-      open: "[",
-      close: source.slice(labelTo, to),
-      link: { href: node2.url, title: node2.title ?? null },
-      linkSource: { from: from2, to, labelFrom, labelTo, destinationFrom: labelTo + 2 + match[1].length, destinationTo: labelTo + 2 + match[1].length + match[2].length }
-    };
-  }
-  function framedInlinePart(part, outer, source) {
-    const frames = [...outer, ...inlineFrames(part, source)];
-    if (frames.length > 4 || new Set(frames.map((f) => f.kind)).size !== frames.length) return null;
-    const link2 = frames.find((f) => f.kind === "link");
-    return {
-      ...part,
-      frames,
-      bold: frames.some((f) => f.kind === "bold"),
-      italic: frames.some((f) => f.kind === "italic"),
-      code: frames.some((f) => f.kind === "code"),
-      ...link2 ? { link: link2.link ?? part.link, linkSource: link2.linkSource ?? part.linkSource } : {}
-    };
-  }
-  function projectInlineParts(child, source) {
-    const simple = projectInlineLeaf(child, source);
-    if (simple) return [simple];
-    const parts = [];
-    function walk(node2, frames = []) {
-      if (!["strong", "emphasis", "link"].includes(node2.type)) {
-        const p = projectInlineLeaf(node2, source), part = p && framedInlinePart(p, frames, source);
-        if (!part) return false;
-        parts.push(part);
-        return true;
-      }
-      const kind = node2.type === "strong" ? "bold" : node2.type === "emphasis" ? "italic" : "link";
-      if (!node2.children?.length || frames.length >= 4 || frames.some((f) => f.kind === kind)) return false;
-      let frame;
-      if (kind === "link") frame = linkFrame(node2, source);
-      else {
-        const from2 = node2.position.start.offset, to = node2.position.end.offset;
-        const open = source.slice(from2, node2.children[0].position.start.offset), close2 = source.slice(node2.children.at(-1).position.end.offset, to);
-        if (!(kind === "bold" ? ["**", "__"] : ["*", "_"]).includes(open) || close2 !== open) return false;
-        frame = { kind, from: from2, to, open, close: close2 };
-      }
-      return !!frame && node2.children.every((n) => walk(n, [...frames, frame]));
-    }
-    if (!walk(child) || !parts.length || renderInlineParts(parts, source) !== source.slice(child.position.start.offset, child.position.end.offset)) return null;
-    return parts;
-  }
-  function inlineFrames(part, source) {
-    if (part.frames) return part.frames;
-    if (part.link) {
-      const { from: from3, to: to2 } = part.linkSource || {};
-      return [{ kind: "link", from: from3, to: to2, open: source.slice(from3, part.sourceFrom), close: source.slice(part.sourceTo, to2), link: part.link, linkSource: part.linkSource }];
-    }
-    const kind = part.bold ? "bold" : part.italic ? "italic" : part.code ? "code" : null;
-    if (!kind) return [];
-    const size = kind === "bold" ? 2 : 1, from2 = part.sourceFrom - size, to = part.sourceTo + size;
-    return [{ kind, from: from2, to, open: source.slice(from2, part.sourceFrom), close: source.slice(part.sourceTo, to) }];
-  }
-  function renderInlineParts(parts, source) {
-    let stack = [], out = "";
-    for (const p of parts) {
-      if (!p.text) continue;
-      const frames = inlineFrames(p, source);
-      let common = 0;
-      while (common < stack.length && common < frames.length && stack[common].kind === frames[common].kind && stack[common].from === frames[common].from && stack[common].to === frames[common].to) common++;
-      for (const f of stack.slice(common).toReversed()) out += f.close;
-      for (const f of frames.slice(common)) out += f.open;
-      out += p.text;
-      stack = frames;
-    }
-    for (const f of stack.toReversed()) out += f.close;
-    return out;
-  }
-  function inlineNodes(parts) {
-    const nodes2 = [];
-    for (const p of parts) {
-      if (!p.text) continue;
-      const n = inlineTextNode(p), last = nodes2.at(-1);
-      if (last && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
-      else nodes2.push(n);
-    }
-    return nodes2;
-  }
-  function toggleInlineFrames(part, action, source, remove2 = !!part[action]) {
-    const frames = inlineFrames(part, source);
-    if (remove2) return { ...part, [action]: false, frames: frames.filter((f) => f.kind !== action) };
-    if (part[action]) return part;
-    const marker = action === "bold" ? "**" : action === "italic" ? part.bold ? "_" : "*" : "`";
-    const frame = { kind: action, from: -1, to: -1, open: marker, close: marker };
-    const at = action === "code" ? frames.length : frames.findIndex((f) => f.kind === "code");
-    return { ...part, [action]: true, frames: at < 0 ? [...frames, frame] : [...frames.slice(0, at), frame, ...frames.slice(at)] };
-  }
-  function mergeInlineParts(parts) {
-    const out = [], wrappers = (p) => p.frames?.map((f) => [f.kind, f.open, f.close]);
-    for (const value of parts) {
-      if (!value.text) continue;
-      let part = { ...value };
-      const last = out.at(-1);
-      const sameLink = last && JSON.stringify(last.link) === JSON.stringify(part.link);
-      if (sameLink && part.link) {
-        const at = part.frames.findIndex((f) => f.kind === "link"), previous3 = last.frames.findIndex((f) => f.kind === "link");
-        if (at === previous3 && at >= 0 && JSON.stringify(wrappers(last).slice(0, at + 1)) === JSON.stringify(wrappers(part).slice(0, at + 1)))
-          part.frames = [...last.frames.slice(0, at + 1), ...part.frames.slice(at + 1)];
-      }
-      const sameFrames = last && JSON.stringify(last.frames?.map((f) => f.kind)) === JSON.stringify(part.frames?.map((f) => f.kind));
-      if (sameFrames && sameLink && (!part.link || JSON.stringify(wrappers(last)) === JSON.stringify(wrappers(part)))) last.text += part.text;
-      else out.push(part);
-    }
-    return out;
-  }
-
-  // lib/document-article-source.mjs
-  var reject = () => ({ ok: false, code: "unsafe-source-range" });
-  var cut = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-  var render = (parts, source) => renderInlineParts(parts.map((p) => ({ ...p, text: p.raw ?? p.text })), source);
-  var paragraph = (content5) => ({ type: "paragraph", content: content5 });
-  function nodes(parts) {
-    const out = [];
-    for (const p of parts) {
-      if (!p.text && p.breakKind !== "hard") continue;
-      const n = inlineTextNode(p);
-      if (p.breakKind === "hard") {
-        delete n.text;
-        n.type = "hardBreak";
-        out.push(n);
-        continue;
-      }
-      const last = out.at(-1);
-      if (last?.type === "text" && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
-      else out.push(n);
-    }
-    return out;
-  }
-  function projectArticle(node2, source, position2, blockIndex) {
-    if (node2.type !== "paragraph" || node2.position.start.line === node2.position.end.line || !node2.children?.some((n) => n.type !== "text")) return null;
-    const parts = [];
-    function walk(n, frames = []) {
-      const a = n.position.start.offset, b = n.position.end.offset, raw = source.slice(a, b);
-      if (["strong", "emphasis"].includes(n.type)) {
-        const kind = n.type === "strong" ? "bold" : "italic";
-        if (!n.children?.length || frames.length >= 4 || frames.some((f) => f.kind === kind)) return false;
-        const open = source.slice(a, n.children[0].position.start.offset), close2 = source.slice(n.children.at(-1).position.end.offset, b);
-        if (!(kind === "bold" ? ["**", "__"] : ["*", "_"]).includes(open) || open !== close2) return false;
-        return n.children.every((c) => walk(c, [...frames, { kind, from: a, to: b, open, close: close2 }]));
-      }
-      const flags = { bold: frames.some((f) => f.kind === "bold"), italic: frames.some((f) => f.kind === "italic"), frames };
-      if (n.type === "break") {
-        if (!/^(?: {2,}|\\)(?:\r\n|\n|\r)$/.test(raw)) return false;
-        parts.push({ ...flags, text: "", raw, breakKind: "hard", sourceFrom: a, sourceTo: b });
-        return true;
-      }
-      if (n.type !== "text") {
-        const leaves = projectInlineParts(n, source);
-        if (!leaves) return false;
-        const merged = leaves.map((leaf) => framedInlinePart(leaf, frames, source));
-        if (merged.some((p) => !p)) return false;
-        parts.push(...merged);
-        return true;
-      }
-      if (typeof n.value !== "string" || raw.replace(/\r\n|\r/g, "\n") !== n.value.replace(/\r\n|\r/g, "\n") || /\0/.test(raw) || !raw.isWellFormed()) return false;
-      for (const m of raw.matchAll(/\r\n|\n|\r|[^\r\n]+/g)) {
-        const soft = /^[\r\n]/.test(m[0]);
-        parts.push({ ...flags, text: soft ? " " : m[0], ...soft ? { raw: m[0], breakKind: "soft" } : {}, sourceFrom: a + m.index, sourceTo: a + m.index + m[0].length });
-      }
-      return true;
-    }
-    if (!node2.children.every((n) => walk(n)) || !parts.length) return null;
-    const tail = node2.children.at(-1).position.end.offset, end = node2.position.end.offset, suffix = source.slice(tail, end);
-    if (/^ +$/.test(suffix)) {
-      const last = parts.at(-1);
-      if (!last.breakKind && !last.frames.length && !last.code && !last.link) {
-        last.text += suffix;
-        last.sourceTo = end;
-      } else parts.push({ text: suffix, sourceFrom: tail, sourceTo: end, bold: false, italic: false, frames: [] });
-    }
-    if (render(parts, source) !== source.slice(node2.position.start.offset, node2.position.end.offset)) return null;
-    let at = position2 + 1;
-    const spans = [];
-    for (const p of parts) {
-      p.from = at;
-      p.to = at + (p.breakKind === "hard" ? 1 : p.text.length);
-      at = p.to;
-      if (!p.breakKind) spans.push({ ...p, blockIndex, childIndex: spans.length, article: true });
-    }
-    const size = at - position2 + 1;
-    return { doc: paragraph(nodes(parts)), spans, size, block: { from: position2, to: position2 + size, sourceFrom: node2.position.start.offset, sourceTo: node2.position.end.offset, article: true, parts } };
-  }
-  function split(parts, at) {
-    const left = [], right = [];
-    for (const p of parts) {
-      const size = p.breakKind === "hard" ? 1 : p.text.length;
-      if (at >= size) left.push(p);
-      else if (at <= 0) right.push(p);
-      else {
-        if (p.breakKind || cut(p.text, at)) return null;
-        left.push({ ...p, text: p.text.slice(0, at) });
-        right.push({ ...p, text: p.text.slice(at) });
-      }
-      at -= size;
-    }
-    return [left, right];
-  }
-  function patch(source, p, index2, parts, expected, selection) {
-    const block = p.blocks[index2], raw = render(parts, source), old = source.slice(block.sourceFrom, block.sourceTo);
-    let start = 0, end = old.length, nextEnd = raw.length;
-    while (start < end && start < nextEnd && old[start] === raw[start]) start++;
-    if (cut(old, start) || cut(raw, start)) start--;
-    while (end > start && nextEnd > start && old[end - 1] === raw[nextEnd - 1]) {
-      end--;
-      nextEnd--;
-    }
-    if (cut(old, end) || cut(raw, nextEnd)) {
-      end++;
-      nextEnd++;
-    }
-    const a = block.sourceFrom + start, b = block.sourceFrom + end, text5 = raw.slice(start, nextEnd), next = source.slice(0, a) + text5 + source.slice(b);
-    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity.default.MAX_SOURCE_UNITS) return reject();
-    return { ok: true, source: next, expected, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, structural: true, selection };
-  }
-  function planArticleRange(source, p, { from: from2, to, insert: insert2 }) {
-    const i = p.blocks.findIndex((b2) => b2?.article && from2 > b2.from && to < b2.to);
-    if (i < 0) return null;
-    if (typeof insert2 !== "string" || !insert2.isWellFormed() || /[\0\r\n]/.test(insert2) || insert2.length > 4096) return reject();
-    const block = p.blocks[i], a = split(block.parts, from2 - block.from - 1), b = split(block.parts, to - block.from - 1);
-    if (!a || !b) return reject();
-    const first2 = from2 === to ? block.parts.find((t2) => from2 > t2.from && from2 <= t2.to) || block.parts[0] : block.parts.find((t2) => from2 >= t2.from && from2 < t2.to) || block.parts.at(-1);
-    const added = { ...first2, text: insert2 };
-    delete added.raw;
-    delete added.breakKind;
-    const parts = [...a[0], added, ...b[1]], expected = structuredClone(p.doc);
-    expected.content[i] = paragraph(nodes(parts));
-    const result = patch(source, p, i, parts, expected, { from: from2 + insert2.length, to: from2 + insert2.length });
-    const leaf = p.spans.find((s) => s.blockIndex === i && from2 >= s.from && to <= s.to);
-    if (result.ok && leaf) {
-      const a2 = leaf.sourceFrom + from2 - leaf.from, b2 = leaf.sourceFrom + to - leaf.from;
-      if (source.slice(0, a2) + insert2 + source.slice(b2) === result.source) result.structural = false;
-    }
-    return result;
-  }
-  function mapArticleRange(source, p, change, project) {
-    const plan = change.insert === "\n\n" && change.from === change.to ? planArticleSplit(source, p, change.from) : planArticleRange(source, p, change);
-    return verify(plan, project);
-  }
-  function verify(plan, project) {
-    if (!plan?.ok) return plan;
-    const { expected, ...r } = plan, projection = project(r.source);
-    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...r, projection } : reject();
-  }
-  function planArticleSplit(source, p, from2) {
-    const i = p.blocks.findIndex((b) => b?.article && from2 > b.from && from2 < b.to);
-    if (i < 0) return null;
-    const block = p.blocks[i], s = split(block.parts, from2 - block.from - 1);
-    if (!s) return reject();
-    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n", expected = structuredClone(p.doc);
-    expected.content.splice(i, 1, paragraph(nodes(s[0])), paragraph(nodes(s[1])));
-    const middle = { text: nl + nl, frames: [] };
-    return patch(source, p, i, [...s[0], middle, ...s[1]], expected, { from: from2 + 2, to: from2 + 2 });
-  }
-  function mapArticleFormat(source, p, { action, from: from2, to }, project) {
-    if (action === "split-paragraph" && from2 === to) return verify(planArticleSplit(source, p, from2), project);
-    if (!["bold", "italic", "code"].includes(action)) return null;
-    const i = p.blocks.findIndex((b2) => b2?.article && from2 > b2.from && to < b2.to);
-    if (i < 0) return null;
-    if (from2 === to) return reject();
-    const block = p.blocks[i], a = split(block.parts, from2 - block.from - 1), b = split(block.parts, to - block.from - 1);
-    if (!a || !b) return reject();
-    const chosen = split(a[1], to - from2)?.[0];
-    if (!chosen?.length) return reject();
-    if (action === "code" && (chosen.length !== 1 || chosen[0].breakKind || chosen[0].text.includes("`"))) return reject();
-    const value = chosen.map((t2) => t2.breakKind === "hard" ? " " : t2.text).join("");
-    if (!value.trim() || value.trim() !== value) return reject();
-    const remove2 = chosen.every((t2) => t2[action]);
-    const middle = chosen.map((t2) => toggleInlineFrames(t2, action, source, remove2));
-    const parts = [...a[0], ...middle, ...b[1]], expected = structuredClone(p.doc);
-    expected.content[i] = paragraph(nodes(parts));
-    return verify(patch(source, p, i, parts, expected, { from: from2, to }), project);
-  }
-
-  // lib/document-prose-range.mjs
-  var import_document_source_edit = __toESM(require_document_source_edit(), 1);
-  var reject2 = () => ({ ok: false, code: "unsafe-source-range" });
-  var paragraph2 = (parts) => ({ type: "paragraph", content: nodes(parts) });
-  function proseParts(source, p, index2) {
-    const block = p.blocks[index2];
-    if (!block || p.doc.content[index2]?.type !== "paragraph") return null;
-    if (block.article) return block.parts;
-    const spans = p.spans.filter((s) => s.blockIndex === index2), parts = [];
-    let at = block.sourceFrom;
-    if (!spans.length || spans.some((s) => s.itemIndex !== void 0 || s.quoteIndex !== void 0 || s.tableRow !== void 0 || s.codeBlock)) return null;
-    for (const span of spans) {
-      const frames = inlineFrames(span, source), start = frames[0]?.from ?? span.sourceFrom;
-      if (span.textOffset !== void 0 && start !== at) {
-        const raw = source.slice(at, start);
-        if (!/^(?:\r\n|\n|\r)$/.test(raw)) return null;
-        parts.push({ text: " ", raw, breakKind: "soft", frames: [], from: span.from - 1, to: span.from });
-      }
-      parts.push({ ...span, frames });
-      at = frames[0]?.to ?? span.sourceTo;
-    }
-    return render(parts, source) === source.slice(block.sourceFrom, block.sourceTo) ? parts : null;
-  }
-  function join(left, right) {
-    const a = left.at(-1), b = right[0];
-    if (!a || !b || a.breakKind || b.breakKind) return [...left, ...right];
-    const x = a.frames, y = b.frames;
-    let common = 0;
-    while (common < x.length && common < y.length && x[common].kind === y[common].kind) {
-      if (x[common].kind === "link" && (JSON.stringify(a.link) !== JSON.stringify(b.link) || x[common].open !== y[common].open || x[common].close !== y[common].close)) break;
-      common++;
-    }
-    return [...left, ...right.map((p) => ({ ...p, frames: p.frames.map((f, i) => i < common && f.kind === y[i].kind && f.from === y[i].from && f.to === y[i].to ? x[i] : f) }))];
-  }
-  function canonical(node2) {
-    if (!node2.content) return node2;
-    const content5 = [];
-    for (const value of node2.content) {
-      const child = canonical(value), last = content5.at(-1);
-      if (child.type === "text" && last?.type === "text" && JSON.stringify(child.marks) === JSON.stringify(last.marks)) last.text += child.text;
-      else content5.push({ ...child });
-    }
-    return { ...node2, content: content5 };
-  }
-  function mapProseRange(source, p, { from: from2, to, insert: insert2 }, project) {
-    const first2 = p.blocks.findIndex((b) => b && from2 > b.from && from2 < b.to), last = p.blocks.findIndex((b) => b && to > b.from && to < b.to);
-    const multiline = insert2.includes("\n");
-    if (first2 < 0 || last < first2 || first2 === last && !multiline || insert2 === "\n\n" && from2 === to) return null;
-    const blocks = p.blocks.slice(first2, last + 1), parts = blocks.map((_, i) => proseParts(source, p, first2 + i));
-    if (parts.some((p2) => !p2)) return null;
-    if (!blocks.some((b, i) => b.article || parts[i].some((s) => s.textOffset !== void 0 || s.frames.length))) return null;
-    if (blocks.length > 32 || !insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject2();
-    const values2 = insert2.split("\n\n");
-    if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim())) return reject2();
-    const nl = source.match(/\r\n|\n|\r/)?.[0] || "\n", delimiter = nl + nl;
-    if (blocks.some((b, i) => i && source.slice(blocks[i - 1].sourceTo, b.sourceFrom) !== delimiter)) return reject2();
-    const left = split(parts[0], from2 - blocks[0].from - 1), right = split(parts.at(-1), to - blocks.at(-1).from - 1);
-    if (!left || !right) return reject2();
-    const selected2 = parts[0].find((s) => from2 >= s.from && from2 < s.to) || { frames: [] };
-    const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...selected2, text: text5, raw: void 0, breakKind: void 0 }] : []);
-    groups[0] = join(left[0], groups[0]);
-    groups[groups.length - 1] = join(groups.at(-1), right[1]);
-    const raw = groups.map((v) => render(v, source)).join(delimiter);
-    const expected = structuredClone(p.doc);
-    expected.content.splice(first2, blocks.length, ...groups.map(paragraph2));
-    const next = source.slice(0, blocks[0].sourceFrom) + raw + source.slice(blocks.at(-1).sourceTo), patch2 = import_document_source_edit.default.sourceDifference(source, next);
-    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject2();
-    const projection = project(next);
-    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject2();
-    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
-  }
-
-  // lib/document-list-source.mjs
-  var listNodeAt = (node2, path2) => path2.reduce((n, i) => n.content[i], node2);
-  var sameListParent = (a, b) => JSON.stringify(a.path.slice(0, -1)) === JSON.stringify(b.path.slice(0, -1));
-  function projectSimpleList(node2, source, position2, blockIndex) {
-    const spans = [], items = [];
-    let childIndex = 0;
-    function walk(list3, at, path2 = [], depth2 = 0) {
-      if (list3.type !== "list" || list3.spread || depth2 >= 6) return null;
-      const content5 = [];
-      let offset = at + 1, previousEnd = null;
-      for (const [siblingIndex, item3] of list3.children.entries()) {
-        if (items.length >= 32 || item3.spread) return null;
-        const a = item3.position.start.offset, b = item3.position.end.offset;
-        const lineFrom = Math.max(source.lastIndexOf("\n", a - 1), source.lastIndexOf("\r", a - 1)) + 1;
-        const indent2 = source.slice(lineFrom, a);
-        if (!/^ *$/.test(indent2)) return null;
-        const lineEnd2 = a + (source.slice(a, b).search(/[\r\n]/) < 0 ? b - a : source.slice(a, b).search(/[\r\n]/));
-        const raw = source.slice(a, lineEnd2), marker = raw.match(list3.ordered ? /^(\d{1,9}[.)] )/ : /^([-+*] )/)?.[0];
-        if (!marker || previousEnd !== null && !/^(?:\r\n|\n|\r) *$/.test(source.slice(previousEnd, a))) return null;
-        const task = raw.slice(marker.length).match(/^\[([ xX])\] /), checked = task ? task[1] !== " " : null;
-        const bodyFrom = a + marker.length + (task ? 4 : 0), itemIndex = items.length, itemPath = [...path2, siblingIndex];
-        const children = item3.children, paragraph8 = children[0]?.type === "paragraph" ? children[0] : null;
-        if (children.length > (paragraph8 ? 2 : 1) || children.slice(paragraph8 ? 1 : 0).some((n) => n.type !== "list") || paragraph8 && paragraph8.position.end.line !== paragraph8.position.start.line) return null;
-        if (item3.checked !== null && !task) return null;
-        const inline5 = [], parts = [];
-        let length = 0;
-        for (const child of bodyFrom === lineEnd2 ? [] : paragraph8?.children || []) {
-          const chunk = projectInlineParts(child, source);
-          if (!chunk) return null;
-          for (const part of chunk) {
-            if (part.sourceFrom < bodyFrom) return null;
-            inline5.push(inlineTextNode(part));
-            parts.push({
-              ...part,
-              from: offset + 2 + length,
-              to: offset + 2 + length + part.text.length,
-              blockIndex,
-              childIndex: childIndex++,
-              itemIndex,
-              itemPath,
-              inlineIndex: inline5.length - 1
-            });
-            length += part.text.length;
-          }
-        }
-        if (inline5.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
-          const text5 = source.slice(bodyFrom, lineEnd2);
-          if (text5.trimStart() !== text5) return null;
-          inline5[0].text = text5;
-          Object.assign(parts[0], { text: text5, sourceFrom: bodyFrom, sourceTo: lineEnd2, to: parts[0].from + text5.length });
-          length = text5.length;
-        } else if (!inline5.length) {
-          if (bodyFrom !== lineEnd2) return null;
-          parts.push({
-            text: "",
-            sourceFrom: lineEnd2,
-            sourceTo: lineEnd2,
-            bold: false,
-            from: offset + 2,
-            to: offset + 2,
-            blockIndex,
-            childIndex: childIndex++,
-            itemIndex,
-            itemPath,
-            inlineIndex: 0
-          });
-        } else if (source.slice(bodyFrom, parts[0].sourceFrom) !== (parts[0].frames ? source.slice(parts[0].frames[0].from, parts[0].sourceFrom) : parts[0].link ? "[" : parts[0].bold || parts[0].italic || parts[0].code ? source.slice(parts[0].sourceFrom - (parts[0].bold ? 2 : 1), parts[0].sourceFrom) : "")) return null;
-        const row = {
-          sourceFrom: a,
-          sourceTo: lineEnd2,
-          subtreeTo: b,
-          lineFrom,
-          indent: indent2,
-          bodyFrom,
-          marker,
-          checked,
-          path: itemPath,
-          siblingIndex,
-          from: offset + 2,
-          to: offset + 2 + length
-        };
-        items.push(row);
-        spans.push(...parts);
-        const itemContent = [{ type: "paragraph", content: inline5 }];
-        let size = length + 4;
-        const nested = children[paragraph8 ? 1 : 0];
-        if (nested) {
-          if (!/^(?:\r\n|\n|\r) +$/.test(source.slice(lineEnd2, nested.position.start.offset))) return null;
-          const sub = walk(nested, offset + length + 3, [...itemPath, 1], depth2 + 1);
-          if (!sub) return null;
-          itemContent.push(sub.doc);
-          size += sub.size;
-        }
-        content5.push({ type: "listItem", ...checked === null ? {} : { attrs: { checked } }, content: itemContent });
-        offset += size;
-        previousEnd = b;
-      }
-      return { doc: { type: list3.ordered ? "orderedList" : "bulletList", ...list3.ordered ? { attrs: { start: list3.start } } : {}, content: content5 }, size: offset - at + 1 };
-    }
-    if (node2.type !== "list") return null;
-    const result = walk(node2, position2);
-    return result ? { ...result, spans, items } : null;
-  }
-
-  // lib/document-structured-range.mjs
-  var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
-  var reject3 = () => ({ ok: false, code: "unsafe-source-range" });
-  var paragraph3 = (parts) => ({ type: "paragraph", content: nodes(parts) });
-  function mapStructuredRange(source, p, { from: from2, to, insert: insert2 }, project) {
-    const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to), block = p.blocks[index2];
-    if (!block?.items && !block?.quoteRows) return null;
-    const list3 = !!block.items, rows = block.items || block.quoteRows;
-    const first2 = rows.findIndex((r) => from2 >= r.from && from2 <= r.to), last = rows.findIndex((r) => to >= r.from && to <= r.to), multiline = insert2.includes("\n");
-    if (first2 < 0 || last < first2) return null;
-    if (first2 === last && !multiline) return null;
-    const selected2 = rows.slice(first2, last + 1), spans = p.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= first2 && s.itemIndex <= last : s.quoteIndex >= first2 && s.quoteIndex <= last));
-    if (list3 && !multiline && !spans.some((s) => s.link || s.frames)) return null;
-    if (list3 && selected2.some((r) => !sameListParent(rows[first2], r) || r.subtreeTo !== r.sourceTo)) return reject3();
-    if (!insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject3();
-    const values2 = insert2.split("\n\n");
-    if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim()) || rows.length - selected2.length + values2.length > 32) return reject3();
-    const parts = selected2.map((r, i) => spans.filter((s) => list3 ? s.itemIndex === first2 + i : s.quoteIndex === first2 + i).map((s) => ({ ...s, frames: inlineFrames(s, source) })));
-    if (parts.some((s, i) => !s.length || s.some((t2) => t2.textOffset !== void 0) || renderInlineParts(s, source) !== source.slice(selected2[i].bodyFrom, selected2[i].sourceTo))) return reject3();
-    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
-    for (let i = 1; i < selected2.length; i++) {
-      const row = selected2[i], gap = list3 ? nl + row.indent + source.slice(row.sourceFrom, row.bodyFrom) : nl + "> " + nl + "> ";
-      if (source.slice(selected2[i - 1].sourceTo, row.bodyFrom) !== gap) return reject3();
-    }
-    const left = split(parts[0], from2 - rows[first2].from), right = split(parts.at(-1), to - rows[last].from);
-    if (!left || !right) return reject3();
-    const mark2 = parts[0].find((s) => from2 >= s.from && from2 < s.to) || { frames: [] };
-    const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...mark2, text: text5 }] : []);
-    groups[0] = join(left[0], groups[0]);
-    groups[groups.length - 1] = join(groups.at(-1), right[1]);
-    const expected = structuredClone(p.doc), node2 = expected.content[index2];
-    let raw;
-    if (list3) {
-      const parent = listNodeAt(node2, rows[first2].path.slice(0, -1)), original = parent.content[rows[first2].siblingIndex], ordered = parent.type === "orderedList", row = rows[first2];
-      const prefix = (i) => row.indent + (ordered ? `${Math.min(999999999, parseInt(row.marker, 10) + i)}${row.marker.trim().at(-1)} ` : row.marker) + (row.checked === null ? "" : "[ ] ");
-      raw = groups.map((g, i) => (i ? nl + prefix(i) : "") + renderInlineParts(g, source)).join("");
-      const items = groups.map((g, i) => i ? { type: "listItem", ...row.checked === null ? {} : { attrs: { checked: false } }, content: [paragraph3(g)] } : { ...original, content: [paragraph3(g)] });
-      parent.content.splice(row.siblingIndex, selected2.length, ...items);
-    } else {
-      raw = groups.map((g) => renderInlineParts(g, source)).join(nl + "> " + nl + "> ");
-      node2.content.splice(first2, selected2.length, ...groups.map(paragraph3));
-    }
-    const a = rows[first2].bodyFrom, b = rows[last].sourceTo, next = source.slice(0, a) + raw + source.slice(b), patch2 = import_document_source_edit2.default.sourceDifference(source, next);
-    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject3();
-    const projection = project(next);
-    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject3();
-    const at = from2 + insert2.length + (list3 ? 2 * (values2.length - 1) : 0);
-    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, selection: { from: at, to: at } };
-  }
-
-  // lib/document-soft-edit.mjs
-  var import_document_capacity2 = __toESM(require_document_capacity(), 1);
-  function planSoftRange(source, p, { from: from2, to, insert: insert2 }) {
-    const split4 = insert2 === "\n\n" && from2 === to;
-    if (!split4 && (/[\0\r\n]/.test(insert2) || !insert2.isWellFormed())) return null;
-    const i = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to), spans = p.spans.filter((s) => s.blockIndex === i && s.textOffset !== void 0);
-    if (!spans.length) return null;
-    const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
-    if (!left || !right || !split4 && left === right) return null;
-    const cut4 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-    const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from, reject11 = () => ({ ok: false, code: "unsafe-source-range" });
-    if (cut4(left.text, from2 - left.from) || cut4(right.text, to - right.from)) return reject11();
-    const nl = source.slice(p.blocks[i].sourceFrom, p.blocks[i].sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
-    const text5 = split4 ? nl + nl : insert2, next = source.slice(0, a) + text5 + source.slice(b);
-    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity2.default.MAX_SOURCE_UNITS) return reject11();
-    const expected = structuredClone(p.doc), raw = expected.content[i].content[0].text, at = from2 - p.blocks[i].from - 1, end = to - p.blocks[i].from - 1;
-    const paragraph8 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
-    if (split4) expected.content.splice(i, 1, paragraph8(raw.slice(0, at)), paragraph8(raw.slice(at)));
-    else expected.content[i] = paragraph8(raw.slice(0, at) + insert2 + raw.slice(end));
-    return { ok: true, source: next, expected, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
-  }
-  function mapSoftRange(source, p, change, project) {
-    const plan = planSoftRange(source, p, change);
-    if (!plan?.ok) return plan;
-    const { expected, ...result } = plan, projection = project(plan.source);
-    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...result, projection } : { ok: false, code: "unsafe-source-range" };
-  }
-
-  // lib/document-source-map.mjs
-  var import_document_capacity7 = __toESM(require_document_capacity(), 1);
-
-  // lib/document-image-source.mjs
-  var validText = (s) => typeof s === "string" && !/[\u0000-\u001f\u007f]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
-  var validImageLabel = (s) => validText(s) && s.length <= 512 && !/[\[\]\\<>]/.test(s);
-  function validImageTarget(s) {
-    if (!validText(s) || !s || s.length > 2048 || s.trim() !== s || /[<>"'\\]/.test(s) || /%(?:00|0a|0d)/i.test(s)) return false;
-    if (/^https?:/i.test(s)) {
-      try {
-        const u = new URL(s);
-        return !/\s/u.test(s) && !!u.hostname && !u.username && !u.password;
-      } catch {
-        return false;
-      }
-    }
-    return !s.startsWith("/") && !s.startsWith("#") && !s.includes(":");
-  }
-  var imageNode = (alt, src, title = null) => ({ type: "documentImage", attrs: { alt, src, title } });
-  function projectImage(node2, source, position2) {
-    if (node2.type !== "paragraph" || node2.children?.length !== 1 || node2.children[0].type !== "image") return null;
-    const child = node2.children[0], start = node2.position.start.offset, end = node2.position.end.offset, raw = source.slice(start, end);
-    const m = /^!\[([^\]\\\r\n]*)\]\((<[^<>\r\n]+>|[^\s()<>]+)([ \t]+(?:"[^"\r\n]*"|'[^'\r\n]*'|\([^()\r\n]*\)))?\)$/.exec(raw);
-    if (!m || m[1] !== child.alt || !validImageLabel(child.alt) || !validImageTarget(child.url) || (m[2].startsWith("<") ? m[2].slice(1, -1) : m[2]) !== child.url) return null;
-    return {
-      doc: imageNode(child.alt, child.url, child.title ?? null),
-      spans: [],
-      size: 1,
-      block: {
-        from: position2,
-        to: position2 + 1,
-        sourceFrom: start,
-        sourceTo: end,
-        image: { alt: child.alt, src: child.url, title: child.title ?? null, suffix: raw.slice(2 + child.alt.length), titleSuffix: m[3] || "" }
-      }
-    };
-  }
-
-  // lib/document-tree-edit.mjs
-  var import_document_capacity3 = __toESM(require_document_capacity(), 1);
-  var reject4 = () => ({ ok: false, code: "unsafe-source-range" });
-  var cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-  var inlineTarget = (doc4, s) => s.tableRow !== void 0 ? doc4.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0] : s.itemIndex !== void 0 ? listNodeAt(doc4.content[s.blockIndex], s.itemPath ?? [s.itemIndex]).content[0] : s.quoteIndex !== void 0 ? doc4.content[s.blockIndex].content[s.quoteIndex] : doc4.content[s.blockIndex];
-  function patchInlineParts(source, p, spans, pieces, selection) {
-    const frames = spans.map((s) => inlineFrames(s, source));
-    const a = frames[0][0]?.from ?? spans[0].sourceFrom, b = frames.at(-1)[0]?.to ?? spans.at(-1).sourceTo;
-    const old = source.slice(a, b);
-    if (renderInlineParts(spans, source) !== old) return reject4();
-    const raw = renderInlineParts(pieces, source);
-    let start = 0, end = old.length, nextEnd = raw.length;
-    while (start < end && start < nextEnd && old[start] === raw[start]) start++;
-    if (cut2(old, start) || cut2(raw, start)) start--;
-    while (end > start && nextEnd > start && old[end - 1] === raw[nextEnd - 1]) {
-      end--;
-      nextEnd--;
-    }
-    if (cut2(old, end) || cut2(raw, nextEnd)) {
-      end++;
-      nextEnd++;
-    }
-    const from2 = a + start, to = a + end, insert2 = raw.slice(start, nextEnd), next = source.slice(0, from2) + insert2 + source.slice(to);
-    if (to - from2 > 4096 || insert2.length > 4096 || next.length > import_document_capacity3.default.MAX_SOURCE_UNITS) return reject4();
-    const expected = structuredClone(p.doc);
-    inlineTarget(expected, spans[0]).content = inlineNodes(pieces);
-    return { ok: true, source: next, expected, change: { from: from2, to, insert: insert2 }, inverseSource: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }, structural: true, selection };
-  }
-  function planTreeRange(source, p, { from: from2, to, insert: insert2 }, spans) {
-    if (!spans.some((s) => s.frames)) return null;
-    const touched = from2 === to ? [spans.find((s) => s.from < from2 && from2 <= s.to) || spans[0]] : spans.filter((s) => s.from < to && s.to > from2);
-    const first2 = touched[0], last = touched.at(-1);
-    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject4();
-    const pieces = [
-      ...spans.slice(0, spans.indexOf(first2)),
-      { ...first2, text: first2.text.slice(0, from2 - first2.from) + insert2 },
-      { ...last, text: last.text.slice(to - last.from) },
-      ...spans.slice(spans.indexOf(last) + 1)
-    ];
-    return patchInlineParts(source, p, spans, pieces, { from: from2 + insert2.length, to: from2 + insert2.length });
-  }
-  function mapCombinedMark(source, p, { action, from: from2, to }, project) {
-    if (!["bold", "italic", "code"].includes(action)) return null;
-    const s = p.spans.find((s2) => from2 >= s2.from && to <= s2.to);
-    if (!s || s.article || s.codeBlock || s.textOffset !== void 0 || !s.frames && !s.link && !["bold", "italic", "code"].some((k) => k !== action && s[k])) return null;
-    if (from2 === to || cut2(s.text, from2 - s.from) || cut2(s.text, to - s.from)) return { ok: false, code: "unsafe-format-range" };
-    const value = s.text.slice(from2 - s.from, to - s.from);
-    if (value.trim() !== value || !value || action === "code" && value.includes("`")) return { ok: false, code: "unsafe-format-range" };
-    const spans = p.spans.filter((n) => n.blockIndex === s.blockIndex && n.itemIndex === s.itemIndex && n.quoteIndex === s.quoteIndex && n.tableRow === s.tableRow && n.tableCol === s.tableCol);
-    const selected2 = toggleInlineFrames({ ...s, text: value }, action, source);
-    const i = spans.indexOf(s), pieces = [...spans.slice(0, i), { ...s, text: s.text.slice(0, from2 - s.from) }, selected2, { ...s, text: s.text.slice(to - s.from) }, ...spans.slice(i + 1)];
-    const plan = patchInlineParts(source, p, spans, pieces, { from: from2, to });
-    if (!plan.ok) return plan;
-    const { expected, ...result } = plan, projection = project(plan.source);
-    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...result, projection } : { ok: false, code: "unsafe-format-range" };
-  }
-
-  // lib/document-table-source.mjs
-  var import_document_capacity4 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS } = import_document_capacity4.default;
-  var TABLE_ROWS = 32;
-  var TABLE_COLUMNS = 8;
-  var inline = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
-  var tableCell = (text5, header, align = null) => ({ type: header ? "tableHeader" : "tableCell", attrs: { align }, content: [{ type: "paragraph", content: inline(text5) }] });
-  var valid = (text5) => typeof text5 === "string" && !/[\x00-\x1f\x7f|\\\u2028\u2029]/u.test(text5) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text5);
-  function cellParts(children, text5, from2, source) {
-    if (children.length <= 1 && (!children.length ? !text5.trim() : children[0].type === "text" && children[0].value === text5.trim()))
-      return [{ text: text5, sourceFrom: from2, sourceTo: from2 + text5.length, bold: false, frames: [] }];
-    const parts = [];
-    let at = from2;
-    for (const child of children) {
-      const a = child.position.start.offset, b = child.position.end.offset, gap2 = source.slice(at, a);
-      if (a < at || b > from2 + text5.length || !/^ *$/.test(gap2)) return null;
-      if (gap2) parts.push({ text: gap2, sourceFrom: at, sourceTo: a, bold: false, frames: [] });
-      const chunk = projectInlineParts(child, source);
-      if (!chunk) return null;
-      parts.push(...chunk.map((p) => ({ ...p, frames: inlineFrames(p, source) })));
-      at = b;
-    }
-    const gap = source.slice(at, from2 + text5.length);
-    if (!/^ *$/.test(gap)) return null;
-    if (gap) parts.push({ text: gap, sourceFrom: at, sourceTo: from2 + text5.length, bold: false, frames: [] });
-    return parts.length && renderInlineParts(parts, source) === text5 ? parts : null;
-  }
-  function projectTable(node2, source, position2, blockIndex) {
-    if (node2.type !== "table" || node2.children.length > TABLE_ROWS || node2.align.length > TABLE_COLUMNS) return null;
-    const start = node2.position.start.offset, end = node2.position.end.offset, lines = [], raw = source.slice(start, end);
-    for (const m of raw.matchAll(/([^\r\n]+)(\r\n|\n|\r|$)/g)) {
-      const text5 = m[1];
-      if (!text5.startsWith("|") || !text5.endsWith("|")) return null;
-      const values2 = text5.slice(1, -1).split("|");
-      if (values2.length !== node2.align.length || !values2.length || values2.some((t2) => !valid(t2))) return null;
-      lines.push({ text: text5, values: values2, from: start + m.index, to: start + m.index + text5.length, eol: m[2] });
-    }
-    if (lines.length !== node2.children.length + 1 || lines[1].values.some((s) => !/^ *:?-{3,}:? *$/.test(s))) return null;
-    const content5 = [], spans = [], cells = [];
-    let pos = position2 + 1, childIndex = 0;
-    for (const [row, n] of node2.children.entries()) {
-      const line = lines[row ? row + 1 : 0];
-      if (n.children.length !== line.values.length) return null;
-      const children = [], mapped = [];
-      let at = line.from + 1;
-      pos++;
-      for (const [col, rawText] of line.values.entries()) {
-        const parts = cellParts(n.children[col].children, rawText, at, source);
-        if (!parts) return null;
-        const text5 = parts.map((p) => p.text).join(""), cell2 = { text: text5, sourceFrom: at, sourceTo: at + rawText.length, from: pos + 2, to: pos + 2 + text5.length, tableRow: row, tableCol: col, blockIndex };
-        let offset = cell2.from;
-        const leaves = parts.map((p) => {
-          const s = { ...p, from: offset, to: offset + p.text.length, tableRow: row, tableCol: col, blockIndex, childIndex: childIndex++ };
-          offset = s.to;
-          return s;
-        });
-        const pmCell = tableCell("", row === 0, node2.align[col]);
-        pmCell.content[0].content = inlineNodes(parts);
-        children.push(pmCell);
-        mapped.push({ ...cell2, parts: leaves });
-        spans.push(...leaves);
-        pos += text5.length + 4;
-        at += rawText.length + 1;
-      }
-      cells.push(mapped);
-      content5.push({ type: "tableRow", content: children });
-      pos++;
-    }
-    pos++;
-    return { doc: { type: "table", content: content5 }, spans, size: pos - position2, block: { from: position2, to: pos, sourceFrom: start, sourceTo: end, cells, tableLines: lines } };
-  }
-  function planTableText(source, projection, { from: from2, to, insert: insert2 }) {
-    const block = projection.blocks.find((b) => b?.cells && (from2 > b.from && from2 < b.to || to > b.from && to < b.to));
-    if (!block) return null;
-    const reject11 = () => ({ ok: false, code: "unsafe-source-range" }), cell2 = block.cells.flat().find((c) => from2 >= c.from && to <= c.to);
-    if (!cell2 || !valid(insert2)) return reject11();
-    const plan = planTreeRange(source, projection, { from: from2, to, insert: insert2 }, cell2.parts);
-    if (!plan?.ok) return plan || reject11();
-    const leaf = cell2.parts.find((s) => from2 >= s.from && to <= s.to);
-    if (leaf) {
-      const a = leaf.sourceFrom + from2 - leaf.from, b = leaf.sourceFrom + to - leaf.from;
-      if (source.slice(0, a) + insert2 + source.slice(b) === plan.source) plan.structural = false;
-    }
-    return plan;
-  }
-  function mapTableText(source, projection, change, project) {
-    const plan = planTableText(source, projection, change);
-    if (!plan?.ok) return plan;
-    const { expected, ...result } = plan, next = project(plan.source);
-    return JSON.stringify(next.doc) === JSON.stringify(expected) ? { ...result, projection: next } : { ok: false, code: "unsafe-source-range" };
-  }
-
-  // lib/document-inline-source.mjs
-  var import_document_capacity5 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS2 } = import_document_capacity5.default;
-  function planInlineRange(source, projection, change) {
-    const { from: from2, to, insert: insert2 } = change, reject11 = () => ({ ok: false, code: "unsafe-source-range" });
-    const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return null;
-    const block = projection.blocks[index2], list3 = !!block.items;
-    const quoteRow = block.quoteRows?.findIndex((r) => from2 >= r.from && to <= r.to);
-    const quoted = quoteRow !== void 0 && quoteRow >= 0;
-    if (!list3 && !quoted && !["paragraph", "heading"].includes(projection.doc.content[index2].type)) return null;
-    const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
-    const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
-    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject11();
-    const cross = list3 && endItem > itemIndex;
-    if (cross && block.items.slice(itemIndex, endItem + 1).some((r) => !sameListParent(block.items[itemIndex], r) || r.subtreeTo !== r.sourceTo)) return reject11();
-    const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : quoted ? s.quoteIndex === quoteRow : s.itemIndex === void 0));
-    if (cross && spans.some((s) => s.link || s.frames)) return reject11();
-    const tree = planTreeRange(source, projection, change, spans);
-    if (tree) return tree;
-    if (!list3 && !spans.some((s) => s.bold || s.italic || s.code || s.link) || spans.some((s) => s.textOffset !== void 0)) return null;
-    const cut4 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-    const tokens = spans.map((s) => ({
-      ...s,
-      a: s.link ? s.linkSource?.from : s.sourceFrom - (s.bold ? 2 : s.italic || s.code ? 1 : 0),
-      b: s.link ? s.linkSource?.to : s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
-      marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : ""
-    }));
-    if (tokens.some((s, i) => !Number.isInteger(s.a) || !Number.isInteger(s.b) || (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject11();
-    if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
-      const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
-      return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
-    })) return reject11();
-    const left = cross ? tokens.filter((s) => s.itemIndex === itemIndex) : null, right = cross ? tokens.filter((s) => s.itemIndex === endItem) : null;
-    const touched = cross ? [left.find((s) => from2 >= s.from && from2 < s.to) || left.at(-1), right.find((s) => to > s.from && to <= s.to) || right[0]] : from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
-    const first2 = touched[0], last = touched.at(-1);
-    if (!first2 || from2 < first2.from || to > last.to || cut4(first2.text, from2 - first2.from) || cut4(last.text, to - last.from)) return reject11();
-    const pieces = [];
-    const append2 = (text6, token) => {
-      if (!text6) return;
-      const previous3 = pieces.at(-1);
-      if (previous3 && previous3.bold === token.bold && !!previous3.italic === !!token.italic && !!previous3.code === !!token.code && JSON.stringify(previous3.link) === JSON.stringify(token.link)) previous3.text += text6;
-      else pieces.push({ ...token, text: text6 });
-    };
-    append2(first2.text.slice(0, from2 - first2.from), first2);
-    append2(insert2, cross && from2 === block.items[itemIndex].to ? { bold: false, marker: "" } : first2);
-    append2(last.text.slice(to - last.from), last);
-    const replacement = pieces.map((s) => s.link ? "[" + s.text + source.slice(s.sourceTo, s.b) : s.marker + s.text + s.marker).join("");
-    const original = source.slice(first2.a, last.b);
-    let start = 0, end = original.length, nextEnd = replacement.length;
-    while (start < end && start < nextEnd && original[start] === replacement[start]) start++;
-    if (cut4(original, start) || cut4(replacement, start)) start--;
-    while (end > start && nextEnd > start && original[end - 1] === replacement[nextEnd - 1]) {
-      end--;
-      nextEnd--;
-    }
-    if (cut4(original, end) || cut4(replacement, nextEnd)) {
-      end++;
-      nextEnd++;
-    }
-    const a = first2.a + start, b = first2.a + end, text5 = replacement.slice(start, nextEnd);
-    if (b - a > 4096 || text5.length > 4096) return reject11();
-    const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS2) return reject11();
-    const expected = structuredClone(projection.doc), nodes2 = [];
-    const add2 = (s) => {
-      if (!s.text) return;
-      const node2 = { type: "text", text: s.text, ...s.link ? { marks: [{ type: "link", attrs: s.link }] } : s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes2.at(-1);
-      if (prev && JSON.stringify(prev.marks) === JSON.stringify(node2.marks)) prev.text += node2.text;
-      else nodes2.push(node2);
-    };
-    for (const s of tokens.slice(0, tokens.indexOf(first2))) add2(s);
-    pieces.forEach(add2);
-    for (const s of tokens.slice(tokens.indexOf(last) + 1)) add2(s);
-    const target = list3 ? listNodeAt(expected.content[index2], block.items[itemIndex].path).content[0] : quoted ? expected.content[index2].content[quoteRow] : expected.content[index2];
-    if (list3 && !nodes2.length && block.items.length === 1 && spans.some((s) => s.link)) return reject11();
-    target.content = nodes2;
-    if (cross) listNodeAt(expected.content[index2], block.items[itemIndex].path.slice(0, -1)).content.splice(block.items[itemIndex].siblingIndex + 1, endItem - itemIndex);
-    return {
-      ok: true,
-      source: next,
-      expected,
-      change: { from: a, to: b, insert: text5 },
-      inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) },
-      structural: true,
-      selection: { from: from2 + insert2.length, to: from2 + insert2.length }
-    };
-  }
-  function mapInlineRange(source, projection, change, project) {
-    const planned = planInlineRange(source, projection, change);
-    if (!planned?.ok) return planned;
-    const { expected, ...result } = planned, next = project(result.source);
-    return JSON.stringify(next.doc) === JSON.stringify(expected) ? { ...result, projection: next } : { ok: false, code: "unsafe-source-range" };
-  }
 
   // node_modules/bail/index.js
   function bail(error) {
@@ -1327,7 +462,7 @@
   VFileMessage.prototype.source = void 0;
 
   // node_modules/vfile/lib/minpath.browser.js
-  var minpath = { basename, dirname, extname, join: join2, sep: "/" };
+  var minpath = { basename, dirname, extname, join, sep: "/" };
   function basename(path2, extname2) {
     if (extname2 !== void 0 && typeof extname2 !== "string") {
       throw new TypeError('"ext" argument must be a string');
@@ -1444,7 +579,7 @@
     }
     return path2.slice(startDot, end);
   }
-  function join2(...segments) {
+  function join(...segments) {
     let index2 = -1;
     let joined;
     while (++index2 < segments.length) {
@@ -2258,9 +1393,9 @@
     parse(file) {
       this.freeze();
       const realFile = vfile(file);
-      const parser6 = this.parser || this.Parser;
-      assertParser("parse", parser6);
-      return parser6(String(realFile), realFile);
+      const parser7 = this.parser || this.Parser;
+      assertParser("parse", parser7);
+      return parser7(String(realFile), realFile);
     }
     /**
      * Process the given file as configured on the processor.
@@ -2310,7 +1445,7 @@
       assertParser("process", this.parser || this.Parser);
       assertCompiler("process", this.compiler || this.Compiler);
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject11) {
+      function executor(resolve, reject12) {
         const realFile = vfile(file);
         const parseTree = (
           /** @type {HeadTree extends undefined ? Node : HeadTree} */
@@ -2340,7 +1475,7 @@
         });
         function realDone(error, file2) {
           if (error || !file2) {
-            reject11(error);
+            reject12(error);
           } else if (resolve) {
             resolve(file2);
           } else {
@@ -2444,7 +1579,7 @@
         file = void 0;
       }
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject11) {
+      function executor(resolve, reject12) {
         ok(
           typeof file !== "function",
           "`file` can\u2019t be a `done` anymore, we checked"
@@ -2457,7 +1592,7 @@
             outputTree || tree
           );
           if (error) {
-            reject11(error);
+            reject12(error);
           } else if (resolve) {
             resolve(resultingTree);
           } else {
@@ -6052,14 +5187,14 @@
     return start;
     function start(code3) {
       let index2 = self.events.length;
-      let paragraph8;
+      let paragraph9;
       while (index2--) {
         if (self.events[index2][1].type !== "lineEnding" && self.events[index2][1].type !== "linePrefix" && self.events[index2][1].type !== "content") {
-          paragraph8 = self.events[index2][1].type === "paragraph";
+          paragraph9 = self.events[index2][1].type === "paragraph";
           break;
         }
       }
-      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph8)) {
+      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph9)) {
         effects.enter("setextHeadingLine");
         marker = code3;
         return before(code3);
@@ -6340,7 +5475,7 @@
   };
 
   // node_modules/micromark/lib/create-tokenizer.js
-  function createTokenizer(parser6, initialize, from2) {
+  function createTokenizer(parser7, initialize, from2) {
     let point3 = {
       _bufferIndex: -1,
       _index: 0,
@@ -6369,7 +5504,7 @@
       defineSkip,
       events: [],
       now,
-      parser: parser6,
+      parser: parser7,
       previous: null,
       sliceSerialize,
       sliceStream,
@@ -6669,7 +5804,7 @@
       /** @type {FullNormalizedExtension} */
       combineExtensions([constructs_exports, ...settings.extensions || []])
     );
-    const parser6 = {
+    const parser7 = {
       constructs: constructs2,
       content: create(content),
       defined: [],
@@ -6679,11 +5814,11 @@
       string: create(string),
       text: create(text)
     };
-    return parser6;
+    return parser7;
     function create(initial) {
       return creator;
       function creator(from2) {
-        return createTokenizer(parser6, initial, from2);
+        return createTokenizer(parser7, initial, from2);
       }
     }
   }
@@ -6839,7 +5974,7 @@
         listItemValue: onenterlistitemvalue,
         listOrdered: opener(list3, onenterlistordered),
         listUnordered: opener(list3),
-        paragraph: opener(paragraph8),
+        paragraph: opener(paragraph9),
         reference: onenterreference,
         referenceString: buffer,
         resourceDestinationString: buffer,
@@ -7411,7 +6546,7 @@
         children: []
       };
     }
-    function paragraph8() {
+    function paragraph9() {
       return {
         type: "paragraph",
         children: []
@@ -7504,8 +6639,8 @@
   // node_modules/remark-parse/lib/index.js
   function remarkParse(options) {
     const self = this;
-    self.parser = parser6;
-    function parser6(doc4) {
+    self.parser = parser7;
+    function parser7(doc4) {
       return fromMarkdown(doc4, {
         ...self.data("settings"),
         ...options,
@@ -9075,7 +8210,7 @@
   }
 
   // node_modules/mdast-util-to-markdown/lib/handle/paragraph.js
-  function paragraph4(node2, _, state, info) {
+  function paragraph(node2, _, state, info) {
     const exit3 = state.enter("paragraph");
     const subexit = state.enter("phrasing");
     const value = state.containerPhrasing(node2, info);
@@ -9211,7 +8346,7 @@
     linkReference,
     list: list2,
     listItem,
-    paragraph: paragraph4,
+    paragraph,
     root,
     strong,
     text: text3,
@@ -10771,6 +9906,958 @@
     toMarkdownExtensions.push(gfmToMarkdown(settings));
   }
 
+  // lib/document-article-source.mjs
+  var import_document_capacity = __toESM(require_document_capacity(), 1);
+
+  // lib/document-inline-leaf.mjs
+  function projectInlineLeaf(child, source) {
+    const bold = child.type === "strong", italic = child.type === "emphasis", code3 = child.type === "inlineCode", link2 = child.type === "link";
+    const leaf = (bold || italic || link2) && child.children?.length === 1 ? child.children[0] : child;
+    let a = leaf.position?.start.offset, b = leaf.position?.end.offset;
+    if (code3) {
+      a++;
+      b--;
+    }
+    const value = leaf.value;
+    if ((code3 ? leaf.type !== "inlineCode" : leaf.type !== "text") || typeof value !== "string" || !value || /[\0\r\n]/.test(value) || !value.isWellFormed() || source.slice(a, b) !== value) return null;
+    if (code3) {
+      if (value.includes("`") || source[a - 1] !== "`" || source[b] !== "`") return null;
+    }
+    if (bold || italic) {
+      const marker = source.slice(child.position.start.offset, a);
+      if (!(bold ? ["**", "__"] : ["*", "_"]).includes(marker) || source.slice(b, child.position.end.offset) !== marker) return null;
+    }
+    if (link2 && (child.position.start.line !== child.position.end.line || source.slice(child.position.start.offset, a) !== "[" || source.slice(b, b + 2) !== "](" || source[child.position.end.offset - 1] !== ")")) return null;
+    let linkSource;
+    if (link2) {
+      const tail = source.slice(b + 2, child.position.end.offset - 1);
+      const match = tail.match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
+      if (match) linkSource = {
+        from: child.position.start.offset,
+        to: child.position.end.offset,
+        labelFrom: a,
+        labelTo: b,
+        destinationFrom: b + 2 + match[1].length,
+        destinationTo: b + 2 + match[1].length + match[2].length
+      };
+    }
+    return { ...linkSource ? { linkSource } : {}, text: value, sourceFrom: a, sourceTo: b, bold, ...italic ? { italic: true } : {}, ...code3 ? { code: true } : {}, ...link2 ? { link: { href: child.url, title: child.title ?? null } } : {} };
+  }
+  function inlineTextNode(part) {
+    const marks2 = [...part.link ? [{ type: "link", attrs: part.link }] : [], ...part.bold ? [{ type: "bold" }] : [], ...part.code ? [{ type: "code" }] : [], ...part.italic ? [{ type: "italic" }] : []];
+    return { type: "text", text: part.text, ...marks2.length ? { marks: marks2 } : {} };
+  }
+
+  // lib/document-inline-tree.mjs
+  function linkFrame(node2, source) {
+    const from2 = node2.position.start.offset, to = node2.position.end.offset;
+    const labelFrom = node2.children?.[0]?.position.start.offset, labelTo = node2.children?.at(-1)?.position.end.offset;
+    if (node2.position.start.line !== node2.position.end.line || labelFrom !== from2 + 1 || source[from2] !== "[" || source.slice(labelTo, labelTo + 2) !== "](" || source[to - 1] !== ")") return null;
+    const match = source.slice(labelTo + 2, to - 1).match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
+    if (!match) return null;
+    return {
+      kind: "link",
+      from: from2,
+      to,
+      open: "[",
+      close: source.slice(labelTo, to),
+      link: { href: node2.url, title: node2.title ?? null },
+      linkSource: { from: from2, to, labelFrom, labelTo, destinationFrom: labelTo + 2 + match[1].length, destinationTo: labelTo + 2 + match[1].length + match[2].length }
+    };
+  }
+  function framedInlinePart(part, outer, source) {
+    const frames = [...outer, ...inlineFrames(part, source)];
+    if (frames.length > 4 || new Set(frames.map((f) => f.kind)).size !== frames.length) return null;
+    const link2 = frames.find((f) => f.kind === "link");
+    return {
+      ...part,
+      frames,
+      bold: frames.some((f) => f.kind === "bold"),
+      italic: frames.some((f) => f.kind === "italic"),
+      code: frames.some((f) => f.kind === "code"),
+      ...link2 ? { link: link2.link ?? part.link, linkSource: link2.linkSource ?? part.linkSource } : {}
+    };
+  }
+  function projectInlineParts(child, source) {
+    const simple = projectInlineLeaf(child, source);
+    if (simple) return [simple];
+    const parts = [];
+    function walk(node2, frames = []) {
+      if (!["strong", "emphasis", "link"].includes(node2.type)) {
+        const p = projectInlineLeaf(node2, source), part = p && framedInlinePart(p, frames, source);
+        if (!part) return false;
+        parts.push(part);
+        return true;
+      }
+      const kind = node2.type === "strong" ? "bold" : node2.type === "emphasis" ? "italic" : "link";
+      if (!node2.children?.length || frames.length >= 4 || frames.some((f) => f.kind === kind)) return false;
+      let frame;
+      if (kind === "link") frame = linkFrame(node2, source);
+      else {
+        const from2 = node2.position.start.offset, to = node2.position.end.offset;
+        const open = source.slice(from2, node2.children[0].position.start.offset), close2 = source.slice(node2.children.at(-1).position.end.offset, to);
+        if (!(kind === "bold" ? ["**", "__"] : ["*", "_"]).includes(open) || close2 !== open) return false;
+        frame = { kind, from: from2, to, open, close: close2 };
+      }
+      return !!frame && node2.children.every((n) => walk(n, [...frames, frame]));
+    }
+    if (!walk(child) || !parts.length || renderInlineParts(parts, source) !== source.slice(child.position.start.offset, child.position.end.offset)) return null;
+    return parts;
+  }
+  function inlineFrames(part, source) {
+    if (part.frames) return part.frames;
+    if (part.link) {
+      const { from: from3, to: to2 } = part.linkSource || {};
+      return [{ kind: "link", from: from3, to: to2, open: source.slice(from3, part.sourceFrom), close: source.slice(part.sourceTo, to2), link: part.link, linkSource: part.linkSource }];
+    }
+    const kind = part.bold ? "bold" : part.italic ? "italic" : part.code ? "code" : null;
+    if (!kind) return [];
+    const size = kind === "bold" ? 2 : 1, from2 = part.sourceFrom - size, to = part.sourceTo + size;
+    return [{ kind, from: from2, to, open: source.slice(from2, part.sourceFrom), close: source.slice(part.sourceTo, to) }];
+  }
+  function renderInlineParts(parts, source) {
+    let stack = [], out = "";
+    for (const p of parts) {
+      if (!p.text) continue;
+      const frames = inlineFrames(p, source);
+      let common = 0;
+      while (common < stack.length && common < frames.length && stack[common].kind === frames[common].kind && stack[common].from === frames[common].from && stack[common].to === frames[common].to) common++;
+      for (const f of stack.slice(common).toReversed()) out += f.close;
+      for (const f of frames.slice(common)) out += f.open;
+      out += p.text;
+      stack = frames;
+    }
+    for (const f of stack.toReversed()) out += f.close;
+    return out;
+  }
+  function inlineNodes(parts) {
+    const nodes2 = [];
+    for (const p of parts) {
+      if (!p.text) continue;
+      const n = inlineTextNode(p), last = nodes2.at(-1);
+      if (last && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
+      else nodes2.push(n);
+    }
+    return nodes2;
+  }
+  function toggleInlineFrames(part, action, source, remove2 = !!part[action]) {
+    const frames = inlineFrames(part, source);
+    if (remove2) return { ...part, [action]: false, frames: frames.filter((f) => f.kind !== action) };
+    if (part[action]) return part;
+    const marker = action === "bold" ? "**" : action === "italic" ? part.bold ? "_" : "*" : "`";
+    const frame = { kind: action, from: -1, to: -1, open: marker, close: marker };
+    const at = action === "code" ? frames.length : frames.findIndex((f) => f.kind === "code");
+    return { ...part, [action]: true, frames: at < 0 ? [...frames, frame] : [...frames.slice(0, at), frame, ...frames.slice(at)] };
+  }
+  function mergeInlineParts(parts) {
+    const out = [], wrappers = (p) => p.frames?.map((f) => [f.kind, f.open, f.close]);
+    for (const value of parts) {
+      if (!value.text) continue;
+      let part = { ...value };
+      const last = out.at(-1);
+      const sameLink = last && JSON.stringify(last.link) === JSON.stringify(part.link);
+      if (sameLink && part.link) {
+        const at = part.frames.findIndex((f) => f.kind === "link"), previous3 = last.frames.findIndex((f) => f.kind === "link");
+        if (at === previous3 && at >= 0 && JSON.stringify(wrappers(last).slice(0, at + 1)) === JSON.stringify(wrappers(part).slice(0, at + 1)))
+          part.frames = [...last.frames.slice(0, at + 1), ...part.frames.slice(at + 1)];
+      }
+      const sameFrames = last && JSON.stringify(last.frames?.map((f) => f.kind)) === JSON.stringify(part.frames?.map((f) => f.kind));
+      if (sameFrames && sameLink && (!part.link || JSON.stringify(wrappers(last)) === JSON.stringify(wrappers(part)))) last.text += part.text;
+      else out.push(part);
+    }
+    return out;
+  }
+
+  // lib/document-article-source.mjs
+  var reject = () => ({ ok: false, code: "unsafe-source-range" });
+  var cut = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+  var render = (parts, source) => renderInlineParts(parts.map((p) => ({ ...p, text: p.raw ?? p.text })), source);
+  var paragraph2 = (content5) => ({ type: "paragraph", content: content5 });
+  function nodes(parts) {
+    const out = [];
+    for (const p of parts) {
+      if (!p.text && p.breakKind !== "hard") continue;
+      const n = inlineTextNode(p);
+      if (p.breakKind === "hard") {
+        delete n.text;
+        n.type = "hardBreak";
+        out.push(n);
+        continue;
+      }
+      const last = out.at(-1);
+      if (last?.type === "text" && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
+      else out.push(n);
+    }
+    return out;
+  }
+  function projectArticle(node2, source, position2, blockIndex, plain = false) {
+    if (node2.type !== "paragraph" || node2.position.start.line === node2.position.end.line || !plain && !node2.children?.some((n) => n.type !== "text")) return null;
+    const parts = [];
+    function walk(n, frames = []) {
+      const a = n.position.start.offset, b = n.position.end.offset, raw = source.slice(a, b);
+      if (["strong", "emphasis"].includes(n.type)) {
+        const kind = n.type === "strong" ? "bold" : "italic";
+        if (!n.children?.length || frames.length >= 4 || frames.some((f) => f.kind === kind)) return false;
+        const open = source.slice(a, n.children[0].position.start.offset), close2 = source.slice(n.children.at(-1).position.end.offset, b);
+        if (!(kind === "bold" ? ["**", "__"] : ["*", "_"]).includes(open) || open !== close2) return false;
+        return n.children.every((c) => walk(c, [...frames, { kind, from: a, to: b, open, close: close2 }]));
+      }
+      const flags = { bold: frames.some((f) => f.kind === "bold"), italic: frames.some((f) => f.kind === "italic"), frames };
+      if (n.type === "break") {
+        if (!/^(?: {2,}|\\)(?:\r\n|\n|\r)$/.test(raw)) return false;
+        parts.push({ ...flags, text: "", raw, breakKind: "hard", sourceFrom: a, sourceTo: b });
+        return true;
+      }
+      if (n.type !== "text") {
+        const leaves = projectInlineParts(n, source);
+        if (!leaves) return false;
+        const merged = leaves.map((leaf) => framedInlinePart(leaf, frames, source));
+        if (merged.some((p) => !p)) return false;
+        parts.push(...merged);
+        return true;
+      }
+      if (typeof n.value !== "string" || raw.replace(/\r\n|\r/g, "\n") !== n.value.replace(/\r\n|\r/g, "\n") || /\0/.test(raw) || !raw.isWellFormed()) return false;
+      for (const m of raw.matchAll(/\r\n|\n|\r|[^\r\n]+/g)) {
+        const soft = /^[\r\n]/.test(m[0]);
+        parts.push({ ...flags, text: soft ? " " : m[0], ...soft ? { raw: m[0], breakKind: "soft" } : {}, sourceFrom: a + m.index, sourceTo: a + m.index + m[0].length });
+      }
+      return true;
+    }
+    if (!node2.children.every((n) => walk(n)) || !parts.length) return null;
+    const tail = node2.children.at(-1).position.end.offset, end = node2.position.end.offset, suffix = source.slice(tail, end);
+    if (/^ +$/.test(suffix)) {
+      const last = parts.at(-1);
+      if (!last.breakKind && !last.frames.length && !last.code && !last.link) {
+        last.text += suffix;
+        last.sourceTo = end;
+      } else parts.push({ text: suffix, sourceFrom: tail, sourceTo: end, bold: false, italic: false, frames: [] });
+    }
+    if (render(parts, source) !== source.slice(node2.position.start.offset, node2.position.end.offset)) return null;
+    let at = position2 + 1;
+    const spans = [];
+    for (const p of parts) {
+      p.from = at;
+      p.to = at + (p.breakKind === "hard" ? 1 : p.text.length);
+      at = p.to;
+      if (!p.breakKind) spans.push({ ...p, blockIndex, childIndex: spans.length, article: true });
+    }
+    const size = at - position2 + 1;
+    return { doc: paragraph2(nodes(parts)), spans, size, block: { from: position2, to: position2 + size, sourceFrom: node2.position.start.offset, sourceTo: node2.position.end.offset, article: true, parts } };
+  }
+  function split(parts, at) {
+    const left = [], right = [];
+    for (const p of parts) {
+      const size = p.breakKind === "hard" ? 1 : p.text.length;
+      if (at >= size) left.push(p);
+      else if (at <= 0) right.push(p);
+      else {
+        if (p.breakKind || cut(p.text, at)) return null;
+        left.push({ ...p, text: p.text.slice(0, at) });
+        right.push({ ...p, text: p.text.slice(at) });
+      }
+      at -= size;
+    }
+    return [left, right];
+  }
+  function patch(source, p, index2, parts, expected, selection) {
+    const block = p.blocks[index2], raw = render(parts, source), old = source.slice(block.sourceFrom, block.sourceTo);
+    let start = 0, end = old.length, nextEnd = raw.length;
+    while (start < end && start < nextEnd && old[start] === raw[start]) start++;
+    if (cut(old, start) || cut(raw, start)) start--;
+    while (end > start && nextEnd > start && old[end - 1] === raw[nextEnd - 1]) {
+      end--;
+      nextEnd--;
+    }
+    if (cut(old, end) || cut(raw, nextEnd)) {
+      end++;
+      nextEnd++;
+    }
+    const a = block.sourceFrom + start, b = block.sourceFrom + end, text5 = raw.slice(start, nextEnd), next = source.slice(0, a) + text5 + source.slice(b);
+    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity.default.MAX_SOURCE_UNITS) return reject();
+    return { ok: true, source: next, expected, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, structural: true, selection };
+  }
+  function planArticleRange(source, p, { from: from2, to, insert: insert2 }) {
+    const i = p.blocks.findIndex((b2) => b2?.article && from2 > b2.from && to < b2.to);
+    if (i < 0) return null;
+    if (typeof insert2 !== "string" || !insert2.isWellFormed() || /[\0\r\n]/.test(insert2) || insert2.length > 4096) return reject();
+    const block = p.blocks[i], a = split(block.parts, from2 - block.from - 1), b = split(block.parts, to - block.from - 1);
+    if (!a || !b) return reject();
+    const first2 = from2 === to ? block.parts.find((t2) => from2 > t2.from && from2 <= t2.to) || block.parts[0] : block.parts.find((t2) => from2 >= t2.from && from2 < t2.to) || block.parts.at(-1);
+    const added = { ...first2, text: insert2 };
+    delete added.raw;
+    delete added.breakKind;
+    const parts = [...a[0], added, ...b[1]], expected = structuredClone(p.doc);
+    expected.content[i] = paragraph2(nodes(parts));
+    const result = patch(source, p, i, parts, expected, { from: from2 + insert2.length, to: from2 + insert2.length });
+    const leaf = p.spans.find((s) => s.blockIndex === i && from2 >= s.from && to <= s.to);
+    if (result.ok && leaf) {
+      const a2 = leaf.sourceFrom + from2 - leaf.from, b2 = leaf.sourceFrom + to - leaf.from;
+      if (source.slice(0, a2) + insert2 + source.slice(b2) === result.source) result.structural = false;
+    }
+    return result;
+  }
+  function mapArticleRange(source, p, change, project) {
+    const plan = change.insert === "\n\n" && change.from === change.to ? planArticleSplit(source, p, change.from) : planArticleRange(source, p, change);
+    return verify(plan, project);
+  }
+  function verify(plan, project) {
+    if (!plan?.ok) return plan;
+    const { expected, ...r } = plan, projection = project(r.source);
+    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...r, projection } : reject();
+  }
+  function planArticleSplit(source, p, from2) {
+    const i = p.blocks.findIndex((b) => b?.article && from2 > b.from && from2 < b.to);
+    if (i < 0) return null;
+    const block = p.blocks[i], s = split(block.parts, from2 - block.from - 1);
+    if (!s) return reject();
+    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n", expected = structuredClone(p.doc);
+    expected.content.splice(i, 1, paragraph2(nodes(s[0])), paragraph2(nodes(s[1])));
+    const middle = { text: nl + nl, frames: [] };
+    return patch(source, p, i, [...s[0], middle, ...s[1]], expected, { from: from2 + 2, to: from2 + 2 });
+  }
+  function mapArticleFormat(source, p, { action, from: from2, to }, project) {
+    if (action === "split-paragraph" && from2 === to) return verify(planArticleSplit(source, p, from2), project);
+    if (!["bold", "italic", "code"].includes(action)) return null;
+    const i = p.blocks.findIndex((b2) => b2?.article && from2 > b2.from && to < b2.to);
+    if (i < 0) return null;
+    if (from2 === to) return reject();
+    const block = p.blocks[i], a = split(block.parts, from2 - block.from - 1), b = split(block.parts, to - block.from - 1);
+    if (!a || !b) return reject();
+    const chosen = split(a[1], to - from2)?.[0];
+    if (!chosen?.length) return reject();
+    if (action === "code" && (chosen.length !== 1 || chosen[0].breakKind || chosen[0].text.includes("`"))) return reject();
+    const value = chosen.map((t2) => t2.breakKind === "hard" ? " " : t2.text).join("");
+    if (!value.trim() || value.trim() !== value) return reject();
+    const remove2 = chosen.every((t2) => t2[action]);
+    const middle = chosen.map((t2) => toggleInlineFrames(t2, action, source, remove2));
+    const parts = [...a[0], ...middle, ...b[1]], expected = structuredClone(p.doc);
+    expected.content[i] = paragraph2(nodes(parts));
+    return verify(patch(source, p, i, parts, expected, { from: from2, to }), project);
+  }
+
+  // lib/document-prefixed-paragraph.mjs
+  var parser = unified().use(remarkParse).use(remarkGfm);
+  function projectPrefixedParagraph(source, from2, to, prefix, position2, blockIndex) {
+    const raw = source.slice(from2, to), map4 = [], pieces = [];
+    let at = from2, logical = 0;
+    for (const [i, line] of raw.split(/(?<=\n)|(?<=\r)(?!\n)/).entries()) {
+      const skip = i ? prefix.length : 0;
+      if (i && !line.startsWith(prefix)) return null;
+      const value = line.slice(skip);
+      pieces.push(value);
+      for (let n = 0; n < value.length; n++) map4[logical + n] = at + skip + n;
+      logical += value.length;
+      at += line.length;
+    }
+    map4[logical] = to;
+    const text5 = pieces.join(""), tree = parser.parse(text5), node2 = tree.children[0];
+    if (tree.children.length !== 1 || node2?.type !== "paragraph" || node2.position.start.offset !== 0 || node2.position.end.offset !== text5.length) return null;
+    const result = projectArticle(node2, text5, position2, blockIndex, true);
+    if (!result) return null;
+    const remap = (value) => Object.fromEntries(Object.entries(value).map(([k, v]) => [k, typeof v === "number" && ["from", "to", "labelFrom", "labelTo", "destinationFrom", "destinationTo"].includes(k) ? map4[v] : v]));
+    const parts = result.block.parts.map((part) => ({
+      ...part,
+      sourceFrom: map4[part.sourceFrom],
+      sourceTo: map4[part.sourceTo],
+      ...part.breakKind ? { raw: source.slice(map4[part.sourceFrom], map4[part.sourceTo]) } : {},
+      frames: part.frames.map((f) => ({ ...remap(f), ...f.linkSource ? { linkSource: remap(f.linkSource) } : {} })),
+      ...part.linkSource ? { linkSource: remap(part.linkSource) } : {}
+    }));
+    if (render(parts, source) !== raw) return null;
+    return { ...result, parts, spans: parts.filter((s) => !s.breakKind).map((s, i) => ({ ...s, blockIndex, childIndex: i, inlineIndex: i })) };
+  }
+  function rowParts(source, p, index2, row, list3) {
+    if (row.parts) return row.parts;
+    return p.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex === p.blocks[index2].items.indexOf(row) : s.quoteIndex === p.blocks[index2].quoteRows.indexOf(row))).map((s) => ({ ...s, frames: inlineFrames(s, source) }));
+  }
+  function renderRow(parts, source, prefix) {
+    return render(parts.map((p) => p.breakKind ? { ...p, raw: p.raw.replace(/(\r\n|\n|\r)[^\r\n]*$/, (_, nl) => nl + prefix) } : p), source);
+  }
+  function projectWrappedQuote(node2, source, position2, blockIndex) {
+    if (node2.type !== "blockquote" || !node2.children.length || node2.children.length > 32 || node2.children.some((n) => n.type !== "paragraph") || !node2.children.some((n) => n.position.start.line !== n.position.end.line)) return null;
+    const spans = [], quoteRows = [], content5 = [];
+    let pm = position2 + 2, previous3 = null;
+    for (const [quoteIndex, paragraph9] of node2.children.entries()) {
+      const bodyFrom = paragraph9.position.start.offset, sourceFrom = bodyFrom - 2, sourceTo = paragraph9.position.end.offset;
+      if (source.slice(sourceFrom, bodyFrom) !== "> ") return null;
+      const gap = previous3 === null ? "" : source.slice(previous3, bodyFrom);
+      if (previous3 !== null && !/^(\r\n|\n|\r)> \1> $/.test(gap)) return null;
+      let projected;
+      if (paragraph9.position.start.line !== paragraph9.position.end.line) projected = projectPrefixedParagraph(source, bodyFrom, sourceTo, "> ", pm - 1, blockIndex);
+      else {
+        const parts = [];
+        for (const child of paragraph9.children) {
+          const c = projectInlineParts(child, source);
+          if (!c) return null;
+          parts.push(...c);
+        }
+        if (renderInlineParts(parts, source) !== source.slice(bodyFrom, sourceTo)) return null;
+        let at = pm;
+        projected = { doc: { type: "paragraph", content: parts.map(inlineTextNode) }, spans: parts.map((p, i) => {
+          const s = { ...p, from: at, to: at + p.text.length, inlineIndex: i };
+          at = s.to;
+          return s;
+        }), size: at - pm + 2 };
+      }
+      if (!projected) return null;
+      const row = { sourceFrom, sourceTo, bodyFrom, from: pm, to: pm + projected.size - 2, continuation: "> ", gap, ...projected.parts ? { parts: projected.parts } : {} };
+      quoteRows.push(row);
+      for (const s of projected.spans) spans.push({ ...s, blockIndex, quoteIndex, childIndex: spans.length });
+      content5.push(projected.doc);
+      pm += projected.size;
+      previous3 = sourceTo;
+    }
+    if (quoteRows[0].sourceFrom !== node2.position.start.offset || quoteRows.at(-1).sourceTo !== node2.position.end.offset) return null;
+    return { doc: { type: "blockquote", content: content5 }, spans, size: pm - position2, block: { from: position2, to: pm, sourceFrom: node2.position.start.offset, sourceTo: node2.position.end.offset, quoteRows } };
+  }
+
+  // lib/document-prose-range.mjs
+  var import_document_source_edit = __toESM(require_document_source_edit(), 1);
+  var reject2 = () => ({ ok: false, code: "unsafe-source-range" });
+  var paragraph3 = (parts) => ({ type: "paragraph", content: nodes(parts) });
+  function proseParts(source, p, index2) {
+    const block = p.blocks[index2];
+    if (!block || p.doc.content[index2]?.type !== "paragraph") return null;
+    if (block.article) return block.parts;
+    const spans = p.spans.filter((s) => s.blockIndex === index2), parts = [];
+    let at = block.sourceFrom;
+    if (!spans.length || spans.some((s) => s.itemIndex !== void 0 || s.quoteIndex !== void 0 || s.tableRow !== void 0 || s.codeBlock)) return null;
+    for (const span of spans) {
+      const frames = inlineFrames(span, source), start = frames[0]?.from ?? span.sourceFrom;
+      if (span.textOffset !== void 0 && start !== at) {
+        const raw = source.slice(at, start);
+        if (!/^(?:\r\n|\n|\r)$/.test(raw)) return null;
+        parts.push({ text: " ", raw, breakKind: "soft", frames: [], from: span.from - 1, to: span.from });
+      }
+      parts.push({ ...span, frames });
+      at = frames[0]?.to ?? span.sourceTo;
+    }
+    return render(parts, source) === source.slice(block.sourceFrom, block.sourceTo) ? parts : null;
+  }
+  function join2(left, right) {
+    const a = left.at(-1), b = right[0];
+    if (!a || !b || a.breakKind || b.breakKind) return [...left, ...right];
+    const x = a.frames, y = b.frames;
+    let common = 0;
+    while (common < x.length && common < y.length && x[common].kind === y[common].kind) {
+      if (x[common].kind === "link" && (JSON.stringify(a.link) !== JSON.stringify(b.link) || x[common].open !== y[common].open || x[common].close !== y[common].close)) break;
+      common++;
+    }
+    return [...left, ...right.map((p) => ({ ...p, frames: p.frames.map((f, i) => i < common && f.kind === y[i].kind && f.from === y[i].from && f.to === y[i].to ? x[i] : f) }))];
+  }
+  function canonical(node2) {
+    if (!node2.content) return node2;
+    const content5 = [];
+    for (const value of node2.content) {
+      const child = canonical(value), last = content5.at(-1);
+      if (child.type === "text" && last?.type === "text" && JSON.stringify(child.marks) === JSON.stringify(last.marks)) last.text += child.text;
+      else content5.push({ ...child });
+    }
+    return { ...node2, content: content5 };
+  }
+  function mapProseRange(source, p, { from: from2, to, insert: insert2 }, project) {
+    const first2 = p.blocks.findIndex((b) => b && from2 > b.from && from2 < b.to), last = p.blocks.findIndex((b) => b && to > b.from && to < b.to);
+    const multiline = insert2.includes("\n");
+    if (first2 < 0 || last < first2 || first2 === last && !multiline || insert2 === "\n\n" && from2 === to) return null;
+    const blocks = p.blocks.slice(first2, last + 1), parts = blocks.map((_, i) => proseParts(source, p, first2 + i));
+    if (parts.some((p2) => !p2)) return null;
+    if (!blocks.some((b, i) => b.article || parts[i].some((s) => s.textOffset !== void 0 || s.frames.length))) return null;
+    if (blocks.length > 32 || !insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject2();
+    const values2 = insert2.split("\n\n");
+    if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim())) return reject2();
+    const nl = source.match(/\r\n|\n|\r/)?.[0] || "\n", delimiter = nl + nl;
+    if (blocks.some((b, i) => i && source.slice(blocks[i - 1].sourceTo, b.sourceFrom) !== delimiter)) return reject2();
+    const left = split(parts[0], from2 - blocks[0].from - 1), right = split(parts.at(-1), to - blocks.at(-1).from - 1);
+    if (!left || !right) return reject2();
+    const selected2 = parts[0].find((s) => from2 >= s.from && from2 < s.to) || { frames: [] };
+    const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...selected2, text: text5, raw: void 0, breakKind: void 0 }] : []);
+    groups[0] = join2(left[0], groups[0]);
+    groups[groups.length - 1] = join2(groups.at(-1), right[1]);
+    const raw = groups.map((v) => render(v, source)).join(delimiter);
+    const expected = structuredClone(p.doc);
+    expected.content.splice(first2, blocks.length, ...groups.map(paragraph3));
+    const next = source.slice(0, blocks[0].sourceFrom) + raw + source.slice(blocks.at(-1).sourceTo), patch2 = import_document_source_edit.default.sourceDifference(source, next);
+    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject2();
+    const projection = project(next);
+    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject2();
+    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
+  }
+
+  // lib/document-list-source.mjs
+  var listNodeAt = (node2, path2) => path2.reduce((n, i) => n.content[i], node2);
+  var sameListParent = (a, b) => JSON.stringify(a.path.slice(0, -1)) === JSON.stringify(b.path.slice(0, -1));
+  function projectSimpleList(node2, source, position2, blockIndex) {
+    const spans = [], items = [];
+    let childIndex = 0;
+    function walk(list3, at, path2 = [], depth2 = 0) {
+      if (list3.type !== "list" || depth2 >= 6) return null;
+      const content5 = [];
+      let offset = at + 1, previousEnd = null;
+      for (const [siblingIndex, item3] of list3.children.entries()) {
+        if (items.length >= 32) return null;
+        const a = item3.position.start.offset, b = item3.position.end.offset;
+        const lineFrom = Math.max(source.lastIndexOf("\n", a - 1), source.lastIndexOf("\r", a - 1)) + 1;
+        const indent2 = source.slice(lineFrom, a);
+        if (!/^ *$/.test(indent2)) return null;
+        const lineEnd2 = a + (source.slice(a, b).search(/[\r\n]/) < 0 ? b - a : source.slice(a, b).search(/[\r\n]/));
+        const raw = source.slice(a, lineEnd2), marker = raw.match(list3.ordered ? /^(\d{1,9}[.)] )/ : /^([-+*] )/)?.[0];
+        if (!marker || previousEnd !== null && !/^(?:\r\n|\n|\r){1,2} *$/.test(source.slice(previousEnd, a))) return null;
+        const task = raw.slice(marker.length).match(/^\[([ xX])\] /), checked = task ? task[1] !== " " : null;
+        const bodyFrom = a + marker.length + (task ? 4 : 0), itemIndex = items.length, itemPath = [...path2, siblingIndex];
+        const children = item3.children, paragraph9 = children[0]?.type === "paragraph" ? children[0] : null;
+        if (children.length > (paragraph9 ? 2 : 1) || children.slice(paragraph9 ? 1 : 0).some((n) => n.type !== "list")) return null;
+        if (item3.checked !== null && !task) return null;
+        const wrapped = paragraph9 && paragraph9.position.end.line !== paragraph9.position.start.line;
+        const bodyEnd = wrapped ? paragraph9.position.end.offset : lineEnd2, continuation = indent2 + " ".repeat(marker.length);
+        const projected = wrapped ? projectPrefixedParagraph(source, bodyFrom, bodyEnd, continuation, offset + 1, blockIndex) : null;
+        if (wrapped && !projected) return null;
+        const inline5 = projected?.doc.content || [], parts = projected ? projected.spans.map((s) => ({ ...s, itemIndex, itemPath, childIndex: childIndex++ })) : [];
+        let length = projected ? projected.size - 2 : 0;
+        for (const child of wrapped || bodyFrom === lineEnd2 ? [] : paragraph9?.children || []) {
+          const chunk = projectInlineParts(child, source);
+          if (!chunk) return null;
+          for (const part of chunk) {
+            if (part.sourceFrom < bodyFrom) return null;
+            inline5.push(inlineTextNode(part));
+            parts.push({
+              ...part,
+              from: offset + 2 + length,
+              to: offset + 2 + length + part.text.length,
+              blockIndex,
+              childIndex: childIndex++,
+              itemIndex,
+              itemPath,
+              inlineIndex: inline5.length - 1
+            });
+            length += part.text.length;
+          }
+        }
+        if (!wrapped && inline5.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
+          const text5 = source.slice(bodyFrom, lineEnd2);
+          if (text5.trimStart() !== text5) return null;
+          inline5[0].text = text5;
+          Object.assign(parts[0], { text: text5, sourceFrom: bodyFrom, sourceTo: lineEnd2, to: parts[0].from + text5.length });
+          length = text5.length;
+        } else if (!wrapped && !inline5.length) {
+          if (bodyFrom !== lineEnd2) return null;
+          parts.push({
+            text: "",
+            sourceFrom: lineEnd2,
+            sourceTo: lineEnd2,
+            bold: false,
+            from: offset + 2,
+            to: offset + 2,
+            blockIndex,
+            childIndex: childIndex++,
+            itemIndex,
+            itemPath,
+            inlineIndex: 0
+          });
+        } else if (!wrapped && source.slice(bodyFrom, parts[0].sourceFrom) !== (parts[0].frames ? source.slice(parts[0].frames[0].from, parts[0].sourceFrom) : parts[0].link ? "[" : parts[0].bold || parts[0].italic || parts[0].code ? source.slice(parts[0].sourceFrom - (parts[0].bold ? 2 : 1), parts[0].sourceFrom) : "")) return null;
+        const row = {
+          sourceFrom: a,
+          sourceTo: bodyEnd,
+          subtreeTo: b,
+          lineFrom,
+          indent: indent2,
+          bodyFrom,
+          marker,
+          checked,
+          continuation,
+          gap: previousEnd === null ? null : source.slice(previousEnd, bodyFrom),
+          separator: previousEnd === null ? null : source.slice(previousEnd, lineFrom),
+          ...projected ? { parts: projected.parts } : {},
+          path: itemPath,
+          siblingIndex,
+          from: offset + 2,
+          to: offset + 2 + length
+        };
+        items.push(row);
+        spans.push(...parts);
+        const itemContent = [{ type: "paragraph", content: inline5 }];
+        let size = length + 4;
+        const nested = children[paragraph9 ? 1 : 0];
+        if (nested) {
+          if (!/^(?:\r\n|\n|\r) +$/.test(source.slice(bodyEnd, nested.position.start.offset))) return null;
+          const sub = walk(nested, offset + length + 3, [...itemPath, 1], depth2 + 1);
+          if (!sub) return null;
+          itemContent.push(sub.doc);
+          size += sub.size;
+        }
+        content5.push({ type: "listItem", ...checked === null ? {} : { attrs: { checked } }, content: itemContent });
+        offset += size;
+        previousEnd = b;
+      }
+      return { doc: { type: list3.ordered ? "orderedList" : "bulletList", ...list3.ordered ? { attrs: { start: list3.start } } : {}, content: content5 }, size: offset - at + 1 };
+    }
+    if (node2.type !== "list") return null;
+    const result = walk(node2, position2);
+    return result ? { ...result, spans, items } : null;
+  }
+
+  // lib/document-structured-range.mjs
+  var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
+  var reject3 = () => ({ ok: false, code: "unsafe-source-range" });
+  var paragraph4 = (parts) => ({ type: "paragraph", content: nodes(parts) });
+  function mapStructuredRange(source, p, { from: from2, to, insert: insert2 }, project) {
+    const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to), block = p.blocks[index2];
+    if (!block?.items && !block?.quoteRows) return null;
+    const list3 = !!block.items, rows = block.items || block.quoteRows;
+    const first2 = rows.findIndex((r) => from2 >= r.from && from2 <= r.to), last = rows.findIndex((r) => to >= r.from && to <= r.to), multiline = insert2.includes("\n");
+    if (first2 < 0 || last < first2) return null;
+    if (first2 === last && !multiline && !rows[first2].parts) return null;
+    const selected2 = rows.slice(first2, last + 1), spans = p.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= first2 && s.itemIndex <= last : s.quoteIndex >= first2 && s.quoteIndex <= last));
+    if (list3 && !multiline && !selected2.some((r) => r.parts || r.separator && (r.separator.match(/\r\n|\n|\r/g) || []).length > 1) && !spans.some((s) => s.link || s.frames)) return null;
+    if (list3 && selected2.some((r) => !sameListParent(rows[first2], r) || (first2 !== last || multiline) && r.subtreeTo !== r.sourceTo)) return reject3();
+    if (!insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject3();
+    const values2 = insert2.split("\n\n");
+    if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim()) || rows.length - selected2.length + values2.length > 32) return reject3();
+    const parts = selected2.map((r) => rowParts(source, p, index2, r, list3));
+    if (parts.some((s, i) => !s.length || renderRow(s, source, selected2[i].continuation ?? (list3 ? selected2[i].indent + " ".repeat(selected2[i].marker.length) : "> ")) !== source.slice(selected2[i].bodyFrom, selected2[i].sourceTo))) return reject3();
+    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
+    for (let i = 1; i < selected2.length; i++) {
+      const row = selected2[i], gap = row.gap ?? (list3 ? nl + row.indent + source.slice(row.sourceFrom, row.bodyFrom) : nl + "> " + nl + "> ");
+      if (source.slice(selected2[i - 1].sourceTo, row.bodyFrom) !== gap) return reject3();
+    }
+    const left = split(parts[0], from2 - rows[first2].from), right = split(parts.at(-1), to - rows[last].from);
+    if (!left || !right) return reject3();
+    let mark2 = from2 === to ? parts[0].find((s) => from2 > s.from && from2 <= s.to) || parts[0][0] : parts[0].find((s) => from2 >= s.from && from2 < s.to);
+    mark2 ??= { frames: [] };
+    const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...mark2, text: text5, raw: void 0, breakKind: void 0 }] : []);
+    groups[0] = join2(left[0], groups[0]);
+    groups[groups.length - 1] = join2(groups.at(-1), right[1]);
+    const expected = structuredClone(p.doc), node2 = expected.content[index2];
+    let raw;
+    if (list3) {
+      const parent = listNodeAt(node2, rows[first2].path.slice(0, -1)), original = parent.content[rows[first2].siblingIndex], ordered = parent.type === "orderedList", row = rows[first2];
+      const prefix = (i) => row.indent + (ordered ? `${Math.min(999999999, parseInt(row.marker, 10) + i)}${row.marker.trim().at(-1)} ` : row.marker) + (row.checked === null ? "" : "[ ] ");
+      raw = groups.map((g, i) => (i ? (row.separator ?? rows.find((r) => r.separator)?.separator ?? nl) + prefix(i) : "") + renderRow(g, source, row.indent + " ".repeat((ordered ? `${Math.min(999999999, parseInt(row.marker, 10) + i)}${row.marker.trim().at(-1)} ` : row.marker).length))).join("");
+      const items = groups.map((g, i) => i ? { type: "listItem", ...row.checked === null ? {} : { attrs: { checked: false } }, content: [paragraph4(g)] } : { ...original, content: [paragraph4(g), ...original.content.slice(1)] });
+      parent.content.splice(row.siblingIndex, selected2.length, ...items);
+    } else {
+      raw = groups.map((g) => renderRow(g, source, "> ")).join(nl + "> " + nl + "> ");
+      node2.content.splice(first2, selected2.length, ...groups.map(paragraph4));
+    }
+    const a = rows[first2].bodyFrom, b = rows[last].sourceTo, next = source.slice(0, a) + raw + source.slice(b), patch2 = import_document_source_edit2.default.sourceDifference(source, next);
+    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject3();
+    const projection = project(next);
+    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject3();
+    const at = from2 + insert2.length + (list3 ? 2 * (values2.length - 1) : 0);
+    const leaf = first2 === last && p.spans.find((s) => s.blockIndex === index2 && from2 >= s.from && to <= s.to);
+    const simple = leaf && source.slice(0, leaf.sourceFrom + from2 - leaf.from) + insert2 + source.slice(leaf.sourceFrom + to - leaf.from) === next;
+    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: !simple, selection: { from: at, to: at } };
+  }
+
+  // lib/document-soft-edit.mjs
+  var import_document_capacity2 = __toESM(require_document_capacity(), 1);
+  function planSoftRange(source, p, { from: from2, to, insert: insert2 }) {
+    const split4 = insert2 === "\n\n" && from2 === to;
+    if (!split4 && (/[\0\r\n]/.test(insert2) || !insert2.isWellFormed())) return null;
+    const i = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to), spans = p.spans.filter((s) => s.blockIndex === i && s.textOffset !== void 0);
+    if (!spans.length) return null;
+    const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
+    if (!left || !right || !split4 && left === right) return null;
+    const cut4 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+    const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from, reject12 = () => ({ ok: false, code: "unsafe-source-range" });
+    if (cut4(left.text, from2 - left.from) || cut4(right.text, to - right.from)) return reject12();
+    const nl = source.slice(p.blocks[i].sourceFrom, p.blocks[i].sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
+    const text5 = split4 ? nl + nl : insert2, next = source.slice(0, a) + text5 + source.slice(b);
+    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity2.default.MAX_SOURCE_UNITS) return reject12();
+    const expected = structuredClone(p.doc), raw = expected.content[i].content[0].text, at = from2 - p.blocks[i].from - 1, end = to - p.blocks[i].from - 1;
+    const paragraph9 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+    if (split4) expected.content.splice(i, 1, paragraph9(raw.slice(0, at)), paragraph9(raw.slice(at)));
+    else expected.content[i] = paragraph9(raw.slice(0, at) + insert2 + raw.slice(end));
+    return { ok: true, source: next, expected, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
+  }
+  function mapSoftRange(source, p, change, project) {
+    const plan = planSoftRange(source, p, change);
+    if (!plan?.ok) return plan;
+    const { expected, ...result } = plan, projection = project(plan.source);
+    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...result, projection } : { ok: false, code: "unsafe-source-range" };
+  }
+
+  // lib/document-source-map.mjs
+  var import_document_capacity7 = __toESM(require_document_capacity(), 1);
+
+  // lib/document-image-source.mjs
+  var validText = (s) => typeof s === "string" && !/[\u0000-\u001f\u007f]/.test(s) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
+  var validImageLabel = (s) => validText(s) && s.length <= 512 && !/[\[\]\\<>]/.test(s);
+  function validImageTarget(s) {
+    if (!validText(s) || !s || s.length > 2048 || s.trim() !== s || /[<>"'\\]/.test(s) || /%(?:00|0a|0d)/i.test(s)) return false;
+    if (/^https?:/i.test(s)) {
+      try {
+        const u = new URL(s);
+        return !/\s/u.test(s) && !!u.hostname && !u.username && !u.password;
+      } catch {
+        return false;
+      }
+    }
+    return !s.startsWith("/") && !s.startsWith("#") && !s.includes(":");
+  }
+  var imageNode = (alt, src, title = null) => ({ type: "documentImage", attrs: { alt, src, title } });
+  function projectImage(node2, source, position2) {
+    if (node2.type !== "paragraph" || node2.children?.length !== 1 || node2.children[0].type !== "image") return null;
+    const child = node2.children[0], start = node2.position.start.offset, end = node2.position.end.offset, raw = source.slice(start, end);
+    const m = /^!\[([^\]\\\r\n]*)\]\((<[^<>\r\n]+>|[^\s()<>]+)([ \t]+(?:"[^"\r\n]*"|'[^'\r\n]*'|\([^()\r\n]*\)))?\)$/.exec(raw);
+    if (!m || m[1] !== child.alt || !validImageLabel(child.alt) || !validImageTarget(child.url) || (m[2].startsWith("<") ? m[2].slice(1, -1) : m[2]) !== child.url) return null;
+    return {
+      doc: imageNode(child.alt, child.url, child.title ?? null),
+      spans: [],
+      size: 1,
+      block: {
+        from: position2,
+        to: position2 + 1,
+        sourceFrom: start,
+        sourceTo: end,
+        image: { alt: child.alt, src: child.url, title: child.title ?? null, suffix: raw.slice(2 + child.alt.length), titleSuffix: m[3] || "" }
+      }
+    };
+  }
+
+  // lib/document-tree-edit.mjs
+  var import_document_capacity3 = __toESM(require_document_capacity(), 1);
+  var reject4 = () => ({ ok: false, code: "unsafe-source-range" });
+  var cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+  var inlineTarget = (doc4, s) => s.tableRow !== void 0 ? doc4.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0] : s.itemIndex !== void 0 ? listNodeAt(doc4.content[s.blockIndex], s.itemPath ?? [s.itemIndex]).content[0] : s.quoteIndex !== void 0 ? doc4.content[s.blockIndex].content[s.quoteIndex] : doc4.content[s.blockIndex];
+  function patchInlineParts(source, p, spans, pieces, selection) {
+    const frames = spans.map((s) => inlineFrames(s, source));
+    const a = frames[0][0]?.from ?? spans[0].sourceFrom, b = frames.at(-1)[0]?.to ?? spans.at(-1).sourceTo;
+    const old = source.slice(a, b);
+    if (renderInlineParts(spans, source) !== old) return reject4();
+    const raw = renderInlineParts(pieces, source);
+    let start = 0, end = old.length, nextEnd = raw.length;
+    while (start < end && start < nextEnd && old[start] === raw[start]) start++;
+    if (cut2(old, start) || cut2(raw, start)) start--;
+    while (end > start && nextEnd > start && old[end - 1] === raw[nextEnd - 1]) {
+      end--;
+      nextEnd--;
+    }
+    if (cut2(old, end) || cut2(raw, nextEnd)) {
+      end++;
+      nextEnd++;
+    }
+    const from2 = a + start, to = a + end, insert2 = raw.slice(start, nextEnd), next = source.slice(0, from2) + insert2 + source.slice(to);
+    if (to - from2 > 4096 || insert2.length > 4096 || next.length > import_document_capacity3.default.MAX_SOURCE_UNITS) return reject4();
+    const expected = structuredClone(p.doc);
+    inlineTarget(expected, spans[0]).content = inlineNodes(pieces);
+    return { ok: true, source: next, expected, change: { from: from2, to, insert: insert2 }, inverseSource: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }, structural: true, selection };
+  }
+  function planTreeRange(source, p, { from: from2, to, insert: insert2 }, spans) {
+    if (!spans.some((s) => s.frames)) return null;
+    const touched = from2 === to ? [spans.find((s) => s.from < from2 && from2 <= s.to) || spans[0]] : spans.filter((s) => s.from < to && s.to > from2);
+    const first2 = touched[0], last = touched.at(-1);
+    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject4();
+    const pieces = [
+      ...spans.slice(0, spans.indexOf(first2)),
+      { ...first2, text: first2.text.slice(0, from2 - first2.from) + insert2 },
+      { ...last, text: last.text.slice(to - last.from) },
+      ...spans.slice(spans.indexOf(last) + 1)
+    ];
+    return patchInlineParts(source, p, spans, pieces, { from: from2 + insert2.length, to: from2 + insert2.length });
+  }
+  function mapCombinedMark(source, p, { action, from: from2, to }, project) {
+    if (!["bold", "italic", "code"].includes(action)) return null;
+    const s = p.spans.find((s2) => from2 >= s2.from && to <= s2.to);
+    if (!s || s.article || s.codeBlock || s.textOffset !== void 0 || !s.frames && !s.link && !["bold", "italic", "code"].some((k) => k !== action && s[k])) return null;
+    if (from2 === to || cut2(s.text, from2 - s.from) || cut2(s.text, to - s.from)) return { ok: false, code: "unsafe-format-range" };
+    const value = s.text.slice(from2 - s.from, to - s.from);
+    if (value.trim() !== value || !value || action === "code" && value.includes("`")) return { ok: false, code: "unsafe-format-range" };
+    const spans = p.spans.filter((n) => n.blockIndex === s.blockIndex && n.itemIndex === s.itemIndex && n.quoteIndex === s.quoteIndex && n.tableRow === s.tableRow && n.tableCol === s.tableCol);
+    const selected2 = toggleInlineFrames({ ...s, text: value }, action, source);
+    const i = spans.indexOf(s), pieces = [...spans.slice(0, i), { ...s, text: s.text.slice(0, from2 - s.from) }, selected2, { ...s, text: s.text.slice(to - s.from) }, ...spans.slice(i + 1)];
+    const plan = patchInlineParts(source, p, spans, pieces, { from: from2, to });
+    if (!plan.ok) return plan;
+    const { expected, ...result } = plan, projection = project(plan.source);
+    return JSON.stringify(expected) === JSON.stringify(projection.doc) ? { ...result, projection } : { ok: false, code: "unsafe-format-range" };
+  }
+
+  // lib/document-table-source.mjs
+  var import_document_capacity4 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS } = import_document_capacity4.default;
+  var TABLE_ROWS = 32;
+  var TABLE_COLUMNS = 8;
+  var inline = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
+  var tableCell = (text5, header, align = null) => ({ type: header ? "tableHeader" : "tableCell", attrs: { align }, content: [{ type: "paragraph", content: inline(text5) }] });
+  var valid = (text5) => typeof text5 === "string" && !/[\x00-\x1f\x7f|\\\u2028\u2029]/u.test(text5) && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text5);
+  function cellParts(children, text5, from2, source) {
+    if (children.length <= 1 && (!children.length ? !text5.trim() : children[0].type === "text" && children[0].value === text5.trim()))
+      return [{ text: text5, sourceFrom: from2, sourceTo: from2 + text5.length, bold: false, frames: [] }];
+    const parts = [];
+    let at = from2;
+    for (const child of children) {
+      const a = child.position.start.offset, b = child.position.end.offset, gap2 = source.slice(at, a);
+      if (a < at || b > from2 + text5.length || !/^ *$/.test(gap2)) return null;
+      if (gap2) parts.push({ text: gap2, sourceFrom: at, sourceTo: a, bold: false, frames: [] });
+      const chunk = projectInlineParts(child, source);
+      if (!chunk) return null;
+      parts.push(...chunk.map((p) => ({ ...p, frames: inlineFrames(p, source) })));
+      at = b;
+    }
+    const gap = source.slice(at, from2 + text5.length);
+    if (!/^ *$/.test(gap)) return null;
+    if (gap) parts.push({ text: gap, sourceFrom: at, sourceTo: from2 + text5.length, bold: false, frames: [] });
+    return parts.length && renderInlineParts(parts, source) === text5 ? parts : null;
+  }
+  function projectTable(node2, source, position2, blockIndex) {
+    if (node2.type !== "table" || node2.children.length > TABLE_ROWS || node2.align.length > TABLE_COLUMNS) return null;
+    const start = node2.position.start.offset, end = node2.position.end.offset, lines = [], raw = source.slice(start, end);
+    for (const m of raw.matchAll(/([^\r\n]+)(\r\n|\n|\r|$)/g)) {
+      const text5 = m[1];
+      if (!text5.startsWith("|") || !text5.endsWith("|")) return null;
+      const values2 = text5.slice(1, -1).split("|");
+      if (values2.length !== node2.align.length || !values2.length || values2.some((t2) => !valid(t2))) return null;
+      lines.push({ text: text5, values: values2, from: start + m.index, to: start + m.index + text5.length, eol: m[2] });
+    }
+    if (lines.length !== node2.children.length + 1 || lines[1].values.some((s) => !/^ *:?-{3,}:? *$/.test(s))) return null;
+    const content5 = [], spans = [], cells = [];
+    let pos = position2 + 1, childIndex = 0;
+    for (const [row, n] of node2.children.entries()) {
+      const line = lines[row ? row + 1 : 0];
+      if (n.children.length !== line.values.length) return null;
+      const children = [], mapped = [];
+      let at = line.from + 1;
+      pos++;
+      for (const [col, rawText] of line.values.entries()) {
+        const parts = cellParts(n.children[col].children, rawText, at, source);
+        if (!parts) return null;
+        const text5 = parts.map((p) => p.text).join(""), cell2 = { text: text5, sourceFrom: at, sourceTo: at + rawText.length, from: pos + 2, to: pos + 2 + text5.length, tableRow: row, tableCol: col, blockIndex };
+        let offset = cell2.from;
+        const leaves = parts.map((p) => {
+          const s = { ...p, from: offset, to: offset + p.text.length, tableRow: row, tableCol: col, blockIndex, childIndex: childIndex++ };
+          offset = s.to;
+          return s;
+        });
+        const pmCell = tableCell("", row === 0, node2.align[col]);
+        pmCell.content[0].content = inlineNodes(parts);
+        children.push(pmCell);
+        mapped.push({ ...cell2, parts: leaves });
+        spans.push(...leaves);
+        pos += text5.length + 4;
+        at += rawText.length + 1;
+      }
+      cells.push(mapped);
+      content5.push({ type: "tableRow", content: children });
+      pos++;
+    }
+    pos++;
+    return { doc: { type: "table", content: content5 }, spans, size: pos - position2, block: { from: position2, to: pos, sourceFrom: start, sourceTo: end, cells, tableLines: lines } };
+  }
+  function planTableText(source, projection, { from: from2, to, insert: insert2 }) {
+    const block = projection.blocks.find((b) => b?.cells && (from2 > b.from && from2 < b.to || to > b.from && to < b.to));
+    if (!block) return null;
+    const reject12 = () => ({ ok: false, code: "unsafe-source-range" }), cell2 = block.cells.flat().find((c) => from2 >= c.from && to <= c.to);
+    if (!cell2 || !valid(insert2)) return reject12();
+    const plan = planTreeRange(source, projection, { from: from2, to, insert: insert2 }, cell2.parts);
+    if (!plan?.ok) return plan || reject12();
+    const leaf = cell2.parts.find((s) => from2 >= s.from && to <= s.to);
+    if (leaf) {
+      const a = leaf.sourceFrom + from2 - leaf.from, b = leaf.sourceFrom + to - leaf.from;
+      if (source.slice(0, a) + insert2 + source.slice(b) === plan.source) plan.structural = false;
+    }
+    return plan;
+  }
+  function mapTableText(source, projection, change, project) {
+    const plan = planTableText(source, projection, change);
+    if (!plan?.ok) return plan;
+    const { expected, ...result } = plan, next = project(plan.source);
+    return JSON.stringify(next.doc) === JSON.stringify(expected) ? { ...result, projection: next } : { ok: false, code: "unsafe-source-range" };
+  }
+
+  // lib/document-inline-source.mjs
+  var import_document_capacity5 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS2 } = import_document_capacity5.default;
+  function planInlineRange(source, projection, change) {
+    const { from: from2, to, insert: insert2 } = change, reject12 = () => ({ ok: false, code: "unsafe-source-range" });
+    const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
+    if (index2 < 0) return null;
+    const block = projection.blocks[index2], list3 = !!block.items;
+    const quoteRow = block.quoteRows?.findIndex((r) => from2 >= r.from && to <= r.to);
+    const quoted = quoteRow !== void 0 && quoteRow >= 0;
+    if (!list3 && !quoted && !["paragraph", "heading"].includes(projection.doc.content[index2].type)) return null;
+    const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
+    const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
+    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject12();
+    const cross = list3 && endItem > itemIndex;
+    if (cross && block.items.slice(itemIndex, endItem + 1).some((r) => !sameListParent(block.items[itemIndex], r) || r.subtreeTo !== r.sourceTo)) return reject12();
+    const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : quoted ? s.quoteIndex === quoteRow : s.itemIndex === void 0));
+    if (cross && spans.some((s) => s.link || s.frames)) return reject12();
+    const tree = planTreeRange(source, projection, change, spans);
+    if (tree) return tree;
+    if (!list3 && !spans.some((s) => s.bold || s.italic || s.code || s.link) || spans.some((s) => s.textOffset !== void 0)) return null;
+    const cut4 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+    const tokens = spans.map((s) => ({
+      ...s,
+      a: s.link ? s.linkSource?.from : s.sourceFrom - (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      b: s.link ? s.linkSource?.to : s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
+      marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : ""
+    }));
+    if (tokens.some((s, i) => !Number.isInteger(s.a) || !Number.isInteger(s.b) || (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject12();
+    if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
+      const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
+      return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
+    })) return reject12();
+    const left = cross ? tokens.filter((s) => s.itemIndex === itemIndex) : null, right = cross ? tokens.filter((s) => s.itemIndex === endItem) : null;
+    const touched = cross ? [left.find((s) => from2 >= s.from && from2 < s.to) || left.at(-1), right.find((s) => to > s.from && to <= s.to) || right[0]] : from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
+    const first2 = touched[0], last = touched.at(-1);
+    if (!first2 || from2 < first2.from || to > last.to || cut4(first2.text, from2 - first2.from) || cut4(last.text, to - last.from)) return reject12();
+    const pieces = [];
+    const append2 = (text6, token) => {
+      if (!text6) return;
+      const previous3 = pieces.at(-1);
+      if (previous3 && previous3.bold === token.bold && !!previous3.italic === !!token.italic && !!previous3.code === !!token.code && JSON.stringify(previous3.link) === JSON.stringify(token.link)) previous3.text += text6;
+      else pieces.push({ ...token, text: text6 });
+    };
+    append2(first2.text.slice(0, from2 - first2.from), first2);
+    append2(insert2, cross && from2 === block.items[itemIndex].to ? { bold: false, marker: "" } : first2);
+    append2(last.text.slice(to - last.from), last);
+    const replacement = pieces.map((s) => s.link ? "[" + s.text + source.slice(s.sourceTo, s.b) : s.marker + s.text + s.marker).join("");
+    const original = source.slice(first2.a, last.b);
+    let start = 0, end = original.length, nextEnd = replacement.length;
+    while (start < end && start < nextEnd && original[start] === replacement[start]) start++;
+    if (cut4(original, start) || cut4(replacement, start)) start--;
+    while (end > start && nextEnd > start && original[end - 1] === replacement[nextEnd - 1]) {
+      end--;
+      nextEnd--;
+    }
+    if (cut4(original, end) || cut4(replacement, nextEnd)) {
+      end++;
+      nextEnd++;
+    }
+    const a = first2.a + start, b = first2.a + end, text5 = replacement.slice(start, nextEnd);
+    if (b - a > 4096 || text5.length > 4096) return reject12();
+    const next = source.slice(0, a) + text5 + source.slice(b);
+    if (next.length > MAX_SOURCE_UNITS2) return reject12();
+    const expected = structuredClone(projection.doc), nodes2 = [];
+    const add2 = (s) => {
+      if (!s.text) return;
+      const node2 = { type: "text", text: s.text, ...s.link ? { marks: [{ type: "link", attrs: s.link }] } : s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes2.at(-1);
+      if (prev && JSON.stringify(prev.marks) === JSON.stringify(node2.marks)) prev.text += node2.text;
+      else nodes2.push(node2);
+    };
+    for (const s of tokens.slice(0, tokens.indexOf(first2))) add2(s);
+    pieces.forEach(add2);
+    for (const s of tokens.slice(tokens.indexOf(last) + 1)) add2(s);
+    const target = list3 ? listNodeAt(expected.content[index2], block.items[itemIndex].path).content[0] : quoted ? expected.content[index2].content[quoteRow] : expected.content[index2];
+    if (list3 && !nodes2.length && block.items.length === 1 && spans.some((s) => s.link)) return reject12();
+    target.content = nodes2;
+    if (cross) listNodeAt(expected.content[index2], block.items[itemIndex].path.slice(0, -1)).content.splice(block.items[itemIndex].siblingIndex + 1, endItem - itemIndex);
+    return {
+      ok: true,
+      source: next,
+      expected,
+      change: { from: a, to: b, insert: text5 },
+      inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) },
+      structural: true,
+      selection: { from: from2 + insert2.length, to: from2 + insert2.length }
+    };
+  }
+  function mapInlineRange(source, projection, change, project) {
+    const planned = planInlineRange(source, projection, change);
+    if (!planned?.ok) return planned;
+    const { expected, ...result } = planned, next = project(result.source);
+    return JSON.stringify(next.doc) === JSON.stringify(expected) ? { ...result, projection: next } : { ok: false, code: "unsafe-source-range" };
+  }
+
   // lib/document-source-parse.mjs
   function createSourceParser(parseFull) {
     const cached = /* @__PURE__ */ new Map();
@@ -10878,10 +10965,10 @@
       }
       const body = line.slice(2), bodyFrom = sourceAt + 2, parts = [];
       if (body) {
-        const paragraph8 = node2.children.find((n) => n.position.start.offset === bodyFrom);
-        if (!paragraph8) return null;
+        const paragraph9 = node2.children.find((n) => n.position.start.offset === bodyFrom);
+        if (!paragraph9) return null;
         used++;
-        for (const child of paragraph8.children) {
+        for (const child of paragraph9.children) {
           const p = projectInlineParts(child, source);
           if (!p) return null;
           parts.push(...p);
@@ -10889,7 +10976,7 @@
         if (parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
           if (body.trimStart() !== body) return null;
           parts[0] = { ...parts[0], text: body, sourceFrom: bodyFrom, sourceTo: sourceAt + line.length };
-        } else if (paragraph8.position.end.offset !== sourceAt + line.length) return null;
+        } else if (paragraph9.position.end.offset !== sourceAt + line.length) return null;
       } else parts.push({ text: "", sourceFrom: bodyFrom, sourceTo: bodyFrom, bold: false });
       const quoteIndex = content5.length, nodes2 = [];
       let offset = 0;
@@ -10912,9 +10999,9 @@
   function mapCodeText(source, p, { from: from2, to, insert: insert2 }, project) {
     const s = p.spans.find((s2) => s2.codeBlock && from2 >= s2.from && to <= s2.to);
     if (!s) return null;
-    const reject11 = () => ({ ok: false, code: "unsafe-source-range" }), block = p.blocks[s.blockIndex], body = block.codeBody;
+    const reject12 = () => ({ ok: false, code: "unsafe-source-range" }), block = p.blocks[s.blockIndex], body = block.codeBody;
     const a = from2 - s.from, b = to - s.from;
-    if (!validCode(insert2) || splits(s.text, a) || splits(s.text, b)) return reject11();
+    if (!validCode(insert2) || splits(s.text, a) || splits(s.text, b)) return reject12();
     const offset = (n) => {
       let logical = 0, raw = 0;
       for (const part of source.slice(body.from, body.to).matchAll(/\r\n|[\s\S]/g)) {
@@ -10925,21 +11012,21 @@
       return body.from + raw;
     };
     const start = offset(a), end = offset(b), text5 = insert2.replace(/\n/g, body.nl) + (!body.separator && insert2 ? body.nl : "");
-    if (text5.length > 4096 || end - start > 4096) return reject11();
+    if (text5.length > 4096 || end - start > 4096) return reject12();
     const next = source.slice(0, start) + text5 + source.slice(end);
-    if (next.length > MAX_SOURCE_UNITS3) return reject11();
+    if (next.length > MAX_SOURCE_UNITS3) return reject12();
     const expected = structuredClone(p.doc);
     expected.content[s.blockIndex].content = inline2(s.text.slice(0, a) + insert2 + s.text.slice(b));
     const projection = project(next);
-    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject11();
+    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject12();
     return { ok: true, source: next, projection, change: { from: start, to: end, insert: text5 }, inverseSource: { from: start, to: start + text5.length, insert: source.slice(start, end) }, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
   }
 
   // lib/document-source-map.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS4 } = import_document_capacity7.default;
   var spanBlock = (projection, span) => span.tableRow !== void 0 ? projection.doc.content[span.blockIndex].content[span.tableRow].content[span.tableCol].content[0] : span.itemIndex === void 0 ? span.quoteIndex === void 0 ? projection.doc.content[span.blockIndex] : projection.doc.content[span.blockIndex].content[span.quoteIndex] : listNodeAt(projection.doc.content[span.blockIndex], span.itemPath ?? [span.itemIndex]).content[0];
-  var parser = unified().use(remarkParse).use(remarkGfm);
-  var parse2 = createSourceParser((source) => parser.parse(source));
+  var parser2 = unified().use(remarkParse).use(remarkGfm);
+  var parse2 = createSourceParser((source) => parser2.parse(source));
   var unsafe = () => ({ ok: false, code: "unsafe-source-range" });
   var validText2 = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && s.isWellFormed();
   var splits2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
@@ -11011,12 +11098,12 @@
         position: node2.position,
         children: [{ type: "text", value: pending, position: node2.position }]
       };
-      let structured = projectArticle(node2, source, position2, content5.length) || projectStructuredBlock(node2, source, position2, content5.length) || projectTable(node2, source, position2, content5.length) || projectImage(node2, source, position2);
+      let structured = projectArticle(node2, source, position2, content5.length) || projectWrappedQuote(node2, source, position2, content5.length) || projectStructuredBlock(node2, source, position2, content5.length) || projectTable(node2, source, position2, content5.length) || projectImage(node2, source, position2);
       if (structured) {
         const gap2 = lines(source.slice(previousEnd, start));
         if (!content5.length && !fm && gap2.length >= 2 || content5.length && gap2.length >= 4) {
           emptyParagraph(!content5.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
-          structured = projectArticle(node2, source, position2, content5.length) || projectStructuredBlock(node2, source, position2, content5.length) || projectTable(node2, source, position2, content5.length) || projectImage(node2, source, position2);
+          structured = projectArticle(node2, source, position2, content5.length) || projectWrappedQuote(node2, source, position2, content5.length) || projectStructuredBlock(node2, source, position2, content5.length) || projectTable(node2, source, position2, content5.length) || projectImage(node2, source, position2);
         }
         blocks.push(structured.block);
         content5.push(structured.doc);
@@ -11149,8 +11236,8 @@
       const span = spans.find((s) => from2 >= s.from && from2 <= s.to);
       if (!span || !span.text || splits2(span.text, from2 - span.from)) return null;
       const offset = from2 - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
-      const paragraph8 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
-      expected.content.splice(span.blockIndex, 1, paragraph8(left), paragraph8(right));
+      const paragraph9 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+      expected.content.splice(span.blockIndex, 1, paragraph9(left), paragraph9(right));
       a = b = span.sourceFrom + offset;
       text5 = delimiter;
       inverse = { from: from2, to: from2 + 2, insert: "" };
@@ -11259,8 +11346,8 @@
     if (leaf === null) {
       const soft = mapSoftRange(source, projection, change, projectSource);
       if (soft) return soft;
-      const paragraph8 = paragraphEdit(source, projection, change, true, paragraphSeparator);
-      if (paragraph8) return paragraph8;
+      const paragraph9 = paragraphEdit(source, projection, change, true, paragraphSeparator);
+      if (paragraph9) return paragraph9;
       const paste = paragraphReplace(source, projection, change, paragraphSeparator);
       if (paste) return paste;
       if (paragraphSeparator !== null) return unsafe();
@@ -14629,8 +14716,8 @@
     }
   };
   var ParseContext = class {
-    constructor(parser6, options, isOpen) {
-      this.parser = parser6;
+    constructor(parser7, options, isOpen) {
+      this.parser = parser7;
       this.options = options;
       this.isOpen = isOpen;
       this.open = 0;
@@ -14642,7 +14729,7 @@
       else if (isOpen)
         topContext = new NodeContext(null, null, Mark.none, true, null, topOptions);
       else
-        topContext = new NodeContext(parser6.schema.topNodeType, null, Mark.none, true, null, topOptions);
+        topContext = new NodeContext(parser7.schema.topNodeType, null, Mark.none, true, null, topOptions);
       this.nodes = [topContext];
       this.find = options.findPositions;
       this.needsBlock = false;
@@ -18210,6 +18297,92 @@
     } };
   }
 
+  // lib/document-wrapped-format.mjs
+  var import_document_source_edit3 = __toESM(require_document_source_edit(), 1);
+  var reject6 = () => ({ ok: false, code: "unsafe-format-range" });
+  var paragraph5 = (parts) => ({ type: "paragraph", content: nodes(parts) });
+  function mapWrappedFormat(source, p, { action, from: from2, to }, project) {
+    const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to), block = p.blocks[index2];
+    const list3 = !!block?.items, rows = block?.items || block?.quoteRows;
+    if (!rows?.some((r) => r.parts)) return null;
+    const i = rows.findIndex((r) => from2 >= r.from && to <= r.to), row = rows[i];
+    if (!row) return null;
+    const mark2 = ["bold", "italic", "code"].includes(action), split4 = action === (list3 ? "split-list" : "split-quote"), join4 = action === (list3 ? "join-list" : "join-quote");
+    if (!mark2 && !split4 && !join4 && !(action === "paragraph" && !list3)) return null;
+    if (!mark2 && from2 !== to) return reject6();
+    const parts = rowParts(source, p, index2, row, list3), a = split(parts, from2 - row.from), b = split(parts, to - row.from);
+    if (!a || !b) return reject6();
+    const expected = structuredClone(p.doc), node2 = expected.content[index2], nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
+    const prefix = row.continuation ?? (list3 ? row.indent + " ".repeat(row.marker.length) : "> ");
+    let start = row.bodyFrom, end = row.sourceTo, raw, target = i, offset = from2 - row.from, targetIndex = index2, selectedRange = false, prose = false;
+    const parent = list3 ? listNodeAt(node2, row.path.slice(0, -1)) : node2, slot = list3 ? row.siblingIndex : i;
+    if (mark2) {
+      if (from2 === to) return reject6();
+      const chosen = split(a[1], to - from2)?.[0];
+      if (!chosen?.length) return reject6();
+      if (action === "code" && (chosen.length !== 1 || chosen[0].breakKind || chosen[0].text.includes("`"))) return reject6();
+      const value = chosen.map((s) => s.breakKind === "hard" ? " " : s.text).join("");
+      if (!value.trim() || value.trim() !== value) return reject6();
+      const remove2 = chosen.every((s) => s[action]), allNew = chosen.every((s) => !s[action]), frame = { kind: action, from: -1, to: -1, open: action === "bold" ? "**" : "*", close: action === "bold" ? "**" : "*" };
+      const middle = chosen.map((s) => allNew && action !== "code" ? { ...s, [action]: true, frames: [frame, ...s.frames] } : toggleInlineFrames(s, action, source, remove2));
+      const result = [...a[0], ...middle, ...b[1]];
+      raw = renderRow(result, source, prefix);
+      if (list3) parent.content[slot].content[0] = paragraph5(result);
+      else parent.content[slot] = paragraph5(result);
+      selectedRange = true;
+    } else if (action === "paragraph") {
+      start = block.sourceFrom;
+      end = block.sourceTo;
+      raw = rows.map((r) => renderRow(rowParts(source, p, index2, r, false), source, "")).join(nl + nl);
+      expected.content.splice(index2, 1, ...node2.content);
+      targetIndex += i;
+      prose = true;
+    } else if (split4) {
+      if (from2 === row.from && from2 === row.to) return null;
+      if (rows.length >= 32) return reject6();
+      if (list3) {
+        const old = parent.content[slot], marker = parent.type === "orderedList" ? `${Math.min(999999999, parseInt(row.marker, 10) + 1)}${row.marker.trim().at(-1)} ` : row.marker;
+        const rightPrefix = row.indent + " ".repeat(marker.length), task = row.checked === null ? "" : "[ ] ";
+        raw = renderRow(a[0], source, prefix) + (row.separator ?? rows.find((r) => r.separator)?.separator ?? nl) + row.indent + marker + task + renderRow(a[1], source, rightPrefix);
+        parent.content.splice(slot, 1, { ...old, content: [paragraph5(a[0])] }, { ...old, ...row.checked === null ? {} : { attrs: { checked: false } }, content: [paragraph5(a[1]), ...old.content.slice(1)] });
+      } else {
+        raw = renderRow(a[0], source, "> ") + nl + "> " + nl + "> " + renderRow(a[1], source, "> ");
+        parent.content.splice(slot, 1, paragraph5(a[0]), paragraph5(a[1]));
+      }
+      target = i + 1;
+      offset = 0;
+    } else {
+      if (from2 !== row.from) return reject6();
+      if (i === 0) {
+        if (list3 && (row.path.length > 1 || row.subtreeTo !== row.sourceTo)) return null;
+        start = row.sourceFrom;
+        end = rows[1]?.sourceFrom ?? block.sourceTo;
+        raw = renderRow(parts, source, "") + (rows.length > 1 ? nl + nl : "");
+        const remainder = list3 ? { ...node2, ...node2.type === "orderedList" ? { attrs: { start: parseInt(rows[1]?.marker, 10) } } : {}, content: node2.content.slice(1) } : { type: "blockquote", content: node2.content.slice(1) };
+        expected.content.splice(index2, 1, paragraph5(parts), ...rows.length > 1 ? [remainder] : []);
+        prose = true;
+        offset = 0;
+      } else {
+        const prev = rows[i - 1];
+        if (list3 && (!sameListParent(prev, row) || prev.subtreeTo !== prev.sourceTo)) return reject6();
+        const left = rowParts(source, p, index2, prev, list3), result = join2(left, parts);
+        start = prev.bodyFrom;
+        raw = renderRow(result, source, prev.continuation ?? (list3 ? prev.indent + " ".repeat(prev.marker.length) : "> "));
+        if (list3) parent.content.splice(slot - 1, 2, { ...parent.content[slot - 1], content: [paragraph5(result), ...parent.content[slot].content.slice(1)] });
+        else parent.content.splice(slot - 1, 2, paragraph5(result));
+        target = i - 1;
+        offset = prev.to - prev.from;
+      }
+    }
+    const next = source.slice(0, start) + raw + source.slice(end), patch2 = import_document_source_edit3.default.sourceDifference(source, next);
+    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject6();
+    const projection = project(next);
+    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject6();
+    const dest = projection.blocks[targetIndex], at = (prose ? dest?.from + 1 : (list3 ? dest?.items : dest?.quoteRows)?.[target]?.from) + offset;
+    if (!Number.isSafeInteger(at)) return reject6();
+    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, selection: { from: at, to: selectedRange ? at + to - from2 : at } };
+  }
+
   // lib/document-format-edit.mjs
   var import_document_capacity16 = __toESM(require_document_capacity(), 1);
 
@@ -18236,17 +18409,17 @@
   // lib/document-table-edit.mjs
   var import_document_capacity11 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity11.default;
-  var reject6 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject7 = () => ({ ok: false, code: "unsafe-format-range" });
   var tableActions = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-before", "table-exit"];
   function mapTableEdit(source, p, { action, from: from2, to }, project) {
-    if (from2 !== to) return reject6();
+    if (from2 !== to) return reject7();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
-    if (index2 < 0) return reject6();
+    if (index2 < 0) return reject7();
     const block = p.blocks[index2], expected = structuredClone(p.doc), node2 = expected.content[index2];
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     let a, b, text5, targetIndex = index2, targetRow = 0, targetCol = 0;
     if (action === "insert-table") {
-      if (node2.type !== "paragraph" || !p.spans.some((s) => s.blockIndex === index2 && s.textOffset === void 0 && from2 >= s.from && from2 <= s.to)) return reject6();
+      if (node2.type !== "paragraph" || !p.spans.some((s) => s.blockIndex === index2 && s.textOffset === void 0 && from2 >= s.from && from2 <= s.to)) return reject7();
       const created = { type: "table", content: [
         { type: "tableRow", content: [tableCell("\u5217 1", true), tableCell("\u5217 2", true)] },
         ...Array.from({ length: 2 }, () => ({ type: "tableRow", content: [tableCell("", false), tableCell("", false)] }))
@@ -18262,9 +18435,9 @@
         targetIndex++;
       }
     } else {
-      if (!block.cells) return reject6();
+      if (!block.cells) return reject7();
       const cell2 = block.cells.flat().find((c) => from2 >= c.from && from2 <= c.to);
-      if (!cell2) return reject6();
+      if (!cell2) return reject7();
       targetRow = cell2.tableRow;
       targetCol = cell2.tableCol;
       const rows = node2.content.length, cols = node2.content[0].content.length;
@@ -18272,7 +18445,7 @@
       a = block.sourceFrom;
       b = block.sourceTo;
       if (action === "table-add-row") {
-        if (rows >= TABLE_ROWS) return reject6();
+        if (rows >= TABLE_ROWS) return reject7();
         targetRow++;
         targetCol = 0;
         const i = targetRow + 1, previous3 = lines[i - 1], eol = previous3.eol || nl;
@@ -18280,7 +18453,7 @@
         previous3.eol = eol;
         node2.content.splice(targetRow, 0, { type: "tableRow", content: node2.content[0].content.map((c) => tableCell("", false, c.attrs.align)) });
       } else if (action === "table-delete-row") {
-        if (targetRow === 0) return reject6();
+        if (targetRow === 0) return reject7();
         const i = targetRow + 1;
         if (i === lines.length - 1) lines[i - 1].eol = lines[i].eol;
         lines.splice(i, 1);
@@ -18288,14 +18461,14 @@
         targetRow = Math.min(targetRow, rows - 2);
       } else if (action === "table-add-column" || action === "table-delete-column") {
         const add2 = action === "table-add-column";
-        if (add2 ? cols >= TABLE_COLUMNS : cols <= 1) return reject6();
+        if (add2 ? cols >= TABLE_COLUMNS : cols <= 1) return reject7();
         const col = targetCol + (add2 ? 1 : 0);
         for (const [i, line] of lines.entries()) line.values.splice(col, add2 ? 0 : 1, ...add2 ? [i === 1 ? "---" : ""] : []);
         for (const [i, row] of node2.content.entries()) row.content.splice(col, add2 ? 0 : 1, ...add2 ? [tableCell("", i === 0)] : []);
         targetCol = add2 ? col : Math.min(col, cols - 2);
       } else if (action === "table-exit" || action === "table-before") {
         return continueInProse(source, p, index2, action === "table-before", project);
-      } else return reject6();
+      } else return reject7();
       if (text5 === void 0) text5 = lines.map((l) => "|" + l.values.join("|") + "|" + l.eol).join("");
     }
     let old = source.slice(a, b), start = 0, end = old.length, last = text5.length;
@@ -18313,13 +18486,13 @@
     b = a + end;
     a += start;
     text5 = text5.slice(start, last);
-    if (text5.length > 4096 || b - a > 4096) return reject6();
+    if (text5.length > 4096 || b - a > 4096) return reject7();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS6) return reject6();
+    if (next.length > MAX_SOURCE_UNITS6) return reject7();
     const projection = project(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject6();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject7();
     const target = projection.blocks[targetIndex], pos = target?.cells?.[targetRow]?.[targetCol]?.from;
-    if (!Number.isSafeInteger(pos)) return reject6();
+    if (!Number.isSafeInteger(pos)) return reject7();
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: pos, to: pos } };
   }
 
@@ -18365,7 +18538,7 @@
     }
     const tree = build(p.doc.content[index2]);
     for (const r of rows) r.taskMark = r.checked === null ? "" : source.slice(r.sourceFrom + r.marker.length, r.bodyFrom);
-    const lines = (list3) => list3.items.flatMap((v) => [v.indent + v.marker + (v.checked === null ? "" : v.taskMark ?? v.row.taskMark) + v.body, ...v.child ? lines(v.child) : []]);
+    const lines = (list3) => list3.items.flatMap((v) => [{ separator: v.row.separator ?? nl, text: v.indent + v.marker + (v.checked === null ? "" : v.taskMark ?? v.row.taskMark) + v.body }, ...v.child ? lines(v.child) : []]);
     const toDoc = (list3) => ({ type: list3.type, ...list3.type === "orderedList" ? { attrs: { start: list3.start } } : {}, content: list3.items.map((v) => ({ type: "listItem", ...v.checked === null ? {} : { attrs: { checked: v.checked } }, content: [{ type: "paragraph", content: v.content }, ...v.child ? [toDoc(v.child)] : []] })) });
     const shift2 = (v, amount) => {
       if (amount < 0 && !v.indent.startsWith(" ".repeat(-amount))) throw Error("indent");
@@ -18374,7 +18547,7 @@
     };
     const original = source.slice(block.sourceFrom, block.sourceTo);
     const rootIndent = tree.items[0].indent;
-    const sourceOf = () => lines(tree).join(nl).slice(rootIndent.length);
+    const sourceOf = () => lines(tree).map((v, i2) => (i2 ? v.separator : "") + v.text).join("").slice(rootIndent.length);
     if (sourceOf() !== original) return rejectListEdit();
     let target = selected2, offset = from2 - row.from, exit3 = null;
     const i = parentList.items.indexOf(selected2);
@@ -18461,7 +18634,7 @@
           if (offset !== 0 || i === 0) return rejectListEdit();
           const previous3 = parentList.items[i - 1], left = pieces(previous3);
           if (!left || previous3.child) return rejectListEdit();
-          const merged = join(left, parts);
+          const merged = join2(left, parts);
           offset = left.map((p2) => p2.text).join("").length;
           previous3.body = renderListPieces(merged);
           previous3.content = listInlineNodes(merged);
@@ -18524,97 +18697,97 @@
   // lib/document-structured-edit.mjs
   var import_document_capacity13 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity13.default;
-  var reject7 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject8 = () => ({ ok: false, code: "unsafe-format-range" });
   var inline3 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
-  var paragraph5 = (content5) => ({ type: "paragraph", content: content5 });
+  var paragraph6 = (content5) => ({ type: "paragraph", content: content5 });
   var quote = (content5) => ({ type: "blockquote", content: content5 });
   var cuts = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   function mapStructuredEdit(source, p, { action, from: from2, to }, project) {
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return reject7();
+    if (index2 < 0) return reject8();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     let a = block.sourceFrom, b = block.sourceTo, text5, targetIndex = index2, targetRow = null, offset = 0;
     const rowIndex = block.quoteRows?.findIndex((r) => from2 >= r.from && to <= r.to), row = block.quoteRows?.[rowIndex];
     if (action === "blockquote" || action === "code-block" || action === "block-shortcut" || action === "fence-shortcut") {
-      if (!["paragraph", "heading"].includes(node2.type) || block.items) return reject7();
+      if (!["paragraph", "heading"].includes(node2.type) || block.items) return reject8();
       const spans = p.spans.filter((s) => s.blockIndex === index2), raw = source.slice(a, b), plain = node2.content.every((n) => !n.marks?.length);
-      if (spans.some((s) => s.textOffset !== void 0) || /[\r\n]/.test(raw)) return reject7();
+      if (spans.some((s) => s.textOffset !== void 0) || /[\r\n]/.test(raw)) return reject8();
       const body = node2.type === "heading" ? raw.replace(/^#{1,6} /, "") : raw;
       if (action === "blockquote") {
         text5 = "> " + body;
-        expected.content[index2] = quote([paragraph5(node2.content)]);
+        expected.content[index2] = quote([paragraph6(node2.content)]);
         targetRow = 0;
         offset = from2 - block.from - 1;
       } else if (action === "code-block") {
-        if (!plain) return reject7();
+        if (!plain) return reject8();
         text5 = "```" + nl + body + nl + "```";
         expected.content[index2] = { type: "codeBlock", attrs: { language: null, sourceEditable: true }, content: inline3(body) };
         offset = from2 - block.from - 1;
       } else {
-        if (from2 !== to || node2.type !== "paragraph" || !plain || from2 !== block.to - 1) return reject7();
+        if (from2 !== to || node2.type !== "paragraph" || !plain || from2 !== block.to - 1) return reject8();
         if (action === "block-shortcut" && raw === ">") {
           text5 = "> ";
-          expected.content[index2] = quote([paragraph5([])]);
+          expected.content[index2] = quote([paragraph6([])]);
           targetRow = 0;
         } else {
           const m = raw.match(/^```([A-Za-z0-9_+-]{0,32})$/);
-          if (!m) return reject7();
+          if (!m) return reject8();
           text5 = raw + nl + "```";
           expected.content[index2] = { type: "codeBlock", attrs: { language: m[1] || null, sourceEditable: true }, content: [] };
         }
       }
     } else if (action === "paragraph") {
       if (block.quoteRows) {
-        if (!row) return reject7();
+        if (!row) return reject8();
         text5 = block.quoteRows.map((r) => source.slice(r.bodyFrom, r.sourceTo)).join(nl + nl);
         expected.content.splice(index2, 1, ...node2.content);
         targetIndex += rowIndex;
         offset = from2 - row.from;
       } else if (block.codeBody) {
         const value = node2.content[0]?.text || "";
-        if (value.includes("\n")) return reject7();
+        if (value.includes("\n")) return reject8();
         text5 = value;
-        expected.content[index2] = paragraph5(inline3(value));
+        expected.content[index2] = paragraph6(inline3(value));
         offset = from2 - block.from - 1;
-      } else return reject7();
+      } else return reject8();
     } else if (action === "exit-block") {
-      if (from2 !== to || !block.quoteRows && !block.codeBody) return reject7();
+      if (from2 !== to || !block.quoteRows && !block.codeBody) return reject8();
       return continueInProse(source, p, index2, false, project);
     } else if (["split-quote", "join-quote"].includes(action)) {
-      if (!row || from2 !== to) return reject7();
+      if (!row || from2 !== to) return reject8();
       const spans = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex), current = node2.content[rowIndex], value = current.content.map((n) => n.text).join("");
       const at = from2 - row.from;
-      if (cuts(value, at)) return reject7();
+      if (cuts(value, at)) return reject8();
       const parts = spans.map((s) => ({ ...s, frames: inlineFrames(s, source) }));
-      if (renderInlineParts(parts, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject7();
+      if (renderInlineParts(parts, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject8();
       if (action === "join-quote") {
-        if (at !== 0) return reject7();
+        if (at !== 0) return reject8();
         if (rowIndex === 0) {
           b = block.quoteRows[1]?.sourceFrom ?? block.sourceTo;
           text5 = source.slice(row.bodyFrom, row.sourceTo) + (node2.content.length > 1 ? nl + nl : "");
-          expected.content.splice(index2, 1, paragraph5(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
+          expected.content.splice(index2, 1, paragraph6(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
         } else {
           const prev = block.quoteRows[rowIndex - 1], before = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex - 1).map((s) => ({ ...s, frames: inlineFrames(s, source) }));
-          if (renderInlineParts(before, source) !== source.slice(prev.bodyFrom, prev.sourceTo)) return reject7();
-          const joined = join(before, parts);
+          if (renderInlineParts(before, source) !== source.slice(prev.bodyFrom, prev.sourceTo)) return reject8();
+          const joined = join2(before, parts);
           a = prev.bodyFrom;
           b = row.sourceTo;
           text5 = renderInlineParts(joined, source);
-          expected.content[index2].content.splice(rowIndex - 1, 2, paragraph5(inlineNodes(joined)));
+          expected.content[index2].content.splice(rowIndex - 1, 2, paragraph6(inlineNodes(joined)));
           targetRow = rowIndex - 1;
           offset = before.map((s) => s.text).join("").length;
         }
       } else if (!value) {
-        if (rowIndex !== node2.content.length - 1) return reject7();
+        if (rowIndex !== node2.content.length - 1) return reject8();
         if (rowIndex === 0) {
           text5 = "";
-          expected.content[index2] = paragraph5([]);
+          expected.content[index2] = paragraph6([]);
         } else {
           a = block.quoteRows[rowIndex - 1].sourceTo;
           text5 = nl + nl;
           expected.content[index2].content.pop();
-          expected.content.splice(index2 + 1, 0, paragraph5([]));
+          expected.content.splice(index2 + 1, 0, paragraph6([]));
           targetIndex++;
         }
       } else {
@@ -18629,11 +18802,11 @@
         a = row.bodyFrom;
         b = row.sourceTo;
         text5 = renderInlineParts(left2, source) + nl + "> " + nl + "> " + renderInlineParts(right2, source);
-        expected.content[index2].content.splice(rowIndex, 1, paragraph5(inlineNodes(left2)), paragraph5(inlineNodes(right2)));
+        expected.content[index2].content.splice(rowIndex, 1, paragraph6(inlineNodes(left2)), paragraph6(inlineNodes(right2)));
         targetRow = rowIndex + 1;
       }
-    } else return reject7();
-    if (typeof text5 !== "string") return reject7();
+    } else return reject8();
+    if (typeof text5 !== "string") return reject8();
     const old = source.slice(a, b);
     let left = 0, right = old.length, end = text5.length;
     while (left < right && left < end && old[left] === text5[left]) left++;
@@ -18649,20 +18822,20 @@
     b = a + right;
     a += left;
     text5 = text5.slice(left, end);
-    if (text5.length > 4096 || b - a > 4096) return reject7();
+    if (text5.length > 4096 || b - a > 4096) return reject8();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS8) return reject7();
+    if (next.length > MAX_SOURCE_UNITS8) return reject8();
     const projection = project(next);
-    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject7();
+    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject8();
     const target = projection.blocks[targetIndex], pos = (targetRow === null ? target?.from + 1 : target?.quoteRows?.[targetRow]?.from) + offset;
-    if (!Number.isSafeInteger(pos) || pos >= target.to) return reject7();
+    if (!Number.isSafeInteger(pos) || pos >= target.to) return reject8();
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: pos, to: pos } };
   }
 
   // lib/document-link-edit.mjs
   var import_document_capacity14 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity14.default;
-  var reject8 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
+  var reject9 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
   var splits3 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var eligible = (s) => !s.codeBlock && s.textOffset === void 0;
   var sameParent = (a, b) => a.blockIndex === b.blockIndex && a.itemIndex === b.itemIndex && a.quoteIndex === b.quoteIndex && a.tableRow === b.tableRow && a.tableCol === b.tableCol;
@@ -18758,13 +18931,13 @@
   }
   function mapLinkEdit(source, command3) {
     const setting = command3.action === "set-link", keys2 = setting ? ["action", "from", "to", "label", "href"] : ["action", "from", "to"];
-    if (!["set-link", "remove-link"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject8();
+    if (!["set-link", "remove-link"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject9();
     const c = linkSelection(source, command3);
-    if (!c || !setting && !c.existing) return reject8();
+    if (!c || !setting && !c.existing) return reject9();
     const { span: s, projection: p } = c, label = setting ? command3.label : c.label;
-    if (!validString(label) || !label.trim() || label.length > 512) return reject8("invalid-link-label");
-    if (setting && !validLinkTarget(command3.href)) return reject8("invalid-link-target");
-    if (setting && c.formattedLabel && label !== c.label) return reject8("unsafe-link-label");
+    if (!validString(label) || !label.trim() || label.length > 512) return reject9("invalid-link-label");
+    if (setting && !validLinkTarget(command3.href)) return reject9("invalid-link-target");
+    if (setting && c.formattedLabel && label !== c.label) return reject9("unsafe-link-label");
     const expected = structuredClone(p.doc), parent = spanBlock({ doc: expected }, s), block = p.blocks[s.blockIndex];
     const start = s.tableRow !== void 0 ? block.cells[s.tableRow][s.tableCol].from : s.itemIndex !== void 0 ? block.items[s.itemIndex].from : s.quoteIndex !== void 0 ? block.quoteRows[s.quoteIndex].from : block.from + 1;
     const attrs = setting ? { href: command3.href, title: s.link?.title ?? null } : null;
@@ -18788,21 +18961,21 @@
       }
       insert2 = "[" + (s.code ? "`" + label + "`" : label) + "](<" + command3.href + ">)";
     }
-    if (!replaceLabel(parent, c.from - start, c.to - start, c.formattedLabel || !setting ? null : label, attrs, inlineTextNode(s).marks)) return reject8();
-    if (insert2.length > 4096 || b - a > 4096) return reject8();
+    if (!replaceLabel(parent, c.from - start, c.to - start, c.formattedLabel || !setting ? null : label, attrs, inlineTextNode(s).marks)) return reject9();
+    if (insert2.length > 4096 || b - a > 4096) return reject9();
     const next = source.slice(0, a) + insert2 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS9) return reject8();
+    if (next.length > MAX_SOURCE_UNITS9) return reject9();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject8("unsafe-link-content");
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject9("unsafe-link-content");
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: insert2 }, inverseSource: { from: a, to: a + insert2.length, insert: source.slice(a, b) }, selection: { from: c.from, to: c.from + label.length } };
   }
 
   // lib/document-boundary-edit.mjs
   var import_document_capacity15 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity15.default;
-  var reject9 = () => ({ ok: false, code: "unsafe-format-range" });
-  var paragraph6 = (content5) => ({ type: "paragraph", content: content5 });
-  var item = (content5) => ({ type: "listItem", content: [paragraph6(content5)] });
+  var reject10 = () => ({ ok: false, code: "unsafe-format-range" });
+  var paragraph7 = (content5) => ({ type: "paragraph", content: content5 });
+  var item = (content5) => ({ type: "listItem", content: [paragraph7(content5)] });
   var cutsPair = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var mark = (marker) => marker === "`" ? "code" : marker.length === 2 ? "bold" : marker ? "italic" : null;
   var render2 = (pieces) => pieces.some((p) => p.frames) ? renderInlineParts(pieces, "") : pieces.map((p) => p.marker + p.text + p.marker).join("");
@@ -18821,9 +18994,9 @@
     return [left, right];
   }
   function mapBoundaryEdit(source, p, { action, from: from2, to }, project) {
-    if (from2 !== to) return reject9();
+    if (from2 !== to) return reject10();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
-    if (index2 < 0) return reject9();
+    if (index2 < 0) return reject10();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
     if (action === "join-paragraph" && node2.type === "paragraph" && from2 === block.from + 1 && index2 > 0) {
       const previous3 = p.blocks[index2 - 1];
@@ -18847,53 +19020,53 @@
     }
     let a, b, text5, targetIndex = index2, targetItem = null, offset = 0;
     if (action === "split-heading") {
-      if (node2.type !== "heading") return reject9();
+      if (node2.type !== "heading") return reject10();
       const current = body(index2, null, true);
-      if (!current) return reject9();
+      if (!current) return reject10();
       const at = from2 - current.from;
-      if (!at || cutsPair(current.text, at)) return reject9();
+      if (!at || cutsPair(current.text, at)) return reject10();
       const [left, right] = split3(current.pieces, at);
       a = current.a;
       b = current.b;
       text5 = render2(left) + nl + nl + render2(right);
       expected.content[index2].content = content3(left);
-      expected.content.splice(index2 + 1, 0, paragraph6(content3(right)));
+      expected.content.splice(index2 + 1, 0, paragraph7(content3(right)));
       targetIndex++;
     } else if (action === "split-paragraph" && node2.type === "paragraph" && from2 === block.to - 1 && p.spans.some((s) => s.blockIndex === index2 && s.link) && !p.spans.some((s) => s.blockIndex === index2 && s.textOffset !== void 0)) {
       a = b = block.sourceTo;
       text5 = nl + nl;
-      expected.content.splice(index2 + 1, 0, paragraph6([]));
+      expected.content.splice(index2 + 1, 0, paragraph7([]));
       targetIndex++;
     } else if (action === "split-paragraph" || action === "join-paragraph") {
       const current = body(index2);
-      if (!current) return reject9();
+      if (!current) return reject10();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject9();
+      if (cutsPair(current.text, at)) return reject10();
       if (action === "split-paragraph") {
-        if (!current.text) return reject9();
+        if (!current.text) return reject10();
         const [left, right] = split3(current.pieces, at);
         a = current.a;
         b = current.b;
         text5 = render2(left) + nl + nl + render2(right);
-        expected.content.splice(index2, 1, paragraph6(content3(left)), paragraph6(content3(right)));
+        expected.content.splice(index2, 1, paragraph7(content3(left)), paragraph7(content3(right)));
         targetIndex++;
       } else {
         const previous3 = body(index2 - 1);
-        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject9();
-        const pieces = join(previous3.pieces, current.pieces);
+        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject10();
+        const pieces = join2(previous3.pieces, current.pieces);
         a = previous3.a;
         b = current.b;
         text5 = render2(pieces);
-        expected.content.splice(index2 - 1, 2, paragraph6(content3(pieces)));
+        expected.content.splice(index2 - 1, 2, paragraph7(content3(pieces)));
         targetIndex--;
         offset = previous3.text.length;
       }
     } else {
-      if (!block.items) return reject9();
+      if (!block.items) return reject10();
       const rows = block.items, i = rows.findIndex((r) => from2 >= r.from && from2 <= r.to), current = body(index2, i);
-      if (!current) return reject9();
+      if (!current) return reject10();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject9();
+      if (cutsPair(current.text, at)) return reject10();
       const items = expected.content[index2].content;
       const remainder = (start2) => ({
         ...structuredClone(node2),
@@ -18901,18 +19074,18 @@
         content: items.slice(start2)
       });
       if (action === "split-list" && !current.text) {
-        if (i !== 0 && i !== rows.length - 1) return reject9();
+        if (i !== 0 && i !== rows.length - 1) return reject10();
         if (i === 0) {
           a = block.sourceFrom;
           b = rows[1]?.sourceFrom ?? block.sourceTo;
           text5 = rows.length > 1 ? nl + nl : "";
-          expected.content.splice(index2, 1, paragraph6([]), ...rows.length > 1 ? [remainder(1)] : []);
+          expected.content.splice(index2, 1, paragraph7([]), ...rows.length > 1 ? [remainder(1)] : []);
         } else {
           a = rows[i - 1].sourceTo;
           b = current.b;
           text5 = nl + nl;
           items.pop();
-          expected.content.splice(index2 + 1, 0, paragraph6([]));
+          expected.content.splice(index2 + 1, 0, paragraph7([]));
           targetIndex++;
         }
       } else if (action === "split-list") {
@@ -18928,11 +19101,11 @@
           a = block.sourceFrom;
           b = rows[1]?.sourceFrom ?? block.sourceTo;
           text5 = render2(current.pieces) + (rows.length > 1 ? nl + nl : "");
-          expected.content.splice(index2, 1, paragraph6(content3(current.pieces)), ...rows.length > 1 ? [remainder(1)] : []);
+          expected.content.splice(index2, 1, paragraph7(content3(current.pieces)), ...rows.length > 1 ? [remainder(1)] : []);
         } else {
           const previous3 = body(index2, i - 1);
-          if (!previous3) return reject9();
-          const pieces = join(previous3.pieces, current.pieces);
+          if (!previous3) return reject10();
+          const pieces = join2(previous3.pieces, current.pieces);
           a = previous3.a;
           b = current.b;
           text5 = render2(pieces);
@@ -18940,7 +19113,7 @@
           targetItem = i - 1;
           offset = previous3.text.length;
         }
-      } else return reject9();
+      } else return reject10();
     }
     const old = source.slice(a, b);
     let start = 0, end = old.length, nextEnd = text5.length;
@@ -18957,14 +19130,14 @@
     b = a + end;
     a += start;
     text5 = text5.slice(start, nextEnd);
-    if (text5.length > 4096 || b - a > 4096) return reject9();
+    if (text5.length > 4096 || b - a > 4096) return reject10();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS10) return reject9();
+    if (next.length > MAX_SOURCE_UNITS10) return reject10();
     const projection = project(next);
-    if (JSON.stringify(canonical(projection.doc)) !== JSON.stringify(canonical(expected))) return reject9();
+    if (JSON.stringify(canonical(projection.doc)) !== JSON.stringify(canonical(expected))) return reject10();
     const target = projection.blocks[targetIndex];
     const position2 = (targetItem === null ? target?.from + 1 : target?.items?.[targetItem]?.from) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject9();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject10();
     return {
       ok: true,
       source: next,
@@ -18977,10 +19150,10 @@
 
   // lib/document-format-edit.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity16.default;
-  var reject10 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject11 = () => ({ ok: false, code: "unsafe-format-range" });
   var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "block-shortcut", "fence-shortcut", "blockquote", "code-block", "split-quote", "join-quote", "exit-block", "bold", "italic", "code", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph", "task-list", "task-shortcut", "toggle-task", "indent-list", "outdent-list"];
-  var paragraph7 = (content5) => ({ type: "paragraph", content: content5 });
-  var item2 = (content5) => ({ type: "listItem", content: [paragraph7(content5)] });
+  var paragraph8 = (content5) => ({ type: "paragraph", content: content5 });
+  var item2 = (content5) => ({ type: "listItem", content: [paragraph8(content5)] });
   var inline4 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
   var splits4 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   function merge2(nodes2) {
@@ -18993,26 +19166,28 @@
     return result;
   }
   function mapFormatEdit(source, command3) {
-    if (!command3 || Object.getPrototypeOf(command3) !== Object.prototype) return reject10();
+    if (!command3 || Object.getPrototypeOf(command3) !== Object.prototype) return reject11();
     if (["set-image", "remove-image", "image-exit"].includes(command3.action)) return mapImageEdit(source, command3);
     if (["set-link", "remove-link"].includes(command3.action)) return mapLinkEdit(source, command3);
-    if (Object.keys(command3).length !== 3 || Object.keys(command3).some((k) => !["action", "from", "to"].includes(k))) return reject10();
+    if (Object.keys(command3).length !== 3 || Object.keys(command3).some((k) => !["action", "from", "to"].includes(k))) return reject11();
     const { action, from: from2, to } = command3;
-    if (![...actions, ...tableActions].includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject10();
+    if (![...actions, ...tableActions].includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject11();
     const p = projectSource(source);
+    const wrapped = mapWrappedFormat(source, p, command3, projectSource);
+    if (wrapped) return wrapped;
     const article = mapArticleFormat(source, p, command3, projectSource);
     if (article) return article;
     const combined = mapCombinedMark(source, p, command3, projectSource);
     if (combined) return combined;
     if (tableActions.includes(action)) return mapTableEdit(source, p, command3, projectSource);
-    if (p.blocks.some((b2) => b2?.cells && from2 > b2.from && to < b2.to)) return reject10();
+    if (p.blocks.some((b2) => b2?.cells && from2 > b2.from && to < b2.to)) return reject11();
     const selectedList = p.blocks.find((b2) => b2?.items && from2 > b2.from && to < b2.to);
     const structuredList = selectedList?.items.some((r) => r.path.length > 1 || r.checked !== null);
     if (["task-shortcut", "toggle-task", "indent-list", "outdent-list"].includes(action) || action === "task-list" && selectedList || ["split-list", "join-list"].includes(action) && structuredList)
       return mapListEdit(source, p, command3, projectSource);
     if (["split-list", "join-list", "split-paragraph", "join-paragraph", "split-heading"].includes(action)) return mapBoundaryEdit(source, p, command3, projectSource);
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return reject10();
+    if (index2 < 0) return reject11();
     const structured = p.blocks[index2].quoteRows || p.blocks[index2].codeBody;
     if (["blockquote", "code-block", "split-quote", "join-quote", "exit-block", "fence-shortcut"].includes(action) || structured && action === "paragraph" || action === "block-shortcut" && /^(?:>|```[A-Za-z0-9_+-]{0,32})$/.test(source.slice(p.blocks[index2].sourceFrom, p.blocks[index2].sourceTo)))
       return mapStructuredEdit(source, p, command3, projectSource);
@@ -19021,9 +19196,9 @@
     let a = block.sourceFrom, b = block.sourceTo, text5, offset = from2 - block.from - 1, targetIndex = index2, targetItem = null, targetQuote = null;
     const nl = source.slice(a, b).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     if (action === "block-shortcut") {
-      if (node2.type !== "paragraph" || !selected2 || from2 !== to || selected2.textOffset !== void 0 || node2.content.length !== 1 || selected2.bold || selected2.italic || selected2.code || selected2.link) return reject10();
+      if (node2.type !== "paragraph" || !selected2 || from2 !== to || selected2.textOffset !== void 0 || node2.content.length !== 1 || selected2.bold || selected2.italic || selected2.code || selected2.link) return reject11();
       const prefix = selected2.text.slice(0, from2 - selected2.from), body = selected2.text.slice(from2 - selected2.from);
-      if (!/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(prefix) || source.slice(a, b) !== selected2.text) return reject10();
+      if (!/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(prefix) || source.slice(a, b) !== selected2.text) return reject11();
       a = b = selected2.sourceFrom + prefix.length;
       text5 = " ";
       offset = 0;
@@ -19034,15 +19209,15 @@
         targetItem = 0;
       }
     } else if (["bold", "italic", "code"].includes(action)) {
-      if (!selected2 || selected2.link || from2 === to || selected2.textOffset !== void 0 || ["bold", "italic", "code"].some((mark2) => mark2 !== action && selected2[mark2])) return reject10();
+      if (!selected2 || selected2.link || from2 === to || selected2.textOffset !== void 0 || ["bold", "italic", "code"].some((mark2) => mark2 !== action && selected2[mark2])) return reject11();
       const start = from2 - selected2.from, end = to - selected2.from, value = selected2.text.slice(start, end);
-      if (splits4(selected2.text, start) || splits4(selected2.text, end) || !value.trim() || value.trim() !== value) return reject10();
+      if (splits4(selected2.text, start) || splits4(selected2.text, end) || !value.trim() || value.trim() !== value) return reject11();
       const parent = spanBlock({ doc: expected }, selected2), child = selected2.inlineIndex ?? selected2.childIndex;
       a = selected2.sourceFrom + start;
       b = selected2.sourceFrom + end;
       const marker = action === "bold" ? "**" : action === "italic" ? "*" : "`";
       if (selected2[action]) {
-        if (start !== 0 || end !== selected2.text.length) return reject10();
+        if (start !== 0 || end !== selected2.text.length) return reject11();
         a -= marker.length;
         b += marker.length;
         text5 = value;
@@ -19056,12 +19231,12 @@
       targetQuote = selected2.quoteIndex ?? null;
       offset = to - (list3 ? block.items[targetItem].from : targetQuote !== null ? block.quoteRows[targetQuote].from : block.from + 1);
     } else if (list3) {
-      if (block.items.some((r) => r.path.length > 1 || r.checked !== null)) return reject10();
-      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject10();
+      if (block.items.some((r) => r.path.length > 1 || r.checked !== null)) return reject11();
+      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject11();
       const rows = block.items.map((row) => source.slice(row.bodyFrom, row.sourceTo));
       if (action === "paragraph" || action === "bullet-list" && node2.type === "bulletList" || action === "ordered-list" && node2.type === "orderedList") {
         text5 = rows.join(nl + nl);
-        expected.content.splice(index2, 1, ...node2.content.map((n) => paragraph7(n.content[0].content)));
+        expected.content.splice(index2, 1, ...node2.content.map((n) => paragraph8(n.content[0].content)));
         targetIndex = index2 + (selected2?.itemIndex ?? 0);
         offset = selected2 ? from2 - block.items[selected2.itemIndex].from : 0;
       } else {
@@ -19071,32 +19246,32 @@
         offset = selected2 ? from2 - block.items[targetItem].from : 0;
       }
     } else {
-      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject10();
+      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject11();
       const raw = source.slice(a, b), prefix = node2.type === "heading" ? raw.match(/^#{1,6}[ \t]+/)?.[0] : "";
-      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject10();
+      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject11();
       const body = raw.slice(prefix.length);
-      if (body.trim() !== body) return reject10();
+      if (body.trim() !== body) return reject11();
       if (action === "paragraph") {
         text5 = body;
-        expected.content[index2] = paragraph7(node2.content);
+        expected.content[index2] = paragraph8(node2.content);
       } else if (action.startsWith("heading-")) {
         text5 = "#".repeat(Number(action.at(-1))) + " " + body;
         expected.content[index2] = { type: "heading", attrs: { level: Number(action.at(-1)) }, content: node2.content };
       } else {
         text5 = (action === "ordered-list" ? "1. " : action === "task-list" ? "- [ ] " : "- ") + body;
-        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: [action === "task-list" ? { type: "listItem", attrs: { checked: false }, content: [paragraph7(node2.content)] } : item2(node2.content)] };
+        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: [action === "task-list" ? { type: "listItem", attrs: { checked: false }, content: [paragraph8(node2.content)] } : item2(node2.content)] };
         targetItem = 0;
       }
     }
-    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject10();
+    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject11();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS11) return reject10();
+    if (next.length > MAX_SOURCE_UNITS11) return reject11();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject10();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject11();
     const target = projection.blocks[targetIndex];
-    if (!target) return reject10();
+    if (!target) return reject11();
     const position2 = (targetItem !== null ? target.items?.[targetItem]?.from : targetQuote !== null ? target.quoteRows?.[targetQuote]?.from : target.from + 1) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject10();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject11();
     return {
       ok: true,
       source: next,
@@ -21994,8 +22169,8 @@
         dom = child;
       }
     if (!slice2) {
-      let parser6 = view.someProp("clipboardParser") || view.someProp("domParser") || DOMParser.fromSchema(view.state.schema);
-      slice2 = parser6.parseSlice(dom, {
+      let parser7 = view.someProp("clipboardParser") || view.someProp("domParser") || DOMParser.fromSchema(view.state.schema);
+      slice2 = parser7.parseSlice(dom, {
         preserveWhitespace: !!(asText || sliceData),
         context: $context,
         ruleFromNode(dom2) {
@@ -23937,9 +24112,9 @@
       }
     }
     let startDoc = view.state.doc;
-    let parser6 = view.someProp("domParser") || DOMParser.fromSchema(view.state.schema);
+    let parser7 = view.someProp("domParser") || DOMParser.fromSchema(view.state.schema);
     let $from = startDoc.resolve(from2);
-    let sel = null, doc4 = parser6.parse(parent, {
+    let sel = null, doc4 = parser7.parse(parent, {
       topNode: $from.parent,
       topMatch: $from.parent.contentMatchAt($from.index()),
       topOpen: true,
@@ -38139,10 +38314,10 @@
   NodeProp.lookAhead = new NodeProp({ perNode: true });
   NodeProp.mounted = new NodeProp({ perNode: true });
   var MountedTree = class {
-    constructor(tree, overlay, parser6, bracketed = false) {
+    constructor(tree, overlay, parser7, bracketed = false) {
       this.tree = tree;
       this.overlay = overlay;
-      this.parser = parser6;
+      this.parser = parser7;
       this.bracketed = bracketed;
     }
     /**
@@ -39758,8 +39933,8 @@
     return (parse3, input, fragments, ranges) => new MixedParse(parse3, nest, input, fragments, ranges);
   }
   var InnerParse = class {
-    constructor(parser6, parse3, overlay, bracketed, target, from2) {
-      this.parser = parser6;
+    constructor(parser7, parse3, overlay, bracketed, target, from2) {
+      this.parser = parser7;
       this.parse = parse3;
       this.overlay = overlay;
       this.bracketed = bracketed;
@@ -39772,8 +39947,8 @@
       throw new RangeError("Invalid inner parse ranges given: " + JSON.stringify(ranges));
   }
   var ActiveOverlay = class {
-    constructor(parser6, predicate, mounts, index2, start, bracketed, target, prev) {
-      this.parser = parser6;
+    constructor(parser7, predicate, mounts, index2, start, bracketed, target, prev) {
+      this.parser = parser7;
       this.predicate = predicate;
       this.mounts = mounts;
       this.index = index2;
@@ -40031,14 +40206,14 @@
         this.inner = new StructureCursor(frag.tree, -frag.offset);
       }
     }
-    findMounts(pos, parser6) {
+    findMounts(pos, parser7) {
       var _a2;
       let result = [];
       if (this.inner) {
         this.inner.cursor.moveTo(pos, 1);
         for (let pos2 = this.inner.cursor.node; pos2; pos2 = pos2.parent) {
           let mount = (_a2 = pos2.tree) === null || _a2 === void 0 ? void 0 : _a2.prop(NodeProp.mounted);
-          if (mount && mount.parser == parser6) {
+          if (mount && mount.parser == parser7) {
             for (let i = this.fragI; i < this.fragments.length; i++) {
               let frag = this.fragments[i];
               if (frag.from >= pos2.to)
@@ -40878,14 +41053,14 @@
     configure your parser to [attach](https://codemirror.net/6/docs/ref/#language.languageDataProp) it
     to the language's outer syntax node.
     */
-    constructor(data2, parser6, extraExtensions = [], name2 = "") {
+    constructor(data2, parser7, extraExtensions = [], name2 = "") {
       this.data = data2;
       this.name = name2;
       if (!EditorState2.prototype.hasOwnProperty("tree"))
         Object.defineProperty(EditorState2.prototype, "tree", { get() {
           return syntaxTree(this);
         } });
-      this.parser = parser6;
+      this.parser = parser7;
       this.extension = [
         language.of(this),
         EditorState2.languageData.of((state, pos, side) => {
@@ -40972,9 +41147,9 @@
     return tree;
   }
   var LRLanguage = class _LRLanguage extends Language {
-    constructor(data2, parser6, name2) {
-      super(data2, parser6, [], name2);
-      this.parser = parser6;
+    constructor(data2, parser7, name2) {
+      super(data2, parser7, [], name2);
+      this.parser = parser7;
     }
     /**
     Define a language from a parser.
@@ -41035,8 +41210,8 @@
   };
   var currentContext = null;
   var ParseContext2 = class _ParseContext {
-    constructor(parser6, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
-      this.parser = parser6;
+    constructor(parser7, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
+      this.parser = parser7;
       this.state = state;
       this.fragments = fragments;
       this.tree = tree;
@@ -41050,8 +41225,8 @@
     /**
     @internal
     */
-    static create(parser6, state, viewport) {
-      return new _ParseContext(parser6, state, [], Tree.empty, 0, viewport, [], null);
+    static create(parser7, state, viewport) {
+      return new _ParseContext(parser7, state, [], Tree.empty, 0, viewport, [], null);
     }
     startParse() {
       return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -41199,7 +41374,7 @@
       return new class extends Parser {
         createParse(input, fragments, ranges) {
           let from2 = ranges[0].from, to = ranges[ranges.length - 1].to;
-          let parser6 = {
+          let parser7 = {
             parsedPos: from2,
             advance() {
               let cx = currentContext;
@@ -41216,7 +41391,7 @@
             stopAt() {
             }
           };
-          return parser6;
+          return parser7;
         }
       }();
     }
@@ -44267,8 +44442,8 @@
     /**
     @internal
     */
-    constructor(parser6, input, fragments, ranges) {
-      this.parser = parser6;
+    constructor(parser7, input, fragments, ranges) {
+      this.parser = parser7;
       this.input = input;
       this.ranges = ranges;
       this.line = new Line2();
@@ -44324,9 +44499,9 @@
       let leaf = new LeafBlock(this.lineStart + line.pos, line.text.slice(line.pos));
       for (let parse3 of this.parser.leafBlockParsers)
         if (parse3) {
-          let parser6 = parse3(this, leaf);
-          if (parser6)
-            leaf.parsers.push(parser6);
+          let parser7 = parse3(this, leaf);
+          if (parser7)
+            leaf.parsers.push(parser7);
         }
       lines: while (this.nextLine()) {
         if (line.pos == line.text.length)
@@ -44336,8 +44511,8 @@
             if (stop(this, line, leaf))
               break lines;
         }
-        for (let parser6 of leaf.parsers)
-          if (parser6.nextLine(this, line, leaf))
+        for (let parser7 of leaf.parsers)
+          if (parser7.nextLine(this, line, leaf))
             return null;
         leaf.content += "\n" + line.scrub();
         for (let m of line.markers)
@@ -44541,8 +44716,8 @@
     @internal
     */
     finishLeaf(leaf) {
-      for (let parser6 of leaf.parsers)
-        if (parser6.finish(this, leaf))
+      for (let parser7 of leaf.parsers)
+        if (parser7.finish(this, leaf))
           return;
       let inline5 = injectMarks(this.parser.parseInline(leaf.content, leaf.start), leaf.marks);
       this.addNode(this.buffer.writeElements(inline5, -leaf.start).finish(Type.Paragraph, leaf.content.length), leaf.start);
@@ -45092,8 +45267,8 @@
     /**
     @internal
     */
-    constructor(parser6, text5, offset) {
-      this.parser = parser6;
+    constructor(parser7, text5, offset) {
+      this.parser = parser7;
       this.text = text5;
       this.offset = offset;
       this.parts = [];
@@ -45397,7 +45572,7 @@
     LinkTitle: tags.string,
     Paragraph: tags.content
   });
-  var parser2 = new MarkdownParser(new NodeSet(nodeTypes).extend(markdownHighlighting), Object.keys(DefaultBlockParsers).map((n) => DefaultBlockParsers[n]), Object.keys(DefaultBlockParsers).map((n) => DefaultLeafBlocks[n]), Object.keys(DefaultBlockParsers), DefaultEndLeaf, DefaultSkipMarkup, Object.keys(DefaultInline).map((n) => DefaultInline[n]), Object.keys(DefaultInline), []);
+  var parser3 = new MarkdownParser(new NodeSet(nodeTypes).extend(markdownHighlighting), Object.keys(DefaultBlockParsers).map((n) => DefaultBlockParsers[n]), Object.keys(DefaultBlockParsers).map((n) => DefaultLeafBlocks[n]), Object.keys(DefaultBlockParsers), DefaultEndLeaf, DefaultSkipMarkup, Object.keys(DefaultInline).map((n) => DefaultInline[n]), Object.keys(DefaultInline), []);
   function leftOverSpace(node2, from2, to) {
     let ranges = [];
     for (let n = node2.firstChild, pos = from2; ; n = n.nextSibling) {
@@ -45421,9 +45596,9 @@
           if (infoNode)
             info = input.read(infoNode.from, infoNode.to);
         }
-        let parser6 = codeParser(info);
-        if (parser6)
-          return { parser: parser6, overlay: (node3) => node3.type.id == Type.CodeText, bracketed: id2 == Type.FencedCode };
+        let parser7 = codeParser(info);
+        if (parser7)
+          return { parser: parser7, overlay: (node3) => node3.type.id == Type.CodeText, bracketed: id2 == Type.FencedCode };
       } else if (htmlParser && (id2 == Type.HTMLBlock || id2 == Type.HTMLTag || id2 == Type.CommentBlock)) {
         return { parser: htmlParser, overlay: leftOverSpace(node2.node, node2.from, node2.to) };
       }
@@ -45752,23 +45927,23 @@
     reduce(action) {
       var _a2;
       let depth2 = action >> 19, type = action & 65535;
-      let { parser: parser6 } = this.p;
+      let { parser: parser7 } = this.p;
       let lookaheadRecord = this.reducePos < this.pos - 25 && this.setLookAhead(this.pos);
-      let dPrec = parser6.dynamicPrecedence(type);
+      let dPrec = parser7.dynamicPrecedence(type);
       if (dPrec)
         this.score += dPrec;
       if (depth2 == 0) {
-        if (type < parser6.minRepeatTerm && this.reducePos < this.pos)
+        if (type < parser7.minRepeatTerm && this.reducePos < this.pos)
           this.reducePos = this.pos;
-        this.pushState(parser6.getGoto(this.state, type, true), this.reducePos);
-        if (type < parser6.minRepeatTerm)
+        this.pushState(parser7.getGoto(this.state, type, true), this.reducePos);
+        if (type < parser7.minRepeatTerm)
           this.storeNode(type, this.reducePos, this.reducePos, lookaheadRecord ? 8 : 4, true);
         this.reduceContext(type, this.reducePos);
         return;
       }
       let base2 = this.stack.length - (depth2 - 1) * 3 - (action & 262144 ? 6 : 0);
       let start = base2 ? this.stack[base2 - 2] : this.p.ranges[0].from;
-      if (type < parser6.minRepeatTerm && start == this.reducePos && this.reducePos < this.pos)
+      if (type < parser7.minRepeatTerm && start == this.reducePos && this.reducePos < this.pos)
         this.reducePos = this.pos;
       let size = this.reducePos - start;
       if (size >= 2e3 && !((_a2 = this.p.parser.nodeSet.types[type]) === null || _a2 === void 0 ? void 0 : _a2.isAnonymous)) {
@@ -45782,8 +45957,8 @@
         }
       }
       let bufferBase = base2 ? this.stack[base2 - 1] : 0, count2 = this.bufferBase + this.buffer.length - bufferBase;
-      if (type < parser6.minRepeatTerm || action & 131072) {
-        let pos = parser6.stateFlag(
+      if (type < parser7.minRepeatTerm || action & 131072) {
+        let pos = parser7.stateFlag(
           this.state,
           1
           /* StateFlag.Skipped */
@@ -45794,7 +45969,7 @@
         this.state = this.stack[base2];
       } else {
         let baseStateID = this.stack[base2 - 3];
-        this.state = parser6.getGoto(baseStateID, type, true);
+        this.state = parser7.getGoto(baseStateID, type, true);
       }
       while (this.stack.length > base2)
         this.stack.pop();
@@ -45853,18 +46028,18 @@
       if (action & 131072) {
         this.pushState(action & 65535, this.pos);
       } else if ((action & 262144) == 0) {
-        let nextState = action, { parser: parser6 } = this.p;
+        let nextState = action, { parser: parser7 } = this.p;
         this.pos = end;
-        let skipped = parser6.stateFlag(
+        let skipped = parser7.stateFlag(
           nextState,
           1
           /* StateFlag.Skipped */
         );
-        if (!skipped && (end > start || type <= parser6.maxNode))
+        if (!skipped && (end > start || type <= parser7.maxNode))
           this.reducePos = end;
         this.pushState(nextState, skipped ? start : Math.min(start, this.reducePos));
         this.shiftContext(type, start);
-        if (type <= parser6.maxNode)
+        if (type <= parser7.maxNode)
           this.buffer.push(type, start, end, 4);
       } else {
         this.pos = end;
@@ -46000,18 +46175,18 @@
     @internal
     */
     forceReduce() {
-      let { parser: parser6 } = this.p;
-      let reduce = parser6.stateSlot(
+      let { parser: parser7 } = this.p;
+      let reduce = parser7.stateSlot(
         this.state,
         5
         /* ParseState.ForcedReduce */
       );
       if ((reduce & 65536) == 0)
         return false;
-      if (!parser6.validAction(this.state, reduce)) {
+      if (!parser7.validAction(this.state, reduce)) {
         let depth2 = reduce >> 19, term = reduce & 65535;
         let target = this.stack.length - depth2 * 3;
-        if (target < 0 || parser6.getGoto(this.stack[target], term, false) < 0) {
+        if (target < 0 || parser7.getGoto(this.stack[target], term, false) < 0) {
           let backup = this.findForcedReduction();
           if (backup == null)
             return false;
@@ -46030,18 +46205,18 @@
     isn't a valid action. @internal
     */
     findForcedReduction() {
-      let { parser: parser6 } = this.p, seen = [];
+      let { parser: parser7 } = this.p, seen = [];
       let explore = (state, depth2) => {
         if (seen.includes(state))
           return;
         seen.push(state);
-        return parser6.allActions(state, (action) => {
+        return parser7.allActions(state, (action) => {
           if (action & (262144 | 131072)) ;
           else if (action & 65536) {
             let rDepth = (action >> 19) - depth2;
             if (rDepth > 1) {
               let term = action & 65535, target = this.stack.length - rDepth * 3;
-              if (target >= 0 && parser6.getGoto(this.stack[target], term, false) >= 0)
+              if (target >= 0 && parser7.getGoto(this.stack[target], term, false) >= 0)
                 return rDepth << 19 | 65536 | term;
             }
           } else {
@@ -46077,12 +46252,12 @@
     get deadEnd() {
       if (this.stack.length != 3)
         return false;
-      let { parser: parser6 } = this.p;
-      return parser6.data[parser6.stateSlot(
+      let { parser: parser7 } = this.p;
+      return parser7.data[parser7.stateSlot(
         this.state,
         1
         /* ParseState.Actions */
-      )] == 65535 && !parser6.stateSlot(
+      )] == 65535 && !parser7.stateSlot(
         this.state,
         4
         /* ParseState.DefaultReduce */
@@ -46505,8 +46680,8 @@
       this.id = id2;
     }
     token(input, stack) {
-      let { parser: parser6 } = stack.p;
-      readToken(this.data, input, stack, this.id, parser6.data, parser6.tokenPrecTable);
+      let { parser: parser7 } = stack.p;
+      readToken(this.data, input, stack, this.id, parser7.data, parser7.tokenPrecTable);
     }
   };
   TokenGroup.prototype.contextual = TokenGroup.prototype.fallback = TokenGroup.prototype.extend = false;
@@ -46707,18 +46882,18 @@
     }
   };
   var TokenCache = class {
-    constructor(parser6, stream) {
+    constructor(parser7, stream) {
       this.stream = stream;
       this.tokens = [];
       this.mainToken = null;
       this.actions = [];
-      this.tokens = parser6.tokenizers.map((_) => new CachedToken());
+      this.tokens = parser7.tokenizers.map((_) => new CachedToken());
     }
     getActions(stack) {
       let actionIndex = 0;
       let main = null;
-      let { parser: parser6 } = stack.p, { tokenizers } = parser6;
-      let mask = parser6.stateSlot(
+      let { parser: parser7 } = stack.p, { tokenizers } = parser7;
+      let mask = parser7.stateSlot(
         stack.state,
         3
         /* ParseState.TokenizerMask */
@@ -46776,10 +46951,10 @@
       let start = this.stream.clipPos(stack.pos);
       tokenizer.token(this.stream.reset(start, token), stack);
       if (token.value > -1) {
-        let { parser: parser6 } = stack.p;
-        for (let i = 0; i < parser6.specialized.length; i++)
-          if (parser6.specialized[i] == token.value) {
-            let result = parser6.specializers[i](this.stream.read(token.start, token.end), stack);
+        let { parser: parser7 } = stack.p;
+        for (let i = 0; i < parser7.specialized.length; i++)
+          if (parser7.specialized[i] == token.value) {
+            let result = parser7.specializers[i](this.stream.read(token.start, token.end), stack);
             if (result >= 0 && stack.p.parser.dialect.allows(result >> 1)) {
               if ((result & 1) == 0)
                 token.value = result >> 1;
@@ -46803,9 +46978,9 @@
       return index2;
     }
     addActions(stack, token, end, index2) {
-      let { state } = stack, { parser: parser6 } = stack.p, { data: data2 } = parser6;
+      let { state } = stack, { parser: parser7 } = stack.p, { data: data2 } = parser7;
       for (let set = 0; set < 2; set++) {
-        for (let i = parser6.stateSlot(
+        for (let i = parser7.stateSlot(
           state,
           set ? 2 : 1
           /* ParseState.Actions */
@@ -46827,8 +47002,8 @@
     }
   };
   var Parse = class {
-    constructor(parser6, input, fragments, ranges) {
-      this.parser = parser6;
+    constructor(parser7, input, fragments, ranges) {
+      this.parser = parser7;
       this.input = input;
       this.ranges = ranges;
       this.recovering = 0;
@@ -46840,11 +47015,11 @@
       this.lastBigReductionSize = 0;
       this.bigReductionCount = 0;
       this.stream = new InputStream(input, ranges);
-      this.tokens = new TokenCache(parser6, this.stream);
-      this.topTerm = parser6.top[1];
+      this.tokens = new TokenCache(parser7, this.stream);
+      this.topTerm = parser7.top[1];
       let { from: from2 } = ranges[0];
-      this.stacks = [Stack.start(this, parser6.top[0], from2)];
-      this.fragments = fragments.length && this.stream.end - from2 > parser6.bufferLength * 4 ? new FragmentCursor3(fragments, parser6.nodeSet) : null;
+      this.stacks = [Stack.start(this, parser7.top[0], from2)];
+      this.fragments = fragments.length && this.stream.end - from2 > parser7.bufferLength * 4 ? new FragmentCursor3(fragments, parser7.nodeSet) : null;
     }
     get parsedPos() {
       return this.minStackPos;
@@ -46957,18 +47132,18 @@
     // given, stacks split off by ambiguous operations will be pushed to
     // `split`, or added to `stacks` if they move `pos` forward.
     advanceStack(stack, stacks, split4) {
-      let start = stack.pos, { parser: parser6 } = this;
+      let start = stack.pos, { parser: parser7 } = this;
       let base2 = verbose ? this.stackID(stack) + " -> " : "";
       if (this.stoppedAt != null && start > this.stoppedAt)
         return stack.forceReduce() ? stack : null;
       if (this.fragments) {
         let strictCx = stack.curContext && stack.curContext.tracker.strict, cxHash = strictCx ? stack.curContext.hash : 0;
         for (let cached = this.fragments.nodeAt(start); cached; ) {
-          let match = this.parser.nodeSet.types[cached.type.id] == cached.type ? parser6.getGoto(stack.state, cached.type.id) : -1;
+          let match = this.parser.nodeSet.types[cached.type.id] == cached.type ? parser7.getGoto(stack.state, cached.type.id) : -1;
           if (match > -1 && cached.length && (!strictCx || (cached.prop(NodeProp.contextHash) || 0) == cxHash)) {
             stack.useNode(cached, match);
             if (verbose)
-              console.log(base2 + this.stackID(stack) + ` (via reuse of ${parser6.getName(cached.type.id)})`);
+              console.log(base2 + this.stackID(stack) + ` (via reuse of ${parser7.getName(cached.type.id)})`);
             return true;
           }
           if (!(cached instanceof Tree) || cached.children.length == 0 || cached.positions[0] > 0)
@@ -46980,7 +47155,7 @@
             break;
         }
       }
-      let defaultReduce = parser6.stateSlot(
+      let defaultReduce = parser7.stateSlot(
         stack.state,
         4
         /* ParseState.DefaultReduce */
@@ -46988,7 +47163,7 @@
       if (defaultReduce > 0) {
         stack.reduce(defaultReduce);
         if (verbose)
-          console.log(base2 + this.stackID(stack) + ` (via always-reduce ${parser6.getName(
+          console.log(base2 + this.stackID(stack) + ` (via always-reduce ${parser7.getName(
             defaultReduce & 65535
             /* Action.ValueMask */
           )})`);
@@ -47006,10 +47181,10 @@
         let main = this.tokens.mainToken;
         localStack.apply(action, term, main ? main.start : localStack.pos, end);
         if (verbose)
-          console.log(base2 + this.stackID(localStack) + ` (via ${(action & 65536) == 0 ? "shift" : `reduce of ${parser6.getName(
+          console.log(base2 + this.stackID(localStack) + ` (via ${(action & 65536) == 0 ? "shift" : `reduce of ${parser7.getName(
             action & 65535
             /* Action.ValueMask */
-          )}`} for ${parser6.getName(term)} @ ${start}${localStack == stack ? "" : ", split"})`);
+          )}`} for ${parser7.getName(term)} @ ${start}${localStack == stack ? "" : ", split"})`);
         if (last)
           return true;
         else if (localStack.pos > start)
@@ -47713,7 +47888,7 @@
     ProcessingInst: tags.processingInstruction,
     DoctypeDecl: tags.documentMeta
   });
-  var parser3 = LRParser.deserialize({
+  var parser4 = LRParser.deserialize({
     version: 14,
     states: ",xOVO!rOOO!ZQ#tO'#CrO!`Q#tO'#C{O!eQ#tO'#DOO!jQ#tO'#DRO!oQ#tO'#DTO!tOaO'#CqO#PObO'#CqO#[OdO'#CqO$kO!rO'#CqOOO`'#Cq'#CqO$rO$fO'#DUO$zQ#tO'#DWO%PQ#tO'#DXOOO`'#Dl'#DlOOO`'#DZ'#DZQVO!rOOO%UQ&rO,59^O%aQ&rO,59gO%lQ&rO,59jO%wQ&rO,59mO&SQ&rO,59oOOOa'#D_'#D_O&_OaO'#CyO&jOaO,59]OOOb'#D`'#D`O&rObO'#C|O&}ObO,59]OOOd'#Da'#DaO'VOdO'#DPO'bOdO,59]OOO`'#Db'#DbO'jO!rO,59]O'qQ#tO'#DSOOO`,59],59]OOOp'#Dc'#DcO'vO$fO,59pOOO`,59p,59pO(OQ#|O,59rO(TQ#|O,59sOOO`-E7X-E7XO(YQ&rO'#CtOOQW'#D['#D[O(hQ&rO1G.xOOOa1G.x1G.xOOO`1G/Z1G/ZO(sQ&rO1G/ROOOb1G/R1G/RO)OQ&rO1G/UOOOd1G/U1G/UO)ZQ&rO1G/XOOO`1G/X1G/XO)fQ&rO1G/ZOOOa-E7]-E7]O)qQ#tO'#CzOOO`1G.w1G.wOOOb-E7^-E7^O)vQ#tO'#C}OOOd-E7_-E7_O){Q#tO'#DQOOO`-E7`-E7`O*QQ#|O,59nOOOp-E7a-E7aOOO`1G/[1G/[OOO`1G/^1G/^OOO`1G/_1G/_O*VQ,UO,59`OOQW-E7Y-E7YOOOa7+$d7+$dOOO`7+$u7+$uOOOb7+$m7+$mOOOd7+$p7+$pOOO`7+$s7+$sO*bQ#|O,59fO*gQ#|O,59iO*lQ#|O,59lOOO`1G/Y1G/YO*qO7[O'#CwO+SOMhO'#CwOOQW1G.z1G.zOOO`1G/Q1G/QOOO`1G/T1G/TOOO`1G/W1G/WOOOO'#D]'#D]O+eO7[O,59cOOQW,59c,59cOOOO'#D^'#D^O+vOMhO,59cOOOO-E7Z-E7ZOOQW1G.}1G.}OOOO-E7[-E7[",
     stateData: ",c~O!_OS~OUSOVPOWQOXROYTO[]O][O^^O_^Oa^Ob^Oc^Od^Oy^O|_O!eZO~OgaO~OgbO~OgcO~OgdO~OgeO~O!XfOPmP![mP~O!YiOQpP![pP~O!ZlORsP![sP~OUSOVPOWQOXROYTOZqO[]O][O^^O_^Oa^Ob^Oc^Od^Oy^O!eZO~O![rO~P#gO!]sO!fuO~OgvO~OgwO~OS|OT}OiyO~OS!POT}OiyO~OS!ROT}OiyO~OS!TOT}OiyO~OS}OT}OiyO~O!XfOPmX![mX~OP!WO![!XO~O!YiOQpX![pX~OQ!ZO![!XO~O!ZlORsX![sX~OR!]O![!XO~O![!XO~P#gOg!_O~O!]sO!f!aO~OS!bO~OS!cO~Oj!dOShXThXihX~OS!fOT!gOiyO~OS!hOT!gOiyO~OS!iOT!gOiyO~OS!jOT!gOiyO~OS!gOT!gOiyO~Og!kO~Og!lO~Og!mO~OS!nO~Ol!qO!a!oO!c!pO~OS!rO~OS!sO~OS!tO~Ob!uOc!uOd!uO!a!wO!b!uO~Ob!xOc!xOd!xO!c!wO!d!xO~Ob!uOc!uOd!uO!a!{O!b!uO~Ob!xOc!xOd!xO!c!{O!d!xO~OT~cbd!ey|!e~",
@@ -47953,7 +48128,7 @@
   var spec_QueryCallee = { __proto__: null, selector: 118, layer: 182 };
   var spec_AtKeyword = { __proto__: null, "@import": 178, "@media": 190, "@charset": 194, "@namespace": 198, "@keyframes": 204, "@supports": 216, "@scope": 220, "@font-feature-values": 226 };
   var spec_identifier = { __proto__: null, to: 223 };
-  var parser4 = LRParser.deserialize({
+  var parser5 = LRParser.deserialize({
     version: 14,
     states: "IpQYQdOOO#}QdOOP$UO`OOO%OQaO'#CfOOQP'#Ce'#CeO%VQdO'#CgO%[Q`O'#CgO%aQaO'#FdO&XQdO'#CkO&xQaO'#CcO'SQdO'#CnO'_QdO'#DtO'dQdO'#DvO'oQdO'#D}O'oQdO'#EQOOQP'#Fd'#FdO)OQhO'#EsOOQS'#Fc'#FcOOQS'#Ev'#EvQYQdOOO)VQdO'#EWO*cQhO'#E^O)VQdO'#E`O*jQdO'#EbO*uQdO'#EeO)zQhO'#EkO*}QdO'#EmO+YQdO'#EpO+_QaO'#CfO+fQ`O'#ETO+kQ`O'#FnO+vQdO'#FnQOQ`OOP,QO&jO'#CaPOOO)CAR)CAROOQP'#Ci'#CiOOQP,59R,59RO%VQdO,59ROOQP'#Cm'#CmOOQP,59V,59VO&XQdO,59VO,]QdO,59YO'_QdO,5:`O'dQdO,5:bO'oQdO,5:iO'oQdO,5:kO'oQdO,5:lO'oQdO'#E}O,hQ`O,58}O,pQdO'#ESOOQS,58},58}OOQP'#Cq'#CqOOQO'#Dr'#DrOOQP,59Y,59YO,wQ`O,59YO,|Q`O,59YOOQP'#Du'#DuOOQP,5:`,5:`O-RQpO'#DwO-^QdO'#DxO-cQ`O'#DxO-hQpO,5:bO.RQaO,5:iO.iQaO,5:lOOQW'#D^'#D^O/eQhO'#DgO/xQhO,5;_O)zQhO'#DeO0VQ`O'#DkO0[QhO'#DnOOQW'#Fj'#FjOOQS,5;_,5;_O0aQ`O'#DhOOQS-E8t-E8tOOQ['#Cv'#CvO0fQdO'#CwO0|QdO'#C}O1dQdO'#DQO1zQ!pO'#DSO4TQ!jO,5:rOOQO'#DX'#DXO,|Q`O'#DWO4eQ!nO'#FgO6hQ`O'#DYO6mQ`O'#DoOOQ['#Fg'#FgO6rQhO'#FqO7QQ`O,5:xO7VQ!bO,5:zOOQS'#Ed'#EdO7_Q`O,5:|O7dQdO,5:|OOQO'#Eg'#EgO7lQ`O,5;PO7qQhO,5;VO'oQdO'#DjOOQS,5;X,5;XO0aQ`O,5;XO7yQdO,5;XOOQS'#FU'#FUO8RQdO'#ErO7QQ`O,5;[O8ZQdO,5:oO8kQdO'#FPO8xQ`O,5<YO8xQ`O,5<YPOOO'#Eu'#EuP9TO&jO,58{POOO,58{,58{OOQP1G.m1G.mOOQP1G.q1G.qOOQP1G.t1G.tO,wQ`O1G.tO,|Q`O1G.tOOQP1G/z1G/zO9`QpO1G/|O9hQaO1G0TO:OQaO1G0VO:fQaO1G0WO:|QaO,5;iOOQO-E8{-E8{OOQS1G.i1G.iO;WQ`O,5:nO;]QdO'#DsO;dQdO'#CuOOQO'#Dz'#DzOOQO,5:d,5:dO-^QdO,5:dOOQP1G/|1G/|O)VQdO1G/|O;kQ!jO'#D^O;yQ!bO,59yO<RQhO,5:ROOQO'#Fk'#FkO;|Q!bO,59}O<ZQhO'#FVO)zQhO,59{O)zQhO'#FVO=OQhO1G0yOOQS1G0y1G0yO=YQhO,5:PO>QQhO'#DlOOQW,5:V,5:VOOQW,5:Y,5:YOOQW,5:S,5:SO>[Q!fO'#FhOOQS'#Fh'#FhOOQS'#Ex'#ExO?lQdO,59cOOQ[,59c,59cO@SQdO,59iOOQ[,59i,59iO@jQdO,59lOOQ[,59l,59lOOQ[,59n,59nO)VQdO,59pOAQQhO'#EYOOQW'#EY'#EYOAlQ`O1G0^O4^QhO1G0^OOQ[,59r,59rO)zQhO'#D[OOQ[,59t,59tOAqQ#tO,5:ZOA|QhO'#FROBZQ`O,5<]OOQS1G0d1G0dOOQS1G0f1G0fOOQS1G0h1G0hOBfQ`O1G0hOBkQdO'#EhOOQS1G0k1G0kOOQS1G0q1G0qOBvQaO,5:UO7QQ`O1G0sOOQS1G0s1G0sO0aQ`O1G0sOOQS-E9S-E9SOOQS1G0v1G0vOB}Q!fO1G0ZOCeQ`O'#EVOOQO1G0Z1G0ZOOQO,5;k,5;kOCjQdO,5;kOOQO-E8}-E8}OCwQ`O1G1tPOOO-E8s-E8sPOOO1G.g1G.gOOQP7+$`7+$`OOQP7+%h7+%hO)VQdO7+%hOOQS1G0Y1G0YODSQaO'#FmOD^Q`O,5:_ODcQ!fO'#EwOEaQdO'#FfOEkQ`O,59aOOQO1G0O1G0OOEpQ!bO7+%hO)VQdO1G/eOE{QhO1G/iOOQW1G/m1G/mOOQW1G/g1G/gOF^QhO,5;qOOQW-E9T-E9TOOQS7+&e7+&eOGRQhO'#D^OGaQhO'#FlOGlQ`O'#FlOGqQ`O,5:WOOQS-E8v-E8vOOQ[1G.}1G.}OOQ[1G/T1G/TOOQ[1G/W1G/WOOQ[1G/[1G/[OGvQdO,5:tOOQS7+%x7+%xOG{Q`O7+%xOHQQhO'#D]OHYQ`O,59vO)zQhO,59vOOQ[1G/u1G/uOHbQ`O1G/uOHgQhO,5;mOOQO-E9P-E9POOQS7+&S7+&SOHuQbO'#DSOOQO'#Ej'#EjOITQ`O'#EiOOQO'#Ei'#EiOI`Q`O'#FSOIhQdO,5;SOOQS,5;S,5;SOOQ[1G/p1G/pOOQS7+&_7+&_O7QQ`O7+&_OIsQ!fO'#FOO)VQdO'#FOOJzQdO7+%uOOQO7+%u7+%uOOQO,5:q,5:qOOQO1G1V1G1VOK_Q!bO<<ISOKjQdO'#E|OKtQ`O,5<XOOQP1G/y1G/yOOQS-E8u-E8uOK|QdO'#E{OLWQ`O,5<QOOQ]1G.{1G.{OOQP<<IS<<ISOL`Q`O<<ISOLeQdO7+%POOQO'#D`'#D`OLlQ!bO7+%TOLtQhO'#EzOMRQ`O,5<WO)VQdO,5<WOOQW1G/r1G/rOOQO'#E['#E[OMZQ`O1G0`OOQS<<Id<<IdO)VQdO,59wOMzQhO1G/bOOQ[1G/b1G/bONRQ`O1G/bOOQW-E8w-E8wOOQ[7+%a7+%aOOQO,5;T,5;TOBnQdO'#FTOI`Q`O,5;nOOQS,5;n,5;nOOQS-E9Q-E9QOOQS1G0n1G0nOOQS<<Iy<<IyONZQ!fO,5;jOOQS-E8|-E8|OOQO<<Ia<<IaOOQPAN>nAN>nO! bQ`OAN>nO! gQaO,5;hOOQO-E8z-E8zO! qQdO,5;gOOQO-E8y-E8yOOQW<<Hk<<HkOOQW<<Ho<<HoO! {QhO<<HoO!!^QhO,5;fO!!iQ`O,5;fOOQO-E8x-E8xO!!nQdO1G1rOGvQdO'#FQO!!xQ`O7+%zOOQW7+%z7+%zO!#QQ!bO1G/cOOQ[7+$|7+$|O!#]QhO7+$|P!#dQ`O'#EyOOQO,5;o,5;oOOQO-E9R-E9ROOQS1G1Y1G1YOOQPG24YG24YO!#iQ`OAN>ZO)VQdO1G1QO!#nQ`O7+'^OOQO,5;l,5;lOOQO-E9O-E9OOOQW<<If<<IfOOQ[<<Hh<<HhPOQW,5;e,5;eOOQWG23uG23uO!#vQdO7+&l",
     stateData: "!$Z~O$QOS$RQQ~OWVO^_O`WOcYOdYOl`OmZOp[O!r]O!u^O!{dO#ReO#TfO#VgO#YhO#`iO#bjO#ekO#|RO$XTO~OQmOWVO^_O`WOcYOdYOl`OmZOp[O!r]O!u^O!{dO#ReO#TfO#VgO#YhO#`iO#bjO#ekO#|lO$XTO~O#z$bP~P!jO$RqO~O`YXcYXdYXmYXpYXsYX!aYX!rYX!uYX#{YX$X[X~OgYX~P$ZO#|sO~O$XuO~O$XuO`$WXc$WXd$WXm$WXp$WXs$WX!a$WX!r$WX!u$WX#{$WXg$WX~O#|vO~O`xOcyOdyOmzOp{O!r|O!u!OO#{}O~Os!RO!a!PO~P&^Of!XO#|!TO#}!UO~O#|!YO~OW!^O#|![O$X!]O~OWVO^_O`WOcYOdYOmZOp[O!r]O!u^O#|RO$XTO~OS!fOc!gOd!gOh!cOs!RO!Y!eO!]!jO$O!bO~On!iO~P(dOQ!tOh!mOp!nOs!oOu!wOw!wO}!uO!d!vO#|!lO#}!rO$]!pO~OS!fOc!gOd!gOh!cO!Y!eO!]!jO$O!bO~Os$eP~P)zOw!|O!d!vO#|!{O~Ow#OO#|#OO~Oh#ROs!RO#c#TO~O#|#VO~Oc!xX~P$ZOc#YO~On#ZO#z$bXr$bX~O#z$bXr$bX~P!jO$S#^O$T#^O$U#`O~Of#eO#|!TO#}!UO~Os!RO!a!PO~Or$bP~P!jOh#oO~Oh#pO~Oo!kX!o!kX$X!mX~O#|#qO~O$X#sO~Oo#tO!o#uO~O`xOcyOdyOmzOp{O~Os!qa!a!qa!r!qa!u!qa#{!qag!qa~P-pOs!ta!a!ta!r!ta!u!ta#{!tag!ta~P-pOS!fOc!gOd!gOh!cO!Y!eO!]!jO~OR#yOu#yOw#yO$O#vO$]!pO~P/POn$PO!U#|O!a#}O~P(dOh$RO~O$O$TO~Oh#RO~O`$WOc$WOg$ZOl$WOm$WOn$WO~P)VO`$WOc$WOl$WOm$WOn$WOo$]O~P)VO`$WOc$WOl$WOm$WOn$WOr$_O~P)VOP$`OSvXcvXdvXhvXnvXyvX!YvX!]vX!}vX#PvX$OvX!WvXQvX`vXgvXlvXmvXpvXsvXuvXwvX}vX!dvX#|vX#}vX$]vXovXrvX!avX#zvX$dvX!pvX~Oy$aO!}$bO#P$cOn$eP~P)zOh#pOS$ZXc$ZXd$ZXn$ZXy$ZX!Y$ZX!]$ZX!}$ZX#P$ZX$O$ZXQ$ZX`$ZXg$ZXl$ZXm$ZXp$ZXs$ZXu$ZXw$ZX}$ZX!d$ZX#|$ZX#}$ZX$]$ZXo$ZXr$ZX!a$ZX#z$ZX$d$ZX!p$ZX~Oh$gO~Oh$iO~O!U#|O!a$jOs$eXn$eX~Os!RO~On$mOy$aO~On$nO~Ow$oO!d!vO~Os$pO~Os!RO!U#|O~Os!RO#c$vO~O#|#VOs#fX~O$d$zOn!wa#z!war!wa~P)VOn#sX#z#sXr#sX~P!jOn#ZO#z$bar$ba~O$S#^O$T#^O$U%RO~Oo%TO!o%UO~Os!qi!a!qi!r!qi!u!qi#{!qig!qi~P-pOs!si!a!si!r!si!u!si#{!sig!si~P-pOs!ti!a!ti!r!ti!u!ti#{!tig!ti~P-pOs#qa!a#qa~P&^Or%VO~Og$aP~P'oOg$YP~P)VOc!SXg!QX!U!QX!W!SX~Oc%_O!W%`O~Og%aO!U#|O~O!U#|OS#yXc#yXd#yXh#yXn#yXs#yX!Y#yX!]#yX!a#yX$O#yX~On%eO!a#}O~P(dO!U#|OS!Xac!Xad!Xah!Xan!Xas!Xa!Y!Xa!]!Xa!a!Xa$O!Xag!Xa~O$O%fOg$`P~P/POy$aOQ$[X`$[Xc$[Xg$[Xh$[Xl$[Xm$[Xn$[Xp$[Xs$[Xu$[Xw$[X}$[X!d$[X#|$[X#}$[X$]$[Xo$[Xr$[X~O`$WOc$WOg%kOl$WOm$WOn$WO~P)VO`$WOc$WOl$WOm$WOn$WOo%lO~P)VO`$WOc$WOl$WOm$WOn$WOr%mO~P)VOh%oOS!|Xc!|Xd!|Xn!|X!Y!|X!]!|X$O!|X~On%pO~Og%uOw%vO!e%vO~Os#uX!a#uXn#uX~P)zO!a$jOs$ean$ea~On%yO~Or&QO#|%{O$]%zO~Og&RO~P&^Oy$aO!a&VO$d$zOn!wi#z!wir!wi~P)VO$c&YO~On#sa#z#sar#sa~P!jOn#ZO#z$bir$bi~O!a&]Og$aX~P&^Og&_O~Oy$aOQ#kXg#kXh#kXp#kXs#kXu#kXw#kX}#kX!a#kX!d#kX#|#kX#}#kX$]#kX~O!a&aOg$YX~P)VOg&cO~Oo&dOy$aO!p&eO~OR#yOu#yOw#yO$O&gO$]!pO~O!U#|OS#yac#yad#yah#yan#yas#ya!Y#ya!]#ya!a#ya$O#ya~Oc!SXg!QX!U!QX!a!QX~O!U#|O!a&iOg$`X~Oc&kO~Og&lO~O#|&mO~On&oO~Oc&pO!U#|O~Og&rOn&qO~Og&uO~O!U#|Os#ua!a#uan#ua~OP$`OsvX!avXgvX~O$]%zOs#]X!a#]X~Os!RO!a&wO~Or&{O#|%{O$]%zO~Oy$aOQ#rXh#rXn#rXp#rXs#rXu#rXw#rX}#rX!a#rX!d#rX#z#rX#|#rX#}#rX$]#rX$d#rXr#rX~O!a&VO$d$zOn!wq#z!wqr!wq~P)VOo'QOy$aO!p'RO~Og#pX!a#pX~P'oO!a&]Og$aa~Og#oX!a#oX~P)VO!a&aOg$Ya~Oo'QO~Og'WO~P)VOg'XO!W'YO~O$O%fOg#nX!a#nX~P/PO!a&iOg$`a~O`'_Og'aO~OS#mac#mad#mah#ma!Y#ma!]#ma$O#ma~Og'cO~PMcOg'cOn'dO~Oy$aOQ#rah#ran#rap#ras#rau#raw#ra}#ra!a#ra!d#ra#z#ra#|#ra#}#ra$]#ra$d#rar#ra~Oo'iO~Og#pa!a#pa~P&^Og#oa!a#oa~P)VOR#yOu#yOw#yO$O&gO$]%zO~O!U#|Og#na!a#na~Oc'kO~O!a&iOg$`i~P)VO`'_Og'oO~Oy$aOg!Pin!Pi~Og'pO~PMcOn'qO~Og'rO~O!a&iOg$`q~Og#nq!a#nq~P)VO$Q!e$R$]`$]y!u~",
@@ -48817,7 +48992,7 @@
   var cssCompletionSource = /* @__PURE__ */ defineCSSCompletionSource((n) => n.name == "VariableName");
   var cssLanguage = /* @__PURE__ */ LRLanguage.define({
     name: "css",
-    parser: /* @__PURE__ */ parser4.configure({
+    parser: /* @__PURE__ */ parser5.configure({
       props: [
         /* @__PURE__ */ indentNodeProp.add({
           Declaration: /* @__PURE__ */ continuedIndent()
@@ -49023,7 +49198,7 @@
   var spec_identifier2 = { __proto__: null, export: 20, as: 25, from: 33, default: 36, async: 41, function: 42, in: 52, out: 55, const: 56, extends: 60, this: 64, true: 72, false: 72, null: 84, void: 88, typeof: 92, super: 108, new: 142, delete: 154, yield: 163, await: 167, class: 172, public: 235, private: 235, protected: 235, readonly: 237, instanceof: 256, satisfies: 259, import: 292, keyof: 349, unique: 353, infer: 359, asserts: 395, is: 397, abstract: 417, implements: 419, type: 421, let: 424, var: 426, using: 429, interface: 435, enum: 439, namespace: 445, module: 447, declare: 451, global: 455, defer: 471, for: 476, of: 485, while: 488, with: 492, do: 496, if: 500, else: 502, switch: 506, case: 512, try: 518, catch: 522, finally: 526, return: 530, throw: 534, break: 538, continue: 542, debugger: 546 };
   var spec_word = { __proto__: null, async: 129, get: 131, set: 133, declare: 195, public: 197, private: 197, protected: 197, static: 199, abstract: 201, override: 203, readonly: 209, accessor: 211, new: 401 };
   var spec_LessThan = { __proto__: null, "<": 193 };
-  var parser5 = LRParser.deserialize({
+  var parser6 = LRParser.deserialize({
     version: 14,
     states: "$F|Q%TQlOOO%[QlOOO'_QpOOP(lO`OOO*zQ!0MxO'#CiO+RO#tO'#CjO+aO&jO'#CjO+oO#@ItO'#DaO.QQlO'#DgO.bQlO'#DrO%[QlO'#DzO0fQlO'#ESOOQ!0Lf'#E['#E[O1PQ`O'#EXOOQO'#Ep'#EpOOQO'#Il'#IlO1XQ`O'#GsO1dQ`O'#EoO1iQ`O'#EoO3hQ!0MxO'#JrO6[Q!0MxO'#JsO6uQ`O'#F]O6zQ,UO'#FtOOQ!0Lf'#Ff'#FfO7VO7dO'#FfO9XQMhO'#F|O9`Q`O'#F{OOQ!0Lf'#Js'#JsOOQ!0Lb'#Jr'#JrO9eQ`O'#GwOOQ['#K_'#K_O9pQ`O'#IYO9uQ!0LrO'#IZOOQ['#J`'#J`OOQ['#I_'#I_Q`QlOOQ`QlOOO9}Q!L^O'#DvO:UQlO'#EOO:]QlO'#EQO9kQ`O'#GsO:dQMhO'#CoO:rQ`O'#EnO:}Q`O'#EyO;hQMhO'#FeO;xQ`O'#GsOOQO'#K`'#K`O;}Q`O'#K`O<]Q`O'#G{O<]Q`O'#G|O<]Q`O'#HOO9kQ`O'#HRO=SQ`O'#HUO>kQ`O'#CeO>{Q`O'#HcO?TQ`O'#HiO?TQ`O'#HkO`QlO'#HmO?TQ`O'#HoO?TQ`O'#HrO?YQ`O'#HxO?_Q!0LsO'#IOO%[QlO'#IQO?jQ!0LsO'#ISO?uQ!0LsO'#IUO9uQ!0LrO'#IWO@QQ!0MxO'#CiOASQpO'#DlQOQ`OOO%[QlO'#EQOAjQ`O'#ETO:dQMhO'#EnOAuQ`O'#EnOBQQ!bO'#FeOOQ['#Cg'#CgOOQ!0Lb'#Dq'#DqOOQ!0Lb'#Jv'#JvO%[QlO'#JvOOQO'#Jy'#JyOOQO'#Ih'#IhOCQQpO'#EgOOQ!0Lb'#Ef'#EfOOQ!0Lb'#J}'#J}OC|Q!0MSO'#EgODWQpO'#EWOOQO'#Jx'#JxODlQpO'#JyOEyQpO'#EWODWQpO'#EgPFWO&2DjO'#CbPOOO)CD})CD}OOOO'#I`'#I`OFcO#tO,59UOOQ!0Lh,59U,59UOOOO'#Ia'#IaOFqO&jO,59UOGPQ!L^O'#DcOOOO'#Ic'#IcOGWO#@ItO,59{OOQ!0Lf,59{,59{OGfQlO'#IdOGyQ`O'#JtOIxQ!fO'#JtO+}QlO'#JtOJPQ`O,5:ROJgQ`O'#EpOJtQ`O'#KTOKPQ`O'#KSOKPQ`O'#KSOKXQ`O,5;^OK^Q`O'#KROOQ!0Ln,5:^,5:^OKeQlO,5:^OMcQ!0MxO,5:fONSQ`O,5:nONmQ!0LrO'#KQONtQ`O'#KPO9eQ`O'#KPO! YQ`O'#KPO! bQ`O,5;]O! gQ`O'#KPO!#lQ!fO'#JsOOQ!0Lh'#Ci'#CiO%[QlO'#ESO!$[Q!fO,5:sOOQS'#Jz'#JzOOQO-E<j-E<jO9kQ`O,5=_O!$rQ`O,5=_O!$wQlO,5;ZO!&zQMhO'#EkO!(eQ`O,5;ZO!(jQlO'#DyO!(tQpO,5;dO!(|QpO,5;dO%[QlO,5;dOOQ['#FT'#FTOOQ['#FV'#FVO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eO%[QlO,5;eOOQ['#FZ'#FZO!)[QlO,5;tOOQ!0Lf,5;y,5;yOOQ!0Lf,5;z,5;zOOQ!0Lf,5;|,5;|O%[QlO'#IpO!+_Q!0LrO,5<iO%[QlO,5;eO!&zQMhO,5;eO!+|QMhO,5;eO!-nQMhO'#E^O%[QlO,5;wOOQ!0Lf,5;{,5;{O!-uQ,UO'#FjO!.rQ,UO'#KXO!.^Q,UO'#KXO!.yQ,UO'#KXOOQO'#KX'#KXO!/_Q,UO,5<SOOOW,5<`,5<`O!/pQlO'#FvOOOW'#Io'#IoO7VO7dO,5<QO!/wQ,UO'#FxOOQ!0Lf,5<Q,5<QO!0hQ$IUO'#CyOOQ!0Lh'#C}'#C}O!0{O#@ItO'#DRO!1iQMjO,5<eO!1pQ`O,5<hO!3YQ(CWO'#GXO!3jQ`O'#GYO!3oQ`O'#GYO!5_Q(CWO'#G^O!6dQpO'#GbOOQO'#Gn'#GnO!,TQMhO'#GmOOQO'#Gp'#GpO!,TQMhO'#GoO!7VQ$IUO'#JlOOQ!0Lh'#Jl'#JlO!7aQ`O'#JkO!7oQ`O'#JjO!7wQ`O'#CuOOQ!0Lh'#C{'#C{O!8YQ`O'#C}OOQ!0Lh'#DV'#DVOOQ!0Lh'#DX'#DXO!8_Q`O,5<eO1SQ`O'#DZO!,TQMhO'#GPO!,TQMhO'#GRO!8gQ`O'#GTO!8lQ`O'#GUO!3oQ`O'#G[O!,TQMhO'#GaO<]Q`O'#JkO!8qQ`O'#EqO!9`Q`O,5<gOOQ!0Lb'#Cr'#CrO!9hQ`O'#ErO!:bQpO'#EsOOQ!0Lb'#KR'#KRO!:iQ!0LrO'#KaO9uQ!0LrO,5=cO`QlO,5>tOOQ['#Jh'#JhOOQ[,5>u,5>uOOQ[-E<]-E<]O!<hQ!0MxO,5:bO!:]QpO,5:`O!?RQ!0MxO,5:jO%[QlO,5:jO!AiQ!0MxO,5:lOOQO,5@z,5@zO!BYQMhO,5=_O!BhQ!0LrO'#JiO9`Q`O'#JiO!ByQ!0LrO,59ZO!CUQpO,59ZO!C^QMhO,59ZO:dQMhO,59ZO!CiQ`O,5;ZO!CqQ`O'#HbO!DVQ`O'#KdO%[QlO,5;}O!:]QpO,5<PO!D_Q`O,5=zO!DdQ`O,5=zO!DiQ`O,5=zO!DwQ`O,5=zO9uQ!0LrO,5=zO<]Q`O,5=jOOQO'#Cy'#CyO!EOQpO,5=gO!EWQMhO,5=hO!EcQ`O,5=jO!EhQ!bO,5=mO!EpQ`O'#K`O?YQ`O'#HWO9kQ`O'#HYO!EuQ`O'#HYO:dQMhO'#H[O!EzQ`O'#H[OOQ[,5=p,5=pO!FPQ`O'#H]O!FbQ`O'#CoO!FgQ`O,59PO!FqQ`O,59PO!HvQlO,59POOQ[,59P,59PO!IWQ!0LrO,59PO%[QlO,59PO!KcQlO'#HeOOQ['#Hf'#HfOOQ['#Hg'#HgO`QlO,5=}O!KyQ`O,5=}O`QlO,5>TO`QlO,5>VO!LOQ`O,5>XO`QlO,5>ZO!LTQ`O,5>^O!LYQlO,5>dOOQ[,5>j,5>jO%[QlO,5>jO9uQ!0LrO,5>lOOQ[,5>n,5>nO#!dQ`O,5>nOOQ[,5>p,5>pO#!dQ`O,5>pOOQ[,5>r,5>rO##QQpO'#D_O%[QlO'#JvO##sQpO'#JvO##}QpO'#DmO#$`QpO'#DmO#&qQlO'#DmO#&xQ`O'#JuO#'QQ`O,5:WO#'VQ`O'#EtO#'eQ`O'#KUO#'mQ`O,5;_O#'rQpO'#DmO#(PQpO'#EVOOQ!0Lf,5:o,5:oO%[QlO,5:oO#(WQ`O,5:oO?YQ`O,5;YO!CUQpO,5;YO!C^QMhO,5;YO:dQMhO,5;YO#(`Q`O,5@bO#(eQ07dO,5:sOOQO-E<f-E<fO#)kQ!0MSO,5;RODWQpO,5:rO#)uQpO,5:rODWQpO,5;RO!ByQ!0LrO,5:rOOQ!0Lb'#Ej'#EjOOQO,5;R,5;RO%[QlO,5;RO#*SQ!0LrO,5;RO#*_Q!0LrO,5;RO!CUQpO,5:rOOQO,5;X,5;XO#*mQ!0LrO,5;RPOOO'#I^'#I^P#+RO&2DjO,58|POOO,58|,58|OOOO-E<^-E<^OOQ!0Lh1G.p1G.pOOOO-E<_-E<_OOOO,59},59}O#+^Q!bO,59}OOOO-E<a-E<aOOQ!0Lf1G/g1G/gO#+cQ!fO,5?OO+}QlO,5?OOOQO,5?U,5?UO#+mQlO'#IdOOQO-E<b-E<bO#+zQ`O,5@`O#,SQ!fO,5@`O#,ZQ`O,5@nOOQ!0Lf1G/m1G/mO%[QlO,5@oO#,cQ`O'#IjOOQO-E<h-E<hO#,ZQ`O,5@nOOQ!0Lb1G0x1G0xOOQ!0Ln1G/x1G/xOOQ!0Ln1G0Y1G0YO%[QlO,5@lO#,wQ!0LrO,5@lO#-YQ!0LrO,5@lO#-aQ`O,5@kO9eQ`O,5@kO#-iQ`O,5@kO#-wQ`O'#ImO#-aQ`O,5@kOOQ!0Lb1G0w1G0wO!(tQpO,5:uO!)PQpO,5:uOOQS,5:w,5:wO#.iQdO,5:wO#.qQMhO1G2yO9kQ`O1G2yOOQ!0Lf1G0u1G0uO#/PQ!0MxO1G0uO#0UQ!0MvO,5;VOOQ!0Lh'#GW'#GWO#0rQ!0MzO'#JlO!$wQlO1G0uO#2}Q!fO'#JwO%[QlO'#JwO#3XQ`O,5:eOOQ!0Lh'#D_'#D_OOQ!0Lf1G1O1G1OO%[QlO1G1OOOQ!0Lf1G1f1G1fO#3^Q`O1G1OO#5rQ!0MxO1G1PO#5yQ!0MxO1G1PO#8aQ!0MxO1G1PO#8hQ!0MxO1G1PO#;OQ!0MxO1G1PO#=fQ!0MxO1G1PO#=mQ!0MxO1G1PO#=tQ!0MxO1G1PO#@[Q!0MxO1G1PO#@cQ!0MxO1G1PO#BpQ?MtO'#CiO#DkQ?MtO1G1`O#DrQ?MtO'#JsO#EVQ!0MxO,5?[OOQ!0Lb-E<n-E<nO#GdQ!0MxO1G1PO#HaQ!0MzO1G1POOQ!0Lf1G1P1G1PO#IdQMjO'#J|O#InQ`O,5:xO#IsQ!0MxO1G1cO#JgQ,UO,5<WO#JoQ,UO,5<XO#JwQ,UO'#FoO#K`Q`O'#FnOOQO'#KY'#KYOOQO'#In'#InO#KeQ,UO1G1nOOQ!0Lf1G1n1G1nOOOW1G1y1G1yO#KvQ?MtO'#JrO#LQQ`O,5<bO!)[QlO,5<bOOOW-E<m-E<mOOQ!0Lf1G1l1G1lO#LVQpO'#KXOOQ!0Lf,5<d,5<dO#L_QpO,5<dO#LdQMhO'#DTOOOO'#Ib'#IbO#LkO#@ItO,59mOOQ!0Lh,59m,59mO%[QlO1G2PO!8lQ`O'#IrO#LvQ`O,5<zOOQ!0Lh,5<w,5<wO!,TQMhO'#IuO#MdQMjO,5=XO!,TQMhO'#IwO#NVQMjO,5=ZO!&zQMhO,5=]OOQO1G2S1G2SO#NaQ!dO'#CrO#NtQ(CWO'#ErO$ |QpO'#GbO$!dQ!dO,5<sO$!kQ`O'#K[O9eQ`O'#K[O$!yQ`O,5<uO$#aQ!dO'#C{O!,TQMhO,5<tO$#kQ`O'#GZO$$PQ`O,5<tO$$UQ!dO'#GWO$$cQ!dO'#K]O$$mQ`O'#K]O!&zQMhO'#K]O$$rQ`O,5<xO$$wQlO'#JvO$%RQpO'#GcO#$`QpO'#GcO$%dQ`O'#GgO!3oQ`O'#GkO$%iQ!0LrO'#ItO$%tQpO,5<|OOQ!0Lp,5<|,5<|O$%{QpO'#GcO$&YQpO'#GdO$&kQpO'#GdO$&pQMjO,5=XO$'QQMjO,5=ZOOQ!0Lh,5=^,5=^O!,TQMhO,5@VO!,TQMhO,5@VO$'bQ`O'#IyO$'vQ`O,5@UO$(OQ`O,59aOOQ!0Lh,59i,59iO$(TQ`O,5@VO$)TQ$IYO,59uOOQ!0Lh'#Jp'#JpO$)vQMjO,5<kO$*iQMjO,5<mO@zQ`O,5<oOOQ!0Lh,5<p,5<pO$*sQ`O,5<vO$*xQMjO,5<{O$+YQ`O'#KPO!$wQlO1G2RO$+_Q`O1G2RO9eQ`O'#KSO9eQ`O'#EtO%[QlO'#EtO9eQ`O'#I{O$+dQ!0LrO,5@{OOQ[1G2}1G2}OOQ[1G4`1G4`OOQ!0Lf1G/|1G/|OOQ!0Lf1G/z1G/zO$-fQ!0MxO1G0UOOQ[1G2y1G2yO!&zQMhO1G2yO%[QlO1G2yO#.tQ`O1G2yO$/jQMhO'#EkOOQ!0Lb,5@T,5@TO$/wQ!0LrO,5@TOOQ[1G.u1G.uO!ByQ!0LrO1G.uO!CUQpO1G.uO!C^QMhO1G.uO$0YQ`O1G0uO$0_Q`O'#CiO$0jQ`O'#KeO$0rQ`O,5=|O$0wQ`O'#KeO$0|Q`O'#KeO$1[Q`O'#JRO$1jQ`O,5AOO$1rQ!fO1G1iOOQ!0Lf1G1k1G1kO9kQ`O1G3fO@zQ`O1G3fO$1yQ`O1G3fO$2OQ`O1G3fO!DiQ`O1G3fO9uQ!0LrO1G3fOOQ[1G3f1G3fO!EcQ`O1G3UO!&zQMhO1G3RO$2TQ`O1G3ROOQ[1G3S1G3SO!&zQMhO1G3SO$2YQ`O1G3SO$2bQpO'#HQOOQ[1G3U1G3UO!6_QpO'#I}O!EhQ!bO1G3XOOQ[1G3X1G3XOOQ[,5=r,5=rO$2jQMhO,5=tO9kQ`O,5=tO$%dQ`O,5=vO9`Q`O,5=vO!CUQpO,5=vO!C^QMhO,5=vO:dQMhO,5=vO$2xQ`O'#KcO$3TQ`O,5=wOOQ[1G.k1G.kO$3YQ!0LrO1G.kO@zQ`O1G.kO$3eQ`O1G.kO9uQ!0LrO1G.kO$5mQ!fO,5AQO$5zQ`O,5AQO9eQ`O,5AQO$6VQlO,5>PO$6^Q`O,5>POOQ[1G3i1G3iO`QlO1G3iOOQ[1G3o1G3oOOQ[1G3q1G3qO?TQ`O1G3sO$6cQlO1G3uO$:gQlO'#HtOOQ[1G3x1G3xO$:tQ`O'#HzO?YQ`O'#H|OOQ[1G4O1G4OO$:|QlO1G4OO9uQ!0LrO1G4UOOQ[1G4W1G4WOOQ!0Lb'#G_'#G_O9uQ!0LrO1G4YO9uQ!0LrO1G4[O$?TQ`O,5@bO!)[QlO,5;`O9eQ`O,5;`O?YQ`O,5:XO!)[QlO,5:XO!CUQpO,5:XO$?YQ?MtO,5:XOOQO,5;`,5;`O$?dQpO'#IeO$?zQ`O,5@aOOQ!0Lf1G/r1G/rO$@SQpO'#IkO$@^Q`O,5@pOOQ!0Lb1G0y1G0yO#$`QpO,5:XOOQO'#Ig'#IgO$@fQpO,5:qOOQ!0Ln,5:q,5:qO#(ZQ`O1G0ZOOQ!0Lf1G0Z1G0ZO%[QlO1G0ZOOQ!0Lf1G0t1G0tO?YQ`O1G0tO!CUQpO1G0tO!C^QMhO1G0tOOQ!0Lb1G5|1G5|O!ByQ!0LrO1G0^OOQO1G0m1G0mO%[QlO1G0mO$@mQ!0LrO1G0mO$@xQ!0LrO1G0mO!CUQpO1G0^ODWQpO1G0^O$AWQ!0LrO1G0mOOQO1G0^1G0^O$AlQ!0MxO1G0mPOOO-E<[-E<[POOO1G.h1G.hOOOO1G/i1G/iO$AvQ!bO,5<iO$BOQ!fO1G4jOOQO1G4p1G4pO%[QlO,5?OO$BYQ`O1G5zO$BbQ`O1G6YO$BjQ!fO1G6ZO9eQ`O,5?UO$BtQ!0MxO1G6WO%[QlO1G6WO$CUQ!0LrO1G6WO$CgQ`O1G6VO$CgQ`O1G6VO9eQ`O1G6VO$CoQ`O,5?XO9eQ`O,5?XOOQO,5?X,5?XO$DTQ`O,5?XO$+YQ`O,5?XOOQO-E<k-E<kOOQS1G0a1G0aOOQS1G0c1G0cO#.lQ`O1G0cOOQ[7+(e7+(eO!&zQMhO7+(eO%[QlO7+(eO$DcQ`O7+(eO$DnQMhO7+(eO$D|Q!0MzO,5=XO$GXQ!0MzO,5=ZO$IdQ!0MzO,5=XO$KuQ!0MzO,5=ZO$NWQ!0MzO,59uO%!]Q!0MzO,5<kO%$hQ!0MzO,5<mO%&sQ!0MzO,5<{OOQ!0Lf7+&a7+&aO%)UQ!0MxO7+&aO%)xQlO'#IfO%*VQ`O,5@cO%*_Q!fO,5@cOOQ!0Lf1G0P1G0PO%*iQ`O7+&jOOQ!0Lf7+&j7+&jO%*nQ?MtO,5:fO%[QlO7+&zO%*xQ?MtO,5:bO%+VQ?MtO,5:jO%+aQ?MtO,5:lO%+kQMhO'#IiO%+uQ`O,5@hOOQ!0Lh1G0d1G0dOOQO1G1r1G1rOOQO1G1s1G1sO%+}Q!jO,5<ZO!)[QlO,5<YOOQO-E<l-E<lOOQ!0Lf7+'Y7+'YOOOW7+'e7+'eOOOW1G1|1G1|O%,YQ`O1G1|OOQ!0Lf1G2O1G2OOOOO,59o,59oO%,_Q!dO,59oOOOO-E<`-E<`OOQ!0Lh1G/X1G/XO%,fQ!0MxO7+'kOOQ!0Lh,5?^,5?^O%-YQMhO1G2fP%-aQ`O'#IrPOQ!0Lh-E<p-E<pO%-}QMjO,5?aOOQ!0Lh-E<s-E<sO%.pQMjO,5?cOOQ!0Lh-E<u-E<uO%.zQ!dO1G2wO%/RQ!dO'#CrO%/iQMhO'#KSO$$wQlO'#JvOOQ!0Lh1G2_1G2_O%/sQ`O'#IqO%0[Q`O,5@vO%0[Q`O,5@vO%0dQ`O,5@vO%0oQ`O,5@vOOQO1G2a1G2aO%0}QMjO1G2`O$+YQ`O'#K[O!,TQMhO1G2`O%1_Q(CWO'#IsO%1lQ`O,5@wO!&zQMhO,5@wO%1tQ!dO,5@wOOQ!0Lh1G2d1G2dO%4UQ!fO'#CiO%4`Q`O,5=POOQ!0Lb,5<},5<}O%4hQpO,5<}OOQ!0Lb,5=O,5=OOCwQ`O,5<}O%4sQpO,5<}OOQ!0Lb,5=R,5=RO$+YQ`O,5=VOOQO,5?`,5?`OOQO-E<r-E<rOOQ!0Lp1G2h1G2hO#$`QpO,5<}O$$wQlO,5=PO%5RQ`O,5=OO%5^QpO,5=OO!,TQMhO'#IuO%6WQMjO1G2sO!,TQMhO'#IwO%6yQMjO1G2uO%7TQMjO1G5qO%7_QMjO1G5qOOQO,5?e,5?eOOQO-E<w-E<wOOQO1G.{1G.{O!,TQMhO1G5qO!,TQMhO1G5qO!:]QpO,59wO%[QlO,59wOOQ!0Lh,5<j,5<jO%7lQ`O1G2ZO!,TQMhO1G2bO%7qQ!0MxO7+'mOOQ!0Lf7+'m7+'mO!$wQlO7+'mO%8eQ`O,5;`OOQ!0Lb,5?g,5?gOOQ!0Lb-E<y-E<yO%8jQ!dO'#K^O#(ZQ`O7+(eO4UQ!fO7+(eO$DfQ`O7+(eO%8tQ!0MvO'#CiO%9XQ!0MvO,5=SO%9lQ`O,5=SO%9tQ`O,5=SOOQ!0Lb1G5o1G5oOOQ[7+$a7+$aO!ByQ!0LrO7+$aO!CUQpO7+$aO!$wQlO7+&aO%9yQ`O'#JQO%:bQ`O,5APOOQO1G3h1G3hO9kQ`O,5APO%:bQ`O,5APO%:jQ`O,5APOOQO,5?m,5?mOOQO-E=P-E=POOQ!0Lf7+'T7+'TO%:oQ`O7+)QO9uQ!0LrO7+)QO9kQ`O7+)QO@zQ`O7+)QO%:tQ`O7+)QOOQ[7+)Q7+)QOOQ[7+(p7+(pO%:yQ!0MvO7+(mO!&zQMhO7+(mO!E^Q`O7+(nOOQ[7+(n7+(nO!&zQMhO7+(nO%;TQ`O'#KbO%;`Q`O,5=lOOQO,5?i,5?iOOQO-E<{-E<{OOQ[7+(s7+(sO%<rQpO'#HZOOQ[1G3`1G3`O!&zQMhO1G3`O%[QlO1G3`O%<yQ`O1G3`O%=UQMhO1G3`O9uQ!0LrO1G3bO$%dQ`O1G3bO9`Q`O1G3bO!CUQpO1G3bO!C^QMhO1G3bO%=dQ`O'#JPO%=xQ`O,5@}O%>QQpO,5@}OOQ!0Lb1G3c1G3cOOQ[7+$V7+$VO@zQ`O7+$VO9uQ!0LrO7+$VO%>]Q`O7+$VO%[QlO1G6lO%[QlO1G6mO%>bQ!0LrO1G6lO%>lQlO1G3kO%>sQ`O1G3kO%>xQlO1G3kOOQ[7+)T7+)TO9uQ!0LrO7+)_O`QlO7+)aOOQ['#Kh'#KhOOQ['#JS'#JSO%?PQlO,5>`OOQ[,5>`,5>`O%[QlO'#HuO%?^Q`O'#HwOOQ[,5>f,5>fO9eQ`O,5>fOOQ[,5>h,5>hOOQ[7+)j7+)jOOQ[7+)p7+)pOOQ[7+)t7+)tOOQ[7+)v7+)vO%?cQpO1G5|O%?}Q?MtO1G0zO%@XQ`O1G0zOOQO1G/s1G/sO%@dQ?MtO1G/sO?YQ`O1G/sO!)[QlO'#DmOOQO,5?P,5?POOQO-E<c-E<cOOQO,5?V,5?VOOQO-E<i-E<iO!CUQpO1G/sOOQO-E<e-E<eOOQ!0Ln1G0]1G0]OOQ!0Lf7+%u7+%uO#(ZQ`O7+%uOOQ!0Lf7+&`7+&`O?YQ`O7+&`O!CUQpO7+&`OOQO7+%x7+%xO$AlQ!0MxO7+&XOOQO7+&X7+&XO%[QlO7+&XO%@nQ!0LrO7+&XO!ByQ!0LrO7+%xO!CUQpO7+%xO%@yQ!0LrO7+&XO%AXQ!0MxO7++rO%[QlO7++rO%AiQ`O7++qO%AiQ`O7++qOOQO1G4s1G4sO9eQ`O1G4sO%AqQ`O1G4sOOQS7+%}7+%}O#(ZQ`O<<LPO4UQ!fO<<LPO%BPQ`O<<LPOOQ[<<LP<<LPO!&zQMhO<<LPO%[QlO<<LPO%BXQ`O<<LPO%BdQ!0MzO,5?aO%DoQ!0MzO,5?cO%FzQ!0MzO1G2`O%I]Q!0MzO1G2sO%KhQ!0MzO1G2uO%MsQ!fO,5?QO%[QlO,5?QOOQO-E<d-E<dO%M}Q`O1G5}OOQ!0Lf<<JU<<JUO%NVQ?MtO1G0uO&!^Q?MtO1G1PO&!eQ?MtO1G1PO&$fQ?MtO1G1PO&$mQ?MtO1G1PO&&nQ?MtO1G1PO&(oQ?MtO1G1PO&(vQ?MtO1G1PO&(}Q?MtO1G1PO&+OQ?MtO1G1PO&+VQ?MtO1G1PO&+^Q!0MxO<<JfO&-UQ?MtO1G1PO&.RQ?MvO1G1PO&/UQ?MvO'#JlO&1[Q?MtO1G1cO&1iQ?MtO1G0UO&1sQMjO,5?TOOQO-E<g-E<gO!)[QlO'#FqOOQO'#KZ'#KZOOQO1G1u1G1uO&1}Q`O1G1tO&2SQ?MtO,5?[OOOW7+'h7+'hOOOO1G/Z1G/ZO&2^Q!dO1G4xOOQ!0Lh7+(Q7+(QP!&zQMhO,5?^O!,TQMhO7+(cO&2eQ`O,5?]O9eQ`O,5?]O$+YQ`O,5?]OOQO-E<o-E<oO&2sQ`O1G6bO&2sQ`O1G6bO&2{Q`O1G6bO&3WQMjO7+'zO&3hQ!dO,5?_O&3rQ`O,5?_O!&zQMhO,5?_OOQO-E<q-E<qO&3wQ!dO1G6cO&4RQ`O1G6cO&4ZQ`O1G2kO!&zQMhO1G2kOOQ!0Lb1G2i1G2iOOQ!0Lb1G2j1G2jO%4hQpO1G2iO!CUQpO1G2iOCwQ`O1G2iOOQ!0Lb1G2q1G2qO&4`QpO1G2iO&4nQ`O1G2kO$+YQ`O1G2jOCwQ`O1G2jO$$wQlO1G2kO&4vQ`O1G2jO&5jQMjO,5?aOOQ!0Lh-E<t-E<tO&6]QMjO,5?cOOQ!0Lh-E<v-E<vO!,TQMhO7++]O&6gQMjO7++]O&6qQMjO7++]OOQ!0Lh1G/c1G/cO&7OQ`O1G/cOOQ!0Lh7+'u7+'uO&7TQMjO7+'|O&7eQ!0MxO<<KXOOQ!0Lf<<KX<<KXO&8XQ`O1G0zO!&zQMhO'#IzO&8^Q`O,5@xO&:`Q!fO<<LPO!&zQMhO1G2nO&:gQ!0LrO1G2nOOQ[<<G{<<G{O!ByQ!0LrO<<G{O&:xQ!0MxO<<I{OOQ!0Lf<<I{<<I{OOQO,5?l,5?lO&;lQ`O,5?lO&;qQ`O,5?lOOQO-E=O-E=OO&<PQ`O1G6kO&<PQ`O1G6kO9kQ`O1G6kO@zQ`O<<LlOOQ[<<Ll<<LlO&<XQ`O<<LlO9uQ!0LrO<<LlO9kQ`O<<LlOOQ[<<LX<<LXO%:yQ!0MvO<<LXOOQ[<<LY<<LYO!E^Q`O<<LYO&<^QpO'#I|O&<iQ`O,5@|O!)[QlO,5@|OOQ[1G3W1G3WOOQO'#JO'#JOO9uQ!0LrO'#JOO&<qQpO,5=uOOQ[,5=u,5=uO&<xQpO'#EgO&=PQpO'#GeO&=UQ`O7+(zO&=ZQ`O7+(zOOQ[7+(z7+(zO!&zQMhO7+(zO%[QlO7+(zO&=cQ`O7+(zOOQ[7+(|7+(|O9uQ!0LrO7+(|O$%dQ`O7+(|O9`Q`O7+(|O!CUQpO7+(|O&=nQ`O,5?kOOQO-E<}-E<}OOQO'#H^'#H^O&=yQ`O1G6iO9uQ!0LrO<<GqOOQ[<<Gq<<GqO@zQ`O<<GqO&>RQ`O7+,WO&>WQ`O7+,XO%[QlO7+,WO%[QlO7+,XOOQ[7+)V7+)VO&>]Q`O7+)VO&>bQlO7+)VO&>iQ`O7+)VOOQ[<<Ly<<LyOOQ[<<L{<<L{OOQ[-E=Q-E=QOOQ[1G3z1G3zO&>nQ`O,5>aOOQ[,5>c,5>cO&>sQ`O1G4QO9eQ`O7+&fO!)[QlO7+&fOOQO7+%_7+%_O&>xQ?MtO1G6ZO?YQ`O7+%_OOQ!0Lf<<Ia<<IaOOQ!0Lf<<Iz<<IzO?YQ`O<<IzOOQO<<Is<<IsO$AlQ!0MxO<<IsO%[QlO<<IsOOQO<<Id<<IdO!ByQ!0LrO<<IdO&?SQ!0LrO<<IsO&?_Q!0MxO<= ^O&?oQ`O<= ]OOQO7+*_7+*_O9eQ`O7+*_OOQ[ANAkANAkO&?wQ!fOANAkO!&zQMhOANAkO#(ZQ`OANAkO4UQ!fOANAkO&@OQ`OANAkO%[QlOANAkO&@WQ!0MzO7+'zO&BiQ!0MzO,5?aO&DtQ!0MzO,5?cO&GPQ!0MzO7+'|O&IbQ!fO1G4lO&IlQ?MtO7+&aO&KpQ?MvO,5=XO&MwQ?MvO,5=ZO&NXQ?MvO,5=XO&NiQ?MvO,5=ZO&NyQ?MvO,59uO'#PQ?MvO,5<kO'%SQ?MvO,5<mO''hQ?MvO,5<{O')^Q?MtO7+'kO')kQ?MtO7+'mO')xQ`O,5<]OOQO7+'`7+'`OOQ!0Lh7+*d7+*dO')}QMjO<<K}OOQO1G4w1G4wO'*UQ`O1G4wO'*aQ`O1G4wO'*oQ`O7++|O'*oQ`O7++|O!&zQMhO1G4yO'*wQ!dO1G4yO'+RQ`O7++}O'+ZQ`O7+(VO'+fQ!dO7+(VOOQ!0Lb7+(T7+(TOOQ!0Lb7+(U7+(UO!CUQpO7+(TOCwQ`O7+(TO'+pQ`O7+(VO!&zQMhO7+(VO$+YQ`O7+(UO'+uQ`O7+(VOCwQ`O7+(UO'+}QMjO<<NwO!,TQMhO<<NwOOQ!0Lh7+$}7+$}O',XQ!dO,5?fOOQO-E<x-E<xO',cQ!0MvO7+(YO!&zQMhO7+(YOOQ[AN=gAN=gO9kQ`O1G5WOOQO1G5W1G5WO',sQ`O1G5WO',xQ`O7+,VO',xQ`O7+,VO9uQ!0LrOANBWO@zQ`OANBWOOQ[ANBWANBWO'-QQ`OANBWOOQ[ANAsANAsOOQ[ANAtANAtO'-VQ`O,5?hOOQO-E<z-E<zO'-bQ?MtO1G6hOOQO,5?j,5?jOOQO-E<|-E<|OOQ[1G3a1G3aO'-lQ`O,5=POOQ[<<Lf<<LfO!&zQMhO<<LfO&=UQ`O<<LfO'-qQ`O<<LfO%[QlO<<LfOOQ[<<Lh<<LhO9uQ!0LrO<<LhO$%dQ`O<<LhO9`Q`O<<LhO'-yQpO1G5VO'.UQ`O7+,TOOQ[AN=]AN=]O9uQ!0LrOAN=]OOQ[<= r<= rOOQ[<= s<= sO'.^Q`O<= rO'.cQ`O<= sOOQ[<<Lq<<LqO'.hQ`O<<LqO'.mQlO<<LqOOQ[1G3{1G3{O?YQ`O7+)lO'.tQ`O<<JQO'/PQ?MtO<<JQOOQO<<Hy<<HyOOQ!0LfAN?fAN?fOOQOAN?_AN?_O$AlQ!0MxOAN?_OOQOAN?OAN?OO%[QlOAN?_OOQO<<My<<MyOOQ[G27VG27VO!&zQMhOG27VO#(ZQ`OG27VO'/ZQ!fOG27VO4UQ!fOG27VO'/bQ`OG27VO'/jQ?MtO<<JfO'/wQ?MvO1G2`O'1mQ?MvO,5?aO'3pQ?MvO,5?cO'5sQ?MvO1G2sO'7vQ?MvO1G2uO'9yQ?MtO<<KXO':WQ?MtO<<I{OOQO1G1w1G1wO!,TQMhOANAiOOQO7+*c7+*cO':eQ`O7+*cO':pQ`O<= hO':xQ!dO7+*eOOQ!0Lb<<Kq<<KqO$+YQ`O<<KqOCwQ`O<<KqO';SQ`O<<KqO!&zQMhO<<KqOOQ!0Lb<<Ko<<KoO!CUQpO<<KoO';_Q!dO<<KqOOQ!0Lb<<Kp<<KpO';iQ`O<<KqO!&zQMhO<<KqO$+YQ`O<<KpO';nQMjOANDcO';xQ!0MvO<<KtOOQO7+*r7+*rO9kQ`O7+*rO'<YQ`O<= qOOQ[G27rG27rO9uQ!0LrOG27rO@zQ`OG27rO!)[QlO1G5SO'<bQ`O7+,SO'<jQ`O1G2kO&=UQ`OANBQOOQ[ANBQANBQO!&zQMhOANBQO'<oQ`OANBQOOQ[ANBSANBSO9uQ!0LrOANBSO$%dQ`OANBSOOQO'#H_'#H_OOQO7+*q7+*qOOQ[G22wG22wOOQ[ANE^ANE^OOQ[ANE_ANE_OOQ[ANB]ANB]O'<wQ`OANB]OOQ[<<MW<<MWO!)[QlOAN?lOOQOG24yG24yO$AlQ!0MxOG24yO#(ZQ`OLD,qOOQ[LD,qLD,qO!&zQMhOLD,qO'<|Q!fOLD,qO'=TQ?MvO7+'zO'>yQ?MvO,5?aO'@|Q?MvO,5?cO'CPQ?MvO7+'|O'DuQMjOG27TOOQO<<M}<<M}OOQ!0LbANA]ANA]O$+YQ`OANA]OCwQ`OANA]O'EVQ!dOANA]OOQ!0LbANAZANAZO'E^Q`OANA]O!&zQMhOANA]O'EiQ!dOANA]OOQ!0LbANA[ANA[OOQO<<N^<<N^OOQ[LD-^LD-^O9uQ!0LrOLD-^O'EsQ?MtO7+*nOOQO'#Gf'#GfOOQ[G27lG27lO&=UQ`OG27lO!&zQMhOG27lOOQ[G27nG27nO9uQ!0LrOG27nOOQ[G27wG27wO'E}Q?MtOG25WOOQOLD*eLD*eOOQ[!$(!]!$(!]O#(ZQ`O!$(!]O!&zQMhO!$(!]O'FXQ!0MzOG27TOOQ!0LbG26wG26wO$+YQ`OG26wO'HjQ`OG26wOCwQ`OG26wO'HuQ!dOG26wO!&zQMhOG26wOOQ[!$(!x!$(!xOOQ[LD-WLD-WO&=UQ`OLD-WOOQ[LD-YLD-YOOQ[!)9Ew!)9EwO#(ZQ`O!)9EwOOQ!0LbLD,cLD,cO$+YQ`OLD,cOCwQ`OLD,cO'H|Q`OLD,cO'IXQ!dOLD,cOOQ[!$(!r!$(!rOOQ[!.K;c!.K;cO'I`Q?MvOG27TOOQ!0Lb!$( }!$( }O$+YQ`O!$( }OCwQ`O!$( }O'KUQ`O!$( }OOQ!0Lb!)9Ei!)9EiO$+YQ`O!)9EiOCwQ`O!)9EiOOQ!0Lb!.K;T!.K;TO$+YQ`O!.K;TOOQ!0Lb!4/0o!4/0oO!)[QlO'#DzO1PQ`O'#EXO'KaQ!fO'#JrO'KhQ!L^O'#DvO'KoQlO'#EOO'KvQ!fO'#CiO'N^Q!fO'#CiO!)[QlO'#EQO'NnQlO,5;ZO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO,5;eO!)[QlO'#IpO(!qQ`O,5<iO!)[QlO,5;eO(!yQMhO,5;eO($dQMhO,5;eO!)[QlO,5;wO!&zQMhO'#GmO(!yQMhO'#GmO!&zQMhO'#GoO(!yQMhO'#GoO1SQ`O'#DZO1SQ`O'#DZO!&zQMhO'#GPO(!yQMhO'#GPO!&zQMhO'#GRO(!yQMhO'#GRO!&zQMhO'#GaO(!yQMhO'#GaO!)[QlO,5:jO($kQpO'#D_O($uQpO'#JvO!)[QlO,5@oO'NnQlO1G0uO(%PQ?MtO'#CiO!)[QlO1G2PO!&zQMhO'#IuO(!yQMhO'#IuO!&zQMhO'#IwO(!yQMhO'#IwO(%ZQ!dO'#CrO!&zQMhO,5<tO(!yQMhO,5<tO'NnQlO1G2RO!)[QlO7+&zO!&zQMhO1G2`O(!yQMhO1G2`O!&zQMhO'#IuO(!yQMhO'#IuO!&zQMhO'#IwO(!yQMhO'#IwO!&zQMhO1G2bO(!yQMhO1G2bO'NnQlO7+'mO'NnQlO7+&aO!&zQMhOANAiO(!yQMhOANAiO(%nQ`O'#EoO(%sQ`O'#EoO(%{Q`O'#F]O(&QQ`O'#EyO(&VQ`O'#KTO(&bQ`O'#KRO(&mQ`O,5;ZO(&rQMjO,5<eO(&yQ`O'#GYO('OQ`O'#GYO('TQ`O,5<eO(']Q`O,5<gO('eQ`O,5;ZO('mQ?MtO1G1`O('tQ`O,5<tO('yQ`O,5<tO((OQ`O,5<vO((TQ`O,5<vO((YQ`O1G2RO((_Q`O1G0uO((dQMjO<<K}O((kQMjO<<K}O((rQMhO'#F|O9`Q`O'#F{OAuQ`O'#EnO!)[QlO,5;tO!3oQ`O'#GYO!3oQ`O'#GYO!3oQ`O'#G[O!3oQ`O'#G[O!,TQMhO7+(cO!,TQMhO7+(cO%.zQ!dO1G2wO%.zQ!dO1G2wO!&zQMhO,5=]O!&zQMhO,5=]",
     stateData: "()x~O'|OS'}OSTOS(ORQ~OPYOQYOSfOY!VOaqOdzOeyOl!POpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_XO!iuO!lZO!oYO!pYO!qYO!svO!uwO!xxO!|]O$W|O$niO%h}O%j!QO%l!OO%m!OO%n!OO%q!RO%s!SO%v!TO%w!TO%y!UO&W!WO&^!XO&`!YO&b!ZO&d![O&g!]O&m!^O&s!_O&u!`O&w!aO&y!bO&{!cO(TSO(VTO(YUO(aVO(o[O~OWtO~P`OPYOQYOSfOd!jOe!iOpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_!eO!iuO!lZO!oYO!pYO!qYO!svO!u!gO!x!hO$W!kO$niO(T!dO(VTO(YUO(aVO(o[O~Oa!wOs!nO!S!oO!b!yO!c!vO!d!vO!|<VO#T!pO#U!pO#V!xO#W!pO#X!pO#[!zO#]!zO(U!lO(VTO(YUO(e!mO(o!sO~O(O!{O~OP]XR]X[]Xa]Xj]Xr]X!Q]X!S]X!]]X!l]X!p]X#R]X#S]X#`]X#kfX#n]X#o]X#p]X#q]X#r]X#s]X#t]X#u]X#v]X#x]X#z]X#{]X$Q]X'z]X(a]X(r]X(y]X(z]X~O!g%RX~P(qO_!}O(V#PO(W!}O(X#PO~O_#QO(X#PO(Y#PO(Z#QO~Ox#SO!U#TO(b#TO(c#VO~OPYOQYOSfOd!jOe!iOpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_!eO!iuO!lZO!oYO!pYO!qYO!svO!u!gO!x!hO$W!kO$niO(T<ZO(VTO(YUO(aVO(o[O~O![#ZO!]#WO!Y(hP!Y(vP~P+}O!^#cO~P`OPYOQYOSfOd!jOe!iOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_!eO!iuO!lZO!oYO!pYO!qYO!svO!u!gO!x!hO$W!kO$niO(VTO(YUO(aVO(o[O~Op#mO![#iO!|]O#i#lO#j#iO(T<[O!k(sP~P.iO!l#oO(T#nO~O!x#sO!|]O%h#tO~O#k#uO~O!g#vO#k#uO~OP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!]$_O!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO#v$SO#x$UO#z$WO#{$XO(aVO(r$YO(y#|O(z#}O~Oa(fX'z(fX'w(fX!k(fX!Y(fX!_(fX%i(fX!g(fX~P1qO#S$dO#`$eO$Q$eOP(gXR(gX[(gXj(gXr(gX!Q(gX!S(gX!](gX!l(gX!p(gX#R(gX#n(gX#o(gX#p(gX#q(gX#r(gX#s(gX#t(gX#u(gX#v(gX#x(gX#z(gX#{(gX(a(gX(r(gX(y(gX(z(gX!_(gX%i(gX~Oa(gX'z(gX'w(gX!Y(gX!k(gXv(gX!g(gX~P4UO#`$eO~O$]$hO$_$gO$f$mO~OSfO!_$nO$i$oO$k$qO~Oh%VOj%dOk%dOp%WOr%XOs$tOt$tOz%YO|%ZO!O%]O!S${O!_$|O!i%bO!l$xO#j%cO$W%`O$t%^O$v%_O$y%aO(T$sO(VTO(YUO(a$uO(y$}O(z%POg(^P~Ol%[O~P7eO!l%eO~O!S%hO!_%iO(T%gO~O!g%mO~Oa%nO'z%nO~O!Q%rO~P%[O(U!lO~P%[O%n%vO~P%[Oh%VO!l%eO(T%gO(U!lO~Oe%}O!l%eO(T%gO~Oj$RO~O!_&PO(T%gO(U!lO(VTO(YUO`)WP~O!Q&SO!l&RO%j&VO&T&WO~P;SO!x#sO~O%s&YO!S)SX!_)SX(T)SX~O(T&ZO~Ol!PO!u&`O%j!QO%l!OO%m!OO%n!OO%q!RO%s!SO%v!TO%w!TO~Od&eOe&dO!x&bO%h&cO%{&aO~P<bOd&hOeyOl!PO!_&gO!u&`O!xxO!|]O%h}O%l!OO%m!OO%n!OO%q!RO%s!SO%v!TO%w!TO%y!UO~Ob&kO#`&nO%j&iO(U!lO~P=gO!l&oO!u&sO~O!l#oO~O!_XO~Oa%nO'x&{O'z%nO~Oa%nO'x'OO'z%nO~Oa%nO'x'QO'z%nO~O'w]X!Y]Xv]X!k]X&[]X!_]X%i]X!g]X~P(qO!b'_O!c'WO!d'WO(U!lO(VTO(YUO~Os'UO!S'TO!['XO(e'SO!^(iP!^(xP~P@nOn'bO!_'`O(T%gO~Oe'gO!l%eO(T%gO~O!Q&SO!l&RO~Os!nO!S!oO!|<VO#T!pO#U!pO#W!pO#X!pO(U!lO(VTO(YUO(e!mO(o!sO~O!b'mO!c'lO!d'lO#V!pO#['nO#]'nO~PBYOa%nOh%VO!g#vO!l%eO'z%nO(r'pO~O!p'tO#`'rO~PChOs!nO!S!oO(VTO(YUO(e!mO(o!sO~O!_XOs(mX!S(mX!b(mX!c(mX!d(mX!|(mX#T(mX#U(mX#V(mX#W(mX#X(mX#[(mX#](mX(U(mX(V(mX(Y(mX(e(mX(o(mX~O!c'lO!d'lO(U!lO~PDWO(P'xO(Q'xO(R'zO~O_!}O(V'|O(W!}O(X'|O~O_#QO(X'|O(Y'|O(Z#QO~Ov(OO~P%[Ox#SO!U#TO(b#TO(c(RO~O![(TO!Y'WX!Y'^X!]'WX!]'^X~P+}O!](VO!Y(hX~OP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!](VO!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO#v$SO#x$UO#z$WO#{$XO(aVO(r$YO(y#|O(z#}O~O!Y(hX~PHRO!Y([O~O!Y(uX!](uX!g(uX!k(uX(r(uX~O#`(uX#k#dX!^(uX~PJUO#`(]O!Y(wX!](wX~O!](^O!Y(vX~O!Y(aO~O#`$eO~PJUO!^(bO~P`OR#zO!Q#yO!S#{O!l#xO(aVOP!na[!naj!nar!na!]!na!p!na#R!na#n!na#o!na#p!na#q!na#r!na#s!na#t!na#u!na#v!na#x!na#z!na#{!na(r!na(y!na(z!na~Oa!na'z!na'w!na!Y!na!k!nav!na!_!na%i!na!g!na~PKlO!k(cO~O!g#vO#`(dO(r'pO!](tXa(tX'z(tX~O!k(tX~PNXO!S%hO!_%iO!|]O#i(iO#j(hO(T%gO~O!](jO!k(sX~O!k(lO~O!S%hO!_%iO#j(hO(T%gO~OP(gXR(gX[(gXj(gXr(gX!Q(gX!S(gX!](gX!l(gX!p(gX#R(gX#n(gX#o(gX#p(gX#q(gX#r(gX#s(gX#t(gX#u(gX#v(gX#x(gX#z(gX#{(gX(a(gX(r(gX(y(gX(z(gX~O!g#vO!k(gX~P! uOR(nO!Q(mO!l#xO#S$dO!|!{a!S!{a~O!x!{a%h!{a!_!{a#i!{a#j!{a(T!{a~P!#vO!x(rO~OPYOQYOSfOd!jOe!iOpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_XO!iuO!lZO!oYO!pYO!qYO!svO!u!gO!x!hO$W!kO$niO(T!dO(VTO(YUO(aVO(o[O~Oh%VOp%WOr%XOs$tOt$tOz%YO|%ZO!O<sO!S${O!_$|O!i>VO!l$xO#j<yO$W%`O$t<uO$v<wO$y%aO(T(vO(VTO(YUO(a$uO(y$}O(z%PO~O#k(xO~O![(zO!k(kP~P%[O(e(|O(o[O~O!S)OO!l#xO(e(|O(o[O~OP<UOQ<UOSfOd>ROe!iOpkOr<UOskOtkOzkO|<UO!O<UO!SWO!WkO!XkO!_!eO!i<XO!lZO!o<UO!p<UO!q<UO!s<YO!u<]O!x!hO$W!kO$n>PO(T)]O(VTO(YUO(aVO(o[O~O!]$_Oa$qa'z$qa'w$qa!k$qa!Y$qa!_$qa%i$qa!g$qa~Ol)dO~P!&zOh%VOp%WOr%XOs$tOt$tOz%YO|%ZO!O%]O!S${O!_$|O!i%bO!l$xO#j%cO$W%`O$t%^O$v%_O$y%aO(T(vO(VTO(YUO(a$uO(y$}O(z%PO~Og(pP~P!,TO!Q)iO!g)hO!_$^X$Z$^X$]$^X$_$^X$f$^X~O!g)hO!_({X$Z({X$]({X$_({X$f({X~O!Q)iO~P!.^O!Q)iO!_({X$Z({X$]({X$_({X$f({X~O!_)kO$Z)oO$])jO$_)jO$f)pO~O![)sO~P!)[O$]$hO$_$gO$f)wO~On$zX!Q$zX#S$zX'y$zX(y$zX(z$zX~OgmXg$zXnmX!]mX#`mX~P!0SOx)yO(b)zO(c)|O~On*VO!Q*OO'y*PO(y$}O(z%PO~Og)}O~P!1WOg*WO~Oh%VOr%XOs$tOt$tOz%YO|%ZO!O<sO!S*YO!_*ZO!i>VO!l$xO#j<yO$W%`O$t<uO$v<wO$y%aO(VTO(YUO(a$uO(y$}O(z%PO~Op*`O![*^O(T*XO!k)OP~P!1uO#k*aO~O!l*bO~Oh%VOp%WOr%XOs$tOt$tOz%YO|%ZO!O<sO!S${O!_$|O!i>VO!l$xO#j<yO$W%`O$t<uO$v<wO$y%aO(T*dO(VTO(YUO(a$uO(y$}O(z%PO~O![*gO!Y)PP~P!3tOr*sOs!nO!S*iO!b*qO!c*kO!d*kO!l*bO#[*rO%`*mO(U!lO(VTO(YUO(e!mO~O!^*pO~P!5iO#S$dOn(`X!Q(`X'y(`X(y(`X(z(`X!](`X#`(`X~Og(`X$O(`X~P!6kOn*xO#`*wOg(_X!](_X~O!]*yOg(^X~Oj%dOk%dOl%dO(T&ZOg(^P~Os*|O~Og)}O(T&ZO~O!l+SO~O(T(vO~Op+WO!S%hO![#iO!_%iO!|]O#i#lO#j#iO(T%gO!k(sP~O!g#vO#k+XO~O!S%hO![+ZO!](^O!_%iO(T%gO!Y(vP~Os'[O!S+]O![+[O(VTO(YUO(e(|O~O!^(xP~P!9|O!]+^Oa)TX'z)TX~OP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO#v$SO#x$UO#z$WO#{$XO(aVO(r$YO(y#|O(z#}O~Oa!ja!]!ja'z!ja'w!ja!Y!ja!k!jav!ja!_!ja%i!ja!g!ja~P!:tOR#zO!Q#yO!S#{O!l#xO(aVOP!ra[!raj!rar!ra!]!ra!p!ra#R!ra#n!ra#o!ra#p!ra#q!ra#r!ra#s!ra#t!ra#u!ra#v!ra#x!ra#z!ra#{!ra(r!ra(y!ra(z!ra~Oa!ra'z!ra'w!ra!Y!ra!k!rav!ra!_!ra%i!ra!g!ra~P!=[OR#zO!Q#yO!S#{O!l#xO(aVOP!ta[!taj!tar!ta!]!ta!p!ta#R!ta#n!ta#o!ta#p!ta#q!ta#r!ta#s!ta#t!ta#u!ta#v!ta#x!ta#z!ta#{!ta(r!ta(y!ta(z!ta~Oa!ta'z!ta'w!ta!Y!ta!k!tav!ta!_!ta%i!ta!g!ta~P!?rOh%VOn+gO!_'`O%i+fO~O!g+iOa(]X!_(]X'z(]X!](]X~Oa%nO!_XO'z%nO~Oh%VO!l%eO~Oh%VO!l%eO(T%gO~O!g#vO#k(xO~Ob+tO%j+uO(T+qO(VTO(YUO!^)XP~O!]+vO`)WX~O[+zO~O`+{O~O!_&PO(T%gO(U!lO`)WP~O%j,OO~P;SOh%VO#`,SO~Oh%VOn,VO!_$|O~O!_,XO~O!Q,ZO!_XO~O%n%vO~O!x,`O~Oe,eO~Ob,fO(T#nO(VTO(YUO!^)VP~Oe%}O~O%j!QO(T&ZO~P=gO[,kO`,jO~OPYOQYOSfOdzOeyOpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!iuO!lZO!oYO!pYO!qYO!svO!xxO!|]O$niO%h}O(VTO(YUO(aVO(o[O~O!_!eO!u!gO$W!kO(T!dO~P!FyO`,jOa%nO'z%nO~OPYOQYOSfOd!jOe!iOpkOrYOskOtkOzkO|YO!OYO!SWO!WkO!XkO!_!eO!iuO!lZO!oYO!pYO!qYO!svO!x!hO$W!kO$niO(T!dO(VTO(YUO(aVO(o[O~Oa,pOl!OO!uwO%l!OO%m!OO%n!OO~P!IcO!l&oO~O&^,vO~O!_,xO~O&o,zO&q,{OP&laQ&laS&laY&laa&lad&lae&lal&lap&lar&las&lat&laz&la|&la!O&la!S&la!W&la!X&la!_&la!i&la!l&la!o&la!p&la!q&la!s&la!u&la!x&la!|&la$W&la$n&la%h&la%j&la%l&la%m&la%n&la%q&la%s&la%v&la%w&la%y&la&W&la&^&la&`&la&b&la&d&la&g&la&m&la&s&la&u&la&w&la&y&la&{&la'w&la(T&la(V&la(Y&la(a&la(o&la!^&la&e&lab&la&j&la~O(T-QO~Oh!eX!]!RX!^!RX!g!RX!g!eX!l!eX#`!RX~O!]!eX!^!eX~P#!iO!g-VO#`-UOh(jX!]#hX!^#hX!g(jX!l(jX~O!](jX!^(jX~P##[Oh%VO!g-XO!l%eO!]!aX!^!aX~Os!nO!S!oO(VTO(YUO(e!mO~OP<UOQ<UOSfOd>ROe!iOpkOr<UOskOtkOzkO|<UO!O<UO!SWO!WkO!XkO!_!eO!i<XO!lZO!o<UO!p<UO!q<UO!s<YO!u<]O!x!hO$W!kO$n>PO(VTO(YUO(aVO(o[O~O(T=QO~P#$qO!]-]O!^(iX~O!^-_O~O!g-VO#`-UO!]#hX!^#hX~O!]-`O!^(xX~O!^-bO~O!c-cO!d-cO(U!lO~P#$`O!^-fO~P'_On-iO!_'`O~O!Y-nO~Os!{a!b!{a!c!{a!d!{a#T!{a#U!{a#V!{a#W!{a#X!{a#[!{a#]!{a(U!{a(V!{a(Y!{a(e!{a(o!{a~P!#vO!p-sO#`-qO~PChO!c-uO!d-uO(U!lO~PDWOa%nO#`-qO'z%nO~Oa%nO!g#vO#`-qO'z%nO~Oa%nO!g#vO!p-sO#`-qO'z%nO(r'pO~O(P'xO(Q'xO(R-zO~Ov-{O~O!Y'Wa!]'Wa~P!:tO![.PO!Y'WX!]'WX~P%[O!](VO!Y(ha~O!Y(ha~PHRO!](^O!Y(va~O!S%hO![.TO!_%iO(T%gO!Y'^X!]'^X~O#`.VO!](ta!k(taa(ta'z(ta~O!g#vO~P#,wO!](jO!k(sa~O!S%hO!_%iO#j.ZO(T%gO~Op.`O!S%hO![.]O!_%iO!|]O#i._O#j.]O(T%gO!]'aX!k'aX~OR.dO!l#xO~Oh%VOn.gO!_'`O%i.fO~Oa#ci!]#ci'z#ci'w#ci!Y#ci!k#civ#ci!_#ci%i#ci!g#ci~P!:tOn>]O!Q*OO'y*PO(y$}O(z%PO~O#k#_aa#_a#`#_a'z#_a!]#_a!k#_a!_#_a!Y#_a~P#/sO#k(`XP(`XR(`X[(`Xa(`Xj(`Xr(`X!S(`X!l(`X!p(`X#R(`X#n(`X#o(`X#p(`X#q(`X#r(`X#s(`X#t(`X#u(`X#v(`X#x(`X#z(`X#{(`X'z(`X(a(`X(r(`X!k(`X!Y(`X'w(`Xv(`X!_(`X%i(`X!g(`X~P!6kO!].tO!k(kX~P!:tO!k.wO~O!Y.yO~OP$[OR#zO!Q#yO!S#{O!l#xO!p$[O(aVO[#mia#mij#mir#mi!]#mi#R#mi#o#mi#p#mi#q#mi#r#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi'z#mi(r#mi(y#mi(z#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~O#n#mi~P#3cO#n$OO~P#3cOP$[OR#zOr$aO!Q#yO!S#{O!l#xO!p$[O#n$OO#o$PO#p$PO#q$PO(aVO[#mia#mij#mi!]#mi#R#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi'z#mi(r#mi(y#mi(z#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~O#r#mi~P#6QO#r$QO~P#6QOP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO(aVOa#mi!]#mi#x#mi#z#mi#{#mi'z#mi(r#mi(y#mi(z#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~O#v#mi~P#8oOP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO#v$SO(aVO(z#}Oa#mi!]#mi#z#mi#{#mi'z#mi(r#mi(y#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~O#x$UO~P#;VO#x#mi~P#;VO#v$SO~P#8oOP$[OR#zO[$cOj$ROr$aO!Q#yO!S#{O!l#xO!p$[O#R$RO#n$OO#o$PO#p$PO#q$PO#r$QO#s$RO#t$RO#u$bO#v$SO#x$UO(aVO(y#|O(z#}Oa#mi!]#mi#{#mi'z#mi(r#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~O#z#mi~P#={O#z$WO~P#={OP]XR]X[]Xj]Xr]X!Q]X!S]X!l]X!p]X#R]X#S]X#`]X#kfX#n]X#o]X#p]X#q]X#r]X#s]X#t]X#u]X#v]X#x]X#z]X#{]X$Q]X(a]X(r]X(y]X(z]X!]]X!^]X~O$O]X~P#@jOP$[OR#zO[<mOj<bOr<kO!Q#yO!S#{O!l#xO!p$[O#R<bO#n<_O#o<`O#p<`O#q<`O#r<aO#s<bO#t<bO#u<lO#v<cO#x<eO#z<gO#{<hO(aVO(r$YO(y#|O(z#}O~O$O.{O~P#BwO#S$dO#`<nO$Q<nO$O(gX!^(gX~P! uOa'da!]'da'z'da'w'da!k'da!Y'dav'da!_'da%i'da!g'da~P!:tO[#mia#mij#mir#mi!]#mi#R#mi#r#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi'z#mi(r#mi'w#mi!Y#mi!k#miv#mi!_#mi%i#mi!g#mi~OP$[OR#zO!Q#yO!S#{O!l#xO!p$[O#n$OO#o$PO#p$PO#q$PO(aVO(y#mi(z#mi~P#EyOn>]O!Q*OO'y*PO(y$}O(z%POP#miR#mi!S#mi!l#mi!p#mi#n#mi#o#mi#p#mi#q#mi(a#mi~P#EyO!]/POg(pX~P!1WOg/RO~Oa$Pi!]$Pi'z$Pi'w$Pi!Y$Pi!k$Piv$Pi!_$Pi%i$Pi!g$Pi~P!:tO$]/SO$_/SO~O$]/TO$_/TO~O!g)hO#`/UO!_$cX$Z$cX$]$cX$_$cX$f$cX~O![/VO~O!_)kO$Z/XO$])jO$_)jO$f/YO~O!]<iO!^(fX~P#BwO!^/ZO~O!g)hO$f({X~O$f/]O~Ov/^O~P!&zOx)yO(b)zO(c/aO~O!S/dO~O(y$}On%aa!Q%aa'y%aa(z%aa!]%aa#`%aa~Og%aa$O%aa~P#L{O(z%POn%ca!Q%ca'y%ca(y%ca!]%ca#`%ca~Og%ca$O%ca~P#MnO!]fX!gfX!kfX!k$zX(rfX~P!0SOp%WO![/mO!](^O(T/lO!Y(vP!Y)PP~P!1uOr*sO!b*qO!c*kO!d*kO!l*bO#[*rO%`*mO(U!lO(VTO(YUO~Os<}O!S/nO![+[O!^*pO(e<|O!^(xP~P$ [O!k/oO~P#/sO!]/pO!g#vO(r'pO!k)OX~O!k/uO~OnoX!QoX'yoX(yoX(zoX~O!g#vO!koX~P$#OOp/wO!S%hO![*^O!_%iO(T%gO!k)OP~O#k/xO~O!Y$zX!]$zX!g%RX~P!0SO!]/yO!Y)PX~P#/sO!g/{O~O!Y/}O~OpkO(T0OO~P.iOh%VOr0TO!g#vO!l%eO(r'pO~O!g+iO~Oa%nO!]0XO'z%nO~O!^0ZO~P!5iO!c0[O!d0[O(U!lO~P#$`Os!nO!S0]O(VTO(YUO(e!mO~O#[0_O~Og%aa!]%aa#`%aa$O%aa~P!1WOg%ca!]%ca#`%ca$O%ca~P!1WOj%dOk%dOl%dO(T&ZOg'mX!]'mX~O!]*yOg(^a~Og0hO~On0jO#`0iOg(_a!](_a~OR0kO!Q0kO!S0lO#S$dOn}a'y}a(y}a(z}a!]}a#`}a~Og}a$O}a~P$(cO!Q*OO'y*POn$sa(y$sa(z$sa!]$sa#`$sa~Og$sa$O$sa~P$)_O!Q*OO'y*POn$ua(y$ua(z$ua!]$ua#`$ua~Og$ua$O$ua~P$*QO#k0oO~Og%Ta!]%Ta#`%Ta$O%Ta~P!1WO!g#vO~O#k0rO~O!]+^Oa)Ta'z)Ta~OR#zO!Q#yO!S#{O!l#xO(aVOP!ri[!rij!rir!ri!]!ri!p!ri#R!ri#n!ri#o!ri#p!ri#q!ri#r!ri#s!ri#t!ri#u!ri#v!ri#x!ri#z!ri#{!ri(r!ri(y!ri(z!ri~Oa!ri'z!ri'w!ri!Y!ri!k!riv!ri!_!ri%i!ri!g!ri~P$+oOh%VOr%XOs$tOt$tOz%YO|%ZO!O<sO!S${O!_$|O!i>VO!l$xO#j<yO$W%`O$t<uO$v<wO$y%aO(VTO(YUO(a$uO(y$}O(z%PO~Op0{O%]0|O(T0zO~P$.VO!g+iOa(]a!_(]a'z(]a!](]a~O#k1SO~O[]X!]fX!^fX~O!]1TO!^)XX~O!^1VO~O[1WO~Ob1YO(T+qO(VTO(YUO~O!_&PO(T%gO`'uX!]'uX~O!]+vO`)Wa~O!k1]O~P!:tO[1`O~O`1aO~O#`1fO~On1iO!_$|O~O(e(|O!^)UP~Oh%VOn1rO!_1oO%i1qO~O[1|O!]1zO!^)VX~O!^1}O~O`2POa%nO'z%nO~O(T#nO(VTO(YUO~O#S$dO#`$eO$Q$eOP(gXR(gX[(gXr(gX!Q(gX!S(gX!](gX!l(gX!p(gX#R(gX#n(gX#o(gX#p(gX#q(gX#r(gX#s(gX#t(gX#u(gX#v(gX#x(gX#z(gX#{(gX(a(gX(r(gX(y(gX(z(gX~Oj2SO&[2TOa(gX~P$3pOj2SO#`$eO&[2TO~Oa2VO~P%[Oa2XO~O&e2[OP&ciQ&ciS&ciY&cia&cid&cie&cil&cip&cir&cis&cit&ciz&ci|&ci!O&ci!S&ci!W&ci!X&ci!_&ci!i&ci!l&ci!o&ci!p&ci!q&ci!s&ci!u&ci!x&ci!|&ci$W&ci$n&ci%h&ci%j&ci%l&ci%m&ci%n&ci%q&ci%s&ci%v&ci%w&ci%y&ci&W&ci&^&ci&`&ci&b&ci&d&ci&g&ci&m&ci&s&ci&u&ci&w&ci&y&ci&{&ci'w&ci(T&ci(V&ci(Y&ci(a&ci(o&ci!^&cib&ci&j&ci~Ob2bO!^2`O&j2aO~P`O!_XO!l2dO~O&q,{OP&liQ&liS&liY&lia&lid&lie&lil&lip&lir&lis&lit&liz&li|&li!O&li!S&li!W&li!X&li!_&li!i&li!l&li!o&li!p&li!q&li!s&li!u&li!x&li!|&li$W&li$n&li%h&li%j&li%l&li%m&li%n&li%q&li%s&li%v&li%w&li%y&li&W&li&^&li&`&li&b&li&d&li&g&li&m&li&s&li&u&li&w&li&y&li&{&li'w&li(T&li(V&li(Y&li(a&li(o&li!^&li&e&lib&li&j&li~O!Y2jO~O!]!aa!^!aa~P#BwOs!nO!S!oO![2pO(e!mO!]'XX!^'XX~P@nO!]-]O!^(ia~O!]'_X!^'_X~P!9|O!]-`O!^(xa~O!^2wO~P'_Oa%nO#`3QO'z%nO~Oa%nO!g#vO#`3QO'z%nO~Oa%nO!g#vO!p3UO#`3QO'z%nO(r'pO~Oa%nO'z%nO~P!:tO!]$_Ov$qa~O!Y'Wi!]'Wi~P!:tO!](VO!Y(hi~O!](^O!Y(vi~O!Y(wi!](wi~P!:tO!](ti!k(tia(ti'z(ti~P!:tO#`3WO!](ti!k(tia(ti'z(ti~O!](jO!k(si~O!S%hO!_%iO!|]O#i3]O#j3[O(T%gO~O!S%hO!_%iO#j3[O(T%gO~On3dO!_'`O%i3cO~Oh%VOn3dO!_'`O%i3cO~O#k%aaP%aaR%aa[%aaa%aaj%aar%aa!S%aa!l%aa!p%aa#R%aa#n%aa#o%aa#p%aa#q%aa#r%aa#s%aa#t%aa#u%aa#v%aa#x%aa#z%aa#{%aa'z%aa(a%aa(r%aa!k%aa!Y%aa'w%aav%aa!_%aa%i%aa!g%aa~P#L{O#k%caP%caR%ca[%caa%caj%car%ca!S%ca!l%ca!p%ca#R%ca#n%ca#o%ca#p%ca#q%ca#r%ca#s%ca#t%ca#u%ca#v%ca#x%ca#z%ca#{%ca'z%ca(a%ca(r%ca!k%ca!Y%ca'w%cav%ca!_%ca%i%ca!g%ca~P#MnO#k%aaP%aaR%aa[%aaa%aaj%aar%aa!S%aa!]%aa!l%aa!p%aa#R%aa#n%aa#o%aa#p%aa#q%aa#r%aa#s%aa#t%aa#u%aa#v%aa#x%aa#z%aa#{%aa'z%aa(a%aa(r%aa!k%aa!Y%aa'w%aa#`%aav%aa!_%aa%i%aa!g%aa~P#/sO#k%caP%caR%ca[%caa%caj%car%ca!S%ca!]%ca!l%ca!p%ca#R%ca#n%ca#o%ca#p%ca#q%ca#r%ca#s%ca#t%ca#u%ca#v%ca#x%ca#z%ca#{%ca'z%ca(a%ca(r%ca!k%ca!Y%ca'w%ca#`%cav%ca!_%ca%i%ca!g%ca~P#/sO#k}aP}a[}aa}aj}ar}a!l}a!p}a#R}a#n}a#o}a#p}a#q}a#r}a#s}a#t}a#u}a#v}a#x}a#z}a#{}a'z}a(a}a(r}a!k}a!Y}a'w}av}a!_}a%i}a!g}a~P$(cO#k$saP$saR$sa[$saa$saj$sar$sa!S$sa!l$sa!p$sa#R$sa#n$sa#o$sa#p$sa#q$sa#r$sa#s$sa#t$sa#u$sa#v$sa#x$sa#z$sa#{$sa'z$sa(a$sa(r$sa!k$sa!Y$sa'w$sav$sa!_$sa%i$sa!g$sa~P$)_O#k$uaP$uaR$ua[$uaa$uaj$uar$ua!S$ua!l$ua!p$ua#R$ua#n$ua#o$ua#p$ua#q$ua#r$ua#s$ua#t$ua#u$ua#v$ua#x$ua#z$ua#{$ua'z$ua(a$ua(r$ua!k$ua!Y$ua'w$uav$ua!_$ua%i$ua!g$ua~P$*QO#k%TaP%TaR%Ta[%Taa%Taj%Tar%Ta!S%Ta!]%Ta!l%Ta!p%Ta#R%Ta#n%Ta#o%Ta#p%Ta#q%Ta#r%Ta#s%Ta#t%Ta#u%Ta#v%Ta#x%Ta#z%Ta#{%Ta'z%Ta(a%Ta(r%Ta!k%Ta!Y%Ta'w%Ta#`%Tav%Ta!_%Ta%i%Ta!g%Ta~P#/sOa#cq!]#cq'z#cq'w#cq!Y#cq!k#cqv#cq!_#cq%i#cq!g#cq~P!:tO![3lO!]'YX!k'YX~P%[O!].tO!k(ka~O!].tO!k(ka~P!:tO!Y3oO~O$O!na!^!na~PKlO$O!ja!]!ja!^!ja~P#BwO$O!ra!^!ra~P!=[O$O!ta!^!ta~P!?rOg']X!]']X~P!,TO!]/POg(pa~OSfO!_4TO$d4UO~O!^4YO~Ov4ZO~P#/sOa$mq!]$mq'z$mq'w$mq!Y$mq!k$mqv$mq!_$mq%i$mq!g$mq~P!:tO!Y4]O~P!&zO!S4^O~O!Q*OO'y*PO(z%POn'ia(y'ia!]'ia#`'ia~Og'ia$O'ia~P%-fO!Q*OO'y*POn'ka(y'ka(z'ka!]'ka#`'ka~Og'ka$O'ka~P%.XO(r$YO~P#/sO!YfX!Y$zX!]fX!]$zX!g%RX#`fX~P!0SOp%WO(T=WO~P!1uOp4bO!S%hO![4aO!_%iO(T%gO!]'eX!k'eX~O!]/pO!k)Oa~O!]/pO!g#vO!k)Oa~O!]/pO!g#vO(r'pO!k)Oa~Og$|i!]$|i#`$|i$O$|i~P!1WO![4jO!Y'gX!]'gX~P!3tO!]/yO!Y)Pa~O!]/yO!Y)Pa~P#/sOP]XR]X[]Xj]Xr]X!Q]X!S]X!Y]X!]]X!l]X!p]X#R]X#S]X#`]X#kfX#n]X#o]X#p]X#q]X#r]X#s]X#t]X#u]X#v]X#x]X#z]X#{]X$Q]X(a]X(r]X(y]X(z]X~Oj%YX!g%YX~P%2OOj4oO!g#vO~Oh%VO!g#vO!l%eO~Oh%VOr4tO!l%eO(r'pO~Or4yO!g#vO(r'pO~Os!nO!S4zO(VTO(YUO(e!mO~O(y$}On%ai!Q%ai'y%ai(z%ai!]%ai#`%ai~Og%ai$O%ai~P%5oO(z%POn%ci!Q%ci'y%ci(y%ci!]%ci#`%ci~Og%ci$O%ci~P%6bOg(_i!](_i~P!1WO#`5QOg(_i!](_i~P!1WO!k5VO~Oa$oq!]$oq'z$oq'w$oq!Y$oq!k$oqv$oq!_$oq%i$oq!g$oq~P!:tO!Y5ZO~O!]5[O!_)QX~P#/sOa$zX!_$zX%^]X'z$zX!]$zX~P!0SO%^5_OaoX!_oX'zoX!]oX~P$#OOp5`O(T#nO~O%^5_O~Ob5fO%j5gO(T+qO(VTO(YUO!]'tX!^'tX~O!]1TO!^)Xa~O[5kO~O`5lO~O[5pO~Oa%nO'z%nO~P#/sO!]5uO#`5wO!^)UX~O!^5xO~Or6OOs!nO!S*iO!b!yO!c!vO!d!vO!|<VO#T!pO#U!pO#V!pO#W!pO#X!pO#[5}O#]!zO(U!lO(VTO(YUO(e!mO(o!sO~O!^5|O~P%;eOn6TO!_1oO%i6SO~Oh%VOn6TO!_1oO%i6SO~Ob6[O(T#nO(VTO(YUO!]'sX!^'sX~O!]1zO!^)Va~O(VTO(YUO(e6^O~O`6bO~Oj6eO&[6fO~PNXO!k6gO~P%[Oa6iO~Oa6iO~P%[Ob2bO!^6nO&j2aO~P`O!g6pO~O!g6rOh(ji!](ji!^(ji!g(ji!l(jir(ji(r(ji~O!]#hi!^#hi~P#BwO#`6sO!]#hi!^#hi~O!]!ai!^!ai~P#BwOa%nO#`6|O'z%nO~Oa%nO!g#vO#`6|O'z%nO~O!](tq!k(tqa(tq'z(tq~P!:tO!](jO!k(sq~O!S%hO!_%iO#j7TO(T%gO~O!_'`O%i7WO~On7[O!_'`O%i7WO~O#k'iaP'iaR'ia['iaa'iaj'iar'ia!S'ia!l'ia!p'ia#R'ia#n'ia#o'ia#p'ia#q'ia#r'ia#s'ia#t'ia#u'ia#v'ia#x'ia#z'ia#{'ia'z'ia(a'ia(r'ia!k'ia!Y'ia'w'iav'ia!_'ia%i'ia!g'ia~P%-fO#k'kaP'kaR'ka['kaa'kaj'kar'ka!S'ka!l'ka!p'ka#R'ka#n'ka#o'ka#p'ka#q'ka#r'ka#s'ka#t'ka#u'ka#v'ka#x'ka#z'ka#{'ka'z'ka(a'ka(r'ka!k'ka!Y'ka'w'kav'ka!_'ka%i'ka!g'ka~P%.XO#k$|iP$|iR$|i[$|ia$|ij$|ir$|i!S$|i!]$|i!l$|i!p$|i#R$|i#n$|i#o$|i#p$|i#q$|i#r$|i#s$|i#t$|i#u$|i#v$|i#x$|i#z$|i#{$|i'z$|i(a$|i(r$|i!k$|i!Y$|i'w$|i#`$|iv$|i!_$|i%i$|i!g$|i~P#/sO#k%aiP%aiR%ai[%aia%aij%air%ai!S%ai!l%ai!p%ai#R%ai#n%ai#o%ai#p%ai#q%ai#r%ai#s%ai#t%ai#u%ai#v%ai#x%ai#z%ai#{%ai'z%ai(a%ai(r%ai!k%ai!Y%ai'w%aiv%ai!_%ai%i%ai!g%ai~P%5oO#k%ciP%ciR%ci[%cia%cij%cir%ci!S%ci!l%ci!p%ci#R%ci#n%ci#o%ci#p%ci#q%ci#r%ci#s%ci#t%ci#u%ci#v%ci#x%ci#z%ci#{%ci'z%ci(a%ci(r%ci!k%ci!Y%ci'w%civ%ci!_%ci%i%ci!g%ci~P%6bO!]'Ya!k'Ya~P!:tO!].tO!k(ki~O$O#ci!]#ci!^#ci~P#BwOP$[OR#zO!Q#yO!S#{O!l#xO!p$[O(aVO[#mij#mir#mi#R#mi#o#mi#p#mi#q#mi#r#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi$O#mi(r#mi(y#mi(z#mi!]#mi!^#mi~O#n#mi~P%NdO#n<_O~P%NdOP$[OR#zOr<kO!Q#yO!S#{O!l#xO!p$[O#n<_O#o<`O#p<`O#q<`O(aVO[#mij#mi#R#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi$O#mi(r#mi(y#mi(z#mi!]#mi!^#mi~O#r#mi~P&!lO#r<aO~P&!lOP$[OR#zO[<mOj<bOr<kO!Q#yO!S#{O!l#xO!p$[O#R<bO#n<_O#o<`O#p<`O#q<`O#r<aO#s<bO#t<bO#u<lO(aVO#x#mi#z#mi#{#mi$O#mi(r#mi(y#mi(z#mi!]#mi!^#mi~O#v#mi~P&$tOP$[OR#zO[<mOj<bOr<kO!Q#yO!S#{O!l#xO!p$[O#R<bO#n<_O#o<`O#p<`O#q<`O#r<aO#s<bO#t<bO#u<lO#v<cO(aVO(z#}O#z#mi#{#mi$O#mi(r#mi(y#mi!]#mi!^#mi~O#x<eO~P&&uO#x#mi~P&&uO#v<cO~P&$tOP$[OR#zO[<mOj<bOr<kO!Q#yO!S#{O!l#xO!p$[O#R<bO#n<_O#o<`O#p<`O#q<`O#r<aO#s<bO#t<bO#u<lO#v<cO#x<eO(aVO(y#|O(z#}O#{#mi$O#mi(r#mi!]#mi!^#mi~O#z#mi~P&)UO#z<gO~P&)UOa#|y!]#|y'z#|y'w#|y!Y#|y!k#|yv#|y!_#|y%i#|y!g#|y~P!:tO[#mij#mir#mi#R#mi#r#mi#s#mi#t#mi#u#mi#v#mi#x#mi#z#mi#{#mi$O#mi(r#mi!]#mi!^#mi~OP$[OR#zO!Q#yO!S#{O!l#xO!p$[O#n<_O#o<`O#p<`O#q<`O(aVO(y#mi(z#mi~P&,QOn>^O!Q*OO'y*PO(y$}O(z%POP#miR#mi!S#mi!l#mi!p#mi#n#mi#o#mi#p#mi#q#mi(a#mi~P&,QO#S$dOP(`XR(`X[(`Xj(`Xn(`Xr(`X!Q(`X!S(`X!l(`X!p(`X#R(`X#n(`X#o(`X#p(`X#q(`X#r(`X#s(`X#t(`X#u(`X#v(`X#x(`X#z(`X#{(`X$O(`X'y(`X(a(`X(r(`X(y(`X(z(`X!](`X!^(`X~O$O$Pi!]$Pi!^$Pi~P#BwO$O!ri!^!ri~P$+oOg']a!]']a~P!1WO!^7nO~O!]'da!^'da~P#BwO!Y7oO~P#/sO!g#vO(r'pO!]'ea!k'ea~O!]/pO!k)Oi~O!]/pO!g#vO!k)Oi~Og$|q!]$|q#`$|q$O$|q~P!1WO!Y'ga!]'ga~P#/sO!g7vO~O!]/yO!Y)Pi~P#/sO!]/yO!Y)Pi~O!Y7yO~Oh%VOr8OO!l%eO(r'pO~Oj8QO!g#vO~Or8TO!g#vO(r'pO~O!Q*OO'y*PO(z%POn'ja(y'ja!]'ja#`'ja~Og'ja$O'ja~P&5RO!Q*OO'y*POn'la(y'la(z'la!]'la#`'la~Og'la$O'la~P&5tOg(_q!](_q~P!1WO#`8VOg(_q!](_q~P!1WO!Y8WO~Og%Oq!]%Oq#`%Oq$O%Oq~P!1WOa$oy!]$oy'z$oy'w$oy!Y$oy!k$oyv$oy!_$oy%i$oy!g$oy~P!:tO!g6rO~O!]5[O!_)Qa~O!_'`OP$TaR$Ta[$Taj$Tar$Ta!Q$Ta!S$Ta!]$Ta!l$Ta!p$Ta#R$Ta#n$Ta#o$Ta#p$Ta#q$Ta#r$Ta#s$Ta#t$Ta#u$Ta#v$Ta#x$Ta#z$Ta#{$Ta(a$Ta(r$Ta(y$Ta(z$Ta~O%i7WO~P&8fO%^8[Oa%[i!_%[i'z%[i!]%[i~Oa#cy!]#cy'z#cy'w#cy!Y#cy!k#cyv#cy!_#cy%i#cy!g#cy~P!:tO[8^O~Ob8`O(T+qO(VTO(YUO~O!]1TO!^)Xi~O`8dO~O(e(|O!]'pX!^'pX~O!]5uO!^)Ua~O!^8nO~P%;eO(o!sO~P$&YO#[8oO~O!_1oO~O!_1oO%i8qO~On8tO!_1oO%i8qO~O[8yO!]'sa!^'sa~O!]1zO!^)Vi~O!k8}O~O!k9OO~O!k9RO~O!k9RO~P%[Oa9TO~O!g9UO~O!k9VO~O!](wi!^(wi~P#BwOa%nO#`9_O'z%nO~O!](ty!k(tya(ty'z(ty~P!:tO!](jO!k(sy~O%i9bO~P&8fO!_'`O%i9bO~O#k$|qP$|qR$|q[$|qa$|qj$|qr$|q!S$|q!]$|q!l$|q!p$|q#R$|q#n$|q#o$|q#p$|q#q$|q#r$|q#s$|q#t$|q#u$|q#v$|q#x$|q#z$|q#{$|q'z$|q(a$|q(r$|q!k$|q!Y$|q'w$|q#`$|qv$|q!_$|q%i$|q!g$|q~P#/sO#k'jaP'jaR'ja['jaa'jaj'jar'ja!S'ja!l'ja!p'ja#R'ja#n'ja#o'ja#p'ja#q'ja#r'ja#s'ja#t'ja#u'ja#v'ja#x'ja#z'ja#{'ja'z'ja(a'ja(r'ja!k'ja!Y'ja'w'jav'ja!_'ja%i'ja!g'ja~P&5RO#k'laP'laR'la['laa'laj'lar'la!S'la!l'la!p'la#R'la#n'la#o'la#p'la#q'la#r'la#s'la#t'la#u'la#v'la#x'la#z'la#{'la'z'la(a'la(r'la!k'la!Y'la'w'lav'la!_'la%i'la!g'la~P&5tO#k%OqP%OqR%Oq[%Oqa%Oqj%Oqr%Oq!S%Oq!]%Oq!l%Oq!p%Oq#R%Oq#n%Oq#o%Oq#p%Oq#q%Oq#r%Oq#s%Oq#t%Oq#u%Oq#v%Oq#x%Oq#z%Oq#{%Oq'z%Oq(a%Oq(r%Oq!k%Oq!Y%Oq'w%Oq#`%Oqv%Oq!_%Oq%i%Oq!g%Oq~P#/sO!]'Yi!k'Yi~P!:tO$O#cq!]#cq!^#cq~P#BwO(y$}OP%aaR%aa[%aaj%aar%aa!S%aa!l%aa!p%aa#R%aa#n%aa#o%aa#p%aa#q%aa#r%aa#s%aa#t%aa#u%aa#v%aa#x%aa#z%aa#{%aa$O%aa(a%aa(r%aa!]%aa!^%aa~On%aa!Q%aa'y%aa(z%aa~P&IyO(z%POP%caR%ca[%caj%car%ca!S%ca!l%ca!p%ca#R%ca#n%ca#o%ca#p%ca#q%ca#r%ca#s%ca#t%ca#u%ca#v%ca#x%ca#z%ca#{%ca$O%ca(a%ca(r%ca!]%ca!^%ca~On%ca!Q%ca'y%ca(y%ca~P&LQOn>^O!Q*OO'y*PO(z%PO~P&IyOn>^O!Q*OO'y*PO(y$}O~P&LQOR0kO!Q0kO!S0lO#S$dOP}a[}aj}an}ar}a!l}a!p}a#R}a#n}a#o}a#p}a#q}a#r}a#s}a#t}a#u}a#v}a#x}a#z}a#{}a$O}a'y}a(a}a(r}a(y}a(z}a!]}a!^}a~O!Q*OO'y*POP$saR$sa[$saj$san$sar$sa!S$sa!l$sa!p$sa#R$sa#n$sa#o$sa#p$sa#q$sa#r$sa#s$sa#t$sa#u$sa#v$sa#x$sa#z$sa#{$sa$O$sa(a$sa(r$sa(y$sa(z$sa!]$sa!^$sa~O!Q*OO'y*POP$uaR$ua[$uaj$uan$uar$ua!S$ua!l$ua!p$ua#R$ua#n$ua#o$ua#p$ua#q$ua#r$ua#s$ua#t$ua#u$ua#v$ua#x$ua#z$ua#{$ua$O$ua(a$ua(r$ua(y$ua(z$ua!]$ua!^$ua~On>^O!Q*OO'y*PO(y$}O(z%PO~OP%TaR%Ta[%Taj%Tar%Ta!S%Ta!l%Ta!p%Ta#R%Ta#n%Ta#o%Ta#p%Ta#q%Ta#r%Ta#s%Ta#t%Ta#u%Ta#v%Ta#x%Ta#z%Ta#{%Ta$O%Ta(a%Ta(r%Ta!]%Ta!^%Ta~P''VO$O$mq!]$mq!^$mq~P#BwO$O$oq!]$oq!^$oq~P#BwO!^9oO~O$O9pO~P!1WO!g#vO!]'ei!k'ei~O!g#vO(r'pO!]'ei!k'ei~O!]/pO!k)Oq~O!Y'gi!]'gi~P#/sO!]/yO!Y)Pq~Or9wO!g#vO(r'pO~O[9yO!Y9xO~P#/sO!Y9xO~Oj:PO!g#vO~Og(_y!](_y~P!1WO!]'na!_'na~P#/sOa%[q!_%[q'z%[q!]%[q~P#/sO[:UO~O!]1TO!^)Xq~O`:YO~O#`:ZO!]'pa!^'pa~O!]5uO!^)Ui~P#BwO!S:]O~O!_1oO%i:`O~O(VTO(YUO(e:eO~O!]1zO!^)Vq~O!k:hO~O!k:iO~O!k:jO~O!k:jO~P%[O#`:mO!]#hy!^#hy~O!]#hy!^#hy~P#BwO%i:rO~P&8fO!_'`O%i:rO~O$O#|y!]#|y!^#|y~P#BwOP$|iR$|i[$|ij$|ir$|i!S$|i!l$|i!p$|i#R$|i#n$|i#o$|i#p$|i#q$|i#r$|i#s$|i#t$|i#u$|i#v$|i#x$|i#z$|i#{$|i$O$|i(a$|i(r$|i!]$|i!^$|i~P''VO!Q*OO'y*PO(z%POP'iaR'ia['iaj'ian'iar'ia!S'ia!l'ia!p'ia#R'ia#n'ia#o'ia#p'ia#q'ia#r'ia#s'ia#t'ia#u'ia#v'ia#x'ia#z'ia#{'ia$O'ia(a'ia(r'ia(y'ia!]'ia!^'ia~O!Q*OO'y*POP'kaR'ka['kaj'kan'kar'ka!S'ka!l'ka!p'ka#R'ka#n'ka#o'ka#p'ka#q'ka#r'ka#s'ka#t'ka#u'ka#v'ka#x'ka#z'ka#{'ka$O'ka(a'ka(r'ka(y'ka(z'ka!]'ka!^'ka~O(y$}OP%aiR%ai[%aij%ain%air%ai!Q%ai!S%ai!l%ai!p%ai#R%ai#n%ai#o%ai#p%ai#q%ai#r%ai#s%ai#t%ai#u%ai#v%ai#x%ai#z%ai#{%ai$O%ai'y%ai(a%ai(r%ai(z%ai!]%ai!^%ai~O(z%POP%ciR%ci[%cij%cin%cir%ci!Q%ci!S%ci!l%ci!p%ci#R%ci#n%ci#o%ci#p%ci#q%ci#r%ci#s%ci#t%ci#u%ci#v%ci#x%ci#z%ci#{%ci$O%ci'y%ci(a%ci(r%ci(y%ci!]%ci!^%ci~O$O$oy!]$oy!^$oy~P#BwO$O#cy!]#cy!^#cy~P#BwO!g#vO!]'eq!k'eq~O!]/pO!k)Oy~O!Y'gq!]'gq~P#/sOr:|O!g#vO(r'pO~O[;QO!Y;PO~P#/sO!Y;PO~Og(_!R!](_!R~P!1WOa%[y!_%[y'z%[y!]%[y~P#/sO!]1TO!^)Xy~O!]5uO!^)Uq~O(T;XO~O!_1oO%i;[O~O!k;_O~O%i;dO~P&8fOP$|qR$|q[$|qj$|qr$|q!S$|q!l$|q!p$|q#R$|q#n$|q#o$|q#p$|q#q$|q#r$|q#s$|q#t$|q#u$|q#v$|q#x$|q#z$|q#{$|q$O$|q(a$|q(r$|q!]$|q!^$|q~P''VO!Q*OO'y*PO(z%POP'jaR'ja['jaj'jan'jar'ja!S'ja!l'ja!p'ja#R'ja#n'ja#o'ja#p'ja#q'ja#r'ja#s'ja#t'ja#u'ja#v'ja#x'ja#z'ja#{'ja$O'ja(a'ja(r'ja(y'ja!]'ja!^'ja~O!Q*OO'y*POP'laR'la['laj'lan'lar'la!S'la!l'la!p'la#R'la#n'la#o'la#p'la#q'la#r'la#s'la#t'la#u'la#v'la#x'la#z'la#{'la$O'la(a'la(r'la(y'la(z'la!]'la!^'la~OP%OqR%Oq[%Oqj%Oqr%Oq!S%Oq!l%Oq!p%Oq#R%Oq#n%Oq#o%Oq#p%Oq#q%Oq#r%Oq#s%Oq#t%Oq#u%Oq#v%Oq#x%Oq#z%Oq#{%Oq$O%Oq(a%Oq(r%Oq!]%Oq!^%Oq~P''VOg%e!Z!]%e!Z#`%e!Z$O%e!Z~P!1WO!Y;hO~P#/sOr;iO!g#vO(r'pO~O[;kO!Y;hO~P#/sO!]'pq!^'pq~P#BwO!]#h!Z!^#h!Z~P#BwO#k%e!ZP%e!ZR%e!Z[%e!Za%e!Zj%e!Zr%e!Z!S%e!Z!]%e!Z!l%e!Z!p%e!Z#R%e!Z#n%e!Z#o%e!Z#p%e!Z#q%e!Z#r%e!Z#s%e!Z#t%e!Z#u%e!Z#v%e!Z#x%e!Z#z%e!Z#{%e!Z'z%e!Z(a%e!Z(r%e!Z!k%e!Z!Y%e!Z'w%e!Z#`%e!Zv%e!Z!_%e!Z%i%e!Z!g%e!Z~P#/sOr;tO!g#vO(r'pO~O!Y;uO~P#/sOr;|O!g#vO(r'pO~O!Y;}O~P#/sOP%e!ZR%e!Z[%e!Zj%e!Zr%e!Z!S%e!Z!l%e!Z!p%e!Z#R%e!Z#n%e!Z#o%e!Z#p%e!Z#q%e!Z#r%e!Z#s%e!Z#t%e!Z#u%e!Z#v%e!Z#x%e!Z#z%e!Z#{%e!Z$O%e!Z(a%e!Z(r%e!Z!]%e!Z!^%e!Z~P''VOr<QO!g#vO(r'pO~Ov(fX~P1qO!Q%rO~P!)[O(U!lO~P!)[O!YfX!]fX#`fX~P%2OOP]XR]X[]Xj]Xr]X!Q]X!S]X!]]X!]fX!l]X!p]X#R]X#S]X#`]X#`fX#kfX#n]X#o]X#p]X#q]X#r]X#s]X#t]X#u]X#v]X#x]X#z]X#{]X$Q]X(a]X(r]X(y]X(z]X~O!gfX!k]X!kfX(rfX~P'LTOP<UOQ<UOSfOd>ROe!iOpkOr<UOskOtkOzkO|<UO!O<UO!SWO!WkO!XkO!_XO!i<XO!lZO!o<UO!p<UO!q<UO!s<YO!u<]O!x!hO$W!kO$n>PO(T)]O(VTO(YUO(aVO(o[O~O!]<iO!^$qa~Oh%VOp%WOr%XOs$tOt$tOz%YO|%ZO!O<tO!S${O!_$|O!i>WO!l$xO#j<zO$W%`O$t<vO$v<xO$y%aO(T(vO(VTO(YUO(a$uO(y$}O(z%PO~Ol)dO~P(!yOr!eX(r!eX~P#!iOr(jX(r(jX~P##[O!^]X!^fX~P'LTO!YfX!Y$zX!]fX!]$zX#`fX~P!0SO#k<^O~O!g#vO#k<^O~O#`<nO~Oj<bO~O#`=OO!](wX!^(wX~O#`<nO!](uX!^(uX~O#k=PO~Og=RO~P!1WO#k=XO~O#k=YO~Og=RO(T&ZO~O!g#vO#k=ZO~O!g#vO#k=PO~O$O=[O~P#BwO#k=]O~O#k=^O~O#k=cO~O#k=dO~O#k=eO~O#k=fO~O$O=gO~P!1WO$O=hO~P!1WOl=sO~P7eOk#S#T#U#W#X#[#i#j#u$n$t$v$y%]%^%h%i%j%q%s%v%w%y%{~(OT#o!X'|(U#ps#n#qr!Q'}$]'}(T$_(e~",
@@ -49226,7 +49401,7 @@
   }
   var javascriptLanguage = /* @__PURE__ */ LRLanguage.define({
     name: "javascript",
-    parser: /* @__PURE__ */ parser5.configure({
+    parser: /* @__PURE__ */ parser6.configure({
       props: [
         /* @__PURE__ */ indentNodeProp.add({
           IfStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|else\b)/ }),
@@ -49984,7 +50159,7 @@
   ].concat(/* @__PURE__ */ eventAttributes.map((name2) => ({ name: name2, parser: javascriptLanguage.parser })));
   var htmlPlain = /* @__PURE__ */ LRLanguage.define({
     name: "html",
-    parser: /* @__PURE__ */ parser3.configure({
+    parser: /* @__PURE__ */ parser4.configure({
       props: [
         /* @__PURE__ */ indentNodeProp.add({
           Element(context) {
@@ -50093,7 +50268,7 @@
   // node_modules/@codemirror/lang-markdown/dist/index.js
   var data = /* @__PURE__ */ defineLanguageFacet({ commentTokens: { block: { open: "<!--", close: "-->" } } });
   var headingProp = /* @__PURE__ */ new NodeProp();
-  var commonmark = /* @__PURE__ */ parser2.configure({
+  var commonmark = /* @__PURE__ */ parser3.configure({
     props: [
       /* @__PURE__ */ foldNodeProp.add((type) => {
         return !type.is("Block") || type.is("Document") || isHeading(type) != null || isList(type) ? void 0 : (tree, state) => ({ from: state.doc.lineAt(tree.from).to, to: tree.to });
@@ -50137,8 +50312,8 @@
     }
     return null;
   });
-  function mkLang(parser6) {
-    return new Language(data, parser6, [], "markdown");
+  function mkLang(parser7) {
+    return new Language(data, parser7, [], "markdown");
   }
   var commonmarkLanguage = /* @__PURE__ */ mkLang(commonmark);
   var extended = /* @__PURE__ */ commonmark.configure([GFM, Subscript, Superscript, Emoji, {
@@ -50425,8 +50600,8 @@
   ];
   var htmlNoMatch = /* @__PURE__ */ html2({ matchClosingTags: false });
   function markdown(config = {}) {
-    let { codeLanguages, defaultCodeLanguage, addKeymap = true, base: { parser: parser6 } = commonmarkLanguage, completeHTMLTags = true, pasteURLAsLink: pasteURL = true, htmlTagLanguage = htmlNoMatch } = config;
-    if (!(parser6 instanceof MarkdownParser))
+    let { codeLanguages, defaultCodeLanguage, addKeymap = true, base: { parser: parser7 } = commonmarkLanguage, completeHTMLTags = true, pasteURLAsLink: pasteURL = true, htmlTagLanguage = htmlNoMatch } = config;
+    if (!(parser7 instanceof MarkdownParser))
       throw new RangeError("Base parser provided to `markdown` should be a Markdown parser");
     let extensions = config.extensions ? [config.extensions] : [];
     let support = [htmlTagLanguage.support, headerIndent], defaultCode;
@@ -50442,7 +50617,7 @@
     extensions.push(parseCode({ codeParser, htmlParser: htmlTagLanguage.language.parser }));
     if (addKeymap)
       support.push(Prec.high(keymap.of(markdownKeymap)));
-    let lang = mkLang(parser6.configure(extensions));
+    let lang = mkLang(parser7.configure(extensions));
     if (completeHTMLTags)
       support.push(lang.data.of({ autocomplete: htmlTagCompletion }));
     return new LanguageSupport(lang, support);
@@ -51501,7 +51676,7 @@
   ];
 
   // lib/document-source-buffer.mjs
-  var import_document_source_edit3 = __toESM(require_document_source_edit(), 1);
+  var import_document_source_edit4 = __toESM(require_document_source_edit(), 1);
   var displaySource = (source) => source.replace(/\r\n|\r/g, "\n");
   var displayOffset = (source, offset) => displaySource(source.slice(0, offset)).length;
   function rawOffset(source, offset) {
@@ -51519,7 +51694,7 @@
     if (restored.length) {
       let source2 = tr2.startState.field(rawSource);
       for (const effect of restored) {
-        const patch2 = import_document_source_edit3.default.sourceChange(source2, effect.value);
+        const patch2 = import_document_source_edit4.default.sourceChange(source2, effect.value);
         if (!patch2.ok) throw Error("Invalid source history");
         source2 = patch2.source;
       }
@@ -51542,21 +51717,21 @@
   });
   function sourceState(source, extensions = [], onRejected = () => {
   }) {
-    if (!import_document_source_edit3.default.sourceDifference(source, source).ok) throw Error("Invalid source buffer");
+    if (!import_document_source_edit4.default.sourceDifference(source, source).ok) throw Error("Invalid source buffer");
     return EditorState2.create({ doc: displaySource(source), extensions: [
       initialSource.of(source),
       rawSource,
       EditorState2.transactionFilter.of((tr2) => {
         if (!tr2.docChanged) return tr2;
         const next = nextSource(tr2);
-        if (!import_document_source_edit3.default.sourceDifference(tr2.startState.field(rawSource), next).ok || displaySource(next) !== tr2.newDoc.toString()) {
+        if (!import_document_source_edit4.default.sourceDifference(tr2.startState.field(rawSource), next).ok || displaySource(next) !== tr2.newDoc.toString()) {
           onRejected();
           return [];
         }
         return tr2;
       }),
       history(),
-      invertedEffects.of((tr2) => tr2.docChanged ? [restoreSource.of(import_document_source_edit3.default.sourceDifference(tr2.startState.field(rawSource), nextSource(tr2)).inverse)] : []),
+      invertedEffects.of((tr2) => tr2.docChanged ? [restoreSource.of(import_document_source_edit4.default.sourceDifference(tr2.startState.field(rawSource), nextSource(tr2)).inverse)] : []),
       ...extensions
     ] });
   }
@@ -53424,9 +53599,9 @@
         else DOMParser.fromSchema(contentCheckSchema).parse(elementFromString(content5), options.parseOptions);
         if (options.errorOnInvalidContent && hasInvalidContent) throw new Error("[tiptap error]: Invalid HTML content", { cause: /* @__PURE__ */ new Error(`Invalid element found: ${invalidContent}`) });
       }
-      const parser6 = DOMParser.fromSchema(schema);
-      if (options.slice) return parser6.parseSlice(elementFromString(content5), options.parseOptions).content;
-      return parser6.parse(elementFromString(content5), options.parseOptions);
+      const parser7 = DOMParser.fromSchema(schema);
+      if (options.slice) return parser7.parseSlice(elementFromString(content5), options.parseOptions).content;
+      return parser7.parse(elementFromString(content5), options.parseOptions);
     }
     return createNodeFromContent("", schema, options);
   }
@@ -63416,7 +63591,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
 
   // lib/document-edit-controller.mjs
   var import_document_capacity18 = __toESM(require_document_capacity(), 1);
-  var import_document_source_edit4 = __toESM(require_document_source_edit(), 1);
+  var import_document_source_edit5 = __toESM(require_document_source_edit(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity18.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
@@ -63758,7 +63933,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     }
     async function applySource(candidate) {
       if (disposed || locked || atCapacity() || inputPaused() || composition || historyPending || queue.length || flight || recoveries.length || confirmed.readOnly || confirmed.temporary !== true) return false;
-      const mapped = import_document_source_edit4.default.sourceDifference(confirmed.source, candidate);
+      const mapped = import_document_source_edit5.default.sourceDifference(confirmed.source, candidate);
       if (!mapped.ok) {
         code3 = mapped.code;
         notify();
@@ -63904,30 +64079,30 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   // lib/document-plain-paste.mjs
   function pastePlainText(view, event, { state, blocked = false, report }) {
     event.preventDefault();
-    const reject11 = (message) => {
+    const reject12 = (message) => {
       report(message, true);
       return true;
     };
     if (!state || blocked || !view.editable || state.confirmed.readOnly || state.locked || state.historyPending || state.pending || state.source !== state.confirmed.source) {
-      return reject11("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject12("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (view.composing || state.composing || state.compositionInvalid) {
-      return reject11("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject12("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     let text5;
     try {
       const data2 = event.clipboardData;
       if (!data2 || data2.files?.length || !Array.from(data2.types || []).includes("text/plain")) {
-        return reject11("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u6216\u5355\u5F20 PNG/JPEG \u56FE\u7247\u3002\u6587\u4EF6\u8DEF\u5F84\u6682\u4E0D\u652F\u6301\u3002");
+        return reject12("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u6216\u5355\u5F20 PNG/JPEG \u56FE\u7247\u3002\u6587\u4EF6\u8DEF\u5F84\u6682\u4E0D\u652F\u6301\u3002");
       }
       text5 = data2.getData("text/plain");
     } catch {
-      return reject11("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject12("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     const selection = view.state.selection;
     const inCode = selection.$from.sameParent(selection.$to) && selection.$from.parent.type.name === "codeBlock" && selection.$from.parent.attrs.sourceEditable === true;
     if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u2028\u2029]/u.test(text5) || !inCode && text5.includes("	")) {
-      return reject11("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u4EE3\u7801\u5757\u5916\u4E0D\u652F\u6301\u5236\u8868\u7B26\uFF0C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      return reject12("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u4EE3\u7801\u5757\u5916\u4E0D\u652F\u6301\u5236\u8868\u7B26\uFF0C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
     }
     if (!text5) return true;
     let tr2;
@@ -63937,7 +64112,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const lines = normalized.split(/\n\n?/);
       const canonical2 = lines.join("\n\n");
       if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical2.length > 4096) {
-        return reject11("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+        return reject12("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
       }
       const schema = view.state.schema;
       const at = selection.$from, inItem = at.depth > 1 && at.node(at.depth - 1).type.name === "listItem";
@@ -63948,7 +64123,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject11("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u652F\u6301\u666E\u901A\u53CA\u5E38\u7528\u683C\u5F0F\u6BB5\u843D\u4E4B\u95F4\u3001\u540C\u4E00\u5217\u8868\u4E2D\u4E0D\u542B\u5B50\u5217\u8868\u7684\u540C\u7EA7\u9879\u76EE\u4E4B\u95F4\u3001\u540C\u4E00\u57FA\u672C\u5F15\u7528\u5185\u7684\u6587\u5B57\u66FF\u6362\u548C\u591A\u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\uFF1B\u4EE3\u7801\u5757\u652F\u6301\u591A\u884C\u3002\u8DE8\u4E0D\u540C\u7ED3\u6784\u3001\u5E26\u5B50\u5217\u8868\u7684\u9879\u76EE\u3001\u6807\u9898\u6216\u8868\u683C\u8FB9\u754C\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject12("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u652F\u6301\u666E\u901A\u53CA\u5E38\u7528\u683C\u5F0F\u6BB5\u843D\u4E4B\u95F4\u3001\u540C\u4E00\u5217\u8868\u4E2D\u4E0D\u542B\u5B50\u5217\u8868\u7684\u540C\u7EA7\u9879\u76EE\u4E4B\u95F4\u3001\u540C\u4E00\u57FA\u672C\u5F15\u7528\u5185\u7684\u6587\u5B57\u66FF\u6362\u548C\u591A\u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\uFF1B\u4EE3\u7801\u5757\u652F\u6301\u591A\u884C\u3002\u8DE8\u4E0D\u540C\u7ED3\u6784\u3001\u5E26\u5B50\u5217\u8868\u7684\u9879\u76EE\u3001\u6807\u9898\u6216\u8868\u683C\u8FB9\u754C\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     return true;
   }
@@ -64528,8 +64703,8 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const at = view.posAtDOM(dom.anchorNode, dom.anchorOffset), pos = view.state.doc.resolve(at);
       if (pos.parent.type.name !== "paragraph" || !listOnly && pos.parentOffset !== 0 || listOnly && (pos.depth < 3 || !["listItem", "tableCell", "tableHeader"].includes(pos.node(pos.depth - 1).type.name)) || !listOnly && current.$from.start() !== pos.start() || current.from === at) return false;
       const element2 = dom.anchorNode.nodeType === 3 ? dom.anchorNode.parentElement : dom.anchorNode;
-      const paragraph8 = element2.closest("p");
-      if (!paragraph8 || view.nodeDOM(pos.before()) !== paragraph8 || paragraph8.textContent !== pos.parent.textContent) return false;
+      const paragraph9 = element2.closest("p");
+      if (!paragraph9 || view.nodeDOM(pos.before()) !== paragraph9 || paragraph9.textContent !== pos.parent.textContent) return false;
       next = TextSelection.create(view.state.doc, at);
     } catch {
       return false;

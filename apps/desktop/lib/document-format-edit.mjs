@@ -1,3 +1,4 @@
+import {mapWrappedFormat} from './document-wrapped-format.mjs';
 import {mapArticleFormat} from './document-article-source.mjs';
 import {mapCombinedMark} from './document-tree-edit.mjs';
 import capacity from './document-capacity.js';
@@ -34,6 +35,7 @@ export function mapFormatEdit(source, command) {
   const {action,from,to}=command;
   if(![...actions,...tableActions].includes(action) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from<1 || to<from) return reject();
   const p=projectSource(source);
+  const wrapped=mapWrappedFormat(source,p,command,projectSource);if(wrapped)return wrapped;
   const article=mapArticleFormat(source,p,command,projectSource);if(article)return article;
   const combined=mapCombinedMark(source,p,command,projectSource);if(combined)return combined;
   if(tableActions.includes(action))return mapTableEdit(source,p,command,projectSource);

@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.76.0 development build with formatted prose/list/quote/table writing and cross-location APFS recovery.** This is not
+**0.77.0 development build with multiline list/quote and formatted article writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,28 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Multiline list and quote writing — 0.77.0
+
+List/task items with one paragraph can continue across explicitly indented source
+lines. Basic quotes can contain explicitly `> `-prefixed wrapped paragraphs.
+Soft source newlines display as spaces; explicit hard breaks display as line
+breaks. Common emphasis, inline code and links retain their exact source spelling.
+Blank-separated list siblings are supported; multiple paragraphs or other child
+blocks inside one item, lazy continuation and nested quotes still use Source.
+
+Type, select/replace/delete across physical lines, paste plain lines as sibling
+items/quote paragraphs, and use Enter/Backspace to split/join supported rows.
+First-row quote/root leaf-list Backspace can return that row to prose. New tasks
+start unchecked, and untouched numbering, indentation, blank gaps, links/titles,
+BOM and line endings are retained. Formatting uses the same exact lexical parts;
+ambiguous delimiter combinations are refused rather than silently normalized.
+
+Undo/Redo, Source, draft backup, native Save, fresh export and restart recovery
+use the existing source authority. Same-physical-leaf composition remains allowed;
+cross-line/frame composition, child-subtree/parent selections and the existing
+32-item/six-level/4096-unit edit budgets remain protected. No new physical-IME,
+spoken-feedback, long-duration or public-release acceptance is claimed.
 
 ## Selection and sibling paste in lists and quotes — 0.76.0
 
