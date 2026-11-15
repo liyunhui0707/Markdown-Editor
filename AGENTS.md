@@ -1,5 +1,14 @@
 # AGENTS.md
 
+**Git workflow (2026-11-16).** The canonical local checkout is
+`/Users/liyunhui/Liyunhui/Codes/markdown-vault-app`; `main` is the integration
+branch. The former `markdown-vault-app-phase1b3` worktree is retired, not a
+development entry point. Keep the recovery checkpoint as a historical ref.
+Follow [Git management](docs/git-workflow.md): coherent tested checkpoints,
+one short branch/PR per functional group, full applicable CI before merge and
+daily-App replacement, then verified main synchronization and authorized branch
+cleanup. Do not add a permanent develop branch or a worktree for every patch.
+
 **0.77.2 bounded mixed-block parsing.** Reuse only isolated single-line paragraphs/headings or supported list/quote containers with unchanged outer blank gaps, physical newline token sequence, trailing margin and container shape/flags. Require the old fragment to exactly reproduce its global subtree. Container edits must stay inside one text/code leaf; uncertain links/references/escapes/HTML/positions fall back to cold parsing. Translate offsets everywhere, columns only on the actual edited physical line. Keep immutable two-revision caching and complete projection/main proof; no serializer, new authority or limits. Differential and native-visible timing observations are separate from physical IME/paint latency and human daily-use acceptance.
 
 **0.77.1 acknowledgement proof.** An edit acknowledgement may reuse only the private queued source already proven against the full PM document, with exact source/session/revision and field-type checks. Never trust a renderer proof flag or relax queue capacity. History, refresh, reload and unknown snapshots retain complete validation. Keep failed CI and prior runtime-hash evidence scoped; rerun affected soak/package checks after runtime changes.
@@ -556,7 +565,13 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
   - Bug fix only → patch (`0.1.0` → `0.1.1`)
   - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
   - Internal refactor with no behavior change → no bump
-- After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
+- Development candidates are identified by their package version, commit, PR and
+  artifact hash; a version bump does not automatically create a Git tag.
+- Explicitly accepted milestones/releases use an annotated `v<package version>`
+  tag on the verified main commit, with task-specific authorization before pushing
+  that single tag. Do not bulk-push tags, backfill old candidates, move existing
+  tags or treat a tag as daily-use/signing acceptance. Documentation-only and
+  internal no-behavior changes need no app-version bump. See the Git policy.
 - The extracted plugins (now in `~/Liyunhui/Codes/claude-plugins`) have **independent** versions. Do not bump them in lockstep with the app.
 
 ### AI workflow
@@ -569,4 +584,5 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
 - Keep private archives, rollback copies and verification output in ignored `.local/`; explicitly exclude them from packaging and recursive backup collection.
 - Do not create workspace-root `Archives` or `Backups` without task authorization. Preserve recovery material: `.local/` is not disposable cache.
 - Do not run `git clean -x` or `git clean -X` over recovery material. Project-local copies do not protect against project deletion or disk failure.
-- Keep historical scripts/manifests unchanged. Consult the original checkout's `.local/RELOCATION.md` before following restore instructions with old absolute paths.
+- Keep historical scripts/manifests unchanged. Consult this checkout's
+  `.local/RELOCATION.md` before following restore instructions with old absolute paths.
