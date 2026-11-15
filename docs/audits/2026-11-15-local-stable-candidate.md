@@ -49,7 +49,7 @@ Other delimiters, link titles, paragraphs and line endings are not serialized.
   span 256,608–330,160 API kilobytes. Natural and collected samples remain separate.
   Runtime modules/bundle were frozen; patch-version metadata changed after launch.
   This is developer-load automation, not isolated latency or leak-elimination proof.
-- The complete 150,143-unit mixed-article workflow passes locally: three controlled
+- The complete 150,182-unit mixed-article workflow passes locally: three controlled
   composition commit/cancel contexts, all separating Spaces, Source application
   and exact Undo/Redo, BOM-preserving native Save, external conflict comparison,
   retained export, exact restart and continued writing. Accessibility/input-lifecycle
