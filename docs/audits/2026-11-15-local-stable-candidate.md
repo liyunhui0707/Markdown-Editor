@@ -39,9 +39,9 @@ Other delimiters, link titles, paragraphs and line endings are not serialized.
   preserve this failed run as inconclusive input provenance, not a product fix/pass.
   Subsequent GUI cases must run sequentially with explicit editor focus, exact
   caret/initial-source proof and completed composition/queue state before history.
-- Full Node checks pass: 3,596 passed, two existing skips, zero failures.
+- Initial candidate Node checks pass: 3,596 passed, two existing skips, zero failures.
   The source/controller additions contribute 17 regression tests.
-- Visible sustained writing passes 20.46 minutes on a 480,929-unit document:
+- Initial candidate visible sustained writing passes 20.46 minutes on a 480,929-unit document:
   six cycles, 10,744 typed units, exact history/source/backup checks, unchanged
   original and exact restart plus continued writing. Thirty-nine native-visible
   samples have distinct frame timestamps. Closed, explicitly collected JS heap
@@ -73,6 +73,34 @@ Add bounded queue/revision/lock observations to the failing assertion and print
 its failure state; retain identical input cadence, timeout and exact content oracle.
 This diagnostic run is not a claimed product fix or a blind green-only retry.
 Full successful CI remains required for integration; human/release gates stay separate.
+
+## Acknowledgement validation under input pressure
+
+The diagnostic CI run passed the new complete mixed workflow, then the existing
+sustained-writing scenario timed out in its sixth cycle: revision 63, two pending,
+locked, `memory-edited`, no composition or focus loss. This is consistent with
+the existing capacity-pause path, where later acknowledgements update the code
+but the retained overflow record keeps input locked. The exact retained record
+was not printed; do not treat that inference as full attribution of every old timeout.
+
+CPU sampling of the unchanged baseline shows full-source projection/validation
+work in both processes. In particular, validating an acknowledgement re-parses
+its old source even though that exact queued source already passed complete PM
+proof. When optimistic input is ahead, this can evict the two-revision parser cache.
+Reuse only that already-proven immutable source for acknowledgement validation;
+retain exact source/session/revision/dirty-type checks. Unmatched replies still
+reconcile with a fully validated snapshot; history, refresh and unknown outcomes
+retain complete parsing. Add forged-ack tests and more queue-pressure diagnostics.
+No cache, queue limit, timeout, input cadence or file authority is relaxed.
+The final source has 3,597 Node passes / two existing skips, all 155 focused
+controller/pressure regressions pass, and the complete mixed workflow passes locally.
+Single instrumented 68-key runs took 22.8 s before and 22.0 s after; this is not a
+general latency improvement claim, and the latter overlapped Node checks.
+
+Runtime changed for this bounded optimization. Earlier soak/package evidence stays
+scoped to the previous hash; repeat the affected long workflow, visible sustained
+writing, package and complete CI on the final source before integration. Broader
+long-document latency remains open rather than claimed resolved by this change.
 
 ## Current acceptance decisions
 

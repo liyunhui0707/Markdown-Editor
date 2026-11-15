@@ -20,10 +20,18 @@
   files receive only fallback and input dispatch; no unrelated file splitting.
   Consolidate the current README/install guide; preserve versioned development
   details in a clearly historical README archive with relocated documentation links.
-- Local Node baseline: 3,596 pass / two existing skips. A visible 20.46-minute
+- Initial candidate Node baseline: 3,596 pass / two existing skips. A visible 20.46-minute
   run covers six writing cycles and exact restart/continued input on 480,929 units;
   resource observations retain separate units and collection states, without a
   leak-elimination claim. Full mixed-flow/CI evidence is retained with the candidate.
+- Retain the two failed CI runs: mixed-input idle timeout, then a sixth-cycle
+  sustained-input pause with pending acknowledgements. Avoid re-parsing the private
+  already-proven queued source on matching acknowledgement; retain all identity,
+  revision/type checks, mismatched-snapshot validation and the original queue cap.
+  Add forged-ack guards and bounded pressure diagnostics; repeat runtime-dependent
+  validation for this change. Final Node checks pass 3,597 / two existing skips;
+  all 155 focused controller/pressure tests and the complete local mixed workflow
+  pass. No blanket attribution of historical timeouts.
 - Physical IME, spoken VoiceOver and user-postponed real sustained writing remain
   separate acceptance gates. Measured long-article latency and the historical
   intermittent idle timeout are not silently declared resolved. No new framework,

@@ -63,9 +63,13 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   let recoverySequence = Math.max(0, ...recoveries.map(r => r.id));
   let flight = false, locked = false, disposed = false, historyPending = false, composition = null, failures = 0;
   const queue = [], prepared = new WeakMap(), waiters = [];
-  const valid = s => {
+  const valid = (s, provenSource) => {
     if (!s || s.sessionId !== initial.sessionId || !Number.isSafeInteger(s.revision) || s.revision < 0
         || typeof s.source !== 'string' || typeof s.dirty !== 'boolean') return false;
+    // A queued edit already proved this exact source against the full PM document.
+    // Re-parsing an older acknowledgement evicts the optimistic parse cache under
+    // input pressure. Still require exact source, identity, revision and field types.
+    if (provenSource !== undefined) return s.source === provenSource;
     try { projectSource(s.source); return true; } catch { return false; }
   };
   const atCapacity = () => recoveries.length >= 16;
@@ -115,7 +119,7 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
         catch { await reconcile(null, 'ipc-failed'); break; }
         if (disposed) break;
         const next = reply?.snapshot, expected = revision + Number(item.source !== confirmed.source);
-        if (!reply?.ok || !valid(next) || next.source !== item.source || next.revision !== expected) {
+        if (!reply?.ok || !valid(next, item.source) || next.source !== item.source || next.revision !== expected) {
           await reconcile(reply?.ok ? null : reply, reply?.code || 'ack-mismatch'); break;
         }
         confirmed = structuredClone(next); queue.shift(); code = 'memory-edited'; notify();

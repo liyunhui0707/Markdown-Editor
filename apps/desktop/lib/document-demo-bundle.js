@@ -63718,8 +63718,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     let recoverySequence = Math.max(0, ...recoveries.map((r) => r.id));
     let flight = false, locked = false, disposed = false, historyPending = false, composition = null, failures = 0;
     const queue = [], prepared = /* @__PURE__ */ new WeakMap(), waiters = [];
-    const valid2 = (s) => {
+    const valid2 = (s, provenSource) => {
       if (!s || s.sessionId !== initial.sessionId || !Number.isSafeInteger(s.revision) || s.revision < 0 || typeof s.source !== "string" || typeof s.dirty !== "boolean") return false;
+      if (provenSource !== void 0) return s.source === provenSource;
       try {
         projectSource(s.source);
         return true;
@@ -63824,7 +63825,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
           }
           if (disposed) break;
           const next = reply?.snapshot, expected = revision + Number(item3.source !== confirmed.source);
-          if (!reply?.ok || !valid2(next) || next.source !== item3.source || next.revision !== expected) {
+          if (!reply?.ok || !valid2(next, item3.source) || next.source !== item3.source || next.revision !== expected) {
             await reconcile(reply?.ok ? null : reply, reply?.code || "ack-mismatch");
             break;
           }
