@@ -19,7 +19,23 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — local stable-candidate writing acceptance, 0.77.1
+### Current batch — mixed long-article input performance, 0.77.2
+
+Reduce measured whole-article re-parsing during ordinary rich paragraph/list/quote
+input. Reuse only an unchanged-context block with cold-parser equivalence checks;
+complete source projection, main validation and exact history stay in place.
+Compare unchanged and fixed implementations on identical synthetic articles,
+then run the entire mixed writing/save/conflict/restart flow and repeated sessions.
+Pure mapping, browser ACK observation and frame callbacks are different metrics.
+
+Finish this bounded performance group before selecting more features. Next use
+remaining real-writing findings and measured latency to decide local stable sign-off;
+do not extend syntax indefinitely or replace the framework. Human sustained
+writing remains postponed, physical input/spoken feedback stay scoped by version,
+and paid signing/notarization/public distribution remain deferred.
+See the [performance record](audits/2026-11-15-mixed-input-performance.md).
+
+### Previous batch — local stable-candidate writing acceptance, 0.77.1
 
 Reproduce daily-writing failures before expanding features. Fix refused separating
 Spaces at emphasis boundaries through exact source-derived marks and the existing

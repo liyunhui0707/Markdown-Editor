@@ -1,5 +1,27 @@
 # Stage History
 
+## Mixed long-article input performance — 0.77.2 (2026-11-15)
+
+- Extend the two-revision AST cache to exact explicit-inline-link blocks and
+  supported list/quote containers, retaining complete projection/main proof.
+  Old fragment/global subtree equality, safe inline nodes, unchanged container
+  flags, blank gaps, margins and physical newline tokens guard reuse. Container
+  changes stay inside one text/code leaf; uncertain syntax uses the full parser.
+- Preserve existing single-line inline-format reuse. Translate later offsets and
+  only the actual edited physical line's columns, including an EOF multiline root.
+  Local-proof exceptions fall back; failed cold parses are never cached.
+- Add bounded-work assertions and full cold-AST comparisons across Chinese/emoji,
+  link attributes, list spread/lazy context, references, CR/LF/CRLF, margins,
+  adjacent structures, immutable history and parser failures. New files stay under
+  300 lines; no unrelated splitting, dependency, layout, native helper or authority change.
+- Keep initial red tests and full-suite fallback failure; the latter was a guard
+  applied too broadly to existing standalone-format edits, corrected without
+  weakening the existing contract. Detailed final measurements and evidence:
+  [performance audit](audits/2026-11-15-mixed-input-performance.md).
+- Pure mapping performance is not native key/paint latency. Physical IME/spoken
+  VoiceOver and postponed genuine sustained writing remain separate gates.
+
+
 ## Local stable-candidate writing checks — 0.77.1 (2026-11-15)
 
 - Reproduce rejected separating Spaces after formatted words in a 150k-unit mixed
