@@ -62,6 +62,18 @@ Other delimiters, link titles, paragraphs and line endings are not serialized.
 - Final CI outcomes are recorded with the exact candidate in the private
   verification directory below. A bounded pass does not prove global filesystem support.
 
+## CI investigation retained
+
+The first PR CI run passed all Node/generated checks and 23 Electron scenarios,
+but the new mixed article timed out waiting for the input queue after its second
+typing context. The assertion failed after 10 seconds; no queue/status artifact
+was retained by that workflow, so backlog, lock state and attribution are unknown.
+A sequential local native-visible run subsequently passed the exact complete flow.
+Add bounded queue/revision/lock observations to the failing assertion and print
+its failure state; retain identical input cadence, timeout and exact content oracle.
+This diagnostic run is not a claimed product fix or a blind green-only retry.
+Full successful CI remains required for integration; human/release gates stay separate.
+
 ## Current acceptance decisions
 
 The user chose to postpone genuine 20–30 minute writing in this group. Current
