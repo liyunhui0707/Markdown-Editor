@@ -19,7 +19,12 @@ const SourceLink = Mark.create({
     'data-source-href': mark.attrs.href, 'data-source-title': mark.attrs.title,
   }, 0]; },
 });
+// Keep StarterKit extension order (and therefore canonical mark ranks), while
+// allowing source-proven code/emphasis/link combinations in this editor only.
+const DocumentStarterKit=StarterKit.extend({addExtensions(){
+  return this.parent().map(extension=>extension.name==='code'?extension.extend({excludes:''}):extension);
+}});
 const SourceCodeBlock=CodeBlock.extend({addAttributes(){return {...this.parent?.(),sourceEditable:{default:false,rendered:false}};}});
 export function documentEditorExtensions(onTaskToggle, imageNodeView = null) {
-  return [DocumentImage.configure({nodeView:imageNodeView}),...documentTableNodes, StarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
+  return [DocumentImage.configure({nodeView:imageNodeView}),...documentTableNodes, DocumentStarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
 }

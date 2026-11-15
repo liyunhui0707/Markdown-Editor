@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.71.1 development build with literal prose writing and cross-location APFS recovery.** This is not
+**0.72.0 development build with common formatted inline writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,26 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Formatted links and inline code — 0.72.0
+
+Write common bold/italic/link/code combinations directly in supported paragraphs,
+headings, tight lists/tasks, explicit quotes and multiline articles. Select a
+supported text leaf to toggle emphasis or inline code while retaining its other
+marks. Selected-range editing, history, Source, backup, Save/Save As and restart
+recovery keep exact source patches and untouched Markdown bytes.
+
+Create a link on one text leaf, including uniformly emphasized text or a complete
+inline-code leaf. In an existing formatted link, edit its words in the body;
+Cmd+K shows the full label read-only and lets you change the address or cancel
+the link while retaining the label's styles and original title. Ordinary link
+labels can still be edited in the panel. Links do not navigate when clicked.
+
+This covers exact single-line link labels and one-backtick code without decoded
+text or padding normalization. Cross-format link creation, reference links,
+ambiguous adjacent-link boundaries, normalized entities/escapes and unsupported
+multiline/code structures retain Source mode. Physical IME and spoken VoiceOver
+acceptance are separate from the controlled workflow tests.
 
 ## Ordinary prose punctuation — 0.71.1
 
@@ -736,9 +756,10 @@ finish input first, and collapse the selection before splitting a paragraph.
 The compact format bar offers **正文 / 标题 1–6 / 无序列表 / 有序列表**, selection
 **加粗** (Cmd+B), **斜体** (Cmd+I), **行内代码** (Cmd+E), **链接** (Cmd+K), and Undo/Redo. Commands patch a verified source range, then
 reparse it; they do not normalize the whole file. Headings use a supported single
-source line and may start empty. Bold/italic/code applies within one unmarked text leaf; removing it requires the
-whole corresponding marked leaf. Combining marks, partial removal and
-formatting a selection across leaves remain refused. The flat-list baseline supports up to 32 tight, one-line items containing
+source line and may start empty. Bold/italic/code works within supported exact text leaves, including common
+combined marks; only representable patches are accepted. Selected article emphasis
+can span compatible leaves. Link creation stays within one leaf (whole code leaf);
+arbitrary formatting across different blocks remains protected. The flat-list baseline supports up to 32 tight, one-line items containing
 plain/bold/italic/code text. Select within one item or across adjacent items in that same
 list to replace/delete or paste one line, including plain/bold/italic/code text. A cross-item
 replacement merges the selected items, retaining their unselected text and marks.

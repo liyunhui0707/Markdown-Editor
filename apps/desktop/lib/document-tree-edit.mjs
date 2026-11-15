@@ -1,5 +1,5 @@
 import capacity from './document-capacity.js';
-import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes,toggleInlineFrames} from './document-inline-tree.mjs';
 import {listNodeAt} from './document-list-source.mjs';
 const reject=()=>({ok:false,code:'unsafe-source-range'});
 const cut=(s,n)=>n>0&&n<s.length&&/[\uD800-\uDBFF]/.test(s[n-1])&&/[\uDC00-\uDFFF]/.test(s[n]);
@@ -28,14 +28,13 @@ export function planTreeRange(source,p,{from,to,insert},spans){
  return patchInlineParts(source,p,spans,pieces,{from:from+insert.length,to:from+insert.length});
 }
 export function mapCombinedMark(source,p,{action,from,to},project){
- if(!['bold','italic'].includes(action))return null;
+ if(!['bold','italic','code'].includes(action))return null;
  const s=p.spans.find(s=>from>=s.from&&to<=s.to);
- if(!s||s.code||s.link||s.textOffset!==undefined||(!s.frames&&!(action==='bold'?s.italic:s.bold)))return null;
+ if(!s||s.article||s.tableRow!==undefined||s.codeBlock||s.textOffset!==undefined||(!s.frames&&!s.link&&!['bold','italic','code'].some(k=>k!==action&&s[k])))return null;
  if(from===to||cut(s.text,from-s.from)||cut(s.text,to-s.from))return {ok:false,code:'unsafe-format-range'};
- const value=s.text.slice(from-s.from,to-s.from);if(value.trim()!==value||!value)return {ok:false,code:'unsafe-format-range'};
+ const value=s.text.slice(from-s.from,to-s.from);if(value.trim()!==value||!value||(action==='code'&&value.includes('`')))return {ok:false,code:'unsafe-format-range'};
  const spans=p.spans.filter(n=>n.blockIndex===s.blockIndex&&n.itemIndex===s.itemIndex&&n.quoteIndex===s.quoteIndex);
- const frames=inlineFrames(s,source),marker=action==='bold'?'**':s.bold?'_':'*';
- const selected={...s,text:value,[action]:!s[action],frames:s[action]?frames.filter(f=>f.kind!==action):[...frames,{kind:action,from:-1,to:-1,open:marker,close:marker}]};
+ const selected=toggleInlineFrames({...s,text:value},action,source);
  const i=spans.indexOf(s),pieces=[...spans.slice(0,i),{...s,text:s.text.slice(0,from-s.from)},selected,{...s,text:s.text.slice(to-s.from)},...spans.slice(i+1)];
  const plan=patchInlineParts(source,p,spans,pieces,{from,to});
  if(!plan.ok)return plan;const {expected,...result}=plan,projection=project(plan.source);

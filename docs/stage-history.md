@@ -1,5 +1,29 @@
 # Stage History
 
+## Common formatted inline writing — 0.72.0 (2026-11-15)
+
+- Project exact emphasis/link/single-backtick-code frames in supported paragraphs,
+  headings, list/task rows, explicit quotes and formatted articles. Preserve raw
+  wrappers/titles, full expected projections and bounded exact inverse patches.
+  Document-only code marks coexist in their original canonical rank; legacy
+  Vault/editor extensions remain unchanged.
+- Allow compatible mark toggles and one-leaf formatted link creation. Existing
+  formatted link words remain editable in the body; the panel explains its
+  read-only label and preserves marks when changing the address or unlinking.
+  No href navigation, file authority, general serializer or dependency change.
+- Differential tests compare accepted operations with native ProseMirror across
+  all supported contexts, preserve untouched CR/LF suffixes and exact inverses,
+  and retain normalization/reference/HTML/Unicode/range refusal cases. Controlled
+  combined-label/code composition uses main/controller history and unchanged disk.
+- The Electron workflow covers toolbar/panel/focus, body edits, Undo/Redo, Source,
+  local backup, original Save, export and exact restart. Local hidden functional
+  runs use page input only and are not resource/performance acceptance. Add this
+  workflow to the existing visible CI acceptance group without reducing gates.
+- New modules/tests remain below 300 lines. Existing larger source/format modules
+  keep established planner boundaries; no unrelated splitting. Genuine IME,
+  VoiceOver, sustained human writing and paid distribution retain their prior
+  scoped/deferred status; this is a development candidate.
+
 ## Literal prose writing stability — 0.71.1 (2026-11-15)
 
 - Reproduce ordinary `$100`, `{name}`, `a | b`, `a < b` and literal Windows paths becoming opaque code blocks or refusing typed text in 0.71.0. Remove redundant punctuation rejection only after exact parser text/source validation; retain full expected-document equality and existing Unicode, range, composition and history guards.

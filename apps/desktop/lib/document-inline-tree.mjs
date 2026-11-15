@@ -1,28 +1,47 @@
 import {projectInlineLeaf,inlineTextNode} from './document-inline-leaf.mjs';
-// Preserve lexical emphasis wrappers. Do not normalize arbitrary inline Markdown.
+// Exact lexical frames; no serializer or normalization of arbitrary Markdown.
+function linkFrame(node,source){
+ const from=node.position.start.offset,to=node.position.end.offset;
+ const labelFrom=node.children?.[0]?.position.start.offset,labelTo=node.children?.at(-1)?.position.end.offset;
+ if(node.position.start.line!==node.position.end.line||labelFrom!==from+1
+   ||source[from]!=='['||source.slice(labelTo,labelTo+2)!==']('||source[to-1]!==')')return null;
+ const match=source.slice(labelTo+2,to-1).match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);if(!match)return null;
+ return {kind:'link',from,to,open:'[',close:source.slice(labelTo,to),link:{href:node.url,title:node.title??null},
+  linkSource:{from,to,labelFrom,labelTo,destinationFrom:labelTo+2+match[1].length,destinationTo:labelTo+2+match[1].length+match[2].length}};
+}
+export function framedInlinePart(part,outer,source){
+ const frames=[...outer,...inlineFrames(part,source)];
+ if(frames.length>4||new Set(frames.map(f=>f.kind)).size!==frames.length)return null;
+ const link=frames.find(f=>f.kind==='link');
+ return {...part,frames,bold:frames.some(f=>f.kind==='bold'),italic:frames.some(f=>f.kind==='italic'),code:frames.some(f=>f.kind==='code'),
+  ...(link?{link:link.link??part.link,linkSource:link.linkSource??part.linkSource}:{})};
+}
 export function projectInlineParts(child,source) {
  const simple=projectInlineLeaf(child,source);if(simple)return [simple];
  const parts=[];
  function walk(node,frames=[]){
-  if(!['strong','emphasis'].includes(node.type)){
-   const p=projectInlineLeaf(node,source);
-   if(!p||p.bold||p.italic||p.code||p.link)return false;
-   parts.push({...p,bold:frames.some(f=>f.kind==='bold'),italic:frames.some(f=>f.kind==='italic'),frames});return true;
+  if(!['strong','emphasis','link'].includes(node.type)){
+   const p=projectInlineLeaf(node,source),part=p&&framedInlinePart(p,frames,source);
+   if(!part)return false;parts.push(part);return true;
   }
-  const kind=node.type==='strong'?'bold':'italic';
+  const kind=node.type==='strong'?'bold':node.type==='emphasis'?'italic':'link';
   if(!node.children?.length||frames.length>=4||frames.some(f=>f.kind===kind))return false;
-  const from=node.position.start.offset,to=node.position.end.offset;
-  const open=source.slice(from,node.children[0].position.start.offset),close=source.slice(node.children.at(-1).position.end.offset,to);
-  if(!(kind==='bold'?['**','__']:['*','_']).includes(open)||close!==open)return false;
-  const next=[...frames,{kind,from,to,open,close}];
-  return node.children.every(n=>walk(n,next));
+  let frame;
+  if(kind==='link')frame=linkFrame(node,source);
+  else{
+   const from=node.position.start.offset,to=node.position.end.offset;
+   const open=source.slice(from,node.children[0].position.start.offset),close=source.slice(node.children.at(-1).position.end.offset,to);
+   if(!(kind==='bold'?['**','__']:['*','_']).includes(open)||close!==open)return false;
+   frame={kind,from,to,open,close};
+  }
+  return !!frame&&node.children.every(n=>walk(n,[...frames,frame]));
  }
  if(!walk(child)||!parts.length||renderInlineParts(parts,source)!==source.slice(child.position.start.offset,child.position.end.offset))return null;
  return parts;
 }
 export function inlineFrames(part,source){
  if(part.frames)return part.frames;
- if(part.link){const {from,to}=part.linkSource||{};return [{kind:'link',from,to,open:source.slice(from,part.sourceFrom),close:source.slice(part.sourceTo,to)}];}
+ if(part.link){const {from,to}=part.linkSource||{};return [{kind:'link',from,to,open:source.slice(from,part.sourceFrom),close:source.slice(part.sourceTo,to),link:part.link,linkSource:part.linkSource}];}
  const kind=part.bold?'bold':part.italic?'italic':part.code?'code':null;
  if(!kind)return [];
  const size=kind==='bold'?2:1,from=part.sourceFrom-size,to=part.sourceTo+size;
@@ -47,4 +66,15 @@ export function inlineNodes(parts){
   if(last&&JSON.stringify(last.marks)===JSON.stringify(n.marks))last.text+=n.text;else nodes.push(n);
  }
  return nodes;
+}
+
+// Code must stay innermost: emphasis inside backticks is literal code text.
+export function toggleInlineFrames(part,action,source,remove=!!part[action]){
+ const frames=inlineFrames(part,source);
+ if(remove)return {...part,[action]:false,frames:frames.filter(f=>f.kind!==action)};
+ if(part[action])return part;
+ const marker=action==='bold'?'**':action==='italic'?(part.bold?'_':'*'):'`';
+ const frame={kind:action,from:-1,to:-1,open:marker,close:marker};
+ const at=action==='code'?frames.length:frames.findIndex(f=>f.kind==='code');
+ return {...part,[action]:true,frames:at<0?[...frames,frame]:[...frames.slice(0,at),frame,...frames.slice(at)]};
 }

@@ -26,7 +26,7 @@ export function projectInlineLeaf(child, source) {
     const tail=source.slice(b+2,child.position.end.offset-1);
     const match=tail.match(/^([ \t]*)(<[^<>\r\n]*>|[^ \t\r\n]*)([\s\S]*)$/);
     if(match)linkSource={from:child.position.start.offset,to:child.position.end.offset,
-      destinationFrom:b+2+match[1].length,destinationTo:b+2+match[1].length+match[2].length};
+      labelFrom:a,labelTo:b,destinationFrom:b+2+match[1].length,destinationTo:b+2+match[1].length+match[2].length};
   }
   return {...(linkSource?{linkSource}:{}),text:value,sourceFrom:a,sourceTo:b,bold,...(italic?{italic:true}:{}),...(code?{code:true}:{}),...(link?{link:{href:child.url,title:child.title??null}}:{})};
 }

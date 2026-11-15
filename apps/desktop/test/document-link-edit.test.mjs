@@ -32,8 +32,8 @@ test('unsafe URL schemes, control characters, injection and malformed inputs are
  assert.equal(mapFormatEdit('word',{action:'bold',from:1,to:5,label:'bad',href:'https://example.test'}).ok,false);
  assert.equal(mapFormatEdit('word',{action:'set-link',from:1,to:5,label:'word',href:'#x',path:'/tmp/evil'}).ok,false);
 });
-test('cross-block, mixed marks and partial-surrogate selections cannot be linked',()=>{
- for(const [s,a,b] of [['First\n\nSecond',2,10],['**bold**',1,5],['A **bold** Z',2,6],['A😀B',3,3],['```md\ncode\n```',2,3]])assert.equal(set(s,a,b,'Link','#x').ok,false,s);
+test('cross-block, cross-mark and partial-surrogate selections cannot be linked',()=>{
+ for(const [s,a,b] of [['First\n\nSecond',2,10],['A **bold** Z',2,6],['A😀B',3,3],['```md\ncode\n```',2,3]])assert.equal(set(s,a,b,'Link','#x').ok,false,s);
  const p=projectSource('A [label](x) Z').spans.find(s=>s.link);
  assert.equal(set('A [label](x) Z',p.from-1,p.to,'Link','#x').ok,false);
 });
