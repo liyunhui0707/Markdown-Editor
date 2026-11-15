@@ -1,3 +1,4 @@
+import {mapBoundarySpace} from './document-boundary-space.mjs';
 import {projectWrappedQuote} from './document-prefixed-paragraph.mjs';
 // Literal punctuation is safe only in exact parser text leaves; decoded escapes,
 // HTML/other node kinds and full projected-document changes stay protected.
@@ -272,7 +273,7 @@ function paragraphReplace(source, projection, change, separator, verify = true) 
     selection: { from: from + insert.length, to: from + insert.length } };
 }
 
-export function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
+function mapTextEditCore(source, change, leaf = null, paragraphSeparator = null) {
   if (!change || Object.getPrototypeOf(change) !== Object.prototype
       || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
   const { from, to, insert } = change;
@@ -325,4 +326,10 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
   return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,
     leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };
+}
+
+export function mapTextEdit(source,change,leaf=null,paragraphSeparator=null){
+ const result=mapTextEditCore(source,change,leaf,paragraphSeparator);
+ if(result.ok||leaf!==null||paragraphSeparator!==null||!change||change.from!==change.to||typeof change.insert!=='string'||!/^ +$/.test(change.insert))return result;
+ return mapBoundarySpace(source,projectSource(source),change,projectSource)||result;
 }
