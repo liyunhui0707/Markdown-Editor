@@ -43,7 +43,7 @@ export function pastePlainText(view, event, { state, blocked = false, report }) 
   } else tr = view.state.tr.insertText(text).scrollIntoView();
   view.dispatch(tr); // No direct model mutation or bypass of verifiedSourceRange.
   if (!view.state.doc.eq(tr.doc)) {
-    return reject('未粘贴：所选范围或文字涉及暂不支持的 Markdown 结构。同一普通段落或同一简单列表内，普通文字、粗体与斜体之间支持单行粘贴；多行可粘贴到普通段落或同一基本代码块。跨不同列表、标题或代码块暂不支持；当前文字未改变。');
+    return reject('未粘贴：所选范围或文字涉及暂不支持的 Markdown 结构。支持普通及常用格式段落内和段落之间的文字替换、多段纯文本粘贴，以及同一简单列表内的单行粘贴；同一基本代码块支持多行。跨列表、引用、标题或表格边界暂不支持；当前文字未改变。');
   }
   return true;
 }

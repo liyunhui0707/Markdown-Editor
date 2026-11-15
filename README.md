@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.74.0 development build with formatted table writing and cross-location APFS recovery.** This is not
+**0.75.0 development build with formatted prose/table writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,23 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Selection and paste across formatted paragraphs — 0.75.0
+
+Select across supported ordinary/formatted article paragraphs to replace or delete
+text, including Backspace/Delete and reverse selections. Plain multiline clipboard
+text creates plain paragraphs while surviving words keep their marks, link address
+and title. Backspace at a compatible next paragraph start or Delete at the previous
+paragraph end joins prose. Undo/Redo restores exact source and selection.
+
+Untouched Markdown spelling and soft/hard source newlines remain unchanged; only
+wrappers at the new join edge may be coalesced. Source, backup, native Save, export
+and restart recovery use the existing main-owned exact patch/history chain.
+
+This remains bounded to 32 supported top-level paragraphs and a 4096 UTF-16-unit
+patch. Cross-list/quote/heading/table boundaries, ambiguous blank gaps, unsupported
+normalized syntax and cross-paragraph IME preedit remain protected. Paste reads
+only explicit event text/plain, never clipboard HTML. No whole-file serializer.
 
 ## Formatted table writing — 0.74.0
 

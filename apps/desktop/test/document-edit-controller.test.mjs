@@ -549,7 +549,8 @@ test('soft paragraph: explicit break edits have exact history and invalid block 
   h.select(a.from+1);let split;assert.equal(splitBlock(h.state(),tr=>{split=tr;}),true);
   assert.equal(h.controller.prepare(split),true);h.apply(split);await h.controller.idle();assert.equal(h.document.text,'F\n\nirst\nsecond.\n\nLast.');
   assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before.source);
-  assert.equal(h.edit(a.from,h.span('Last.').to,'X'),false);assert.equal(h.controller.state().locked,false);
+  assert.equal(h.edit(a.from,h.span('Last.').to,'X'),true);await h.controller.idle();assert.equal(h.document.text,'X');
+  assert.equal(await h.controller.history('undo'),true);assert.equal(h.document.text,before.source);assert.equal(h.controller.state().locked,false);
   assert.equal(h.edit(b.from,b.from+1,'S'),true);await h.controller.idle();
   assert.equal(h.document.text,'First\nSecond.\n\nLast.');assert.equal(await h.controller.history('undo'),true);
   assert.equal(h.document.text,'First\nsecond.\n\nLast.');assert.equal(h.request('snapshot').snapshot.canUndo,false);
@@ -841,7 +842,7 @@ test('paragraph range: empty selection edges restore and renderer metadata remai
 });
 
 test('paragraph range: unsupported selection and active composition do not lock later edits', async () => {
-  const h = harness('First.\n\nA **bold** tail.\n\nLast.'), before = h.document.text;
+  const h = harness('First.\n\nA &amp; tail.\n\nLast.'), before = h.document.text;
   assert.equal(h.edit(h.span('First.').from + 1, h.span('Last.').from + 1, 'X'), false);
   assert.equal(h.requests.length, 0); assert.equal(h.document.text, before);
   const plain = harness('First.\n\nLast.'); plain.controller.beginComposition();

@@ -19,7 +19,20 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — formatted table writing, 0.74.0
+### Current batch — formatted prose range writing, 0.75.0
+
+Complete supported article cross-paragraph selection, replacement/deletion,
+plain multi-paragraph paste, backward/forward joins and continued writing through
+exact history, Source, backup, native Save, fresh export and restart recovery.
+Keep lexical styles/titles and untouched soft/hard line bytes; only coalesce new
+join edges, with whole PM-canonical projection and exact source inverses. Retain
+32-paragraph/4096-unit limits, protected block boundaries and composition fences.
+
+Next consolidate remaining reproduced list/quote/article interoperability and
+sustained daily writing. No framework rewrite, speculative permissions or layout
+redesign. Genuine input/VoiceOver/human soak stay scoped; paid distribution deferred.
+
+### Previous batch — formatted table writing, 0.74.0
 
 Complete common table-cell emphasis/code/link projection, typing and selection,
 plain-text paste, mark toggles and link editing, row/column continuity, find/replace,

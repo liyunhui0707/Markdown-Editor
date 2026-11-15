@@ -170,7 +170,7 @@ test('multiline paste V1: empty slots preserve terminal newline and surrounding 
   }
 });
 test('multiline paste V1: forbidden structure and ambiguous whitespace reject atomically', () => {
-  for (const source of ['# Heading', 'A **bold** tail.', 'soft\nwrapped', '```md extra\ncode\n```']) {
+  for (const source of ['# Heading', 'A &amp; tail.', '> quote', '```md extra\ncode\n```']) {
     const span = projectSource(source).spans[0];
     assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
   }

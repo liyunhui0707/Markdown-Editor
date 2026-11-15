@@ -1,5 +1,7 @@
 # AGENTS.md
 
+**0.75.0 formatted prose ranges.** Supported top-level paragraphs, including exact formatted soft/hard-line articles, support cross-paragraph selected replacement/deletion and multiline plain paste. Reuse lexical article parts and bounded source differences; only coalesce wrappers at the new join edge. Compare the complete PM-canonical projected tree, retain raw unselected spelling, link attrs/titles, exact source inverses and main-owned history. Native range input requires exact DOM/PM/target agreement. Up to 32 paragraphs / existing 4096-unit patch cap; ambiguous gaps and protected/list/quote/heading/table boundaries remain guarded. Cross-paragraph composition stays structural/protected. No serializer, new IPC/file authority/dependency or visual rewrite.
+
 This file provides guidance to Codex when working with code in this repository.
 
 ## Current architecture (fact-checked 2026-11-15) — READ FIRST

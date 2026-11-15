@@ -1,4 +1,5 @@
 import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
+import {mapProseRange} from './document-prose-range.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject = () => ({ok:false,code:'unsafe-format-range'});
@@ -27,6 +28,10 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
   const index=p.blocks.findIndex(b=>b&&from>b.from&&from<b.to);
   if(index<0)return reject();
   const block=p.blocks[index],node=p.doc.content[index],expected=structuredClone(p.doc);
+  if(action==='join-paragraph'&&node.type==='paragraph'&&from===block.from+1&&index>0){
+    const previous=p.blocks[index-1];
+    if(previous){const prose=mapProseRange(source,p,{from:previous.to-1,to:from,insert:''},project);if(prose)return prose;}
+  }
   const nl=source.slice(block.sourceFrom,block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || '\n';
   function body(i,rowIndex=null,heading=false) {
     const b=p.blocks[i],n=p.doc.content[i];
