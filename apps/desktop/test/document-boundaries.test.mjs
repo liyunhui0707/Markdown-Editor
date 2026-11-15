@@ -122,6 +122,8 @@ for(const nl of ['\n','\r\n','\r']) test(`Enter after a linked paragraph creates
     check(r,source,'# Keep'+nl+nl+body+nl+nl+nl+nl+'Tail'+nl);
     assert.deepEqual(r.change,{from:source.indexOf(body)+body.length,to:source.indexOf(body)+body.length,insert:nl+nl});
     const link=p.spans.find(s=>s.link);
-    assert.equal(mapFormatEdit(source,{action:'split-paragraph',from:link.from+1,to:link.from+1}).ok,false);
+    const inside=mapFormatEdit(source,{action:'split-paragraph',from:link.from+1,to:link.from+1});
+    assert(inside.ok);const inverse=inside.inverseSource;assert.equal(inside.source.slice(0,inverse.from)+inverse.insert+inside.source.slice(inverse.to),source);
+    assert.equal(inside.projection.doc.content.filter(n=>n.type==='paragraph').length,3);
   }
 });

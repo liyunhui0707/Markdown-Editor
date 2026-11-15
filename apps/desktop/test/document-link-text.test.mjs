@@ -20,7 +20,8 @@ test('exact single-line labels project; normalized labels/references/autolinks r
 test('link structural edits refuse safely; surrounding text and selected label deletion remain editable',()=>{
  const s='A [label](target "title") **bold** Z',p=span(s);
  for(const c of [{from:p.from+1,to:p.from+1,insert:'](other)'},{from:p.from+1,to:p.from+1,insert:'\n'}])assert.equal(mapTextEdit(s,c).ok,false,JSON.stringify(c));
- assert.equal(mapFormatEdit(s,{action:'split-paragraph',from:p.from+1,to:p.from+1}).ok,false);
+ const split=mapFormatEdit(s,{action:'split-paragraph',from:p.from+1,to:p.from+1});assert.equal(split.ok,true);
+ assert.equal(split.source,'A [l](target "title")\n\n[abel](target "title") **bold** Z');
  for(const action of ['bold','italic','code'])assert.equal(mapFormatEdit(s,{action,from:p.from+1,to:p.to-1}).ok,true,action);
  const plain=projectSource(s).spans[0];assert.equal(mapTextEdit(s,{from:plain.from+1,to:plain.from+1,insert:'new'}).source,'Anew [label](target "title") **bold** Z');
  const all=span('[label](x)');assert.equal(mapTextEdit('[label](x)',{from:all.from,to:all.to,insert:''}).source,'');

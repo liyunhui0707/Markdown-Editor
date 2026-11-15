@@ -1,4 +1,4 @@
-import {inlineFrames,renderInlineParts,inlineNodes} from './document-inline-tree.mjs';
+import {inlineFrames,renderInlineParts,inlineNodes,mergeInlineParts} from './document-inline-tree.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 const reject = () => ({ok:false,code:'unsafe-format-range'});
@@ -7,14 +7,7 @@ const item = content => ({type:'listItem',content:[paragraph(content)]});
 const cutsPair = (s,n) => /[\uD800-\uDBFF]/.test(s[n-1]||'') && /[\uDC00-\uDFFF]/.test(s[n]||'');
 const mark = marker => marker==='`'?'code':marker.length===2?'bold':marker?'italic':null;
 const render = pieces => pieces.some(p=>p.frames)?renderInlineParts(pieces,''):pieces.map(p=>p.marker+p.text+p.marker).join('');
-function merge(pieces) {
-  const result=[];
-  for(const p of pieces.filter(p=>p.text)) {
-    if(result.length && (p.frames||result.at(-1).frames?JSON.stringify(p.frames?.map(f=>f.kind))===JSON.stringify(result.at(-1).frames?.map(f=>f.kind)):mark(result.at(-1).marker)===mark(p.marker))) result.at(-1).text+=p.text;
-    else result.push({...p});
-  }
-  return result;
-}
+function merge(pieces) {return pieces.some(p=>p.frames)?mergeInlineParts(pieces):pieces.filter(p=>p.text);}
 const content = pieces => pieces.some(p=>p.frames)?inlineNodes(pieces):merge(pieces).map(p=>({type:'text',text:p.text,...(p.marker?{marks:[{type:mark(p.marker)}]}:{})}));
 function split(pieces,at) {
   const left=[],right=[];
@@ -41,7 +34,7 @@ export function mapBoundaryEdit(source,p,{action,from,to},project) {
     const row=rowIndex===null?null:b.items?.[rowIndex];
     if(rowIndex!==null&&!row)return null;
     const spans=p.spans.filter(s=>s.blockIndex===i&&(rowIndex===null?s.itemIndex===undefined:s.itemIndex===rowIndex));
-    if(!spans.length||spans.some(s=>s.textOffset!==undefined||s.link))return null;
+    if(!spans.length||spans.some(s=>s.textOffset!==undefined))return null;
     const pieces=spans.map(s=>({...s,frames:inlineFrames(s,source),marker:s.bold||s.italic||s.code?source.slice(s.sourceFrom-(s.bold?2:1),s.sourceFrom):''}));
     const a=row?row.bodyFrom:heading?b.sourceFrom+(source.slice(b.sourceFrom,b.sourceTo).match(/^#{1,6}[ \t]+/)?.[0].length||0):b.sourceFrom,end=row?row.sourceTo:b.sourceTo;
     if(pieces.some(s=>!s.frames&&s.marker&&!['**','__','*','_','`'].includes(s.marker))||render(pieces)!==source.slice(a,end))return null;

@@ -8,7 +8,7 @@ export function createFormatView({ byId, context, report }) {
     const ok=await c.controller.format({action,from,to});
     if(context().controller!==c.controller) return false;
     if(!ok) report(c.controller.state().code==='unsafe-format-range'
-      ? '此处暂不支持该格式操作，原文已保留。标题限单行；粗体/斜体/行内代码支持常见组合；请选择可表示的文字片段，不支持的组合可在源码中修改；链接请使用链接面板；引用限单层，带格式引用暂不拆分；代码块用 ⌘Enter 回到正文。列表支持六层以内的紧凑列表；Tab 缩进、Shift+Tab 提升，顶层空项退出仅支持首项或末项。'
+      ? '此处暂不支持该格式操作，原文已保留。标题限单行；粗体/斜体/行内代码支持常见组合；请选择可表示的文字片段，不支持的组合可在源码中修改；链接请使用链接面板；引用限单层，支持可表示的格式拆分与合并；代码块用 ⌘Enter 回到正文。列表支持六层以内的紧凑列表；Tab 缩进、Shift+Tab 提升，顶层空项退出仅支持首项或末项。'
       : '格式修改未确认，当前内容仍保留。请查看输入或会话状态。',true);
     else report(action==='code-block'?'代码块中 Enter 换行、Tab 缩进；⌘Enter 回到正文。':action==='blockquote'?'引用中 Enter 分段，末尾空段再按 Enter 回到正文。':'格式已应用；原文件未改写。');
     if(!context().invalid && !c.controller.state().locked) c.editor.view.focus();

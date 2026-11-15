@@ -335,6 +335,24 @@
     const at = action === "code" ? frames.length : frames.findIndex((f) => f.kind === "code");
     return { ...part, [action]: true, frames: at < 0 ? [...frames, frame] : [...frames.slice(0, at), frame, ...frames.slice(at)] };
   }
+  function mergeInlineParts(parts) {
+    const out = [], wrappers = (p) => p.frames?.map((f) => [f.kind, f.open, f.close]);
+    for (const value of parts) {
+      if (!value.text) continue;
+      let part = { ...value };
+      const last = out.at(-1);
+      const sameLink = last && JSON.stringify(last.link) === JSON.stringify(part.link);
+      if (sameLink && part.link) {
+        const at = part.frames.findIndex((f) => f.kind === "link"), previous3 = last.frames.findIndex((f) => f.kind === "link");
+        if (at === previous3 && at >= 0 && JSON.stringify(wrappers(last).slice(0, at + 1)) === JSON.stringify(wrappers(part).slice(0, at + 1)))
+          part.frames = [...last.frames.slice(0, at + 1), ...part.frames.slice(at + 1)];
+      }
+      const sameFrames = last && JSON.stringify(last.frames?.map((f) => f.kind)) === JSON.stringify(part.frames?.map((f) => f.kind));
+      if (sameFrames && sameLink && (!part.link || JSON.stringify(wrappers(last)) === JSON.stringify(wrappers(part)))) last.text += part.text;
+      else out.push(part);
+    }
+    return out;
+  }
 
   // lib/document-article-source.mjs
   var reject = () => ({ ok: false, code: "unsafe-source-range" });
@@ -10823,7 +10841,7 @@
       }
       return [from2, boundary?.index ?? source.length];
     }
-    function emptyParagraph2(at) {
+    function emptyParagraph(at) {
       spans.push({
         text: "",
         sourceFrom: at,
@@ -10872,7 +10890,7 @@
       if (structured) {
         const gap2 = lines(source.slice(previousEnd, start));
         if (!content5.length && !fm && gap2.length >= 2 || content5.length && gap2.length >= 4) {
-          emptyParagraph2(!content5.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
+          emptyParagraph(!content5.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
           structured = projectArticle(node2, source, position2, content5.length) || projectStructuredBlock(node2, source, position2, content5.length) || projectTable(node2, source, position2, content5.length) || projectImage(node2, source, position2);
         }
         blocks.push(structured.block);
@@ -10886,7 +10904,7 @@
       if (list3) {
         const gap2 = lines(source.slice(previousEnd, start));
         if (!content5.length && gap2.length >= 2 || content5.length && gap2.length >= 4) {
-          emptyParagraph2(!content5.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
+          emptyParagraph(!content5.length ? 0 : previousEnd + gap2[0].length + gap2[1].length);
           for (const span of list3.spans) {
             span.from += 2;
             span.to += 2;
@@ -10955,7 +10973,7 @@
       }
       const gap = lines(source.slice(previousEnd, start));
       if (!content5.length && !fm && gap.length >= 2 || content5.length && gap.length >= 4) {
-        emptyParagraph2(!content5.length ? 0 : previousEnd + gap[0].length + gap[1].length);
+        emptyParagraph(!content5.length ? 0 : previousEnd + gap[0].length + gap[1].length);
       }
       previousEnd = end;
       if (!supported || !parts.length) {
@@ -10985,9 +11003,9 @@
       position2 += offset + 2;
     }
     const tail = lines(source.slice(previousEnd));
-    if (content5.length && tail.length >= 2) emptyParagraph2(previousEnd + tail[0].length + tail[1].length);
+    if (content5.length && tail.length >= 2) emptyParagraph(previousEnd + tail[0].length + tail[1].length);
     if (!content5.length) {
-      if (source === "" || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph2(0);
+      if (source === "" || /^(?:\r\n|\n|\r)$/.test(source)) emptyParagraph(0);
       else content5.push({ type: "paragraph", content: [] });
     }
     return { doc: { type: "doc", content: content5 }, spans, blocks };
@@ -18060,21 +18078,40 @@
   }
 
   // lib/document-format-edit.mjs
-  var import_document_capacity15 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity16 = __toESM(require_document_capacity(), 1);
+
+  // lib/document-prose-continuation.mjs
+  var import_document_capacity10 = __toESM(require_document_capacity(), 1);
+  function continueInProse(source, p, index2, before, project) {
+    const adjacent = index2 + (before ? -1 : 1), block = p.blocks[index2], next = p.blocks[adjacent];
+    if (next && p.doc.content[adjacent]?.type === "paragraph" && p.spans.some((s) => s.blockIndex === adjacent)) {
+      const at2 = before ? next.to - 1 : next.from + 1, from3 = before ? block.sourceFrom : block.sourceTo;
+      return { ok: true, source, projection: p, change: { from: from3, to: from3, insert: "" }, inverseSource: { from: from3, to: from3, insert: "" }, selection: { from: at2, to: at2 } };
+    }
+    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
+    const from2 = before ? block.sourceFrom : block.sourceTo, insert2 = nl + nl, nextSource2 = source.slice(0, from2) + insert2 + source.slice(from2);
+    if (nextSource2.length > import_document_capacity10.default.MAX_SOURCE_UNITS) return { ok: false, code: "unsafe-format-range" };
+    const expected = structuredClone(p.doc), target = before ? index2 : index2 + 1;
+    expected.content.splice(target, 0, { type: "paragraph", content: [] });
+    const projection = project(nextSource2);
+    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return { ok: false, code: "unsafe-format-range" };
+    const at = projection.blocks[target]?.from + 1;
+    if (!Number.isSafeInteger(at)) return { ok: false, code: "unsafe-format-range" };
+    return { ok: true, source: nextSource2, projection, change: { from: from2, to: from2, insert: insert2 }, inverseSource: { from: from2, to: from2 + insert2.length, insert: "" }, selection: { from: at, to: at } };
+  }
 
   // lib/document-table-edit.mjs
-  var import_document_capacity10 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity10.default;
+  var import_document_capacity11 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity11.default;
   var reject4 = () => ({ ok: false, code: "unsafe-format-range" });
-  var tableActions = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-exit"];
-  var emptyParagraph = () => ({ type: "paragraph", content: [] });
+  var tableActions = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-before", "table-exit"];
   function mapTableEdit(source, p, { action, from: from2, to }, project) {
     if (from2 !== to) return reject4();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
     if (index2 < 0) return reject4();
     const block = p.blocks[index2], expected = structuredClone(p.doc), node2 = expected.content[index2];
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
-    let a, b, text5, targetIndex = index2, targetRow = 0, targetCol = 0, prose = false;
+    let a, b, text5, targetIndex = index2, targetRow = 0, targetCol = 0;
     if (action === "insert-table") {
       if (node2.type !== "paragraph" || !p.spans.some((s) => s.blockIndex === index2 && s.textOffset === void 0 && from2 >= s.from && from2 <= s.to)) return reject4();
       const created = { type: "table", content: [
@@ -18123,16 +18160,8 @@
         for (const [i, line] of lines.entries()) line.values.splice(col, add2 ? 0 : 1, ...add2 ? [i === 1 ? "---" : ""] : []);
         for (const [i, row] of node2.content.entries()) row.content.splice(col, add2 ? 0 : 1, ...add2 ? [tableCell("", i === 0)] : []);
         targetCol = add2 ? col : Math.min(col, cols - 2);
-      } else if (action === "table-exit") {
-        const next2 = p.blocks[index2 + 1];
-        if (expected.content[index2 + 1]?.type === "paragraph" && next2) {
-          return { ok: true, source, projection: p, change: { from: b, to: b, insert: "" }, inverseSource: { from: b, to: b, insert: "" }, selection: { from: next2.from + 1, to: next2.from + 1 } };
-        }
-        a = b;
-        text5 = nl + nl;
-        expected.content.splice(index2 + 1, 0, emptyParagraph());
-        targetIndex++;
-        prose = true;
+      } else if (action === "table-exit" || action === "table-before") {
+        return continueInProse(source, p, index2, action === "table-before", project);
       } else return reject4();
       if (text5 === void 0) text5 = lines.map((l) => "|" + l.values.join("|") + "|" + l.eol).join("");
     }
@@ -18156,14 +18185,14 @@
     if (next.length > MAX_SOURCE_UNITS6) return reject4();
     const projection = project(next);
     if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject4();
-    const target = projection.blocks[targetIndex], pos = prose ? target?.from + 1 : target?.cells?.[targetRow]?.[targetCol]?.from;
+    const target = projection.blocks[targetIndex], pos = target?.cells?.[targetRow]?.[targetCol]?.from;
     if (!Number.isSafeInteger(pos)) return reject4();
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: pos, to: pos } };
   }
 
   // lib/document-list-edit.mjs
-  var import_document_capacity11 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS7 } = import_document_capacity11.default;
+  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS7 } = import_document_capacity12.default;
   var rejectListEdit = () => ({ ok: false, code: "unsafe-format-range" });
   var cutsListSurrogate = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var listMarkType = (p) => p.bold ? "bold" : p.italic ? "italic" : p.code ? "code" : null;
@@ -18270,7 +18299,7 @@
       } else if (action === "split-list" || action === "join-list") {
         let pieces = function(value) {
           const parts2 = p.spans.filter((s) => s.blockIndex === index2 && s.itemIndex === rows.indexOf(value.row));
-          if (parts2.some((s) => s.link || s.textOffset !== void 0)) return null;
+          if (parts2.some((s) => s.textOffset !== void 0)) return null;
           const values2 = parts2.map((s) => ({ ...s, frames: inlineFrames(s, source), marker: listMarkType(s) ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : "" }));
           return renderListPieces(values2) === value.body ? values2 : null;
         };
@@ -18299,13 +18328,7 @@
           if (offset !== 0 || i === 0) return rejectListEdit();
           const previous3 = parentList.items[i - 1], left = pieces(previous3);
           if (!left || previous3.child) return rejectListEdit();
-          const merged = [];
-          for (const part of [...left, ...parts]) {
-            if (!part.text) continue;
-            const last = merged.at(-1);
-            if (last && (last.frames || part.frames ? JSON.stringify(last.frames?.map((f) => f.kind)) === JSON.stringify(part.frames?.map((f) => f.kind)) : listMarkType(last) === listMarkType(part))) last.text += part.text;
-            else merged.push({ ...part });
-          }
+          const merged = mergeInlineParts([...left, ...parts]);
           offset = left.map((p2) => p2.text).join("").length;
           previous3.body = renderListPieces(merged);
           previous3.content = listInlineNodes(merged);
@@ -18366,8 +18389,8 @@
   }
 
   // lib/document-structured-edit.mjs
-  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity12.default;
+  var import_document_capacity13 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity13.default;
   var reject5 = () => ({ ok: false, code: "unsafe-format-range" });
   var inline3 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
   var paragraph3 = (content5) => ({ type: "paragraph", content: content5 });
@@ -18424,67 +18447,57 @@
       } else return reject5();
     } else if (action === "exit-block") {
       if (from2 !== to || !block.quoteRows && !block.codeBody) return reject5();
-      a = b;
-      text5 = nl + nl;
-      expected.content.splice(index2 + 1, 0, paragraph3([]));
-      targetIndex++;
+      return continueInProse(source, p, index2, false, project);
     } else if (["split-quote", "join-quote"].includes(action)) {
       if (!row || from2 !== to) return reject5();
       const spans = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex), current = node2.content[rowIndex], value = current.content.map((n) => n.text).join("");
-      const rich = current.content.some((n) => n.marks?.length), at = from2 - row.from;
+      const at = from2 - row.from;
       if (cuts(value, at)) return reject5();
-      if (rich) {
-        if (action !== "split-quote" || !value) return reject5();
+      const parts = spans.map((s) => ({ ...s, frames: inlineFrames(s, source) }));
+      if (renderInlineParts(parts, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject5();
+      if (action === "join-quote") {
+        if (at !== 0) return reject5();
+        if (rowIndex === 0) {
+          b = block.quoteRows[1]?.sourceFrom ?? block.sourceTo;
+          text5 = source.slice(row.bodyFrom, row.sourceTo) + (node2.content.length > 1 ? nl + nl : "");
+          expected.content.splice(index2, 1, paragraph3(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
+        } else {
+          const prev = block.quoteRows[rowIndex - 1], before = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex - 1).map((s) => ({ ...s, frames: inlineFrames(s, source) }));
+          if (renderInlineParts(before, source) !== source.slice(prev.bodyFrom, prev.sourceTo)) return reject5();
+          const joined = mergeInlineParts([...before, ...parts]);
+          a = prev.bodyFrom;
+          b = row.sourceTo;
+          text5 = renderInlineParts(joined, source);
+          expected.content[index2].content.splice(rowIndex - 1, 2, paragraph3(inlineNodes(joined)));
+          targetRow = rowIndex - 1;
+          offset = before.map((s) => s.text).join("").length;
+        }
+      } else if (!value) {
+        if (rowIndex !== node2.content.length - 1) return reject5();
+        if (rowIndex === 0) {
+          text5 = "";
+          expected.content[index2] = paragraph3([]);
+        } else {
+          a = block.quoteRows[rowIndex - 1].sourceTo;
+          text5 = nl + nl;
+          expected.content[index2].content.pop();
+          expected.content.splice(index2 + 1, 0, paragraph3([]));
+          targetIndex++;
+        }
+      } else {
         const left2 = [], right2 = [];
         let offset2 = at;
-        for (const s of spans) {
-          const n = Math.max(0, Math.min(offset2, s.text.length)), frames = inlineFrames(s, source);
-          if (n) left2.push({ ...s, frames, text: s.text.slice(0, n) });
-          if (n < s.text.length) right2.push({ ...s, frames, text: s.text.slice(n) });
-          offset2 -= s.text.length;
+        for (const part of parts) {
+          const n = Math.max(0, Math.min(offset2, part.text.length));
+          if (n) left2.push({ ...part, text: part.text.slice(0, n) });
+          if (n < part.text.length) right2.push({ ...part, text: part.text.slice(n) });
+          offset2 -= part.text.length;
         }
-        if (renderInlineParts(spans, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject5();
         a = row.bodyFrom;
         b = row.sourceTo;
         text5 = renderInlineParts(left2, source) + nl + "> " + nl + "> " + renderInlineParts(right2, source);
         expected.content[index2].content.splice(rowIndex, 1, paragraph3(inlineNodes(left2)), paragraph3(inlineNodes(right2)));
         targetRow = rowIndex + 1;
-      } else {
-        if (spans.length !== 1) return reject5();
-        if (action === "split-quote" && !value) {
-          if (rowIndex !== node2.content.length - 1) return reject5();
-          if (rowIndex === 0) {
-            text5 = "";
-            expected.content[index2] = paragraph3([]);
-          } else {
-            a = block.quoteRows[rowIndex - 1].sourceTo;
-            text5 = nl + nl;
-            expected.content[index2].content.pop();
-            expected.content.splice(index2 + 1, 0, paragraph3([]));
-            targetIndex++;
-          }
-        } else if (action === "split-quote") {
-          a = b = row.bodyFrom + at;
-          text5 = nl + "> " + nl + "> ";
-          expected.content[index2].content.splice(rowIndex, 1, paragraph3(inline3(value.slice(0, at))), paragraph3(inline3(value.slice(at))));
-          targetRow = rowIndex + 1;
-        } else if (at === 0) {
-          if (rowIndex === 0) {
-            b = block.quoteRows[1]?.sourceFrom ?? block.sourceTo;
-            text5 = value + (node2.content.length > 1 ? nl + nl : "");
-            expected.content.splice(index2, 1, paragraph3(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
-          } else {
-            const prev = block.quoteRows[rowIndex - 1], prevNode = node2.content[rowIndex - 1];
-            if (prevNode.content.some((n) => n.marks?.length)) return reject5();
-            const before = prevNode.content.map((n) => n.text).join("");
-            a = prev.sourceTo;
-            b = row.bodyFrom;
-            text5 = "";
-            expected.content[index2].content.splice(rowIndex - 1, 2, paragraph3(inline3(before + value)));
-            targetRow = rowIndex - 1;
-            offset = before.length;
-          }
-        } else return reject5();
       }
     } else return reject5();
     if (typeof text5 !== "string") return reject5();
@@ -18514,8 +18527,8 @@
   }
 
   // lib/document-link-edit.mjs
-  var import_document_capacity13 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity13.default;
+  var import_document_capacity14 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity14.default;
   var reject6 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
   var splits3 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var eligible = (s) => s.tableRow === void 0 && !s.codeBlock && s.textOffset === void 0;
@@ -18652,8 +18665,8 @@
   }
 
   // lib/document-boundary-edit.mjs
-  var import_document_capacity14 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity14.default;
+  var import_document_capacity15 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity15.default;
   var reject7 = () => ({ ok: false, code: "unsafe-format-range" });
   var paragraph4 = (content5) => ({ type: "paragraph", content: content5 });
   var item = (content5) => ({ type: "listItem", content: [paragraph4(content5)] });
@@ -18661,12 +18674,7 @@
   var mark = (marker) => marker === "`" ? "code" : marker.length === 2 ? "bold" : marker ? "italic" : null;
   var render2 = (pieces) => pieces.some((p) => p.frames) ? renderInlineParts(pieces, "") : pieces.map((p) => p.marker + p.text + p.marker).join("");
   function merge(pieces) {
-    const result = [];
-    for (const p of pieces.filter((p2) => p2.text)) {
-      if (result.length && (p.frames || result.at(-1).frames ? JSON.stringify(p.frames?.map((f) => f.kind)) === JSON.stringify(result.at(-1).frames?.map((f) => f.kind)) : mark(result.at(-1).marker) === mark(p.marker))) result.at(-1).text += p.text;
-      else result.push({ ...p });
-    }
-    return result;
+    return pieces.some((p) => p.frames) ? mergeInlineParts(pieces) : pieces.filter((p) => p.text);
   }
   var content3 = (pieces) => pieces.some((p) => p.frames) ? inlineNodes(pieces) : merge(pieces).map((p) => ({ type: "text", text: p.text, ...p.marker ? { marks: [{ type: mark(p.marker) }] } : {} }));
   function split3(pieces, at) {
@@ -18691,7 +18699,7 @@
       const row = rowIndex === null ? null : b2.items?.[rowIndex];
       if (rowIndex !== null && !row) return null;
       const spans = p.spans.filter((s) => s.blockIndex === i && (rowIndex === null ? s.itemIndex === void 0 : s.itemIndex === rowIndex));
-      if (!spans.length || spans.some((s) => s.textOffset !== void 0 || s.link)) return null;
+      if (!spans.length || spans.some((s) => s.textOffset !== void 0)) return null;
       const pieces = spans.map((s) => ({ ...s, frames: inlineFrames(s, source), marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : "" }));
       const a2 = row ? row.bodyFrom : heading3 ? b2.sourceFrom + (source.slice(b2.sourceFrom, b2.sourceTo).match(/^#{1,6}[ \t]+/)?.[0].length || 0) : b2.sourceFrom, end2 = row ? row.sourceTo : b2.sourceTo;
       if (pieces.some((s) => !s.frames && s.marker && !["**", "__", "*", "_", "`"].includes(s.marker)) || render2(pieces) !== source.slice(a2, end2)) return null;
@@ -18828,7 +18836,7 @@
   }
 
   // lib/document-format-edit.mjs
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity15.default;
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity16.default;
   var reject8 = () => ({ ok: false, code: "unsafe-format-range" });
   var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "block-shortcut", "fence-shortcut", "blockquote", "code-block", "split-quote", "join-quote", "exit-block", "bold", "italic", "code", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph", "task-list", "task-shortcut", "toggle-task", "indent-list", "outdent-list"];
   var paragraph5 = (content5) => ({ type: "paragraph", content: content5 });
@@ -18961,7 +18969,7 @@
 
   // lib/document-table-view.mjs
   function createTableView({ byId: byId2, context, report }) {
-    const ids = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-exit"];
+    const ids = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-before", "table-exit"];
     const blocked = (c) => !c.state || !c.editor || c.loading || c.invalid || c.state.confirmed.readOnly || c.state.locked || c.state.historyPending || c.state.composing || c.state.compositionInvalid || c.state.recoveryRecords.length || c.editor.view.composing;
     function locate(c) {
       if (!c.state || !c.editor) return null;
@@ -19015,11 +19023,11 @@
       const { from: from2, to, empty: empty5 } = view.state.selection, { block, cell: cell2 } = at;
       const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
       let action = null, target = null;
-      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key === "Enter") action = "table-exit";
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "Enter") action = event.shiftKey ? "table-before" : "table-exit";
       else if (plain && event.key === "Tab" && empty5) {
         const cells = block.cells.flat(), i = cells.indexOf(cell2) + (event.shiftKey ? -1 : 1);
         target = cells[i];
-        if (!target && i === cells.length) action = "table-add-row";
+        if (!target) action = i === cells.length ? "table-add-row" : "table-before";
       } else if (plain && event.key === "Enter" && empty5 && !event.shiftKey) {
         target = block.cells[cell2.tableRow + 1]?.[cell2.tableCol];
         if (!target) action = "table-add-row";
@@ -19204,7 +19212,7 @@
   }
 
   // lib/document-replace.mjs
-  var import_document_capacity16 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity17 = __toESM(require_document_capacity(), 1);
   function planDocumentReplace(source, doc4, matches2, insert2, selection = { from: 1, to: 1 }) {
     const fail = (code3) => ({ ok: false, code: code3 });
     if (typeof insert2 !== "string" || insert2.length > 4096 || /[\0\r\n]/.test(insert2) || !insert2.isWellFormed() || !Array.isArray(matches2) || !matches2.length || matches2.length > 1e3) return fail("invalid-replacement");
@@ -19233,7 +19241,7 @@
       }
       const overlap = edits2.some((e, i) => i > 0 && edits2[i - 1].b > e.a);
       if (overlap && source.length * matches2.length > 32e6) return fail("replacement-budget");
-      if (source.length + edits2.reduce((n, e) => n + e.text.length - (e.b - e.a), 0) > import_document_capacity16.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
+      if (source.length + edits2.reduce((n, e) => n + e.text.length - (e.b - e.a), 0) > import_document_capacity17.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
       const tr2 = new Transform(doc4);
       let candidate = source, work = 0;
       for (const e of edits2.toReversed()) {
@@ -51943,7 +51951,7 @@
       const { from: from2, to } = c.editor.state.selection;
       const ok3 = await c.controller.format({ action, from: from2, to });
       if (context().controller !== c.controller) return false;
-      if (!ok3) report(c.controller.state().code === "unsafe-format-range" ? "\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u683C\u5F0F\u64CD\u4F5C\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002\u6807\u9898\u9650\u5355\u884C\uFF1B\u7C97\u4F53/\u659C\u4F53/\u884C\u5185\u4EE3\u7801\u652F\u6301\u5E38\u89C1\u7EC4\u5408\uFF1B\u8BF7\u9009\u62E9\u53EF\u8868\u793A\u7684\u6587\u5B57\u7247\u6BB5\uFF0C\u4E0D\u652F\u6301\u7684\u7EC4\u5408\u53EF\u5728\u6E90\u7801\u4E2D\u4FEE\u6539\uFF1B\u94FE\u63A5\u8BF7\u4F7F\u7528\u94FE\u63A5\u9762\u677F\uFF1B\u5F15\u7528\u9650\u5355\u5C42\uFF0C\u5E26\u683C\u5F0F\u5F15\u7528\u6682\u4E0D\u62C6\u5206\uFF1B\u4EE3\u7801\u5757\u7528 \u2318Enter \u56DE\u5230\u6B63\u6587\u3002\u5217\u8868\u652F\u6301\u516D\u5C42\u4EE5\u5185\u7684\u7D27\u51D1\u5217\u8868\uFF1BTab \u7F29\u8FDB\u3001Shift+Tab \u63D0\u5347\uFF0C\u9876\u5C42\u7A7A\u9879\u9000\u51FA\u4EC5\u652F\u6301\u9996\u9879\u6216\u672B\u9879\u3002" : "\u683C\u5F0F\u4FEE\u6539\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u72B6\u6001\u3002", true);
+      if (!ok3) report(c.controller.state().code === "unsafe-format-range" ? "\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u683C\u5F0F\u64CD\u4F5C\uFF0C\u539F\u6587\u5DF2\u4FDD\u7559\u3002\u6807\u9898\u9650\u5355\u884C\uFF1B\u7C97\u4F53/\u659C\u4F53/\u884C\u5185\u4EE3\u7801\u652F\u6301\u5E38\u89C1\u7EC4\u5408\uFF1B\u8BF7\u9009\u62E9\u53EF\u8868\u793A\u7684\u6587\u5B57\u7247\u6BB5\uFF0C\u4E0D\u652F\u6301\u7684\u7EC4\u5408\u53EF\u5728\u6E90\u7801\u4E2D\u4FEE\u6539\uFF1B\u94FE\u63A5\u8BF7\u4F7F\u7528\u94FE\u63A5\u9762\u677F\uFF1B\u5F15\u7528\u9650\u5355\u5C42\uFF0C\u652F\u6301\u53EF\u8868\u793A\u7684\u683C\u5F0F\u62C6\u5206\u4E0E\u5408\u5E76\uFF1B\u4EE3\u7801\u5757\u7528 \u2318Enter \u56DE\u5230\u6B63\u6587\u3002\u5217\u8868\u652F\u6301\u516D\u5C42\u4EE5\u5185\u7684\u7D27\u51D1\u5217\u8868\uFF1BTab \u7F29\u8FDB\u3001Shift+Tab \u63D0\u5347\uFF0C\u9876\u5C42\u7A7A\u9879\u9000\u51FA\u4EC5\u652F\u6301\u9996\u9879\u6216\u672B\u9879\u3002" : "\u683C\u5F0F\u4FEE\u6539\u672A\u786E\u8BA4\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u72B6\u6001\u3002", true);
       else report(action === "code-block" ? "\u4EE3\u7801\u5757\u4E2D Enter \u6362\u884C\u3001Tab \u7F29\u8FDB\uFF1B\u2318Enter \u56DE\u5230\u6B63\u6587\u3002" : action === "blockquote" ? "\u5F15\u7528\u4E2D Enter \u5206\u6BB5\uFF0C\u672B\u5C3E\u7A7A\u6BB5\u518D\u6309 Enter \u56DE\u5230\u6B63\u6587\u3002" : "\u683C\u5F0F\u5DF2\u5E94\u7528\uFF1B\u539F\u6587\u4EF6\u672A\u6539\u5199\u3002");
       if (!context().invalid && !c.controller.state().locked) c.editor.view.focus();
       sync();
@@ -63034,9 +63042,9 @@ SHA-256: ${last.sha256}` : "";
           notice.setAttribute?.("role", "status");
           host.append(notice);
         }
-        const capacity18 = doc4.createElement("p");
-        capacity18.textContent = `\u5DE5\u4F5C\u533A\u4FDD\u5B58\u7248\u672C ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}\uFF1B\u6062\u590D\u5F52\u6863 ${r.archived?.length ?? 0} \u6761\u3002\u5F52\u6863\u4FDD\u7559\u6750\u6599\u5E76\u817E\u51FA\u4FDD\u5B58\u540D\u989D\uFF0C\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\u3002\u6BCF\u4E2A\u6587\u4EF6\u7684\u6700\u65B0\u7248\u672C\u53CA\u4E0D\u786E\u5B9A\u8BB0\u5F55\u4E0D\u53C2\u4E0E\u6574\u7406\u3002` + (r.archiveWarning ? " \u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u6750\u6599\u4FDD\u7559\u3002" : "");
-        host.append(capacity18);
+        const capacity19 = doc4.createElement("p");
+        capacity19.textContent = `\u5DE5\u4F5C\u533A\u4FDD\u5B58\u7248\u672C ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}\uFF1B\u6062\u590D\u5F52\u6863 ${r.archived?.length ?? 0} \u6761\u3002\u5F52\u6863\u4FDD\u7559\u6750\u6599\u5E76\u817E\u51FA\u4FDD\u5B58\u540D\u989D\uFF0C\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\u3002\u6BCF\u4E2A\u6587\u4EF6\u7684\u6700\u65B0\u7248\u672C\u53CA\u4E0D\u786E\u5B9A\u8BB0\u5F55\u4E0D\u53C2\u4E0E\u6574\u7406\u3002` + (r.archiveWarning ? " \u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u6750\u6599\u4FDD\u7559\u3002" : "");
+        host.append(capacity19);
         if (!r.records.length) host.textContent = "\u5C1A\u65E0\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u7684\u8BB0\u5F55\u3002";
         for (const record of [...r.records, ...r.archived || []]) {
           const row = doc4.createElement("div"), text5 = doc4.createElement("p"), button = doc4.createElement("button");
@@ -63267,14 +63275,14 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   }
 
   // lib/document-edit-controller.mjs
-  var import_document_capacity17 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity18 = __toESM(require_document_capacity(), 1);
   var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity17.default;
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity18.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
     const shortcut = tr2.getMeta("document-block-shortcut");
     if (shortcut) {
-      if (!["table-add-row", "table-exit", "toggle-task", "task-shortcut", "indent-list", "outdent-list", "block-shortcut", "fence-shortcut", "split-quote", "join-quote", "exit-block", "paragraph", "split-heading", "split-list", "join-list", "split-paragraph", "join-paragraph"].includes(shortcut.action)) return null;
+      if (!["table-add-row", "table-before", "table-exit", "toggle-task", "task-shortcut", "indent-list", "outdent-list", "block-shortcut", "fence-shortcut", "split-quote", "join-quote", "exit-block", "paragraph", "split-heading", "split-list", "join-list", "split-paragraph", "join-paragraph"].includes(shortcut.action)) return null;
       const mapped2 = mapFormatEdit(source, shortcut), schema2 = tr2.doc.type.schema;
       if (!mapped2.ok || !tr2.before.eq(schema2.nodeFromJSON(projectSource(source).doc)) || !tr2.doc.eq(schema2.nodeFromJSON(mapped2.projection.doc))) return null;
       return { operation: "format", edit: shortcut, source: mapped2.source, structural: true };

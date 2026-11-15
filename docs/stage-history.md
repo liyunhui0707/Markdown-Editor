@@ -1,5 +1,30 @@
 # Stage History
 
+## Structural writing continuation — 0.73.0 (2026-11-15)
+
+- Remove the old blanket linked-text refusal from exact paragraph/heading/list
+  boundary planners. Carry lexical frames through splitting and compatible joins;
+  task splits start unchecked. Link coalescing requires matching semantic attrs
+  and lexical wrapper bytes, preserving distinct targets/titles. Main-owned exact
+  inverses and complete expected-projection comparisons remain mandatory.
+- Rich quote joins and first-row unwrap retain label styles and raw link source.
+  A shared bounded prose-continuation mapper navigates to adjacent editable prose
+  without changing content/history, otherwise inserts one exact blank slot.
+  Table toolbar / Cmd-Shift-Enter / first-cell Shift-Tab support prose before;
+  table/quote/code exits reuse prose after. No new IPC/path or save capability.
+- Cover LF/CRLF/CR, native ProseMirror split/join equivalence, Enter/Backspace
+  round trips, distinct/ambiguous link wrappers, unchecked task continuation,
+  untouched image/opaque neighbors, Unicode/range and payload guards. Controller
+  checks retain composition/read-only gates and main history for table-before.
+- The complete Electron group covers keyboard and toolbar continuation, focus,
+  Undo/Redo, Source, backup, original Save, fresh export and exact restart recovery.
+  Local hidden functional testing uses page input and is not resource acceptance;
+  CI adds this workflow to the existing complete group without reducing gates.
+- New runtime helper and tests stay below 300 lines; changed structural planners
+  remain cohesive and no unrelated large-file refactor is introduced. Native
+  helper/dependencies/save authority/layout remain unchanged. Physical input,
+  spoken VoiceOver, sustained human writing and paid distribution remain scoped.
+
 ## Common formatted inline writing — 0.72.0 (2026-11-15)
 
 - Project exact emphasis/link/single-backtick-code frames in supported paragraphs,
