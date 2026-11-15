@@ -38,12 +38,15 @@ export function pastePlainText(view, event, { state, blocked = false, report }) 
       return reject('未粘贴：暂不支持开头或结尾空行、连续独立空段落、超过 32 段或过长文本。没有截断内容。');
     }
     const schema = view.state.schema;
-    const slice = new Slice(Fragment.fromArray(lines.map(line => schema.nodes.paragraph.create(null, schema.text(line)))), 1, 1);
+    const at=selection.$from,inItem=at.depth>1&&at.node(at.depth-1).type.name==='listItem';
+    const paragraphs=lines.map(line => schema.nodes.paragraph.create(null, schema.text(line)));
+    const content=inItem?paragraphs.map(p=>schema.nodes.listItem.create({checked:at.node(at.depth-1).attrs.checked===null?null:false},p)):paragraphs;
+    const slice = new Slice(Fragment.fromArray(content),inItem?2:1,inItem?2:1);
     tr = view.state.tr.replaceSelection(slice).scrollIntoView();
   } else tr = view.state.tr.insertText(text).scrollIntoView();
   view.dispatch(tr); // No direct model mutation or bypass of verifiedSourceRange.
   if (!view.state.doc.eq(tr.doc)) {
-    return reject('未粘贴：所选范围或文字涉及暂不支持的 Markdown 结构。支持普通及常用格式段落内和段落之间的文字替换、多段纯文本粘贴，以及同一简单列表内的单行粘贴；同一基本代码块支持多行。跨列表、引用、标题或表格边界暂不支持；当前文字未改变。');
+    return reject('未粘贴：所选范围或文字涉及暂不支持的 Markdown 结构。支持普通及常用格式段落之间、同一列表中不含子列表的同级项目之间、同一基本引用内的文字替换和多段纯文本粘贴；代码块支持多行。跨不同结构、带子列表的项目、标题或表格边界暂不支持；当前文字未改变。');
   }
   return true;
 }

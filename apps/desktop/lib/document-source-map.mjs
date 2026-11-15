@@ -2,6 +2,7 @@
 // HTML/other node kinds and full projected-document changes stay protected.
 import {projectArticle,mapArticleRange} from './document-article-source.mjs';
 import {mapProseRange} from './document-prose-range.mjs';
+import {mapStructuredRange} from './document-structured-range.mjs';
 import {projectInlineParts} from './document-inline-tree.mjs';
 import {mapSoftRange} from './document-soft-edit.mjs';
 import capacity from './document-capacity.js';
@@ -276,6 +277,7 @@ export function mapTextEdit(source, change, leaf = null, paragraphSeparator = nu
   const { from, to, insert } = change;
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
   const projection = projectSource(source);
+  if(leaf===null&&paragraphSeparator===null){const structured=mapStructuredRange(source,projection,change,projectSource);if(structured)return structured;}
   if(leaf===null&&paragraphSeparator===null){const prose=mapProseRange(source,projection,change,projectSource);if(prose)return prose;}
   if(leaf===null&&paragraphSeparator===null){const article=mapArticleRange(source,projection,change,projectSource);if(article)return article;}
   // Only trusted history supplies this identity. IPC edit payloads cannot.

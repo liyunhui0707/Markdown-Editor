@@ -1,5 +1,25 @@
 # Manual Test Checklist
 
+## Formatted list and quote ranges — 0.76.0
+
+Use a disposable task/ordered list and one explicit quote with emphasis, inline
+code, linked words/titles and untouched later rows. Include nested leaf siblings.
+
+- Select across two or three same-parent list items, from inside bold text into
+  a mixed link label. Type/replace, reverse-select and Backspace/Delete, paste one
+  line, Undo/Redo. The first item's check state and untouched numbers stay exact.
+- Paste two or three plain lines in one list item or across sibling leaf items.
+  New items are siblings, pasted words are plain and new tasks are unchecked.
+  Surviving text keeps styles/links; further typing and Enter/Backspace still work.
+- Repeat selection/replacement/deletion and multiline paste in one basic quote.
+  New paragraphs stay inside it; deleting all text keeps an editable quoted row.
+- Inspect Source, save/export, restart and recover. Compare untouched nested
+  branches, task spelling, marker numbers, title bytes and BOM/newlines.
+- Cross-parent/child-subtree/other-structure selections, malformed or ambiguous
+  syntax and over-budget input refuse atomically. Finish/cancel preedit first.
+  Automation is not a new physical-input or spoken screen-reader acceptance.
+
+
 ## Formatted prose range writing — 0.75.0
 
 Use a disposable article with two or three paragraphs containing bold/italic,

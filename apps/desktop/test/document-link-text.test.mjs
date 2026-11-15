@@ -39,7 +39,12 @@ test('every accepted link edit agrees with the product ProseMirror schema',async
    for(const insert of ['文','']){
     const r=mapTextEdit(source,{from,to,insert});if(!r.ok)continue;accepted++;
     const state=EditorState.create({schema,doc,selection:TextSelection.create(doc,from,to)});
-    assert.deepEqual(schema.nodeFromJSON(r.projection.doc).toJSON(),state.tr.insertText(insert).doc.toJSON(),JSON.stringify({source,from,to,insert}));
+    const crossItems=state.selection.$from.depth>1&&state.selection.$from.node(state.selection.$from.depth-1).type.name==='listItem'
+      &&!state.selection.$from.sameParent(state.selection.$to);
+    // The product captures exact cross-item key deletion rather than PM's
+    // deleteSelection expansion, retaining one editable list item.
+    const tr=!insert&&crossItems?state.tr.delete(from,to):state.tr.insertText(insert);
+    assert.deepEqual(schema.nodeFromJSON(r.projection.doc).toJSON(),tr.doc.toJSON(),JSON.stringify({source,from,to,insert}));
    }
   }
  }

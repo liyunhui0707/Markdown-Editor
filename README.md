@@ -6,7 +6,7 @@ backups after editing, explicitly export a new `.md` file, and save back to the
 bound local file while retaining previous versions. New-file export never replaces
 an existing target. No account or hosted backend is required.
 
-**0.75.0 development build with formatted prose/table writing and cross-location APFS recovery.** This is not
+**0.76.0 development build with formatted prose/list/quote/table writing and cross-location APFS recovery.** This is not
 a signed/notarized release or unrestricted Markdown editing/saving. Current limits are below.
 
 
@@ -17,6 +17,24 @@ for development; this is not a claim that their SEC-01 issue is fixed.
 Repeated occurrences of one managed picture share an in-flight verified preview
 request at the same document revision. Closing a surface clears its image-preview subtree;
 this does not establish whole-app memory stability.
+
+## Selection and sibling paste in lists and quotes — 0.76.0
+
+Replace or delete selected text across same-parent leaf list/task items, including
+common emphasis, inline code and linked words. Paste multiple plain lines inside
+one item or across supported sibling items to create sibling rows. The first row
+keeps its marker and check state; new tasks are unchecked. Untouched ordered
+numbers, task spelling, nested branches, styles and link titles stay unchanged.
+
+The same range editing and plain multiline paste work across paragraphs of one
+explicit basic quote. New paragraphs remain quoted. Reverse selection and native
+Backspace/Delete, Undo/Redo, Source, backup, Save/export and restart recovery use
+the existing main-owned exact source workflow.
+
+Cross-parent/child-subtree/other-structure selections, lazy/nested/unsupported
+quotes, ambiguous syntax and over-budget input remain protected. Existing 32-row,
+six-list-level and 4096 UTF-16-unit patch limits apply. No clipboard HTML is read;
+there is no new serializer, file authority or physical-input acceptance claim.
 
 ## Selection and paste across formatted paragraphs — 0.75.0
 

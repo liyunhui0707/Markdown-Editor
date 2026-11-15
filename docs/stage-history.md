@@ -1,5 +1,36 @@
 # Stage History
 
+## Formatted list and quote ranges — 0.76.0 (2026-11-15)
+
+- Reproduce rejection of cross-link/combined-format list selections and explicit
+  quote paragraph ranges. Add one bounded source mapper for same-parent leaf
+  list/task items or rows of one explicitly projected quote. Reuse existing lexical
+  split/render/join-edge and complete PM-canonical comparison; keep exact inverses.
+- Plain multi-paragraph paste intentionally creates sibling list items or quote
+  paragraphs. First item retains its raw marker/check state; new task siblings are
+  unchecked, new ordered siblings use the selected marker style. Unselected marker
+  numbers, task spelling, delimiter styles, nested neighbors and source bytes stay
+  untouched. Crossing a child subtree, parent, list/quote or protected block refuses.
+- Review also reproduces old list/quote Backspace joins normalizing unrelated
+  adjacent `**`/`__` runs. List/quote boundary planners now reuse joined-edge-only coalescing
+  and full canonical projection comparison; exact untouched spelling is tested.
+- The controller recognizes only a bounded unmarked paragraph-per-listItem slice,
+  then proves its entire PM result through the same main-owned edit/revision path.
+  Quote key deletion also captures exact native DOM/PM/target ranges. No new IPC,
+  save permissions, native helper, dependency or accepted-layout changes.
+- Tests cover LF/CRLF/CR, bullet/ordered/task/quote and nested leaf siblings, native
+  PM differential text/paste, exact inverse/caret, first/whole-row selection, source
+  budgets, parent fences, controlled composition, target mismatch and lost replies.
+  Existing negative cases are updated only for newly supported sibling paste and
+  common frames; malformed/normalized/structural/ambiguous cases remain protected.
+  Full Electron workflow covers replacement, reverse deletion, task/quote/nested
+  paste, continued typing, Source, backup, native Save, export and restart recovery.
+- New mapper and tests remain small. Existing larger source mapper/controller
+  receive only dispatch/extraction branches; existing test harnesses receive scoped
+  expectation updates, avoiding an unrelated split. Controlled/native page input
+  does not establish physical IME, spoken VoiceOver or long-duration human acceptance.
+
+
 ## Formatted prose range writing — 0.75.0 (2026-11-15)
 
 - Reproduce and remove the blanket refusal of selected replacement/deletion across
