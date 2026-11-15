@@ -27,7 +27,7 @@ export function createFormatView({ byId, context, report }) {
   function sync() {
     const {state:s,editor}=context();
     byId('format-toolbar').hidden=!s || s.confirmed.readOnly || s.confirmed.temporary!==true;
-    const busy=!!blocked();selector.disabled=busy;for(const mark of ['bold','italic','code'])byId('format-'+mark).disabled=busy||!editor||editor.state.selection.empty||editor.state.selection.node?.type.name==='documentImage'||(editor.state.selection.$from.parent.type.name==='codeBlock'||editor.isActive('table'));
+    const busy=!!blocked();selector.disabled=busy;for(const mark of ['bold','italic','code'])byId('format-'+mark).disabled=busy||!editor||editor.state.selection.empty||editor.state.selection.node?.type.name==='documentImage'||(editor.state.selection.$from.parent.type.name==='codeBlock');
     byId('format-undo').disabled=busy||!s?.confirmed.canUndo;byId('format-redo').disabled=busy||!s?.confirmed.canRedo;
     let value=editor?.state.selection.node?.type.name==='documentImage'?'image':'paragraph';
     if(editor) {

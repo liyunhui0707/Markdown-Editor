@@ -118,3 +118,25 @@ test('table-before queues after pending cell text and retains exact acknowledged
  assert.equal(h.controller.state().recoveryRecords.length,0);assert(await h.controller.history('undo'));assert.equal(h.document.text,'|A|\n|---|\n|待确认|');
  assert(await h.controller.history('undo'));assert.equal(h.document.text,source);assert.equal(fs.readFileSync(h.file,'utf8'),source);
 });
+
+test('rich-cell composition commits one physical leaf once; cross-format preedit stays protected',async()=>{
+ const source='| **Head** | B |\r\n| :--- | ---: |\r\n| [**word** plain](target "keep") | Other |',h=harness(source),p=projectSource(source),s=p.spans.find(s=>s.tableRow===1&&s.text==='word');assert(s);
+ h.select(s.from+1);assert(h.controller.beginComposition());
+ h.view.dispatch(h.view.state.tr.insertText('n'));h.view.dispatch(h.view.state.tr.insertText('ni',s.from+1,s.from+2));h.view.dispatch(h.view.state.tr.insertText('你',s.from+1,s.from+3));
+ assert.equal(h.requests.length,0);assert.equal(h.document.text,source);h.controller.endComposition();await h.controller.idle();
+ assert.equal(h.document.text,source.replace('**word**','**w你ord**'));assert.deepEqual(h.requests,['edit']);assert.equal(h.controller.state().recoveryRecords.length,0);
+ assert(await h.controller.history('undo'));assert.equal(h.document.text,source);assert(await h.controller.history('redo'));assert.equal(h.document.text,source.replace('**word**','**w你ord**'));
+ assert.equal(fs.readFileSync(h.file,'utf8'),source);
+ const protectedInput=harness(source),other=p.spans.find(s=>s.tableRow===1&&s.text===' plain');assert(other);
+ protectedInput.select(s.to-1,other.from+1);assert(protectedInput.controller.beginComposition());protectedInput.view.dispatch(protectedInput.view.state.tr.insertText('你'));
+ assert.equal(protectedInput.view.state.doc.textBetween(s.from,s.to),'word');protectedInput.controller.endComposition();await protectedInput.controller.idle();assert.equal(protectedInput.document.text,source);assert.equal(protectedInput.requests.length,0);
+});
+
+test('rich-cell navigation uses whole cells rather than individual inline runs',async()=>{
+ const source='| **Head** plain | B |\n| :--- | ---: |\n| **word** tail | [**link**](target "keep") |\n| `code` | C |',h=harness(source),p=projectSource(source),b=p.blocks[0],word=p.spans.find(s=>s.text==='word');
+ h.select(word.from+1);assert(h.key('Tab'));assert.equal(h.view.state.selection.from,b.cells[1][1].from);
+ assert(h.key('Tab',{shiftKey:true}));assert.equal(h.view.state.selection.from,b.cells[1][0].from);
+ assert(h.key('Enter'));assert.equal(h.view.state.selection.from,b.cells[2][0].from);assert.equal(h.document.revision,0);
+ h.select(b.cells[2][1].from);assert(h.key('Enter'));await h.controller.idle();assert.equal(projectSource(h.document.text).blocks[0].cells.length,4);assert(h.document.text.includes('[**link**](target "keep")'));
+ assert(await h.controller.history('undo'));assert.equal(h.document.text,source);assert.equal(fs.readFileSync(h.file,'utf8'),source);
+});

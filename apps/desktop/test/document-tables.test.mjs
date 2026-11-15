@@ -33,15 +33,15 @@ test('row/column operations preserve unaffected source spelling and exact undo p
 test('exit table creates a prose slot and keeps following content untouched',()=>{
  for(const s of [basic,basic+'\n\nTail']){const r=command(s,'table-exit');inverse(r,s);assert.equal(r.projection.doc.content[1].type,'paragraph');if(s===basic)assert.deepEqual(r.projection.doc.content[1].content,[]);else assert.equal(r.source,s);}
 });
-test('nonrectangular, escaped, formatted, oversized and nested tables stay protected',()=>{
- for(const s of ['|A|B|\n|---|---|\n|one|','|A|\n|---|\n|**bold**|','|A|\n|---|\n|a\\|b|','> |A|\n> |---|\n> |B|', '|'+Array(9).fill('A').join('|')+'|\n|'+Array(9).fill('---').join('|')+'|'])assert.equal(projectSource(s).spans.some(x=>x.tableRow!==undefined),false,s);
+test('nonrectangular, escaped, normalized, oversized and nested tables stay protected',()=>{
+ for(const s of ['|A|B|\n|---|---|\n|one|','|A|\n|---|\n|**a &amp;**|','|A|\n|---|\n|a\\|b|','> |A|\n> |---|\n> |B|', '|'+Array(9).fill('A').join('|')+'|\n|'+Array(9).fill('---').join('|')+'|'])assert.equal(projectSource(s).spans.some(x=>x.tableRow!==undefined),false,s);
  const s='|A|\n|---|\n'+Array(31).fill('|X|').join('\n');assert.equal(command(s,'table-add-row').ok,false);
  const p=projectSource(basic),a=cell(basic,1,0),b=cell(basic,1,1);
  for(const insert of ['a|b','x\ny','**bold**','[x](https://example.com)','<b>x</b>','x\t'])assert.equal(mapTextEdit(basic,{from:a.from,to:a.to,insert}).ok,false,insert);
  assert.equal(mapTextEdit(basic,{from:a.from,to:b.to,insert:'No'}).ok,false);
  assert.equal(mapFormatEdit(basic,{action:'table-add-row',from:a.from,to:b.to}).ok,false);
  assert.equal(mapFormatEdit(basic,{action:'table-add-row',from:a.from,to:a.from,path:'/tmp/x'}).ok,false);
- assert.equal(mapFormatEdit(basic,{action:'bold',from:a.from,to:a.to}).ok,false);
+ const formatted=mapFormatEdit(basic,{action:'bold',from:a.from,to:a.to});inverse(formatted,basic);assert.equal(formatted.source,basic.replace('Alpha','**Alpha**'));
  const emoji=basic.replace('Alpha','😀'),c=cell(emoji,1);assert.equal(mapTextEdit(emoji,{from:c.from+1,to:c.from+1,insert:'x'}).ok,false);
  assert.equal(p.blocks[0].cells.length,3);
 });

@@ -24,7 +24,7 @@ export function createTableView({byId,context,report}) {
     const {from,to}=c.editor.state.selection;
     const ok=await c.controller.format({action,from,to});
     if(context().controller!==c.controller)return false;
-    if(!ok)report('未应用表格操作，原文已保留。请把光标放入单个单元格；表头和最后一列不能删除。表格最多 8 列、32 行，仅支持普通文本。',true);
+    if(!ok)report('未应用表格操作，原文已保留。请把光标放入单个单元格；表头和最后一列不能删除。表格最多 8 列、32 行，支持普通文字及常见行内格式。',true);
     else report('');
     c.editor.view.focus();sync();return ok;
   }

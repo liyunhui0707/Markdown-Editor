@@ -1,5 +1,30 @@
 # Stage History
 
+## Formatted table writing — 0.74.0 (2026-11-15)
+
+- Project exact existing inline frames inside rectangular pipe-table cells, with
+  raw padding and table metadata ranges kept distinct from editable physical text
+  leaves. Canonical inline nodes preserve the Document schema's mark order; raw
+  alignment, delimiters, links/titles and untouched cells are not serialized.
+- Reuse the lexical patch planner for cell typing, cross-run selected replacement,
+  format/link commands and cell-scoped find/replace. Plain paste stays one cell.
+  Complete expected-document comparison, source/UTF-16/patch limits and main-owned
+  inverses remain. Same-leaf raw-equivalent composition commits once; cross-run
+  preedit, cross-cell ranges, normalization and unsupported structures stay guarded.
+- Existing row/column/navigation commands retain formatted source cells. Toolbar
+  marks are available in supported cells; formatted link labels keep the existing
+  body-edit/address-panel separation and inert span rendering. No new IPC, native
+  helper, dependency, file/save authority or visual layout is introduced.
+- Tests cover LF/CRLF/CR, native PM differential edits/marks, exact inverses,
+  padding/alignment, links, distinct cells, row/column operations, find/replace and
+  controlled composition/main history. The full Electron workflow covers body,
+  format/link panel, plain paste without HTML access, row/column history, Source,
+  backup, native Save, fresh export and exact restart; CI adds the complete group.
+- Changed table/inline modules and new tests stay under 300 lines. The existing
+  larger source mapper receives only a table-parent lookup branch; keep its
+  established validation boundary cohesive rather than an unrelated split.
+  Physical IME/VoiceOver, human soak and paid distribution stay scoped/deferred.
+
 ## Structural writing continuation — 0.73.0 (2026-11-15)
 
 - Remove the old blanket linked-text refusal from exact paragraph/heading/list
