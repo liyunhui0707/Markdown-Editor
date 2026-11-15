@@ -1,5 +1,22 @@
 # Manual Test Checklist
 
+## Separating Space at formatting boundaries — 0.77.1
+
+In a disposable paragraph, heading, list/task, single-level quote and table cell,
+place the caret after a supported bold/italic word. Type Space then several words.
+Confirm each Space survives, text can continue, Undo/Redo restores exact content,
+and no unrelated delimiter/link/line bytes change. Repeat in a combined-mark/link
+label. Ordinary interior/code Spaces keep their existing behavior.
+
+At an immediately adjacent source soft/hard line break, the local source spelling
+may change to retain visible whitespace: soft newline to its literal Space, or a
+hard break to backslash spelling. Visible content/hard-break semantics must stay
+correct, and Undo must restore the original newline/prefix bytes exactly.
+
+Input-method candidate text, read-only/unknown sessions and mismatched selections
+must retain their protection. Use [actual writing check](daily-use-check.md) for
+human input/long writing; automated checks cannot mark it passed.
+
 ## Multiline list/quote writing — 0.77.0
 
 Use a disposable Markdown file containing a task item continued with two leading

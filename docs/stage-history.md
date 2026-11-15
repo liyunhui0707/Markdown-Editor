@@ -1,5 +1,42 @@
 # Stage History
 
+## Local stable-candidate writing checks — 0.77.1 (2026-11-15)
+
+- Reproduce rejected separating Spaces after formatted words in a 150k-unit mixed
+  article; letters continue but the four planned Spaces disappear. Preserve that
+  baseline failure. Add a fallback only after ordinary exact typing refuses a
+  Space at an emphasis edge; derive outer marks from raw source, not renderer data.
+- Native beforeinput validates DOM/PM/target ranges and dispatches one ordinary
+  edit through controller/main history. Existing valid interior/code Spaces and
+  composition/read-only/recovery/unknown-outcome fences remain unchanged.
+- Use an adjacent soft break's literal-space representation, or explicit backslash
+  hard-break spelling, only when necessary to preserve the new visible whitespace.
+  Full expected PM proof protects semantics; exact inverses restore original bytes.
+- Check text/main/history plus real browser typing, controlled commit/cancel,
+  source application, Save, external conflict, retained export and independent
+  restart recovery in one mixed long-article scenario. Retain native-visible,
+  distinct-frame resource sampling and separate natural/collected observations.
+- New helpers and tests stay below 300 lines. Existing larger source-map/entry
+  files receive only fallback and input dispatch; no unrelated file splitting.
+  Consolidate the current README/install guide; preserve versioned development
+  details in a clearly historical README archive with relocated documentation links.
+- Initial candidate Node baseline: 3,596 pass / two existing skips. A visible 20.46-minute
+  run covers six writing cycles and exact restart/continued input on 480,929 units;
+  resource observations retain separate units and collection states, without a
+  leak-elimination claim. Full mixed-flow/CI evidence is retained with the candidate.
+- Retain the two failed CI runs: mixed-input idle timeout, then a sixth-cycle
+  sustained-input pause with pending acknowledgements. Avoid re-parsing the private
+  already-proven queued source on matching acknowledgement; retain all identity,
+  revision/type checks, mismatched-snapshot validation and the original queue cap.
+  Add forged-ack guards and bounded pressure diagnostics; repeat runtime-dependent
+  validation for this change. Final Node checks pass 3,597 / two existing skips;
+  all 155 focused controller/pressure tests and the complete local mixed workflow
+  pass. No blanket attribution of historical timeouts.
+- Physical IME, spoken VoiceOver and user-postponed real sustained writing remain
+  separate acceptance gates. Measured long-article latency and the historical
+  intermittent idle timeout are not silently declared resolved. No new framework,
+  dependencies, file authority, native helper, visual design or public release.
+
 ## Multiline list and quote writing — 0.77.0 (2026-11-15)
 
 - Reproduce whole-container refusal for ordinary indented list continuations and

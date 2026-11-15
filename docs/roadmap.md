@@ -19,7 +19,24 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — multiline list and quote writing, 0.77.0
+### Current batch — local stable-candidate writing acceptance, 0.77.1
+
+Reproduce daily-writing failures before expanding features. Fix refused separating
+Spaces at emphasis boundaries through exact source-derived marks and the existing
+controller/history path. Only an adjacent newline token may change spelling when
+needed to represent the intended visible Space; exact Undo restores original bytes.
+Run mixed long-article controlled input/source/native Save/conflict/export/restart
+checks and visible long-writing/resource observation. Consolidate the user entry
+and install guide; preserve historical README/version evidence separately.
+
+The user postponed genuine 20–30 minute writing again. Physical IME/spoken feedback
+remain scoped, and measured long-mixed-article input latency remains an optimization
+target. Preserve the historical intermittent idle failure as unconfirmed unless
+actually reproduced/attributed. This group is not complete 1.0/release acceptance.
+Next prioritize measured input latency and remaining real-writing findings, then
+local stable sign-off; paid distribution remains deferred.
+
+### Previous batch — multiline list and quote writing, 0.77.0
 
 Complete explicit multi-source-line list/task and quote paragraphs as one writing
 workflow: typing, physical-line selection/deletion, sibling paste, split/join,

@@ -16,7 +16,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
  let app,p,cdp,exit,probe,lastSample=0;const faults=[],network=[],retained=[];
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=async()=>{try{await expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>s.pending===0&&!s.locked&&!s.historyPending)).toBe(true);}catch(error){
-  const diagnostic=await p.evaluate(()=>{const v=document.querySelector('#editor .tiptap')?.editor?.view,s=getSelection();return {status:JSON.parse(document.querySelector('#status').textContent),warning:document.querySelector('#viewer-status').textContent,selection:v?.state.selection.toJSON(),focus:v?.hasFocus(),active:document.activeElement?.tagName,domCollapsed:s?.isCollapsed};});
+  const diagnostic=await p.evaluate(()=>{const v=document.querySelector('#editor .tiptap')?.editor?.view,s=getSelection();return {status:JSON.parse(document.querySelector('#status').textContent),warning:document.querySelector('#viewer-status').textContent,selection:v?.state.selection.toJSON(),focus:v?.hasFocus(),active:document.activeElement?.tagName,domCollapsed:s?.isCollapsed,pressureVisible:!document.querySelector('#input-pressure-panel').hidden,pressureStatus:document.querySelector('#input-pressure-status').textContent};});
   console.error('soak-idle-failure:'+JSON.stringify(diagnostic));await fs.writeFile(info.outputPath('idle-failure.json'),JSON.stringify(diagnostic,null,2));throw error;
  }};
  const natural=()=>probe.sample(),sample=()=>probe.sample({collect:true});

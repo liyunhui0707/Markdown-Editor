@@ -21,7 +21,9 @@ const path     = require('node:path');
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..', '..');
 const claudeMd     = fs.readFileSync(path.join(REPO_ROOT, 'CLAUDE.md'), 'utf8');
-const readmeMd     = fs.readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
+// These assertions describe the retired Vault engine contract, retained in the
+// relocated historical README rather than the current Document product entry.
+const readmeMd     = fs.readFileSync(path.join(REPO_ROOT, 'docs/history/readme-through-0.77.0.md'), 'utf8');
 const stageHistory = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'stage-history.md'), 'utf8');
 const testManual   = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'test-manual.md'), 'utf8');
 

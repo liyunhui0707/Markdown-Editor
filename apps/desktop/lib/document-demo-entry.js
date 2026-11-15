@@ -1,3 +1,4 @@
+import {applyBoundarySpace} from './document-boundary-space-input.mjs';
 import {createImagePaste} from './document-image-paste.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
@@ -306,6 +307,7 @@ function install(snapshot) {
           if (event.inputType === 'insertParagraph' && (event.isComposing || _view.composing || controller?.state().composing)) {
             event.preventDefault(); return true;
           }
+          if (applyBoundarySpace(_view,event,{state:controller?.state(),blocked:activeInvalid()||loading||readOnlyDocument(),report:viewerStatus})) return true;
           if (replaceParagraphRangeInput(_view, event, { state: controller?.state(),
             blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus })) return true;
           if (!['historyUndo', 'historyRedo'].includes(event.inputType)) return false;
