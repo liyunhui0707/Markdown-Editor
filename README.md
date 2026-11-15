@@ -82,6 +82,9 @@
 仓库使用 Node **24.20.0**（mise 锁定），Electron 使用自己的运行时。
 从 `apps/desktop/` 执行，先阅读 [DEVELOPMENT.md](DEVELOPMENT.md) 与 [AGENTS.md](AGENTS.md)：
 
+本机统一开发入口为 `/Users/liyunhui/Liyunhui/Codes/markdown-vault-app`。
+分支、检查点、CI 与版本标签约定见 [Git 管理](docs/git-workflow.md)。
+
 ```sh
 mise exec -- npm ci           # 仅新检出；替换 node_modules
 mise exec -- npm run dev      # 当前 Document App

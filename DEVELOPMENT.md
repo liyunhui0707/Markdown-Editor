@@ -1,5 +1,15 @@
 # Local development environment
 
+## Checkout and Git management
+
+Use `/Users/liyunhui/Liyunhui/Codes/markdown-vault-app` as this Mac's development
+entry point. The former `Worktrees/markdown-vault-app-phase1b3` checkout has been
+archived and unregistered. Other machines choose their own checkout path.
+`main` is the integration branch; work on a short branch for one complete
+functional group. Read [Git management](docs/git-workflow.md) for checkpoint,
+PR/CI, branch cleanup and milestone-tag rules. Private historical relocation
+and recovery mappings live in `.local/RELOCATION.md`.
+
 ## Project recovery audit
 
 Read the [2026-10-22 recovery audit](docs/audits/2026-10-22-project-recovery-audit.md)
