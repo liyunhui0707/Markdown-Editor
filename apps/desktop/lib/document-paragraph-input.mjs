@@ -17,7 +17,10 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
     && selection.$from.node(selection.$from.depth-2) === selection.$to.node(selection.$to.depth-2)
     && selection.$from.node(selection.$from.depth-1) !== selection.$to.node(selection.$to.depth-1)
     && selection.$to.parent.type.name === 'paragraph';
-  if (keyDelete && !crossItems) return false;
+  const crossProse=selection.$from.depth===1&&selection.$to.depth===1
+    &&selection.$from.parent.type.name==='paragraph'&&selection.$to.parent.type.name==='paragraph'
+    &&!selection.$from.sameParent(selection.$to);
+  if (keyDelete && !crossItems && !crossProse) return false;
   if (selection.$from.sameParent(selection.$to)
       && (!['paragraph','heading'].includes(selection.$from.parent.type.name)
         || (!inItem && !selection.$from.parent.content.content.some(n => n.marks.some(m => ['bold','italic','code','link'].includes(m.type.name)))))) return false;

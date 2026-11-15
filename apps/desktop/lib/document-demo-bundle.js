@@ -62,6 +62,42 @@
     }
   });
 
+  // lib/document-source-edit.js
+  var require_document_source_edit = __commonJS({
+    "lib/document-source-edit.js"(exports, module) {
+      "use strict";
+      var { MAX_SOURCE_UNITS: LIMIT } = require_document_capacity();
+      var valid2 = (s) => typeof s === "string" && s.length <= LIMIT && !s.includes("\0") && s.isWellFormed();
+      var splits5 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
+      function sourceChange(source, change) {
+        const { from: from2, to, insert: insert2 } = change || {};
+        if (!valid2(source) || !valid2(insert2) || !Number.isInteger(from2) || !Number.isInteger(to) || from2 < 0 || to < from2 || to > source.length || splits5(source, from2) || splits5(source, to) || source.length - (to - from2) + insert2.length > LIMIT) return { ok: false, code: "invalid-source-edit" };
+        return {
+          ok: true,
+          source: source.slice(0, from2) + insert2 + source.slice(to),
+          change: { from: from2, to, insert: insert2 },
+          inverse: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }
+        };
+      }
+      function sourceDifference(before, after) {
+        if (!valid2(before) || !valid2(after)) return { ok: false, code: "invalid-source-edit" };
+        let from2 = 0, to = before.length, end = after.length;
+        while (from2 < to && from2 < end && before[from2] === after[from2]) from2++;
+        while (to > from2 && end > from2 && before[to - 1] === after[end - 1]) {
+          to--;
+          end--;
+        }
+        if (splits5(before, from2) || splits5(after, from2)) from2--;
+        if (splits5(before, to) || splits5(after, end)) {
+          to++;
+          end++;
+        }
+        return sourceChange(before, { from: from2, to, insert: after.slice(from2, end) });
+      }
+      module.exports = { sourceChange, sourceDifference };
+    }
+  });
+
   // node_modules/extend/index.js
   var require_extend = __commonJS({
     "node_modules/extend/index.js"(exports, module) {
@@ -150,42 +186,6 @@
         }
         return target;
       };
-    }
-  });
-
-  // lib/document-source-edit.js
-  var require_document_source_edit = __commonJS({
-    "lib/document-source-edit.js"(exports, module) {
-      "use strict";
-      var { MAX_SOURCE_UNITS: LIMIT } = require_document_capacity();
-      var valid2 = (s) => typeof s === "string" && s.length <= LIMIT && !s.includes("\0") && s.isWellFormed();
-      var splits5 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-      function sourceChange(source, change) {
-        const { from: from2, to, insert: insert2 } = change || {};
-        if (!valid2(source) || !valid2(insert2) || !Number.isInteger(from2) || !Number.isInteger(to) || from2 < 0 || to < from2 || to > source.length || splits5(source, from2) || splits5(source, to) || source.length - (to - from2) + insert2.length > LIMIT) return { ok: false, code: "invalid-source-edit" };
-        return {
-          ok: true,
-          source: source.slice(0, from2) + insert2 + source.slice(to),
-          change: { from: from2, to, insert: insert2 },
-          inverse: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }
-        };
-      }
-      function sourceDifference(before, after) {
-        if (!valid2(before) || !valid2(after)) return { ok: false, code: "invalid-source-edit" };
-        let from2 = 0, to = before.length, end = after.length;
-        while (from2 < to && from2 < end && before[from2] === after[from2]) from2++;
-        while (to > from2 && end > from2 && before[to - 1] === after[end - 1]) {
-          to--;
-          end--;
-        }
-        if (splits5(before, from2) || splits5(after, from2)) from2--;
-        if (splits5(before, to) || splits5(after, end)) {
-          to++;
-          end++;
-        }
-        return sourceChange(before, { from: from2, to, insert: after.slice(from2, end) });
-      }
-      module.exports = { sourceChange, sourceDifference };
     }
   });
 
@@ -521,6 +521,78 @@
     return verify(patch(source, p, i, parts, expected, { from: from2, to }), project);
   }
 
+  // lib/document-prose-range.mjs
+  var import_document_source_edit = __toESM(require_document_source_edit(), 1);
+  var reject2 = () => ({ ok: false, code: "unsafe-source-range" });
+  var paragraph2 = (parts) => ({ type: "paragraph", content: nodes(parts) });
+  function proseParts(source, p, index2) {
+    const block = p.blocks[index2];
+    if (!block || p.doc.content[index2]?.type !== "paragraph") return null;
+    if (block.article) return block.parts;
+    const spans = p.spans.filter((s) => s.blockIndex === index2), parts = [];
+    let at = block.sourceFrom;
+    if (!spans.length || spans.some((s) => s.itemIndex !== void 0 || s.quoteIndex !== void 0 || s.tableRow !== void 0 || s.codeBlock)) return null;
+    for (const span of spans) {
+      const frames = inlineFrames(span, source), start = frames[0]?.from ?? span.sourceFrom;
+      if (span.textOffset !== void 0 && start !== at) {
+        const raw = source.slice(at, start);
+        if (!/^(?:\r\n|\n|\r)$/.test(raw)) return null;
+        parts.push({ text: " ", raw, breakKind: "soft", frames: [], from: span.from - 1, to: span.from });
+      }
+      parts.push({ ...span, frames });
+      at = frames[0]?.to ?? span.sourceTo;
+    }
+    return render(parts, source) === source.slice(block.sourceFrom, block.sourceTo) ? parts : null;
+  }
+  function join(left, right) {
+    const a = left.at(-1), b = right[0];
+    if (!a || !b || a.breakKind || b.breakKind) return [...left, ...right];
+    const x = a.frames, y = b.frames;
+    let common = 0;
+    while (common < x.length && common < y.length && x[common].kind === y[common].kind) {
+      if (x[common].kind === "link" && (JSON.stringify(a.link) !== JSON.stringify(b.link) || x[common].open !== y[common].open || x[common].close !== y[common].close)) break;
+      common++;
+    }
+    return [...left, ...right.map((p) => ({ ...p, frames: p.frames.map((f, i) => i < common && f.kind === y[i].kind && f.from === y[i].from && f.to === y[i].to ? x[i] : f) }))];
+  }
+  function canonical(node2) {
+    if (!node2.content) return node2;
+    const content5 = [];
+    for (const value of node2.content) {
+      const child = canonical(value), last = content5.at(-1);
+      if (child.type === "text" && last?.type === "text" && JSON.stringify(child.marks) === JSON.stringify(last.marks)) last.text += child.text;
+      else content5.push({ ...child });
+    }
+    return { ...node2, content: content5 };
+  }
+  function mapProseRange(source, p, { from: from2, to, insert: insert2 }, project) {
+    const first2 = p.blocks.findIndex((b) => b && from2 > b.from && from2 < b.to), last = p.blocks.findIndex((b) => b && to > b.from && to < b.to);
+    const multiline = insert2.includes("\n");
+    if (first2 < 0 || last < first2 || first2 === last && !multiline || insert2 === "\n\n" && from2 === to) return null;
+    const blocks = p.blocks.slice(first2, last + 1), parts = blocks.map((_, i) => proseParts(source, p, first2 + i));
+    if (parts.some((p2) => !p2)) return null;
+    if (!blocks.some((b, i) => b.article || parts[i].some((s) => s.textOffset !== void 0 || s.frames.length))) return null;
+    if (blocks.length > 32 || !insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject2();
+    const values2 = insert2.split("\n\n");
+    if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim())) return reject2();
+    const nl = source.match(/\r\n|\n|\r/)?.[0] || "\n", delimiter = nl + nl;
+    if (blocks.some((b, i) => i && source.slice(blocks[i - 1].sourceTo, b.sourceFrom) !== delimiter)) return reject2();
+    const left = split(parts[0], from2 - blocks[0].from - 1), right = split(parts.at(-1), to - blocks.at(-1).from - 1);
+    if (!left || !right) return reject2();
+    const selected2 = parts[0].find((s) => from2 >= s.from && from2 < s.to) || { frames: [] };
+    const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...selected2, text: text5, raw: void 0, breakKind: void 0 }] : []);
+    groups[0] = join(left[0], groups[0]);
+    groups[groups.length - 1] = join(groups.at(-1), right[1]);
+    const raw = groups.map((v) => render(v, source)).join(delimiter);
+    const expected = structuredClone(p.doc);
+    expected.content.splice(first2, blocks.length, ...groups.map(paragraph2));
+    const next = source.slice(0, blocks[0].sourceFrom) + raw + source.slice(blocks.at(-1).sourceTo), patch2 = import_document_source_edit.default.sourceDifference(source, next);
+    if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject2();
+    const projection = project(next);
+    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject2();
+    return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
+  }
+
   // lib/document-soft-edit.mjs
   var import_document_capacity2 = __toESM(require_document_capacity(), 1);
   function planSoftRange(source, p, { from: from2, to, insert: insert2 }) {
@@ -531,15 +603,15 @@
     const left = spans.find((s) => from2 >= s.from && from2 <= s.to), right = spans.find((s) => to >= s.from && to <= s.to);
     if (!left || !right || !split4 && left === right) return null;
     const cut4 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-    const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from, reject9 = () => ({ ok: false, code: "unsafe-source-range" });
-    if (cut4(left.text, from2 - left.from) || cut4(right.text, to - right.from)) return reject9();
+    const a = left.sourceFrom + from2 - left.from, b = right.sourceFrom + to - right.from, reject10 = () => ({ ok: false, code: "unsafe-source-range" });
+    if (cut4(left.text, from2 - left.from) || cut4(right.text, to - right.from)) return reject10();
     const nl = source.slice(p.blocks[i].sourceFrom, p.blocks[i].sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n";
     const text5 = split4 ? nl + nl : insert2, next = source.slice(0, a) + text5 + source.slice(b);
-    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity2.default.MAX_SOURCE_UNITS) return reject9();
+    if (b - a > 4096 || text5.length > 4096 || next.length > import_document_capacity2.default.MAX_SOURCE_UNITS) return reject10();
     const expected = structuredClone(p.doc), raw = expected.content[i].content[0].text, at = from2 - p.blocks[i].from - 1, end = to - p.blocks[i].from - 1;
-    const paragraph6 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
-    if (split4) expected.content.splice(i, 1, paragraph6(raw.slice(0, at)), paragraph6(raw.slice(at)));
-    else expected.content[i] = paragraph6(raw.slice(0, at) + insert2 + raw.slice(end));
+    const paragraph7 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+    if (split4) expected.content.splice(i, 1, paragraph7(raw.slice(0, at)), paragraph7(raw.slice(at)));
+    else expected.content[i] = paragraph7(raw.slice(0, at) + insert2 + raw.slice(end));
     return { ok: true, source: next, expected, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, structural: true, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
   }
   function mapSoftRange(source, p, change, project) {
@@ -611,12 +683,12 @@
         if (!marker || previousEnd !== null && !/^(?:\r\n|\n|\r) *$/.test(source.slice(previousEnd, a))) return null;
         const task = raw.slice(marker.length).match(/^\[([ xX])\] /), checked = task ? task[1] !== " " : null;
         const bodyFrom = a + marker.length + (task ? 4 : 0), itemIndex = items.length, itemPath = [...path2, siblingIndex];
-        const children = item3.children, paragraph6 = children[0]?.type === "paragraph" ? children[0] : null;
-        if (children.length > (paragraph6 ? 2 : 1) || children.slice(paragraph6 ? 1 : 0).some((n) => n.type !== "list") || paragraph6 && paragraph6.position.end.line !== paragraph6.position.start.line) return null;
+        const children = item3.children, paragraph7 = children[0]?.type === "paragraph" ? children[0] : null;
+        if (children.length > (paragraph7 ? 2 : 1) || children.slice(paragraph7 ? 1 : 0).some((n) => n.type !== "list") || paragraph7 && paragraph7.position.end.line !== paragraph7.position.start.line) return null;
         if (item3.checked !== null && !task) return null;
         const inline5 = [], parts = [];
         let length = 0;
-        for (const child of bodyFrom === lineEnd2 ? [] : paragraph6?.children || []) {
+        for (const child of bodyFrom === lineEnd2 ? [] : paragraph7?.children || []) {
           const chunk = projectInlineParts(child, source);
           if (!chunk) return null;
           for (const part of chunk) {
@@ -675,7 +747,7 @@
         spans.push(...parts);
         const itemContent = [{ type: "paragraph", content: inline5 }];
         let size = length + 4;
-        const nested = children[paragraph6 ? 1 : 0];
+        const nested = children[paragraph7 ? 1 : 0];
         if (nested) {
           if (!/^(?:\r\n|\n|\r) +$/.test(source.slice(lineEnd2, nested.position.start.offset))) return null;
           const sub = walk(nested, offset + length + 3, [...itemPath, 1], depth2 + 1);
@@ -695,14 +767,14 @@
   }
 
   // lib/document-tree-edit.mjs
-  var reject2 = () => ({ ok: false, code: "unsafe-source-range" });
+  var reject3 = () => ({ ok: false, code: "unsafe-source-range" });
   var cut2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   var inlineTarget = (doc4, s) => s.tableRow !== void 0 ? doc4.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0] : s.itemIndex !== void 0 ? listNodeAt(doc4.content[s.blockIndex], s.itemPath ?? [s.itemIndex]).content[0] : s.quoteIndex !== void 0 ? doc4.content[s.blockIndex].content[s.quoteIndex] : doc4.content[s.blockIndex];
   function patchInlineParts(source, p, spans, pieces, selection) {
     const frames = spans.map((s) => inlineFrames(s, source));
     const a = frames[0][0]?.from ?? spans[0].sourceFrom, b = frames.at(-1)[0]?.to ?? spans.at(-1).sourceTo;
     const old = source.slice(a, b);
-    if (renderInlineParts(spans, source) !== old) return reject2();
+    if (renderInlineParts(spans, source) !== old) return reject3();
     const raw = renderInlineParts(pieces, source);
     let start = 0, end = old.length, nextEnd = raw.length;
     while (start < end && start < nextEnd && old[start] === raw[start]) start++;
@@ -716,7 +788,7 @@
       nextEnd++;
     }
     const from2 = a + start, to = a + end, insert2 = raw.slice(start, nextEnd), next = source.slice(0, from2) + insert2 + source.slice(to);
-    if (to - from2 > 4096 || insert2.length > 4096 || next.length > import_document_capacity3.default.MAX_SOURCE_UNITS) return reject2();
+    if (to - from2 > 4096 || insert2.length > 4096 || next.length > import_document_capacity3.default.MAX_SOURCE_UNITS) return reject3();
     const expected = structuredClone(p.doc);
     inlineTarget(expected, spans[0]).content = inlineNodes(pieces);
     return { ok: true, source: next, expected, change: { from: from2, to, insert: insert2 }, inverseSource: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }, structural: true, selection };
@@ -725,7 +797,7 @@
     if (!spans.some((s) => s.frames)) return null;
     const touched = from2 === to ? [spans.find((s) => s.from < from2 && from2 <= s.to) || spans[0]] : spans.filter((s) => s.from < to && s.to > from2);
     const first2 = touched[0], last = touched.at(-1);
-    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject2();
+    if (!first2 || from2 < first2.from || to > last.to || cut2(first2.text, from2 - first2.from) || cut2(last.text, to - last.from)) return reject3();
     const pieces = [
       ...spans.slice(0, spans.indexOf(first2)),
       { ...first2, text: first2.text.slice(0, from2 - first2.from) + insert2 },
@@ -824,10 +896,10 @@
   function planTableText(source, projection, { from: from2, to, insert: insert2 }) {
     const block = projection.blocks.find((b) => b?.cells && (from2 > b.from && from2 < b.to || to > b.from && to < b.to));
     if (!block) return null;
-    const reject9 = () => ({ ok: false, code: "unsafe-source-range" }), cell2 = block.cells.flat().find((c) => from2 >= c.from && to <= c.to);
-    if (!cell2 || !valid(insert2)) return reject9();
+    const reject10 = () => ({ ok: false, code: "unsafe-source-range" }), cell2 = block.cells.flat().find((c) => from2 >= c.from && to <= c.to);
+    if (!cell2 || !valid(insert2)) return reject10();
     const plan = planTreeRange(source, projection, { from: from2, to, insert: insert2 }, cell2.parts);
-    if (!plan?.ok) return plan || reject9();
+    if (!plan?.ok) return plan || reject10();
     const leaf = cell2.parts.find((s) => from2 >= s.from && to <= s.to);
     if (leaf) {
       const a = leaf.sourceFrom + from2 - leaf.from, b = leaf.sourceFrom + to - leaf.from;
@@ -846,7 +918,7 @@
   var import_document_capacity5 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS2 } = import_document_capacity5.default;
   function planInlineRange(source, projection, change) {
-    const { from: from2, to, insert: insert2 } = change, reject9 = () => ({ ok: false, code: "unsafe-source-range" });
+    const { from: from2, to, insert: insert2 } = change, reject10 = () => ({ ok: false, code: "unsafe-source-range" });
     const index2 = projection.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
     if (index2 < 0) return null;
     const block = projection.blocks[index2], list3 = !!block.items;
@@ -855,11 +927,11 @@
     if (!list3 && !quoted && !["paragraph", "heading"].includes(projection.doc.content[index2].type)) return null;
     const itemIndex = list3 ? block.items.findIndex((row) => from2 >= row.from && from2 <= row.to) : void 0;
     const endItem = list3 ? block.items.findIndex((row) => to >= row.from && to <= row.to) : void 0;
-    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject9();
+    if (list3 && (itemIndex < 0 || endItem < itemIndex)) return reject10();
     const cross = list3 && endItem > itemIndex;
-    if (cross && block.items.slice(itemIndex, endItem + 1).some((r) => !sameListParent(block.items[itemIndex], r) || r.subtreeTo !== r.sourceTo)) return reject9();
+    if (cross && block.items.slice(itemIndex, endItem + 1).some((r) => !sameListParent(block.items[itemIndex], r) || r.subtreeTo !== r.sourceTo)) return reject10();
     const spans = projection.spans.filter((s) => s.blockIndex === index2 && (list3 ? s.itemIndex >= itemIndex && s.itemIndex <= endItem : quoted ? s.quoteIndex === quoteRow : s.itemIndex === void 0));
-    if (cross && spans.some((s) => s.link || s.frames)) return reject9();
+    if (cross && spans.some((s) => s.link || s.frames)) return reject10();
     const tree = planTreeRange(source, projection, change, spans);
     if (tree) return tree;
     if (!list3 && !spans.some((s) => s.bold || s.italic || s.code || s.link) || spans.some((s) => s.textOffset !== void 0)) return null;
@@ -870,15 +942,15 @@
       b: s.link ? s.linkSource?.to : s.sourceTo + (s.bold ? 2 : s.italic || s.code ? 1 : 0),
       marker: s.bold || s.italic || s.code ? source.slice(s.sourceFrom - (s.bold ? 2 : 1), s.sourceFrom) : ""
     }));
-    if (tokens.some((s, i) => !Number.isInteger(s.a) || !Number.isInteger(s.b) || (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject9();
+    if (tokens.some((s, i) => !Number.isInteger(s.a) || !Number.isInteger(s.b) || (s.bold || s.italic || s.code) && (!(s.bold ? ["**", "__"] : s.code ? ["`"] : ["*", "_"]).includes(s.marker) || source.slice(s.sourceTo, s.b) !== s.marker) || i && tokens[i - 1].itemIndex === s.itemIndex && tokens[i - 1].b !== s.a)) return reject10();
     if (cross && block.items.slice(itemIndex, endItem + 1).some((row, i) => {
       const part = tokens.filter((s) => s.itemIndex === itemIndex + i);
       return !part.length || part[0].a !== row.bodyFrom || part.at(-1).b !== row.sourceTo;
-    })) return reject9();
+    })) return reject10();
     const left = cross ? tokens.filter((s) => s.itemIndex === itemIndex) : null, right = cross ? tokens.filter((s) => s.itemIndex === endItem) : null;
     const touched = cross ? [left.find((s) => from2 >= s.from && from2 < s.to) || left.at(-1), right.find((s) => to > s.from && to <= s.to) || right[0]] : from2 === to ? [tokens.find((s) => s.from < from2 && from2 <= s.to) || tokens[0]] : tokens.filter((s) => s.from < to && s.to > from2);
     const first2 = touched[0], last = touched.at(-1);
-    if (!first2 || from2 < first2.from || to > last.to || cut4(first2.text, from2 - first2.from) || cut4(last.text, to - last.from)) return reject9();
+    if (!first2 || from2 < first2.from || to > last.to || cut4(first2.text, from2 - first2.from) || cut4(last.text, to - last.from)) return reject10();
     const pieces = [];
     const append2 = (text6, token) => {
       if (!text6) return;
@@ -903,9 +975,9 @@
       nextEnd++;
     }
     const a = first2.a + start, b = first2.a + end, text5 = replacement.slice(start, nextEnd);
-    if (b - a > 4096 || text5.length > 4096) return reject9();
+    if (b - a > 4096 || text5.length > 4096) return reject10();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS2) return reject9();
+    if (next.length > MAX_SOURCE_UNITS2) return reject10();
     const expected = structuredClone(projection.doc), nodes2 = [];
     const add2 = (s) => {
       if (!s.text) return;
@@ -917,7 +989,7 @@
     pieces.forEach(add2);
     for (const s of tokens.slice(tokens.indexOf(last) + 1)) add2(s);
     const target = list3 ? listNodeAt(expected.content[index2], block.items[itemIndex].path).content[0] : quoted ? expected.content[index2].content[quoteRow] : expected.content[index2];
-    if (list3 && !nodes2.length && block.items.length === 1 && spans.some((s) => s.link)) return reject9();
+    if (list3 && !nodes2.length && block.items.length === 1 && spans.some((s) => s.link)) return reject10();
     target.content = nodes2;
     if (cross) listNodeAt(expected.content[index2], block.items[itemIndex].path.slice(0, -1)).content.splice(block.items[itemIndex].siblingIndex + 1, endItem - itemIndex);
     return {
@@ -1207,7 +1279,7 @@
   VFileMessage.prototype.source = void 0;
 
   // node_modules/vfile/lib/minpath.browser.js
-  var minpath = { basename, dirname, extname, join, sep: "/" };
+  var minpath = { basename, dirname, extname, join: join2, sep: "/" };
   function basename(path2, extname2) {
     if (extname2 !== void 0 && typeof extname2 !== "string") {
       throw new TypeError('"ext" argument must be a string');
@@ -1324,7 +1396,7 @@
     }
     return path2.slice(startDot, end);
   }
-  function join(...segments) {
+  function join2(...segments) {
     let index2 = -1;
     let joined;
     while (++index2 < segments.length) {
@@ -2190,7 +2262,7 @@
       assertParser("process", this.parser || this.Parser);
       assertCompiler("process", this.compiler || this.Compiler);
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject9) {
+      function executor(resolve, reject10) {
         const realFile = vfile(file);
         const parseTree = (
           /** @type {HeadTree extends undefined ? Node : HeadTree} */
@@ -2220,7 +2292,7 @@
         });
         function realDone(error, file2) {
           if (error || !file2) {
-            reject9(error);
+            reject10(error);
           } else if (resolve) {
             resolve(file2);
           } else {
@@ -2324,7 +2396,7 @@
         file = void 0;
       }
       return done ? executor(void 0, done) : new Promise(executor);
-      function executor(resolve, reject9) {
+      function executor(resolve, reject10) {
         ok(
           typeof file !== "function",
           "`file` can\u2019t be a `done` anymore, we checked"
@@ -2337,7 +2409,7 @@
             outputTree || tree
           );
           if (error) {
-            reject9(error);
+            reject10(error);
           } else if (resolve) {
             resolve(resultingTree);
           } else {
@@ -5932,14 +6004,14 @@
     return start;
     function start(code3) {
       let index2 = self.events.length;
-      let paragraph6;
+      let paragraph7;
       while (index2--) {
         if (self.events[index2][1].type !== "lineEnding" && self.events[index2][1].type !== "linePrefix" && self.events[index2][1].type !== "content") {
-          paragraph6 = self.events[index2][1].type === "paragraph";
+          paragraph7 = self.events[index2][1].type === "paragraph";
           break;
         }
       }
-      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph6)) {
+      if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph7)) {
         effects.enter("setextHeadingLine");
         marker = code3;
         return before(code3);
@@ -6719,7 +6791,7 @@
         listItemValue: onenterlistitemvalue,
         listOrdered: opener(list3, onenterlistordered),
         listUnordered: opener(list3),
-        paragraph: opener(paragraph6),
+        paragraph: opener(paragraph7),
         reference: onenterreference,
         referenceString: buffer,
         resourceDestinationString: buffer,
@@ -7291,7 +7363,7 @@
         children: []
       };
     }
-    function paragraph6() {
+    function paragraph7() {
       return {
         type: "paragraph",
         children: []
@@ -8955,7 +9027,7 @@
   }
 
   // node_modules/mdast-util-to-markdown/lib/handle/paragraph.js
-  function paragraph2(node2, _, state, info) {
+  function paragraph3(node2, _, state, info) {
     const exit3 = state.enter("paragraph");
     const subexit = state.enter("phrasing");
     const value = state.containerPhrasing(node2, info);
@@ -9091,7 +9163,7 @@
     linkReference,
     list: list2,
     listItem,
-    paragraph: paragraph2,
+    paragraph: paragraph3,
     root,
     strong,
     text: text3,
@@ -10758,10 +10830,10 @@
       }
       const body = line.slice(2), bodyFrom = sourceAt + 2, parts = [];
       if (body) {
-        const paragraph6 = node2.children.find((n) => n.position.start.offset === bodyFrom);
-        if (!paragraph6) return null;
+        const paragraph7 = node2.children.find((n) => n.position.start.offset === bodyFrom);
+        if (!paragraph7) return null;
         used++;
-        for (const child of paragraph6.children) {
+        for (const child of paragraph7.children) {
           const p = projectInlineParts(child, source);
           if (!p) return null;
           parts.push(...p);
@@ -10769,7 +10841,7 @@
         if (parts.length === 1 && !parts[0].bold && !parts[0].italic && !parts[0].code && !parts[0].link) {
           if (body.trimStart() !== body) return null;
           parts[0] = { ...parts[0], text: body, sourceFrom: bodyFrom, sourceTo: sourceAt + line.length };
-        } else if (paragraph6.position.end.offset !== sourceAt + line.length) return null;
+        } else if (paragraph7.position.end.offset !== sourceAt + line.length) return null;
       } else parts.push({ text: "", sourceFrom: bodyFrom, sourceTo: bodyFrom, bold: false });
       const quoteIndex = content5.length, nodes2 = [];
       let offset = 0;
@@ -10792,9 +10864,9 @@
   function mapCodeText(source, p, { from: from2, to, insert: insert2 }, project) {
     const s = p.spans.find((s2) => s2.codeBlock && from2 >= s2.from && to <= s2.to);
     if (!s) return null;
-    const reject9 = () => ({ ok: false, code: "unsafe-source-range" }), block = p.blocks[s.blockIndex], body = block.codeBody;
+    const reject10 = () => ({ ok: false, code: "unsafe-source-range" }), block = p.blocks[s.blockIndex], body = block.codeBody;
     const a = from2 - s.from, b = to - s.from;
-    if (!validCode(insert2) || splits(s.text, a) || splits(s.text, b)) return reject9();
+    if (!validCode(insert2) || splits(s.text, a) || splits(s.text, b)) return reject10();
     const offset = (n) => {
       let logical = 0, raw = 0;
       for (const part of source.slice(body.from, body.to).matchAll(/\r\n|[\s\S]/g)) {
@@ -10805,13 +10877,13 @@
       return body.from + raw;
     };
     const start = offset(a), end = offset(b), text5 = insert2.replace(/\n/g, body.nl) + (!body.separator && insert2 ? body.nl : "");
-    if (text5.length > 4096 || end - start > 4096) return reject9();
+    if (text5.length > 4096 || end - start > 4096) return reject10();
     const next = source.slice(0, start) + text5 + source.slice(end);
-    if (next.length > MAX_SOURCE_UNITS3) return reject9();
+    if (next.length > MAX_SOURCE_UNITS3) return reject10();
     const expected = structuredClone(p.doc);
     expected.content[s.blockIndex].content = inline2(s.text.slice(0, a) + insert2 + s.text.slice(b));
     const projection = project(next);
-    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject9();
+    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject10();
     return { ok: true, source: next, projection, change: { from: start, to: end, insert: text5 }, inverseSource: { from: start, to: start + text5.length, insert: source.slice(start, end) }, selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
   }
 
@@ -11029,8 +11101,8 @@
       const span = spans.find((s) => from2 >= s.from && from2 <= s.to);
       if (!span || !span.text || splits2(span.text, from2 - span.from)) return null;
       const offset = from2 - span.from, left = span.text.slice(0, offset), right = span.text.slice(offset);
-      const paragraph6 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
-      expected.content.splice(span.blockIndex, 1, paragraph6(left), paragraph6(right));
+      const paragraph7 = (value) => ({ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] });
+      expected.content.splice(span.blockIndex, 1, paragraph7(left), paragraph7(right));
       a = b = span.sourceFrom + offset;
       text5 = delimiter;
       inverse = { from: from2, to: from2 + 2, insert: "" };
@@ -11115,6 +11187,10 @@
     if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || typeof insert2 !== "string" || insert2.length > 4096) return unsafe();
     const projection = projectSource(source);
     if (leaf === null && paragraphSeparator === null) {
+      const prose = mapProseRange(source, projection, change, projectSource);
+      if (prose) return prose;
+    }
+    if (leaf === null && paragraphSeparator === null) {
       const article = mapArticleRange(source, projection, change, projectSource);
       if (article) return article;
     }
@@ -11131,8 +11207,8 @@
     if (leaf === null) {
       const soft = mapSoftRange(source, projection, change, projectSource);
       if (soft) return soft;
-      const paragraph6 = paragraphEdit(source, projection, change, true, paragraphSeparator);
-      if (paragraph6) return paragraph6;
+      const paragraph7 = paragraphEdit(source, projection, change, true, paragraphSeparator);
+      if (paragraph7) return paragraph7;
       const paste = paragraphReplace(source, projection, change, paragraphSeparator);
       if (paste) return paste;
       if (paragraphSeparator !== null) return unsafe();
@@ -11171,7 +11247,7 @@
 
   // lib/document-image-edit.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS5 } = import_document_capacity8.default;
-  var reject3 = (code3) => ({ ok: false, code: code3 || "unsafe-image-range" });
+  var reject4 = (code3) => ({ ok: false, code: code3 || "unsafe-image-range" });
   var empty2 = () => ({ type: "paragraph", content: [] });
   function imageSelection(source, { from: from2, to }) {
     if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 0 || to < from2) return null;
@@ -11183,10 +11259,10 @@
   }
   function mapImageEdit(source, command3) {
     const setting = command3.action === "set-image", keys2 = setting ? ["action", "from", "to", "label", "href"] : ["action", "from", "to"];
-    if (!["set-image", "remove-image", "image-exit"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject3();
+    if (!["set-image", "remove-image", "image-exit"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject4();
     const c = imageSelection(source, command3);
-    if (!c || !setting && !c.existing) return reject3();
-    if (setting && (!validImageLabel(command3.label) || !validImageTarget(command3.href))) return reject3("invalid-image-reference");
+    if (!c || !setting && !c.existing) return reject4();
+    if (setting && (!validImageLabel(command3.label) || !validImageTarget(command3.href))) return reject4("invalid-image-reference");
     const { p, index: index2, block } = c, expected = structuredClone(p.doc), node2 = expected.content[index2];
     const nl = source.match(/\r\n|\n|\r/)?.[0] || "\n";
     let a = block.sourceFrom, b = block.sourceTo, text5, target = index2, prose = false;
@@ -11214,13 +11290,13 @@
       target++;
       expected.content.splice(target, 0, empty2());
     }
-    if (text5.length > 4096 || b - a > 4096) return reject3();
+    if (text5.length > 4096 || b - a > 4096) return reject4();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS5) return reject3();
+    if (next.length > MAX_SOURCE_UNITS5) return reject4();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject3();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject4();
     const chosen = projection.blocks[target];
-    if (!chosen) return reject3();
+    if (!chosen) return reject4();
     const from2 = prose ? chosen.from + 1 : chosen.from, to = prose ? from2 : chosen.to;
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: from2, to } };
   }
@@ -16190,7 +16266,7 @@
       pos = dir < 0 ? $pos.before(d) : $pos.after(d);
     }
   }
-  function join2(tr2, pos, depth2) {
+  function join3(tr2, pos, depth2) {
     let convertNewlines = null;
     let { linebreakReplacement } = tr2.doc.type.schema;
     let $before = tr2.doc.resolve(pos - depth2), beforeType = $before.node().type;
@@ -16893,7 +16969,7 @@
     last and first siblings are also joined, and so on.
     */
     join(pos, depth2 = 1) {
-      join2(this, pos, depth2);
+      join3(this, pos, depth2);
       return this;
     }
     /**
@@ -18108,17 +18184,17 @@
   // lib/document-table-edit.mjs
   var import_document_capacity11 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity11.default;
-  var reject4 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject5 = () => ({ ok: false, code: "unsafe-format-range" });
   var tableActions = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-before", "table-exit"];
   function mapTableEdit(source, p, { action, from: from2, to }, project) {
-    if (from2 !== to) return reject4();
+    if (from2 !== to) return reject5();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
-    if (index2 < 0) return reject4();
+    if (index2 < 0) return reject5();
     const block = p.blocks[index2], expected = structuredClone(p.doc), node2 = expected.content[index2];
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     let a, b, text5, targetIndex = index2, targetRow = 0, targetCol = 0;
     if (action === "insert-table") {
-      if (node2.type !== "paragraph" || !p.spans.some((s) => s.blockIndex === index2 && s.textOffset === void 0 && from2 >= s.from && from2 <= s.to)) return reject4();
+      if (node2.type !== "paragraph" || !p.spans.some((s) => s.blockIndex === index2 && s.textOffset === void 0 && from2 >= s.from && from2 <= s.to)) return reject5();
       const created = { type: "table", content: [
         { type: "tableRow", content: [tableCell("\u5217 1", true), tableCell("\u5217 2", true)] },
         ...Array.from({ length: 2 }, () => ({ type: "tableRow", content: [tableCell("", false), tableCell("", false)] }))
@@ -18134,9 +18210,9 @@
         targetIndex++;
       }
     } else {
-      if (!block.cells) return reject4();
+      if (!block.cells) return reject5();
       const cell2 = block.cells.flat().find((c) => from2 >= c.from && from2 <= c.to);
-      if (!cell2) return reject4();
+      if (!cell2) return reject5();
       targetRow = cell2.tableRow;
       targetCol = cell2.tableCol;
       const rows = node2.content.length, cols = node2.content[0].content.length;
@@ -18144,7 +18220,7 @@
       a = block.sourceFrom;
       b = block.sourceTo;
       if (action === "table-add-row") {
-        if (rows >= TABLE_ROWS) return reject4();
+        if (rows >= TABLE_ROWS) return reject5();
         targetRow++;
         targetCol = 0;
         const i = targetRow + 1, previous3 = lines[i - 1], eol = previous3.eol || nl;
@@ -18152,7 +18228,7 @@
         previous3.eol = eol;
         node2.content.splice(targetRow, 0, { type: "tableRow", content: node2.content[0].content.map((c) => tableCell("", false, c.attrs.align)) });
       } else if (action === "table-delete-row") {
-        if (targetRow === 0) return reject4();
+        if (targetRow === 0) return reject5();
         const i = targetRow + 1;
         if (i === lines.length - 1) lines[i - 1].eol = lines[i].eol;
         lines.splice(i, 1);
@@ -18160,14 +18236,14 @@
         targetRow = Math.min(targetRow, rows - 2);
       } else if (action === "table-add-column" || action === "table-delete-column") {
         const add2 = action === "table-add-column";
-        if (add2 ? cols >= TABLE_COLUMNS : cols <= 1) return reject4();
+        if (add2 ? cols >= TABLE_COLUMNS : cols <= 1) return reject5();
         const col = targetCol + (add2 ? 1 : 0);
         for (const [i, line] of lines.entries()) line.values.splice(col, add2 ? 0 : 1, ...add2 ? [i === 1 ? "---" : ""] : []);
         for (const [i, row] of node2.content.entries()) row.content.splice(col, add2 ? 0 : 1, ...add2 ? [tableCell("", i === 0)] : []);
         targetCol = add2 ? col : Math.min(col, cols - 2);
       } else if (action === "table-exit" || action === "table-before") {
         return continueInProse(source, p, index2, action === "table-before", project);
-      } else return reject4();
+      } else return reject5();
       if (text5 === void 0) text5 = lines.map((l) => "|" + l.values.join("|") + "|" + l.eol).join("");
     }
     let old = source.slice(a, b), start = 0, end = old.length, last = text5.length;
@@ -18185,13 +18261,13 @@
     b = a + end;
     a += start;
     text5 = text5.slice(start, last);
-    if (text5.length > 4096 || b - a > 4096) return reject4();
+    if (text5.length > 4096 || b - a > 4096) return reject5();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS6) return reject4();
+    if (next.length > MAX_SOURCE_UNITS6) return reject5();
     const projection = project(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject4();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject5();
     const target = projection.blocks[targetIndex], pos = target?.cells?.[targetRow]?.[targetCol]?.from;
-    if (!Number.isSafeInteger(pos)) return reject4();
+    if (!Number.isSafeInteger(pos)) return reject5();
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: pos, to: pos } };
   }
 
@@ -18396,97 +18472,97 @@
   // lib/document-structured-edit.mjs
   var import_document_capacity13 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity13.default;
-  var reject5 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject6 = () => ({ ok: false, code: "unsafe-format-range" });
   var inline3 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
-  var paragraph3 = (content5) => ({ type: "paragraph", content: content5 });
+  var paragraph4 = (content5) => ({ type: "paragraph", content: content5 });
   var quote = (content5) => ({ type: "blockquote", content: content5 });
   var cuts = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   function mapStructuredEdit(source, p, { action, from: from2, to }, project) {
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return reject5();
+    if (index2 < 0) return reject6();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     let a = block.sourceFrom, b = block.sourceTo, text5, targetIndex = index2, targetRow = null, offset = 0;
     const rowIndex = block.quoteRows?.findIndex((r) => from2 >= r.from && to <= r.to), row = block.quoteRows?.[rowIndex];
     if (action === "blockquote" || action === "code-block" || action === "block-shortcut" || action === "fence-shortcut") {
-      if (!["paragraph", "heading"].includes(node2.type) || block.items) return reject5();
+      if (!["paragraph", "heading"].includes(node2.type) || block.items) return reject6();
       const spans = p.spans.filter((s) => s.blockIndex === index2), raw = source.slice(a, b), plain = node2.content.every((n) => !n.marks?.length);
-      if (spans.some((s) => s.textOffset !== void 0) || /[\r\n]/.test(raw)) return reject5();
+      if (spans.some((s) => s.textOffset !== void 0) || /[\r\n]/.test(raw)) return reject6();
       const body = node2.type === "heading" ? raw.replace(/^#{1,6} /, "") : raw;
       if (action === "blockquote") {
         text5 = "> " + body;
-        expected.content[index2] = quote([paragraph3(node2.content)]);
+        expected.content[index2] = quote([paragraph4(node2.content)]);
         targetRow = 0;
         offset = from2 - block.from - 1;
       } else if (action === "code-block") {
-        if (!plain) return reject5();
+        if (!plain) return reject6();
         text5 = "```" + nl + body + nl + "```";
         expected.content[index2] = { type: "codeBlock", attrs: { language: null, sourceEditable: true }, content: inline3(body) };
         offset = from2 - block.from - 1;
       } else {
-        if (from2 !== to || node2.type !== "paragraph" || !plain || from2 !== block.to - 1) return reject5();
+        if (from2 !== to || node2.type !== "paragraph" || !plain || from2 !== block.to - 1) return reject6();
         if (action === "block-shortcut" && raw === ">") {
           text5 = "> ";
-          expected.content[index2] = quote([paragraph3([])]);
+          expected.content[index2] = quote([paragraph4([])]);
           targetRow = 0;
         } else {
           const m = raw.match(/^```([A-Za-z0-9_+-]{0,32})$/);
-          if (!m) return reject5();
+          if (!m) return reject6();
           text5 = raw + nl + "```";
           expected.content[index2] = { type: "codeBlock", attrs: { language: m[1] || null, sourceEditable: true }, content: [] };
         }
       }
     } else if (action === "paragraph") {
       if (block.quoteRows) {
-        if (!row) return reject5();
+        if (!row) return reject6();
         text5 = block.quoteRows.map((r) => source.slice(r.bodyFrom, r.sourceTo)).join(nl + nl);
         expected.content.splice(index2, 1, ...node2.content);
         targetIndex += rowIndex;
         offset = from2 - row.from;
       } else if (block.codeBody) {
         const value = node2.content[0]?.text || "";
-        if (value.includes("\n")) return reject5();
+        if (value.includes("\n")) return reject6();
         text5 = value;
-        expected.content[index2] = paragraph3(inline3(value));
+        expected.content[index2] = paragraph4(inline3(value));
         offset = from2 - block.from - 1;
-      } else return reject5();
+      } else return reject6();
     } else if (action === "exit-block") {
-      if (from2 !== to || !block.quoteRows && !block.codeBody) return reject5();
+      if (from2 !== to || !block.quoteRows && !block.codeBody) return reject6();
       return continueInProse(source, p, index2, false, project);
     } else if (["split-quote", "join-quote"].includes(action)) {
-      if (!row || from2 !== to) return reject5();
+      if (!row || from2 !== to) return reject6();
       const spans = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex), current = node2.content[rowIndex], value = current.content.map((n) => n.text).join("");
       const at = from2 - row.from;
-      if (cuts(value, at)) return reject5();
+      if (cuts(value, at)) return reject6();
       const parts = spans.map((s) => ({ ...s, frames: inlineFrames(s, source) }));
-      if (renderInlineParts(parts, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject5();
+      if (renderInlineParts(parts, source) !== source.slice(row.bodyFrom, row.sourceTo)) return reject6();
       if (action === "join-quote") {
-        if (at !== 0) return reject5();
+        if (at !== 0) return reject6();
         if (rowIndex === 0) {
           b = block.quoteRows[1]?.sourceFrom ?? block.sourceTo;
           text5 = source.slice(row.bodyFrom, row.sourceTo) + (node2.content.length > 1 ? nl + nl : "");
-          expected.content.splice(index2, 1, paragraph3(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
+          expected.content.splice(index2, 1, paragraph4(current.content), ...node2.content.length > 1 ? [quote(node2.content.slice(1))] : []);
         } else {
           const prev = block.quoteRows[rowIndex - 1], before = p.spans.filter((s) => s.blockIndex === index2 && s.quoteIndex === rowIndex - 1).map((s) => ({ ...s, frames: inlineFrames(s, source) }));
-          if (renderInlineParts(before, source) !== source.slice(prev.bodyFrom, prev.sourceTo)) return reject5();
+          if (renderInlineParts(before, source) !== source.slice(prev.bodyFrom, prev.sourceTo)) return reject6();
           const joined = mergeInlineParts([...before, ...parts]);
           a = prev.bodyFrom;
           b = row.sourceTo;
           text5 = renderInlineParts(joined, source);
-          expected.content[index2].content.splice(rowIndex - 1, 2, paragraph3(inlineNodes(joined)));
+          expected.content[index2].content.splice(rowIndex - 1, 2, paragraph4(inlineNodes(joined)));
           targetRow = rowIndex - 1;
           offset = before.map((s) => s.text).join("").length;
         }
       } else if (!value) {
-        if (rowIndex !== node2.content.length - 1) return reject5();
+        if (rowIndex !== node2.content.length - 1) return reject6();
         if (rowIndex === 0) {
           text5 = "";
-          expected.content[index2] = paragraph3([]);
+          expected.content[index2] = paragraph4([]);
         } else {
           a = block.quoteRows[rowIndex - 1].sourceTo;
           text5 = nl + nl;
           expected.content[index2].content.pop();
-          expected.content.splice(index2 + 1, 0, paragraph3([]));
+          expected.content.splice(index2 + 1, 0, paragraph4([]));
           targetIndex++;
         }
       } else {
@@ -18501,11 +18577,11 @@
         a = row.bodyFrom;
         b = row.sourceTo;
         text5 = renderInlineParts(left2, source) + nl + "> " + nl + "> " + renderInlineParts(right2, source);
-        expected.content[index2].content.splice(rowIndex, 1, paragraph3(inlineNodes(left2)), paragraph3(inlineNodes(right2)));
+        expected.content[index2].content.splice(rowIndex, 1, paragraph4(inlineNodes(left2)), paragraph4(inlineNodes(right2)));
         targetRow = rowIndex + 1;
       }
-    } else return reject5();
-    if (typeof text5 !== "string") return reject5();
+    } else return reject6();
+    if (typeof text5 !== "string") return reject6();
     const old = source.slice(a, b);
     let left = 0, right = old.length, end = text5.length;
     while (left < right && left < end && old[left] === text5[left]) left++;
@@ -18521,20 +18597,20 @@
     b = a + right;
     a += left;
     text5 = text5.slice(left, end);
-    if (text5.length > 4096 || b - a > 4096) return reject5();
+    if (text5.length > 4096 || b - a > 4096) return reject6();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS8) return reject5();
+    if (next.length > MAX_SOURCE_UNITS8) return reject6();
     const projection = project(next);
-    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject5();
+    if (JSON.stringify(expected) !== JSON.stringify(projection.doc)) return reject6();
     const target = projection.blocks[targetIndex], pos = (targetRow === null ? target?.from + 1 : target?.quoteRows?.[targetRow]?.from) + offset;
-    if (!Number.isSafeInteger(pos) || pos >= target.to) return reject5();
+    if (!Number.isSafeInteger(pos) || pos >= target.to) return reject6();
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: text5 }, inverseSource: { from: a, to: a + text5.length, insert: source.slice(a, b) }, selection: { from: pos, to: pos } };
   }
 
   // lib/document-link-edit.mjs
   var import_document_capacity14 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity14.default;
-  var reject6 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
+  var reject7 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
   var splits3 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var eligible = (s) => !s.codeBlock && s.textOffset === void 0;
   var sameParent = (a, b) => a.blockIndex === b.blockIndex && a.itemIndex === b.itemIndex && a.quoteIndex === b.quoteIndex && a.tableRow === b.tableRow && a.tableCol === b.tableCol;
@@ -18630,13 +18706,13 @@
   }
   function mapLinkEdit(source, command3) {
     const setting = command3.action === "set-link", keys2 = setting ? ["action", "from", "to", "label", "href"] : ["action", "from", "to"];
-    if (!["set-link", "remove-link"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject6();
+    if (!["set-link", "remove-link"].includes(command3.action) || Object.keys(command3).length !== keys2.length || Object.keys(command3).some((k) => !keys2.includes(k))) return reject7();
     const c = linkSelection(source, command3);
-    if (!c || !setting && !c.existing) return reject6();
+    if (!c || !setting && !c.existing) return reject7();
     const { span: s, projection: p } = c, label = setting ? command3.label : c.label;
-    if (!validString(label) || !label.trim() || label.length > 512) return reject6("invalid-link-label");
-    if (setting && !validLinkTarget(command3.href)) return reject6("invalid-link-target");
-    if (setting && c.formattedLabel && label !== c.label) return reject6("unsafe-link-label");
+    if (!validString(label) || !label.trim() || label.length > 512) return reject7("invalid-link-label");
+    if (setting && !validLinkTarget(command3.href)) return reject7("invalid-link-target");
+    if (setting && c.formattedLabel && label !== c.label) return reject7("unsafe-link-label");
     const expected = structuredClone(p.doc), parent = spanBlock({ doc: expected }, s), block = p.blocks[s.blockIndex];
     const start = s.tableRow !== void 0 ? block.cells[s.tableRow][s.tableCol].from : s.itemIndex !== void 0 ? block.items[s.itemIndex].from : s.quoteIndex !== void 0 ? block.quoteRows[s.quoteIndex].from : block.from + 1;
     const attrs = setting ? { href: command3.href, title: s.link?.title ?? null } : null;
@@ -18660,21 +18736,21 @@
       }
       insert2 = "[" + (s.code ? "`" + label + "`" : label) + "](<" + command3.href + ">)";
     }
-    if (!replaceLabel(parent, c.from - start, c.to - start, c.formattedLabel || !setting ? null : label, attrs, inlineTextNode(s).marks)) return reject6();
-    if (insert2.length > 4096 || b - a > 4096) return reject6();
+    if (!replaceLabel(parent, c.from - start, c.to - start, c.formattedLabel || !setting ? null : label, attrs, inlineTextNode(s).marks)) return reject7();
+    if (insert2.length > 4096 || b - a > 4096) return reject7();
     const next = source.slice(0, a) + insert2 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS9) return reject6();
+    if (next.length > MAX_SOURCE_UNITS9) return reject7();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject6("unsafe-link-content");
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject7("unsafe-link-content");
     return { ok: true, source: next, projection, change: { from: a, to: b, insert: insert2 }, inverseSource: { from: a, to: a + insert2.length, insert: source.slice(a, b) }, selection: { from: c.from, to: c.from + label.length } };
   }
 
   // lib/document-boundary-edit.mjs
   var import_document_capacity15 = __toESM(require_document_capacity(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity15.default;
-  var reject7 = () => ({ ok: false, code: "unsafe-format-range" });
-  var paragraph4 = (content5) => ({ type: "paragraph", content: content5 });
-  var item = (content5) => ({ type: "listItem", content: [paragraph4(content5)] });
+  var reject8 = () => ({ ok: false, code: "unsafe-format-range" });
+  var paragraph5 = (content5) => ({ type: "paragraph", content: content5 });
+  var item = (content5) => ({ type: "listItem", content: [paragraph5(content5)] });
   var cutsPair = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var mark = (marker) => marker === "`" ? "code" : marker.length === 2 ? "bold" : marker ? "italic" : null;
   var render2 = (pieces) => pieces.some((p) => p.frames) ? renderInlineParts(pieces, "") : pieces.map((p) => p.marker + p.text + p.marker).join("");
@@ -18693,10 +18769,17 @@
     return [left, right];
   }
   function mapBoundaryEdit(source, p, { action, from: from2, to }, project) {
-    if (from2 !== to) return reject7();
+    if (from2 !== to) return reject8();
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && from2 < b2.to);
-    if (index2 < 0) return reject7();
+    if (index2 < 0) return reject8();
     const block = p.blocks[index2], node2 = p.doc.content[index2], expected = structuredClone(p.doc);
+    if (action === "join-paragraph" && node2.type === "paragraph" && from2 === block.from + 1 && index2 > 0) {
+      const previous3 = p.blocks[index2 - 1];
+      if (previous3) {
+        const prose = mapProseRange(source, p, { from: previous3.to - 1, to: from2, insert: "" }, project);
+        if (prose) return prose;
+      }
+    }
     const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     function body(i, rowIndex = null, heading3 = false) {
       const b2 = p.blocks[i], n = p.doc.content[i];
@@ -18712,53 +18795,53 @@
     }
     let a, b, text5, targetIndex = index2, targetItem = null, offset = 0;
     if (action === "split-heading") {
-      if (node2.type !== "heading") return reject7();
+      if (node2.type !== "heading") return reject8();
       const current = body(index2, null, true);
-      if (!current) return reject7();
+      if (!current) return reject8();
       const at = from2 - current.from;
-      if (!at || cutsPair(current.text, at)) return reject7();
+      if (!at || cutsPair(current.text, at)) return reject8();
       const [left, right] = split3(current.pieces, at);
       a = current.a;
       b = current.b;
       text5 = render2(left) + nl + nl + render2(right);
       expected.content[index2].content = content3(left);
-      expected.content.splice(index2 + 1, 0, paragraph4(content3(right)));
+      expected.content.splice(index2 + 1, 0, paragraph5(content3(right)));
       targetIndex++;
     } else if (action === "split-paragraph" && node2.type === "paragraph" && from2 === block.to - 1 && p.spans.some((s) => s.blockIndex === index2 && s.link) && !p.spans.some((s) => s.blockIndex === index2 && s.textOffset !== void 0)) {
       a = b = block.sourceTo;
       text5 = nl + nl;
-      expected.content.splice(index2 + 1, 0, paragraph4([]));
+      expected.content.splice(index2 + 1, 0, paragraph5([]));
       targetIndex++;
     } else if (action === "split-paragraph" || action === "join-paragraph") {
       const current = body(index2);
-      if (!current) return reject7();
+      if (!current) return reject8();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject7();
+      if (cutsPair(current.text, at)) return reject8();
       if (action === "split-paragraph") {
-        if (!current.text) return reject7();
+        if (!current.text) return reject8();
         const [left, right] = split3(current.pieces, at);
         a = current.a;
         b = current.b;
         text5 = render2(left) + nl + nl + render2(right);
-        expected.content.splice(index2, 1, paragraph4(content3(left)), paragraph4(content3(right)));
+        expected.content.splice(index2, 1, paragraph5(content3(left)), paragraph5(content3(right)));
         targetIndex++;
       } else {
         const previous3 = body(index2 - 1);
-        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject7();
+        if (at !== 0 || !previous3 || !previous3.text && !current.text || source.slice(previous3.b, current.a) !== nl + nl) return reject8();
         const pieces = merge([...previous3.pieces, ...current.pieces]);
         a = previous3.a;
         b = current.b;
         text5 = render2(pieces);
-        expected.content.splice(index2 - 1, 2, paragraph4(content3(pieces)));
+        expected.content.splice(index2 - 1, 2, paragraph5(content3(pieces)));
         targetIndex--;
         offset = previous3.text.length;
       }
     } else {
-      if (!block.items) return reject7();
+      if (!block.items) return reject8();
       const rows = block.items, i = rows.findIndex((r) => from2 >= r.from && from2 <= r.to), current = body(index2, i);
-      if (!current) return reject7();
+      if (!current) return reject8();
       const at = from2 - current.from;
-      if (cutsPair(current.text, at)) return reject7();
+      if (cutsPair(current.text, at)) return reject8();
       const items = expected.content[index2].content;
       const remainder = (start2) => ({
         ...structuredClone(node2),
@@ -18766,18 +18849,18 @@
         content: items.slice(start2)
       });
       if (action === "split-list" && !current.text) {
-        if (i !== 0 && i !== rows.length - 1) return reject7();
+        if (i !== 0 && i !== rows.length - 1) return reject8();
         if (i === 0) {
           a = block.sourceFrom;
           b = rows[1]?.sourceFrom ?? block.sourceTo;
           text5 = rows.length > 1 ? nl + nl : "";
-          expected.content.splice(index2, 1, paragraph4([]), ...rows.length > 1 ? [remainder(1)] : []);
+          expected.content.splice(index2, 1, paragraph5([]), ...rows.length > 1 ? [remainder(1)] : []);
         } else {
           a = rows[i - 1].sourceTo;
           b = current.b;
           text5 = nl + nl;
           items.pop();
-          expected.content.splice(index2 + 1, 0, paragraph4([]));
+          expected.content.splice(index2 + 1, 0, paragraph5([]));
           targetIndex++;
         }
       } else if (action === "split-list") {
@@ -18793,10 +18876,10 @@
           a = block.sourceFrom;
           b = rows[1]?.sourceFrom ?? block.sourceTo;
           text5 = render2(current.pieces) + (rows.length > 1 ? nl + nl : "");
-          expected.content.splice(index2, 1, paragraph4(content3(current.pieces)), ...rows.length > 1 ? [remainder(1)] : []);
+          expected.content.splice(index2, 1, paragraph5(content3(current.pieces)), ...rows.length > 1 ? [remainder(1)] : []);
         } else {
           const previous3 = body(index2, i - 1);
-          if (!previous3) return reject7();
+          if (!previous3) return reject8();
           const pieces = merge([...previous3.pieces, ...current.pieces]);
           a = previous3.a;
           b = current.b;
@@ -18805,7 +18888,7 @@
           targetItem = i - 1;
           offset = previous3.text.length;
         }
-      } else return reject7();
+      } else return reject8();
     }
     const old = source.slice(a, b);
     let start = 0, end = old.length, nextEnd = text5.length;
@@ -18822,14 +18905,14 @@
     b = a + end;
     a += start;
     text5 = text5.slice(start, nextEnd);
-    if (text5.length > 4096 || b - a > 4096) return reject7();
+    if (text5.length > 4096 || b - a > 4096) return reject8();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS10) return reject7();
+    if (next.length > MAX_SOURCE_UNITS10) return reject8();
     const projection = project(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject7();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject8();
     const target = projection.blocks[targetIndex];
     const position2 = (targetItem === null ? target?.from + 1 : target?.items?.[targetItem]?.from) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject7();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject8();
     return {
       ok: true,
       source: next,
@@ -18842,10 +18925,10 @@
 
   // lib/document-format-edit.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity16.default;
-  var reject8 = () => ({ ok: false, code: "unsafe-format-range" });
+  var reject9 = () => ({ ok: false, code: "unsafe-format-range" });
   var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "block-shortcut", "fence-shortcut", "blockquote", "code-block", "split-quote", "join-quote", "exit-block", "bold", "italic", "code", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph", "task-list", "task-shortcut", "toggle-task", "indent-list", "outdent-list"];
-  var paragraph5 = (content5) => ({ type: "paragraph", content: content5 });
-  var item2 = (content5) => ({ type: "listItem", content: [paragraph5(content5)] });
+  var paragraph6 = (content5) => ({ type: "paragraph", content: content5 });
+  var item2 = (content5) => ({ type: "listItem", content: [paragraph6(content5)] });
   var inline4 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
   var splits4 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   function merge2(nodes2) {
@@ -18858,26 +18941,26 @@
     return result;
   }
   function mapFormatEdit(source, command3) {
-    if (!command3 || Object.getPrototypeOf(command3) !== Object.prototype) return reject8();
+    if (!command3 || Object.getPrototypeOf(command3) !== Object.prototype) return reject9();
     if (["set-image", "remove-image", "image-exit"].includes(command3.action)) return mapImageEdit(source, command3);
     if (["set-link", "remove-link"].includes(command3.action)) return mapLinkEdit(source, command3);
-    if (Object.keys(command3).length !== 3 || Object.keys(command3).some((k) => !["action", "from", "to"].includes(k))) return reject8();
+    if (Object.keys(command3).length !== 3 || Object.keys(command3).some((k) => !["action", "from", "to"].includes(k))) return reject9();
     const { action, from: from2, to } = command3;
-    if (![...actions, ...tableActions].includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject8();
+    if (![...actions, ...tableActions].includes(action) || !Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 < 1 || to < from2) return reject9();
     const p = projectSource(source);
     const article = mapArticleFormat(source, p, command3, projectSource);
     if (article) return article;
     const combined = mapCombinedMark(source, p, command3, projectSource);
     if (combined) return combined;
     if (tableActions.includes(action)) return mapTableEdit(source, p, command3, projectSource);
-    if (p.blocks.some((b2) => b2?.cells && from2 > b2.from && to < b2.to)) return reject8();
+    if (p.blocks.some((b2) => b2?.cells && from2 > b2.from && to < b2.to)) return reject9();
     const selectedList = p.blocks.find((b2) => b2?.items && from2 > b2.from && to < b2.to);
     const structuredList = selectedList?.items.some((r) => r.path.length > 1 || r.checked !== null);
     if (["task-shortcut", "toggle-task", "indent-list", "outdent-list"].includes(action) || action === "task-list" && selectedList || ["split-list", "join-list"].includes(action) && structuredList)
       return mapListEdit(source, p, command3, projectSource);
     if (["split-list", "join-list", "split-paragraph", "join-paragraph", "split-heading"].includes(action)) return mapBoundaryEdit(source, p, command3, projectSource);
     const index2 = p.blocks.findIndex((b2) => b2 && from2 > b2.from && to < b2.to);
-    if (index2 < 0) return reject8();
+    if (index2 < 0) return reject9();
     const structured = p.blocks[index2].quoteRows || p.blocks[index2].codeBody;
     if (["blockquote", "code-block", "split-quote", "join-quote", "exit-block", "fence-shortcut"].includes(action) || structured && action === "paragraph" || action === "block-shortcut" && /^(?:>|```[A-Za-z0-9_+-]{0,32})$/.test(source.slice(p.blocks[index2].sourceFrom, p.blocks[index2].sourceTo)))
       return mapStructuredEdit(source, p, command3, projectSource);
@@ -18886,9 +18969,9 @@
     let a = block.sourceFrom, b = block.sourceTo, text5, offset = from2 - block.from - 1, targetIndex = index2, targetItem = null, targetQuote = null;
     const nl = source.slice(a, b).match(/\r\n|\n|\r/)?.[0] || source.match(/\r\n|\n|\r/)?.[0] || "\n";
     if (action === "block-shortcut") {
-      if (node2.type !== "paragraph" || !selected2 || from2 !== to || selected2.textOffset !== void 0 || node2.content.length !== 1 || selected2.bold || selected2.italic || selected2.code || selected2.link) return reject8();
+      if (node2.type !== "paragraph" || !selected2 || from2 !== to || selected2.textOffset !== void 0 || node2.content.length !== 1 || selected2.bold || selected2.italic || selected2.code || selected2.link) return reject9();
       const prefix = selected2.text.slice(0, from2 - selected2.from), body = selected2.text.slice(from2 - selected2.from);
-      if (!/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(prefix) || source.slice(a, b) !== selected2.text) return reject8();
+      if (!/^(?:#{1,6}|[-+*]|\d{1,9}[.)])$/.test(prefix) || source.slice(a, b) !== selected2.text) return reject9();
       a = b = selected2.sourceFrom + prefix.length;
       text5 = " ";
       offset = 0;
@@ -18899,15 +18982,15 @@
         targetItem = 0;
       }
     } else if (["bold", "italic", "code"].includes(action)) {
-      if (!selected2 || selected2.link || from2 === to || selected2.textOffset !== void 0 || ["bold", "italic", "code"].some((mark2) => mark2 !== action && selected2[mark2])) return reject8();
+      if (!selected2 || selected2.link || from2 === to || selected2.textOffset !== void 0 || ["bold", "italic", "code"].some((mark2) => mark2 !== action && selected2[mark2])) return reject9();
       const start = from2 - selected2.from, end = to - selected2.from, value = selected2.text.slice(start, end);
-      if (splits4(selected2.text, start) || splits4(selected2.text, end) || !value.trim() || value.trim() !== value) return reject8();
+      if (splits4(selected2.text, start) || splits4(selected2.text, end) || !value.trim() || value.trim() !== value) return reject9();
       const parent = spanBlock({ doc: expected }, selected2), child = selected2.inlineIndex ?? selected2.childIndex;
       a = selected2.sourceFrom + start;
       b = selected2.sourceFrom + end;
       const marker = action === "bold" ? "**" : action === "italic" ? "*" : "`";
       if (selected2[action]) {
-        if (start !== 0 || end !== selected2.text.length) return reject8();
+        if (start !== 0 || end !== selected2.text.length) return reject9();
         a -= marker.length;
         b += marker.length;
         text5 = value;
@@ -18921,12 +19004,12 @@
       targetQuote = selected2.quoteIndex ?? null;
       offset = to - (list3 ? block.items[targetItem].from : targetQuote !== null ? block.quoteRows[targetQuote].from : block.from + 1);
     } else if (list3) {
-      if (block.items.some((r) => r.path.length > 1 || r.checked !== null)) return reject8();
-      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject8();
+      if (block.items.some((r) => r.path.length > 1 || r.checked !== null)) return reject9();
+      if (!["paragraph", "bullet-list", "ordered-list"].includes(action)) return reject9();
       const rows = block.items.map((row) => source.slice(row.bodyFrom, row.sourceTo));
       if (action === "paragraph" || action === "bullet-list" && node2.type === "bulletList" || action === "ordered-list" && node2.type === "orderedList") {
         text5 = rows.join(nl + nl);
-        expected.content.splice(index2, 1, ...node2.content.map((n) => paragraph5(n.content[0].content)));
+        expected.content.splice(index2, 1, ...node2.content.map((n) => paragraph6(n.content[0].content)));
         targetIndex = index2 + (selected2?.itemIndex ?? 0);
         offset = selected2 ? from2 - block.items[selected2.itemIndex].from : 0;
       } else {
@@ -18936,32 +19019,32 @@
         offset = selected2 ? from2 - block.items[targetItem].from : 0;
       }
     } else {
-      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject8();
+      if (!["paragraph", "heading"].includes(node2.type) || !selected2 || selected2.textOffset !== void 0) return reject9();
       const raw = source.slice(a, b), prefix = node2.type === "heading" ? raw.match(/^#{1,6}[ \t]+/)?.[0] : "";
-      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject8();
+      if (prefix === void 0 || /[\r\n]/.test(raw)) return reject9();
       const body = raw.slice(prefix.length);
-      if (body.trim() !== body) return reject8();
+      if (body.trim() !== body) return reject9();
       if (action === "paragraph") {
         text5 = body;
-        expected.content[index2] = paragraph5(node2.content);
+        expected.content[index2] = paragraph6(node2.content);
       } else if (action.startsWith("heading-")) {
         text5 = "#".repeat(Number(action.at(-1))) + " " + body;
         expected.content[index2] = { type: "heading", attrs: { level: Number(action.at(-1)) }, content: node2.content };
       } else {
         text5 = (action === "ordered-list" ? "1. " : action === "task-list" ? "- [ ] " : "- ") + body;
-        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: [action === "task-list" ? { type: "listItem", attrs: { checked: false }, content: [paragraph5(node2.content)] } : item2(node2.content)] };
+        expected.content[index2] = { type: action === "ordered-list" ? "orderedList" : "bulletList", ...action === "ordered-list" ? { attrs: { start: 1 } } : {}, content: [action === "task-list" ? { type: "listItem", attrs: { checked: false }, content: [paragraph6(node2.content)] } : item2(node2.content)] };
         targetItem = 0;
       }
     }
-    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject8();
+    if (typeof text5 !== "string" || text5.length > 4096 || b - a > 4096) return reject9();
     const next = source.slice(0, a) + text5 + source.slice(b);
-    if (next.length > MAX_SOURCE_UNITS11) return reject8();
+    if (next.length > MAX_SOURCE_UNITS11) return reject9();
     const projection = projectSource(next);
-    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject8();
+    if (JSON.stringify(projection.doc) !== JSON.stringify(expected)) return reject9();
     const target = projection.blocks[targetIndex];
-    if (!target) return reject8();
+    if (!target) return reject9();
     const position2 = (targetItem !== null ? target.items?.[targetItem]?.from : targetQuote !== null ? target.quoteRows?.[targetQuote]?.from : target.from + 1) + offset;
-    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject8();
+    if (!Number.isSafeInteger(position2) || position2 >= target.to) return reject9();
     return {
       ok: true,
       source: next,
@@ -51366,7 +51449,7 @@
   ];
 
   // lib/document-source-buffer.mjs
-  var import_document_source_edit = __toESM(require_document_source_edit(), 1);
+  var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
   var displaySource = (source) => source.replace(/\r\n|\r/g, "\n");
   var displayOffset = (source, offset) => displaySource(source.slice(0, offset)).length;
   function rawOffset(source, offset) {
@@ -51384,7 +51467,7 @@
     if (restored.length) {
       let source2 = tr2.startState.field(rawSource);
       for (const effect of restored) {
-        const patch2 = import_document_source_edit.default.sourceChange(source2, effect.value);
+        const patch2 = import_document_source_edit2.default.sourceChange(source2, effect.value);
         if (!patch2.ok) throw Error("Invalid source history");
         source2 = patch2.source;
       }
@@ -51407,21 +51490,21 @@
   });
   function sourceState(source, extensions = [], onRejected = () => {
   }) {
-    if (!import_document_source_edit.default.sourceDifference(source, source).ok) throw Error("Invalid source buffer");
+    if (!import_document_source_edit2.default.sourceDifference(source, source).ok) throw Error("Invalid source buffer");
     return EditorState2.create({ doc: displaySource(source), extensions: [
       initialSource.of(source),
       rawSource,
       EditorState2.transactionFilter.of((tr2) => {
         if (!tr2.docChanged) return tr2;
         const next = nextSource(tr2);
-        if (!import_document_source_edit.default.sourceDifference(tr2.startState.field(rawSource), next).ok || displaySource(next) !== tr2.newDoc.toString()) {
+        if (!import_document_source_edit2.default.sourceDifference(tr2.startState.field(rawSource), next).ok || displaySource(next) !== tr2.newDoc.toString()) {
           onRejected();
           return [];
         }
         return tr2;
       }),
       history(),
-      invertedEffects.of((tr2) => tr2.docChanged ? [restoreSource.of(import_document_source_edit.default.sourceDifference(tr2.startState.field(rawSource), nextSource(tr2)).inverse)] : []),
+      invertedEffects.of((tr2) => tr2.docChanged ? [restoreSource.of(import_document_source_edit2.default.sourceDifference(tr2.startState.field(rawSource), nextSource(tr2)).inverse)] : []),
       ...extensions
     ] });
   }
@@ -63281,7 +63364,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
 
   // lib/document-edit-controller.mjs
   var import_document_capacity18 = __toESM(require_document_capacity(), 1);
-  var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
+  var import_document_source_edit3 = __toESM(require_document_source_edit(), 1);
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity18.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
@@ -63621,7 +63704,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     }
     async function applySource(candidate) {
       if (disposed || locked || atCapacity() || inputPaused() || composition || historyPending || queue.length || flight || recoveries.length || confirmed.readOnly || confirmed.temporary !== true) return false;
-      const mapped = import_document_source_edit2.default.sourceDifference(confirmed.source, candidate);
+      const mapped = import_document_source_edit3.default.sourceDifference(confirmed.source, candidate);
       if (!mapped.ok) {
         code3 = mapped.code;
         notify();
@@ -63767,30 +63850,30 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   // lib/document-plain-paste.mjs
   function pastePlainText(view, event, { state, blocked = false, report }) {
     event.preventDefault();
-    const reject9 = (message) => {
+    const reject10 = (message) => {
       report(message, true);
       return true;
     };
     if (!state || blocked || !view.editable || state.confirmed.readOnly || state.locked || state.historyPending || state.pending || state.source !== state.confirmed.source) {
-      return reject9("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject10("\u672A\u7C98\u8D34\uFF1A\u6587\u6863\u53EA\u8BFB\u3001\u6B63\u5728\u5904\u7406\u64CD\u4F5C\u6216\u5C1A\u672A\u540C\u6B65\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     if (view.composing || state.composing || state.compositionInvalid) {
-      return reject9("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject10("\u672A\u7C98\u8D34\uFF1A\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u8F93\u5165\u6CD5\u7EC4\u5408\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     let text5;
     try {
       const data2 = event.clipboardData;
       if (!data2 || data2.files?.length || !Array.from(data2.types || []).includes("text/plain")) {
-        return reject9("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u6216\u5355\u5F20 PNG/JPEG \u56FE\u7247\u3002\u6587\u4EF6\u8DEF\u5F84\u6682\u4E0D\u652F\u6301\u3002");
+        return reject10("\u672A\u7C98\u8D34\uFF1A\u526A\u8D34\u677F\u6CA1\u6709\u53EF\u7528\u7684\u7EAF\u6587\u672C\u6216\u5355\u5F20 PNG/JPEG \u56FE\u7247\u3002\u6587\u4EF6\u8DEF\u5F84\u6682\u4E0D\u652F\u6301\u3002");
       }
       text5 = data2.getData("text/plain");
     } catch {
-      return reject9("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject10("\u672A\u7C98\u8D34\uFF1A\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F\u6587\u5B57\u3002\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     const selection = view.state.selection;
     const inCode = selection.$from.sameParent(selection.$to) && selection.$from.parent.type.name === "codeBlock" && selection.$from.parent.attrs.sourceEditable === true;
     if (typeof text5 !== "string" || text5.length > 4096 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u2028\u2029]/u.test(text5) || !inCode && text5.includes("	")) {
-      return reject9("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u4EE3\u7801\u5757\u5916\u4E0D\u652F\u6301\u5236\u8868\u7B26\uFF0C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      return reject10("\u672A\u7C98\u8D34\uFF1A\u5F53\u524D\u53EA\u652F\u6301\u4E0D\u8D85\u8FC7 4096 \u4E2A UTF-16 \u5355\u4F4D\u7684\u7EAF\u6587\u672C\uFF1B\u4EE3\u7801\u5757\u5916\u4E0D\u652F\u6301\u5236\u8868\u7B26\uFF0C\u63A7\u5236\u5B57\u7B26\u6682\u4E0D\u652F\u6301\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
     }
     if (!text5) return true;
     let tr2;
@@ -63798,9 +63881,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     else if (/[\r\n]/.test(text5)) {
       const normalized = text5.replace(/\r\n|\r/g, "\n");
       const lines = normalized.split(/\n\n?/);
-      const canonical = lines.join("\n\n");
-      if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical.length > 4096) {
-        return reject9("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
+      const canonical2 = lines.join("\n\n");
+      if (lines.some((line) => !line.trim()) || lines.length > 32 || canonical2.length > 4096) {
+        return reject10("\u672A\u7C98\u8D34\uFF1A\u6682\u4E0D\u652F\u6301\u5F00\u5934\u6216\u7ED3\u5C3E\u7A7A\u884C\u3001\u8FDE\u7EED\u72EC\u7ACB\u7A7A\u6BB5\u843D\u3001\u8D85\u8FC7 32 \u6BB5\u6216\u8FC7\u957F\u6587\u672C\u3002\u6CA1\u6709\u622A\u65AD\u5185\u5BB9\u3002");
       }
       const schema = view.state.schema;
       const slice2 = new Slice(Fragment.fromArray(lines.map((line) => schema.nodes.paragraph.create(null, schema.text(line)))), 1, 1);
@@ -63808,7 +63891,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject9("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u540C\u4E00\u666E\u901A\u6BB5\u843D\u6216\u540C\u4E00\u7B80\u5355\u5217\u8868\u5185\uFF0C\u666E\u901A\u6587\u5B57\u3001\u7C97\u4F53\u4E0E\u659C\u4F53\u4E4B\u95F4\u652F\u6301\u5355\u884C\u7C98\u8D34\uFF1B\u591A\u884C\u53EF\u7C98\u8D34\u5230\u666E\u901A\u6BB5\u843D\u6216\u540C\u4E00\u57FA\u672C\u4EE3\u7801\u5757\u3002\u8DE8\u4E0D\u540C\u5217\u8868\u3001\u6807\u9898\u6216\u4EE3\u7801\u5757\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject10("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u652F\u6301\u666E\u901A\u53CA\u5E38\u7528\u683C\u5F0F\u6BB5\u843D\u5185\u548C\u6BB5\u843D\u4E4B\u95F4\u7684\u6587\u5B57\u66FF\u6362\u3001\u591A\u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\uFF0C\u4EE5\u53CA\u540C\u4E00\u7B80\u5355\u5217\u8868\u5185\u7684\u5355\u884C\u7C98\u8D34\uFF1B\u540C\u4E00\u57FA\u672C\u4EE3\u7801\u5757\u652F\u6301\u591A\u884C\u3002\u8DE8\u5217\u8868\u3001\u5F15\u7528\u3001\u6807\u9898\u6216\u8868\u683C\u8FB9\u754C\u6682\u4E0D\u652F\u6301\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
     }
     return true;
   }
@@ -63822,7 +63905,8 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     if (!(selection instanceof TextSelection) || selection.empty) return false;
     const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === "listItem";
     const crossItems = inItem && selection.$from.depth === selection.$to.depth && selection.$from.node(selection.$from.depth - 2) === selection.$to.node(selection.$to.depth - 2) && selection.$from.node(selection.$from.depth - 1) !== selection.$to.node(selection.$to.depth - 1) && selection.$to.parent.type.name === "paragraph";
-    if (keyDelete && !crossItems) return false;
+    const crossProse = selection.$from.depth === 1 && selection.$to.depth === 1 && selection.$from.parent.type.name === "paragraph" && selection.$to.parent.type.name === "paragraph" && !selection.$from.sameParent(selection.$to);
+    if (keyDelete && !crossItems && !crossProse) return false;
     if (selection.$from.sameParent(selection.$to) && (!["paragraph", "heading"].includes(selection.$from.parent.type.name) || !inItem && !selection.$from.parent.content.content.some((n) => n.marks.some((m) => ["bold", "italic", "code", "link"].includes(m.type.name))))) return false;
     if (event.inputType === "insertText" && (typeof event.data !== "string" || !event.data)) return false;
     const rejectTarget = () => {
@@ -64386,8 +64470,8 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       const at = view.posAtDOM(dom.anchorNode, dom.anchorOffset), pos = view.state.doc.resolve(at);
       if (pos.parent.type.name !== "paragraph" || !listOnly && pos.parentOffset !== 0 || listOnly && (pos.depth < 3 || !["listItem", "tableCell", "tableHeader"].includes(pos.node(pos.depth - 1).type.name)) || !listOnly && current.$from.start() !== pos.start() || current.from === at) return false;
       const element2 = dom.anchorNode.nodeType === 3 ? dom.anchorNode.parentElement : dom.anchorNode;
-      const paragraph6 = element2.closest("p");
-      if (!paragraph6 || view.nodeDOM(pos.before()) !== paragraph6 || paragraph6.textContent !== pos.parent.textContent) return false;
+      const paragraph7 = element2.closest("p");
+      if (!paragraph7 || view.nodeDOM(pos.before()) !== paragraph7 || paragraph7.textContent !== pos.parent.textContent) return false;
       next = TextSelection.create(view.state.doc, at);
     } catch {
       return false;

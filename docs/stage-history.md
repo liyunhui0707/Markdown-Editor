@@ -1,5 +1,40 @@
 # Stage History
 
+## Formatted prose range writing — 0.75.0 (2026-11-15)
+
+- Reproduce and remove the blanket refusal of selected replacement/deletion across
+  common formatted paragraphs and multi-paragraph plain paste in marked prose.
+  A dedicated lexical mapper reuses article split/render operations, preserves
+  physical soft/hard line bytes outside the selection, and derives bounded exact
+  source differences. Existing plain-prose history protocol remains unchanged.
+- Coalesce only wrappers at the newly joined edge. Full PM-canonical document
+  comparison permits untouched adjacent equivalent mark runs to retain their raw
+  spelling, without normalizing unrelated emphasis or collapsing distinct links.
+  Main-owned revision/history, Unicode/source/patch ceilings and composition gates
+  remain. Native Backspace/Delete selected ranges require matching DOM/PM/target
+  positions; cross-block preedit is still refused.
+- Cover three newline styles, native PM differential typing/deletion/paste,
+  raw delimiter/title and untouched list/table neighbors, exact history, target
+  mismatch, lost committed response, protected blocks/gaps and patch budgets.
+  Integrated Electron exercises real page input, reverse selection, plain-only
+  paste, Backspace/Delete joins, continuous typing, Source, backup, native Save,
+  export and exact restart recovery. Add it to the existing complete CI group.
+- New mapper and new tests stay below 150 lines. Existing source mapper (~325)
+  gains only import/dispatch; existing controller test (~1380) receives targeted
+  expectation updates, keeping the harness stable. No unrelated large-file split.
+  Initial negative expectations for newly supported formatted/soft prose were
+  updated; normalized entities and structural boundaries remain negative cases.
+  Physical IME/VoiceOver/human soak and paid distribution remain scoped/deferred.
+
+
+The first 0.75.0 PR CI passed all Node checks and 20 Electron workflows, including
+new prose ranges, but sustained writing timed out waiting for the editing queue to
+become idle after its first typing round. The unchanged-rate local six-cycle
+visible diagnostic passed with exact restart/continued writing (53.8 seconds).
+Cause remains unconfirmed. Retain the failed run; add failure-only queue/focus/
+selection diagnostics without changing input rate, timeout, assertions or product
+code. Full CI and the requested Air run must resolve the integration evidence.
+
 ## Formatted table writing — 0.74.0 (2026-11-15)
 
 - Project exact existing inline frames inside rectangular pipe-table cells, with

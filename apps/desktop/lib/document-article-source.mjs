@@ -72,6 +72,8 @@ function split(parts,at){
  }
  return [left,right];
 }
+// Shared lexical operations for explicitly selected top-level prose ranges.
+export {render as renderArticleParts,nodes as articleNodes,split as splitArticleParts};
 function patch(source,p,index,parts,expected,selection){
  const block=p.blocks[index],raw=render(parts,source),old=source.slice(block.sourceFrom,block.sourceTo);
  let start=0,end=old.length,nextEnd=raw.length;

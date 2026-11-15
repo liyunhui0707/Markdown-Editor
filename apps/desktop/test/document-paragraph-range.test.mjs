@@ -22,8 +22,8 @@ for (const nl of ['\n', '\r\n', '\r']) test(`paragraph range: exact splice, care
   assert.equal(mapTextEdit(source, { from: left.to, to: right.from + 3, insert: 'x' }).ok, false);
 });
 
-test('paragraph range: protected intermediate blocks, soft breaks and ambiguous separators stay atomic refusals', () => {
-  for (const middle of ['# Heading', 'A **bold** tail.', '- item', '> quote', '```js\nkeep()\n```', 'soft\nwrapped', '![x](image.png)']) {
+test('paragraph range: protected intermediate blocks and ambiguous separators stay atomic refusals', () => {
+  for (const middle of ['# Heading', '- item', '> quote', '```js\nkeep()\n```', '![x](image.png)']) {
     const source = `First.\n\n${middle}\n\nLast.`, spans = projectSource(source).spans;
     const left = spans[0], right = spans.at(-1);
     for (const insert of ['', 'X', 'One\n\nTwo']) assert.equal(mapTextEdit(source, { from: left.from + 1, to: right.from + 1, insert }).ok, false, middle);

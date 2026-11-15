@@ -1,5 +1,25 @@
 # Manual Test Checklist
 
+## Formatted prose range writing — 0.75.0
+
+Use a disposable article with two or three paragraphs containing bold/italic,
+inline code and links with titles; include an article soft line and a hard break,
+and leave a list/table outside the edited region.
+
+- Select from inside a bold word in the first paragraph into a linked word in a
+  later paragraph. Type replacement text; repeat with reverse selection and with
+  Backspace/Delete. Undo/Redo must restore exact source and original selection.
+- Paste two or three lines of plain text into marked text and across paragraphs.
+  Pasted paragraphs are plain; surviving words keep their marks and link titles.
+  Continue typing after paste. Backspace at the next paragraph start and Delete
+  at the previous paragraph end join the prose; Undo restores the boundary.
+- Inspect Source, save, export a new file, restart and restore the draft. Confirm
+  text, newline/BOM and untouched list/table bytes remain correct. Links stay inert.
+- Range/DOM target mismatch, unsupported intermediate blocks, ambiguous gaps,
+  more than 32 paragraphs or overlong patches must refuse without partial edits.
+  Finish/cancel native candidates first; automation is not physical acceptance.
+
+
 ## Formatted table writing — 0.74.0
 
 Use a disposable rectangular pipe table with padded/aligned cells, bold/italic
