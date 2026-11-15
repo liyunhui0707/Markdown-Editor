@@ -1,5 +1,12 @@
 # CLAUDE.md
 
+**Git workflow (2026-11-16).** Use the canonical local checkout at
+`/Users/liyunhui/Liyunhui/Codes/markdown-vault-app` and follow
+[Git management](docs/git-workflow.md). Keep coherent tested checkpoints, one
+short branch/PR per functional group, required CI before integration and daily-App
+replacement, then main synchronization and authorized branch cleanup. The old
+phase1b3 Worktree is archived; the recovery branch is historical only.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Current architecture (updated 2026-08-21) — READ FIRST
@@ -129,13 +136,19 @@ The project ships in numbered stages. `docs/stage-history.md` is the canonical r
 - When user-facing behavior changes, update docs.
 
 ### Versioning
-- The app version lives in `apps/desktop/package.json` (currently `0.1.0`, pre-1.0).
+- Read the current app version from `apps/desktop/package.json`; do not infer it
+  from historical examples in this guide.
 - Follow SemVer (`MAJOR.MINOR.PATCH`). Pre-1.0 rules: bump **patch** for bug fixes, **minor** for user-visible features or a new stage's worth of behavior, **major** only when cutting `1.0.0` (the "ready for daily use by others" signal).
 - Before committing, propose the version bump in the same commit as the change. Map by intent, not line count:
   - Bug fix only → patch (`0.1.0` → `0.1.1`)
   - New stage / user-visible feature → minor (`0.1.0` → `0.2.0`)
   - Internal refactor with no behavior change → no bump
-- After the bump commit lands on `main`, tag it: `git tag v0.X.Y && git push --tags`. Tagging is a destructive-ish action — confirm with the user before pushing tags.
+- Development version bumps do not automatically create tags. Identify candidates
+  by package version, commit, PR and artifact hash. Only explicitly accepted
+  milestones/releases get an annotated `v<package version>` tag on verified main,
+  with task-specific authorization to push that single tag. Do not bulk-push or
+  backfill tags, move old tags, or treat tags as release acceptance. Documentation
+  and internal no-behavior changes need no app-version bump. See the Git policy.
 - The extracted plugins have **independent** versions. Do not bump them in lockstep with the app.
 
 ### AI workflow
