@@ -39,8 +39,8 @@ test('cross sibling nested text replacement preserves nesting and task state',()
  assert.equal(r.ok,true);assert.equal(r.source,'- A\n  - [x] A新F\n- Z');
  assert.equal(mapTextEdit(s,{from:rows[0].from,to:rows[2].to,insert:'NO'}).ok,false);
 });
-test('loose, multiline, excessive depth and oversized list structures remain protected',()=>{
- for(const s of ['- A\n\n- B','- A\n  continuation','- A\n  ```js\n  code\n  ```',Array.from({length:7},(_,i)=>'  '.repeat(i)+'- A').join('\n')])assert.equal(projectSource(s).doc.content[0].type,'codeBlock');
+test('multi-paragraph, child-block, excessive depth and oversized lists remain protected',()=>{
+ for(const s of ['- A\n\n  Second paragraph','- A\n  &amp;','- A\n  ```js\n  code\n  ```',Array.from({length:7},(_,i)=>'  '.repeat(i)+'- A').join('\n')])assert.equal(projectSource(s).doc.content[0].type,'codeBlock');
  assert.equal(run('- A','indent-list').ok,false);
 });
 

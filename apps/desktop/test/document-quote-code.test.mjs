@@ -47,7 +47,7 @@ test('natural quote/fence prefixes and block conversion/exit',()=>{
  assert.equal(command('> a\n> \n> b','paragraph',2).source,'a\n\nb');
 });
 test('nested/lazy quote and unclosed/metadata/indented fences stay protected',()=>{
- for(const source of ['> > nested','> # Heading','> - list','> lazy\ncontinuation','> line\n> wrapped','```js\nunfinished','```js extra\nx\n```','    code'])assert.equal(projectSource(source).spans.length,0,source);
+ for(const source of ['> > nested','> # Heading','> - list','> lazy\ncontinuation','> line\n> &amp;','```js\nunfinished','```js extra\nx\n```','    code'])assert.equal(projectSource(source).spans.length,0,source);
  const source='```\ntext\n```',span=projectSource(source).spans[0];
  assert.equal(mapTextEdit(source,{from:span.from,to:span.to,insert:'```\n# escape'}).ok,false);
  assert.equal(command(source,'bold',span.from,span.to).ok,false);

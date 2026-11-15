@@ -20,8 +20,8 @@ function nodes(parts){
 }
 // A lexical projection for top-level formatted multiline paragraphs. No file
 // serialization: each newline/delimiter retains its exact original source bytes.
-export function projectArticle(node,source,position,blockIndex){
- if(node.type!=='paragraph'||node.position.start.line===node.position.end.line||!node.children?.some(n=>n.type!=='text'))return null;
+export function projectArticle(node,source,position,blockIndex,plain=false){
+ if(node.type!=='paragraph'||node.position.start.line===node.position.end.line||!plain&&!node.children?.some(n=>n.type!=='text'))return null;
  const parts=[];
  function walk(n,frames=[]){
   const a=n.position.start.offset,b=n.position.end.offset,raw=source.slice(a,b);

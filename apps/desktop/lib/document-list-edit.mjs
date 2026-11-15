@@ -30,13 +30,13 @@ export function mapListEdit(source,p,{action,from,to},project) {
   const tree=build(p.doc.content[index]);
   // Retain the user's original X spelling and all unchanged source bytes.
   for(const r of rows)r.taskMark=r.checked===null?'':source.slice(r.sourceFrom+r.marker.length,r.bodyFrom);
-  const lines=list=>list.items.flatMap(v=>[v.indent+v.marker+(v.checked===null?'':v.taskMark??v.row.taskMark)+v.body,...(v.child?lines(v.child):[])]);
+  const lines=list=>list.items.flatMap(v=>[{separator:v.row.separator??nl,text:v.indent+v.marker+(v.checked===null?'':v.taskMark??v.row.taskMark)+v.body},...(v.child?lines(v.child):[])]);
   const toDoc=list=>({type:list.type,...(list.type==='orderedList'?{attrs:{start:list.start}}:{}),content:list.items.map(v=>({type:'listItem',...(v.checked===null?{}:{attrs:{checked:v.checked}}),content:[{type:'paragraph',content:v.content},...(v.child?[toDoc(v.child)]:[])]}))});
   const shift=(v,amount)=>{if(amount<0&&!v.indent.startsWith(' '.repeat(-amount)))throw Error('indent');v.indent=amount<0?v.indent.slice(-amount):' '.repeat(amount)+v.indent;if(v.child)for(const c of v.child.items)shift(c,amount);};
   const original=source.slice(block.sourceFrom,block.sourceTo);
   // A root list may have a small source indentation. The block starts at its marker.
   const rootIndent=tree.items[0].indent;
-  const sourceOf=()=>lines(tree).join(nl).slice(rootIndent.length);
+  const sourceOf=()=>lines(tree).map((v,i)=>(i?v.separator:'')+v.text).join('').slice(rootIndent.length);
   if(sourceOf()!==original)return rejectListEdit();
   let target=selected,offset=from-row.from,exit=null;
   const i=parentList.items.indexOf(selected);

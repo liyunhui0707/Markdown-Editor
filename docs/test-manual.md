@@ -1,5 +1,32 @@
 # Manual Test Checklist
 
+## Multiline list/quote writing — 0.77.0
+
+Use a disposable Markdown file containing a task item continued with two leading
+spaces, an ordered item continued with spaces matching its marker width, and a
+quote whose every continuation begins `> `. Include bold/italic words, a link
+with a title, a two-space or backslash hard break, and a blank-separated sibling.
+
+- Open and type on the continued physical line; soft breaks appear as spaces,
+  explicit hard breaks as breaks. Select across that break and replace/delete.
+- Enter inside marked words creates a sibling; Backspace at the new sibling
+  rejoins it. Existing task state stays; new tasks start unchecked. Original
+  ordered numbers and unrelated blank gaps/markup remain unchanged.
+- Paste several plain lines into a supported item/quote paragraph, including a
+  reverse selection across leaf siblings. New rows stay in that container.
+- Change a supported emphasis selection, edit a physical-line link address, then
+  Undo/Redo and inspect Source. Prefixes/line endings/unselected bytes stay exact.
+- Backspace at the first root leaf-list or quote row start returns it to prose.
+  Finish with Save, new-file export, exit/restart and draft restore; confirm the
+  exact last source, BOM and line endings. Restore never grants old file authority.
+- Lazy continuation, a multi-paragraph item, quote child blocks, cross-subtree
+  replacement and malformed Unicode stay protected. Composition within one
+  physical text leaf can commit/cancel; do not force cross-line preedit to pass.
+
+Controlled Node/PM/service/Electron coverage is distinct from this checklist.
+Physical IME, spoken VoiceOver and genuine sustained writing are not newly passed.
+
+
 ## Formatted list and quote ranges — 0.76.0
 
 Use a disposable task/ordered list and one explicit quote with emphasis, inline

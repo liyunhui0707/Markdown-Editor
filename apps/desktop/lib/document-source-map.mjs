@@ -1,3 +1,4 @@
+import {projectWrappedQuote} from './document-prefixed-paragraph.mjs';
 // Literal punctuation is safe only in exact parser text leaves; decoded escapes,
 // HTML/other node kinds and full projected-document changes stay protected.
 import {projectArticle,mapArticleRange} from './document-article-source.mjs';
@@ -83,12 +84,12 @@ export function projectSource(source) {
       type: 'paragraph', position: node.position,
       children: [{type:'text',value:pending,position:node.position}],
     };
-    let structured=projectArticle(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+    let structured=projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
     if(structured){
       const gap=lines(source.slice(previousEnd,start));
       if((!content.length&&!fm&&gap.length>=2)||(content.length&&gap.length>=4)){
         emptyParagraph(!content.length?0:previousEnd+gap[0].length+gap[1].length);
-        structured=projectArticle(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+        structured=projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
       }
       blocks.push(structured.block);content.push(structured.doc);spans.push(...structured.spans);
       position+=structured.size;previousEnd=end;continue;
