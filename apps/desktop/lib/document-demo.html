@@ -152,9 +152,10 @@
 <p id="image-error" role="status"></p><div class="link-dialog-actions"><button id="image-remove" type="button" hidden>移除引用</button><span></span><button id="image-cancel" type="button">取消</button><button id="image-apply" type="submit">插入引用</button></div></form></dialog>
 <dialog id="link-dialog" class="writing-dialog" aria-labelledby="link-dialog-title">
 <form id="link-form"><h2 id="link-dialog-title">插入链接</h2>
-<label for="link-label">文字</label><input id="link-label" maxlength="512" autocomplete="off" spellcheck="false" placeholder="链接显示的文字">
+<label for="link-label">文字</label><input aria-describedby="link-format-note" id="link-label" maxlength="512" autocomplete="off" spellcheck="false" placeholder="链接显示的文字">
 <label for="link-href">地址</label><input id="link-href" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://example.com 或 ../文档.md">
 <p class="link-help">点击正文中的链接可继续编辑；不会自动打开网页。</p>
+<p id="link-format-note" hidden>此链接包含文字格式。请在正文中修改文字；这里可修改地址或取消链接，保留原有格式。</p>
 <p id="link-error" role="status" aria-live="polite"></p>
 <div class="link-dialog-actions"><button type="button" id="link-remove" hidden>取消链接</button><span></span><button type="button" id="link-cancel">取消</button><button type="submit" id="link-apply">插入链接</button></div>
 </form></dialog>

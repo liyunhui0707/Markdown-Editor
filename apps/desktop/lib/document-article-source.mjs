@@ -1,8 +1,8 @@
 // Literal punctuation is safe only in exact parser text leaves; decoded escapes,
 // HTML/other node kinds and full projected-document changes stay protected.
 import capacity from './document-capacity.js';
-import {projectInlineLeaf,inlineTextNode} from './document-inline-leaf.mjs';
-import {inlineFrames,renderInlineParts} from './document-inline-tree.mjs';
+import {inlineTextNode} from './document-inline-leaf.mjs';
+import {projectInlineParts,framedInlinePart,renderInlineParts,toggleInlineFrames} from './document-inline-tree.mjs';
 const reject=()=>({ok:false,code:'unsafe-source-range'});
 const cut=(s,n)=>n>0&&n<s.length&&/[\uD800-\uDBFF]/.test(s[n-1])&&/[\uDC00-\uDFFF]/.test(s[n]);
 const render=(parts,source)=>renderInlineParts(parts.map(p=>({...p,text:p.raw??p.text})),source);
@@ -37,8 +37,9 @@ export function projectArticle(node,source,position,blockIndex){
    parts.push({...flags,text:'',raw,breakKind:'hard',sourceFrom:a,sourceTo:b});return true;
   }
   if(n.type!=='text'){
-   const leaf=projectInlineLeaf(n,source);if(frames.length||!leaf||(!leaf.code&&!leaf.link))return false;
-   parts.push({...leaf,frames:inlineFrames(leaf,source)});return true;
+   const leaves=projectInlineParts(n,source);if(!leaves)return false;
+   const merged=leaves.map(leaf=>framedInlinePart(leaf,frames,source));if(merged.some(p=>!p))return false;
+   parts.push(...merged);return true;
   }
   if(typeof n.value!=='string'||raw.replace(/\r\n|\r/g,'\n')!==n.value.replace(/\r\n|\r/g,'\n')||/\0/.test(raw)||!raw.isWellFormed())return false;
   for(const m of raw.matchAll(/\r\n|\n|\r|[^\r\n]+/g)){
@@ -114,14 +115,14 @@ function planArticleSplit(source,p,from){
 }
 export function mapArticleFormat(source,p,{action,from,to},project){
  if(action==='split-paragraph'&&from===to)return verify(planArticleSplit(source,p,from),project);
- if(!['bold','italic'].includes(action))return null;
+ if(!['bold','italic','code'].includes(action))return null;
  const i=p.blocks.findIndex(b=>b?.article&&from>b.from&&to<b.to);if(i<0)return null;
  if(from===to)return reject();const block=p.blocks[i],a=split(block.parts,from-block.from-1),b=split(block.parts,to-block.from-1);if(!a||!b)return reject();
- const chosen=split(a[1],to-from)?.[0];if(!chosen?.length||chosen.some(t=>t.code||t.link))return reject();
+ const chosen=split(a[1],to-from)?.[0];if(!chosen?.length)return reject();
+ if(action==='code'&&(chosen.length!==1||chosen[0].breakKind||chosen[0].text.includes('`')))return reject();
  const value=chosen.map(t=>t.breakKind==='hard'?' ':t.text).join('');if(!value.trim()||value.trim()!==value)return reject();
- const remove=chosen.every(t=>t[action]),marker=action==='bold'?'**':chosen.some(t=>t.bold)?'_':'*';
- const frame={kind:action,from:-1,to:-1,open:marker,close:marker};
- const middle=chosen.map(t=>({...t,[action]:!remove,frames:remove?t.frames.filter(f=>f.kind!==action):t[action]?t.frames:[...t.frames,frame]}));
+ const remove=chosen.every(t=>t[action]);
+ const middle=chosen.map(t=>toggleInlineFrames(t,action,source,remove));
  const parts=[...a[0],...middle,...b[1]],expected=structuredClone(p.doc);expected.content[i]=paragraph(nodes(parts));
  return verify(patch(source,p,i,parts,expected,{from,to}),project);
 }

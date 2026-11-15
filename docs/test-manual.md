@@ -1,5 +1,26 @@
 # Manual Test Checklist
 
+## Formatted inline writing — 0.72.0
+
+Use a disposable article with ``**`code`**``, a link containing bold/plain/italic
+words, a tight task/list, an explicit quote and a formatted multiline paragraph.
+Use Source to enter nested samples if necessary; unsupported syntax remains protected.
+
+- Type/select/replace inside the supported formatted text. Toggle bold, italic
+  and code on one leaf; Undo/Redo must preserve the other marks and untouched text.
+- Create a link on a bold word and on a complete inline-code leaf. Cmd+K on an
+  existing formatted link must show its complete words read-only with a clear
+  explanation. Change its URL, cancel, reopen and unlink: styles/title stay intact,
+  no browser opens, Escape returns focus. Change its words in the body.
+- Compare Source, save the original, export a fresh file and restart/recover:
+  confirmed text, untouched raw delimiters/line endings and history agree.
+- Try a cross-format link creation, normalized/reference label or partial-code
+  selection: refusal must retain current writing. Finish/cancel Chinese candidates
+  before formatting; controlled composition tests do not replace this human check.
+
+These checks are an invitation for focused experience after installation, not a
+claim of new physical-input or VoiceOver acceptance.
+
 ## Literal prose writing — 0.71.1
 
 In a disposable article, type prices (`$100`), braces (`{name}`), `a | b`, `a < b`

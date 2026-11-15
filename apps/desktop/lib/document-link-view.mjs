@@ -3,6 +3,7 @@ import {linkSelection,validLinkTarget} from './document-link-edit.mjs';
 
 export function createLinkView({byId,context,report}){
  const button=byId('format-link'),dialog=byId('link-dialog'),form=byId('link-form');
+ const note=byId('link-format-note');
  const label=byId('link-label'),href=byId('link-href'),error=byId('link-error'),apply=byId('link-apply'),remove=byId('link-remove');
  let captured=null,busy=false,composing=false;
  const blocked=c=>!c.controller||!c.editor||c.loading||c.invalid||c.state.confirmed.readOnly||c.state.locked
@@ -12,9 +13,9 @@ export function createLinkView({byId,context,report}){
  function open(){
   const c=context();if(blocked(c)||dialog.open)return false;
   const selection={from:c.editor.state.selection.from,to:c.editor.state.selection.to},range=linkSelection(c.state.source,selection);
-  if(!range){report('请在普通文字中选择链接文字，或把光标放入一个已有的简单链接。暂不支持跨段落、跨格式或嵌套链接。',true);return false;}
+  if(!range){report('请选择同一段内的一段文字，或把光标放入已有链接。行内代码需完整选中；暂不支持跨格式创建或嵌套链接。',true);return false;}
   captured={controller:c.controller,editor:c.editor,revision:c.state.confirmed.revision,source:c.state.source,selection};
-  label.value=range.label;href.value=range.href;remove.hidden=!range.existing;message('');
+  label.value=range.label;label.readOnly=range.formattedLabel;note.hidden=!range.formattedLabel;href.value=range.href;remove.hidden=!range.existing;message('');
   byId('link-dialog-title').textContent=range.existing?'编辑链接':'插入链接';
   apply.textContent=range.existing?'应用修改':'插入链接';dialog.showModal();(range.label?href:label).focus();sync();return true;
  }
@@ -33,8 +34,8 @@ export function createLinkView({byId,context,report}){
   try{ok=await c.controller.format(command);}catch{message('操作未确认，输入仍保留。请检查当前文档状态。');}
   finally{busy=false;sync();}
   if(ok&&context().controller===c.controller){dialog.close();captured=null;c.editor.view.focus();report(removing?'已取消链接，文字已保留。':'链接已更新。');}
-  else message(['invalid-link-label','unsafe-link-content','unsafe-link-range'].includes(c.controller.state().code)
-   ?'此文字或选区暂不支持链接操作。请使用单行普通文字，避免嵌套格式；当前正文未被此操作改写。'
+  else message(['invalid-link-label','unsafe-link-label','unsafe-link-content','unsafe-link-range'].includes(c.controller.state().code)
+   ?'此文字或选区暂不支持链接操作。请选择同一行内的一段文字；带格式的已有链接文字请在正文中修改；当前正文未被此操作改写。'
    :'操作未确认。输入仍保留，请检查文档状态后再操作。');
  }
  function sync(){const c=context();button.disabled=blocked(c);button.setAttribute('aria-pressed',String(!!c.editor?.isActive('link')));

@@ -19,19 +19,27 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — everyday literal prose stability, 0.71.1
+### Current batch — common formatted inline writing, 0.72.0
 
-Fix the reproduced refusal of ordinary prices, braces, pipes, comparisons and
-literal paths across the complete writing/history/source/file/recovery workflow.
-Require exact parser text leaves and complete expected projection equality;
-retain decoded escape/entity, HTML/reference, range/Unicode/composition and file
-authority guards. Keep the parse optimization conservative and visual layout fixed.
-Correct the stale welcome copy that still described every open as read-only.
+Complete common emphasis/link/code combinations as one article workflow: projection,
+typing/selection, mark toggles, formatted link creation, address editing/unlink,
+Undo/Redo, Source, backup, native Save, fresh export and restart recovery. Keep the
+accepted workspace, exact lexical source validation and existing file authority.
+Edit mixed link words in the body; preserve their marks and raw title when using
+the address panel. Do not normalize unsupported syntax or add automatic navigation.
 
-Then address reproduced common inline/structure compatibility failures as complete
-article workflows, and consolidate the local stable candidate around genuine
-daily writing. Do not infer memory stability or physical-input acceptance from
-short controlled tests; deferred human checks and paid distribution stay deferred.
+Then consolidate daily-use writing: prioritize reproduced article/list/table
+interaction failures and longer genuine writing over speculative features or
+another editor framework. Keep genuine IME/VoiceOver/long-duration acceptance
+scoped; paid signing/notarization and public distribution remain deferred. A green
+controlled workflow is development integration, not the 1.0 daily-use claim.
+
+### Previous batch — everyday literal prose stability, 0.71.1
+
+Resolved over-restrictive punctuation filtering behind exact parser/source and
+complete projected-document checks. Retain decoded escape/entity, HTML/reference,
+range/Unicode/composition and file authority guards. The visual baseline and
+conservative parser optimization remain unchanged.
 
 ### Previous batch — cross-location APFS save and recovery, 0.71.0
 
