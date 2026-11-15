@@ -27,6 +27,14 @@
   Physical IME/VoiceOver/human soak and paid distribution remain scoped/deferred.
 
 
+The first 0.75.0 PR CI passed all Node checks and 20 Electron workflows, including
+new prose ranges, but sustained writing timed out waiting for the editing queue to
+become idle after its first typing round. The unchanged-rate local six-cycle
+visible diagnostic passed with exact restart/continued writing (53.8 seconds).
+Cause remains unconfirmed. Retain the failed run; add failure-only queue/focus/
+selection diagnostics without changing input rate, timeout, assertions or product
+code. Full CI and the requested Air run must resolve the integration evidence.
+
 ## Formatted table writing — 0.74.0 (2026-11-15)
 
 - Project exact existing inline frames inside rectangular pipe-table cells, with
