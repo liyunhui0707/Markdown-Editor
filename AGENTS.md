@@ -1,5 +1,7 @@
 # AGENTS.md
 
+**0.79.0 local image portability.** Reference collection is explicit and main-owned: only a current standalone image reference beneath a canonical original directory captured at open and inherited by its edit copy. No directory scan, automatic resource read, recovery-derived path grant, parent traversal, hidden/secrets components, symlinks or URLs. Stage bounded decoded PNG/JPEG bytes without source mutation; Apply reuses exact format/history and unchanged managed attachment backup/export. Raster drop uses event File bytes and the same import pipeline at a proven paragraph hit; suppress every other drop. Keep existing capacity, native save policy/helper and visual baseline.
+
 **0.78.0 complex container writing.** Extend the source-preserving Document
 surface only for explicitly indented multi-paragraph list items and explicitly
 prefixed paragraph-only nested quotes. Full PM paragraph paths distinguish rows;

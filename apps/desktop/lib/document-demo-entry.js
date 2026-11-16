@@ -1,5 +1,6 @@
 import {applyBoundarySpace} from './document-boundary-space-input.mjs';
 import {createImagePaste} from './document-image-paste.mjs';
+import {dropImage} from './document-image-drop.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
@@ -293,7 +294,7 @@ function install(snapshot) {
         mousedown: finishCompositionForPointer,
         paste: (view, event) => imagePaste.paste(event)||pastePlainText(view, event, { state: controller?.state(),
           blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus }),
-        drop: (_view, event) => { event.preventDefault(); show('unsupported-drop'); return true; },
+        drop: (view, event) => dropImage(view,event,{paste:imagePaste,state:controller?.state(),blocked:activeInvalid()||loading||readOnlyDocument(),report:viewerStatus}),
         compositionstart: () => { if (activeInvalid()) return true; controller.beginComposition(); return false; },
         compositionend: () => {
           const active = controller;

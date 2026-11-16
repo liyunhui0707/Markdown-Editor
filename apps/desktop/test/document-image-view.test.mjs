@@ -5,7 +5,7 @@ import {EditorState,NodeSelection} from '@tiptap/pm/state';
 import {documentEditorExtensions} from '../lib/document-editor-extensions.mjs';
 import {projectSource} from '../lib/document-source-map.mjs';
 import {createImageView} from '../lib/document-image-view.mjs';
-function harness(){
+function harness(api={}){
  const elements=new Map(),calls=[],reports=[],byId=id=>{
   if(!elements.has(id))elements.set(id,{value:'',textContent:'',open:false,hidden:false,disabled:false,listeners:{},attrs:{},
    addEventListener(name,fn){this.listeners[name]=fn;},setAttribute(k,v){this.attrs[k]=v;},focus(){},showModal(){this.open=true;},close(){this.open=false;}});
@@ -14,8 +14,8 @@ function harness(){
  const source='![alt](image.png)',schema=getSchema(documentEditorExtensions()),doc=schema.nodeFromJSON(projectSource(source).doc);
  const editor={state:EditorState.create({schema,doc,selection:NodeSelection.create(doc,0)}),view:{composing:false,focus(){},dispatch(tr){editor.state=editor.state.apply(tr);}}};
  let resolve,mode='ok';const controller={format:q=>{calls.push(q);if(mode==='throw')return Promise.reject(Error('transport'));if(mode==='pending')return new Promise(r=>{resolve=r;});return Promise.resolve(mode==='ok');}};
- const c={editor,controller,state:{source,confirmed:{revision:2,readOnly:false},recoveryRecords:[],pending:0}};
- const view=createImageView({byId,context:()=>c,report:(...args)=>reports.push(args)});
+ const c={editor,controller,state:{source,confirmed:{sessionId:'s',revision:2,readOnly:false},recoveryRecords:[],pending:0}};
+ const view=createImageView({api,byId,context:()=>c,report:(...args)=>reports.push(args)});
  const event={preventDefault(){},stopPropagation(){}};
  return {view,c,byId,calls,reports,mode:m=>{mode=m;},resolve:v=>resolve(v),submit:()=>byId('image-form').listeners.submit(event),tick:()=>new Promise(r=>setImmediate(r))};
 }
@@ -46,4 +46,21 @@ test('successful panel command is bounded and keyboard transport errors are hand
  const h=harness();h.view.open();h.byId('image-label').value='next';h.byId('image-href').value='assets/next.png';h.submit();await h.tick();
  assert.equal(h.view.isOpen(),false);assert.deepEqual(h.calls,[{action:'set-image',from:0,to:1,label:'next',href:'assets/next.png'}]);
  h.mode('throw');assert.equal(h.view.key({state:h.c.editor.state},{key:'Enter',preventDefault(){}}),true);await h.tick();assert.match(h.reports.at(-1)[0],/操作未确认/);
+});
+test('collecting an existing reference stages a managed target; cancel is inert and Apply remains an exact ordinary command',async()=>{
+ const calls=[],target='markdown-image-'+'a'.repeat(64)+'.png';
+ const h=harness({importReferencedImage:async q=>{calls.push(q);return {ok:true,sessionId:'s',revision:2,href:target};}});
+ h.view.open();assert.equal(h.byId('image-collect').disabled,false);h.byId('image-collect').onclick();await h.tick();
+ assert.deepEqual(calls,[{sessionId:'s',expectedRevision:2,href:'image.png'}]);assert.equal(h.byId('image-href').value,target);assert.deepEqual(h.calls,[]);
+ h.byId('image-cancel').onclick();assert.deepEqual(h.calls,[]);
+ h.view.open();h.byId('image-collect').onclick();await h.tick();h.submit();await h.tick();
+ assert.deepEqual(h.calls,[{action:'set-image',from:0,to:1,label:'alt',href:target}]);
+});
+test('reference reads cannot use a typed unrelated target, run twice, race a document change or ignore composition',async()=>{
+ let release,calls=0;const h=harness({importReferencedImage:()=>{calls++;return new Promise(r=>{release=r;});}});
+ h.view.open();h.byId('image-href').value='unrelated.png';h.byId('image-href').listeners.input();
+ assert.equal(h.byId('image-collect').disabled,true);h.byId('image-collect').onclick();assert.equal(calls,0);
+ h.byId('image-href').value='image.png';h.byId('image-form').listeners.compositionstart();h.byId('image-collect').onclick();assert.equal(calls,0);
+ h.byId('image-form').listeners.compositionend();h.byId('image-collect').onclick();h.byId('image-collect').onclick();assert.equal(calls,1);
+ h.c.state.confirmed.revision++;release({ok:true,href:'unexpected'});await h.tick();assert.equal(h.byId('image-href').value,'image.png');assert.deepEqual(h.calls,[]);assert.match(h.byId('image-error').textContent,/状态已变化/);
 });

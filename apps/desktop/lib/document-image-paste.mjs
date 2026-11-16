@@ -5,7 +5,7 @@ import capacity from './document-capacity.js';
 export function createImagePaste({api,context,busy,report,settled=()=>{}}){
  let running=false;
  const blocked=c=>!c.controller||!c.editor||c.loading||c.invalid||c.state.confirmed.readOnly||c.state.locked||c.state.pending||c.state.historyPending||c.state.composing||c.state.compositionInvalid||c.state.recoveryRecords.length||c.editor.view.composing||c.state.source!==c.state.confirmed.source;
- function paste(event){
+ function paste(event,label='粘贴的图片'){
   const files=Array.from(event.clipboardData?.files||[]);
   if(!files.some(f=>f.type.startsWith('image/')))return false;
   event.preventDefault();const c=context(),fail=m=>{report(m,true);return true;};
@@ -26,8 +26,8 @@ export function createImagePaste({api,context,busy,report,settled=()=>{}}){
     if(!r?.ok){const messages={'document-busy':'文档仍在处理操作，请完成后再次粘贴。','stale-revision':'文档修订已变化，请确认光标后再次粘贴。','composition-active':'请先完成或取消输入法组合，再粘贴。','unsupported-image':'图片无法解码或尺寸超限，请使用有效的 PNG/JPEG。','image-size-limit':'图片超过 4 MiB，未导入。','image-session-capacity':'当前会话图片已达上限，请保留现有草稿。','image-count-limit':'每篇最多 16 张本地图片。','image-total-size-limit':'本篇图片合计超过 16 MiB。','image-total-pixel-limit':'本篇图片合计超过 3200 万像素。'};return notify((messages[r?.code]||'导入结果未获确认，请检查会话状态，不要重复粘贴。')+' 当前正文保留。');}
     if(r.sessionId!==owner.id||r.revision!==owner.revision||!/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(r.href))return notify('导入结果未获确认，当前正文保留；请检查会话状态，不要重复粘贴。');
     busy(false);
-    const ok=await owner.controller.format({action:'set-image',...selection,label:'粘贴的图片',href:r.href});
-    if(context().controller===owner.controller){if(ok){owner.editor.view.focus();notify('图片已粘贴，可撤销。请等待草稿备份；保存和另存时会携带附件。',false);}else notify('图片尚未插入，原文保留；请检查光标位置和会话状态。');}
+    const ok=await owner.controller.format({action:'set-image',...selection,label,href:r.href});
+    if(context().controller===owner.controller){if(ok){owner.editor.view.focus();notify('图片已插入，可撤销。请等待草稿备份；保存和另存时会携带附件。',false);}else notify('图片尚未插入，原文保留；请检查光标位置和会话状态。');}
    }catch{notify('图片粘贴未确认，原文保留；请检查会话状态，不要重复操作。');}
    finally{running=false;if(context().loading)busy(false);if(outcome&&context().controller===owner.controller)report(outcome.m,outcome.notice);}
   })();settled(work);return true;

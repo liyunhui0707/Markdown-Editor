@@ -4,7 +4,7 @@ import {validImageLabel,validImageTarget} from './document-image-source.mjs';
 export function createImageView({api,byId,context,report}){
  const button=byId('format-image'),dialog=byId('image-dialog'),form=byId('image-form');
  const label=byId('image-label'),href=byId('image-href'),error=byId('image-error'),apply=byId('image-apply'),remove=byId('image-remove');
- const choose=byId('image-choose');
+ const choose=byId('image-choose'),collect=byId('image-collect');
  let captured=null,busy=false,composing=false,local=false;
  const blocked=c=>!c.controller||!c.editor||c.loading||c.invalid||c.state.confirmed.readOnly||c.state.locked||c.state.pending
   ||c.state.historyPending||c.state.composing||c.state.compositionInvalid||c.state.recoveryRecords.length||c.editor.view.composing;
@@ -13,7 +13,7 @@ export function createImageView({api,byId,context,report}){
   const c=context();if(blocked(c)||dialog.open)return false;
   const selection={from:c.editor.state.selection.from,to:c.editor.state.selection.to},range=imageSelection(c.state.source,selection);
   if(!range){report('请把光标放在普通段落中插入图片引用，或先选中一张图片引用卡片。',true);return false;}
-  captured={controller:c.controller,editor:c.editor,source:c.state.source,revision:c.state.confirmed.revision,selection,json:c.editor.state.selection.toJSON()};
+  captured={controller:c.controller,editor:c.editor,source:c.state.source,revision:c.state.confirmed.revision,reference:range.block.image?.src,selection,json:c.editor.state.selection.toJSON()};
   local=false;label.value=range.block.image?.alt||'';href.value=range.block.image?.src||'';remove.hidden=!range.existing;error.textContent='';
   byId('image-dialog-title').textContent=range.existing?'编辑图片引用':'插入图片引用';apply.textContent=range.existing?'应用修改':'插入引用';
   dialog.showModal();href.focus();sync();return true;
@@ -31,20 +31,24 @@ export function createImageView({api,byId,context,report}){
   if(ok&&context().controller===c.controller){dialog.close();captured=null;c.editor.view.focus();report(removing?'已移除图片引用，可撤销。':(local?'本地图片已插入；请等待草稿备份。按 Enter 继续写作。':'图片引用已更新。按 Enter 继续写作。'));}
   else error.textContent='此操作未确认，正文和面板输入仍保留。请检查选区和文档状态。';
  }
- async function pick(){
-  if(busy||composing||!current())return;const c=captured;busy=true;sync();
+ async function pick(reference=false){
+  if(busy||composing||!current()||(reference&&href.value!==captured.reference))return;const c=captured;busy=true;sync();
   try{
-   const r=await api.importImage({sessionId:context().state.confirmed.sessionId,expectedRevision:c.revision});
+   const data={sessionId:context().state.confirmed.sessionId,expectedRevision:c.revision};
+   const r=await(reference?api.importReferencedImage({...data,href:href.value}):api.importImage(data));
    if(!current()){error.textContent='文档状态已变化，请取消后重新选择。';return;}
    if(r?.ok){href.value=r.href;local=true;error.textContent='图片已读取。点击插入后会随草稿备份，另存时携带附件。';}
-   else if(r?.code!=='image-cancelled')error.textContent=`无法使用此图片（${r?.code||'image-import-failed'}）。仅支持每张不超过 4 MiB、4096 像素边长的 PNG/JPEG，每篇最多 16 张（合计 16 MiB / 3200 万像素）。正文未改变。`;
+   else if(r?.code!=='image-cancelled')error.textContent=reference?'未收集此引用。需为当前文档同目录或子目录中可读取的 PNG/JPEG；不支持上级、隐藏目录、符号链接或远程地址。也可使用“选择本地图片”重新选择。图片容量限制保持不变，正文未改变。':`无法使用此图片（${r?.code||'image-import-failed'}）。仅支持每张不超过 4 MiB、4096 像素边长的 PNG/JPEG，每篇最多 16 张（合计 16 MiB / 3200 万像素）。正文未改变。`;
   }catch{error.textContent='图片选择未确认，正文未改变。';}
   finally{busy=false;sync();}
  }
- href.addEventListener('input',()=>{local=false;});
+ href.addEventListener('input',()=>{local=false;sync();});
  if(choose)choose.onclick=()=>void pick();
+ if(collect)collect.onclick=()=>void pick(true);
  function sync(){const c=context();button.disabled=!!blocked(c);button.setAttribute('aria-pressed',String(c.editor?.state.selection.node?.type.name==='documentImage'));
-  if(dialog.open){if(choose)choose.disabled=busy||composing||!api?.importImage;apply.disabled=remove.disabled=busy||composing;byId('image-cancel').disabled=busy;label.disabled=href.disabled=busy;}}
+  if(dialog.open){if(choose)choose.disabled=busy||composing||!api?.importImage;
+   if(collect){collect.hidden=remove.hidden||/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(href.value);collect.disabled=busy||composing||!api?.importReferencedImage||href.value!==captured?.reference;}
+   apply.disabled=remove.disabled=busy||composing;byId('image-cancel').disabled=busy;label.disabled=href.disabled=busy;}}
  button.onpointerdown=e=>e.preventDefault();button.onclick=open;
  form.addEventListener('submit',e=>{e.preventDefault();void commit();});remove.onclick=()=>void commit(true);
  byId('image-cancel').onclick=close;dialog.addEventListener('cancel',e=>{e.preventDefault();close();});dialog.addEventListener('keydown',e=>e.stopPropagation());

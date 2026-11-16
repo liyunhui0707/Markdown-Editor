@@ -2,6 +2,7 @@
 // Bounded local raster attachments. No URL loading or renderer filesystem authority.
 const fs = require('node:fs'), path = require('node:path');
 const {createHash} = require('node:crypto');
+const {captureImageRoot,readRelativeImage}=require('./document-relative-image');
 const {MAX_IMAGE_BYTES:MAX_IMAGE,MAX_IMAGES,MAX_ATTACHMENT_BYTES,MAX_ATTACHMENT_PIXELS,
   MAX_SESSION_IMAGES,MAX_SESSION_IMAGE_BYTES,MAX_SESSION_IMAGE_PIXELS,base64Limit} = require('./document-capacity');
 function budget(assets, session = false) {
@@ -65,7 +66,7 @@ function readImageFile(file) {
   } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 function createLocalImages({projectSource, validateRaster}) {
-  const documents = new WeakMap(), references = new WeakMap();
+  const documents = new WeakMap(), references = new WeakMap(), roots=new WeakMap();
   // Preview requests for every image share one parse. Only immutable names are
   // cached; source-map projections used by edit validation remain independent.
   const refs = (document, source = document.text) => {
@@ -80,9 +81,12 @@ function createLocalImages({projectSource, validateRaster}) {
     if (recovery) for (const a of decodeAttachments(recovery.attachments)) assets.set(a.name,verified(a));
     else if (source) for (const [name,a] of documents.get(source) || []) assets.set(name,a);
     documents.set(document,assets);
+    roots.delete(document);
+    if(source&&!recovery&&roots.has(source))roots.set(document,roots.get(source));
   }
   function open(document) {
-    attach(document); const names = refs(document); if (names.length > MAX_IMAGES) return;
+    attach(document);const anchor=captureImageRoot(document.filePath);if(anchor)roots.set(document,anchor);
+    const names = refs(document); if (names.length > MAX_IMAGES) return;
     for (const name of names) {
       try { const a = verified(readImageFile(path.join(path.dirname(document.filePath),name)));
         if (a.name === name) { budget([...documents.get(document).values(),a]); documents.get(document).set(name,a); }
@@ -92,6 +96,14 @@ function createLocalImages({projectSource, validateRaster}) {
   function importFile(document,file) {
     const assets = documents.get(document); if (!assets) fail('image-session-unavailable');
     return keep(assets,verified(readImageFile(file)));
+  }
+  function importReference(document,href){
+    const assets=documents.get(document);
+    if(!assets||typeof href!=='string'||!projectSource(document.text).blocks.some(b=>b?.image?.src===href))fail('image-reference-unavailable');
+    const a=verified(readRelativeImage(roots.get(document),href,readImageFile));
+    // Check the resulting document budget before staging; no partial adoption.
+    budget([...new Map([...selected(document,refs(document)),a].map(v=>[v.name,v])).values()]);
+    return keep(assets,a);
   }
   function keep(assets,a){
     budget([...assets.values()].filter(value=>value.name!==a.name).concat(a),true); // Includes undo/cancel references.
@@ -122,6 +134,6 @@ function createLocalImages({projectSource, validateRaster}) {
     const a = documents.get(document)?.get(name); if (!a) fail('image-preview-unavailable');
     return `data:${a.mime};base64,${a.bytes.toString('base64')}`;
   }
-  return {attach,open,importFile,importBytes,validateChange,attachments,preview};
+  return {attach,open,importFile,importReference,importBytes,validateChange,attachments,preview};
 }
 module.exports = {MAX_IMAGE,MAX_IMAGES,managedName,imageAsset,decodeAttachments,readImageFile,createLocalImages};

@@ -30,7 +30,26 @@ Keep one complete functional group per short branch/PR and the accepted visuals.
 | B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
 | C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
 
-### Current batch — complex container writing, 0.78.0 candidate
+### Current batch — existing picture portability, 0.79.0 candidate
+
+Complete one existing-document image workflow: explicitly collect standalone
+same-directory/descendant PNG/JPEG references, Apply with exact history, drop one
+event raster into ordinary prose, back up, Save/export, move the exported set and
+reopen or restore. Preserve original pictures, source titles/alt, unchanged draft
+formats, decoding/capacity budgets and the accepted visuals. Collection is never
+an automatic filesystem scan or network fetch. Recovery cannot mint old path
+authority. Verify traversal/symlink/replaced-root and unknown/stale request fences.
+
+This is the first bounded file/image compatibility delivery, not completion of
+stage C. Next evaluate a concrete sync-provider workflow and its conflict/recovery
+semantics before enabling writes. Network/non-APFS support, additional formats or
+larger budgets require their own measured evidence; current restrictions remain.
+
+### Previous batch — complex container writing, 0.78.0
+
+Installed and merged through PR #171, with PR and main CI passing. Air completed
+five isolated workflows. Main raw-input peak was 62/64 pending confirmations;
+the unchanged safety queue still has limited margin, not universal throughput.
 
 Deliver one complete authoring group: explicit multi-paragraph list items and
 paragraph-only nested quotes, with native typing/ranges/paste, inline marks and
