@@ -1,4 +1,4 @@
-import {mapBoundarySpace} from './document-boundary-space.mjs';
+import {mapBoundarySpace,ordinarySpaceChangesEmphasis} from './document-boundary-space.mjs';
 import {projectWrappedQuote} from './document-prefixed-paragraph.mjs';
 // Literal punctuation is safe only in exact parser text leaves; decoded escapes,
 // HTML/other node kinds and full projected-document changes stay protected.
@@ -280,6 +280,7 @@ function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProject
   const { from, to, insert } = change;
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
   const projection = beforeProjection();
+  if(leaf===null&&paragraphSeparator===null&&ordinarySpaceChangesEmphasis(source,projection,change))return unsafe();
   if(leaf===null&&paragraphSeparator===null){const structured=mapStructuredRange(source,projection,change,projectSource);if(structured)return structured;}
   if(leaf===null&&paragraphSeparator===null){const prose=mapProseRange(source,projection,change,projectSource);if(prose)return prose;}
   if(leaf===null&&paragraphSeparator===null){const article=mapArticleRange(source,projection,change,projectSource);if(article)return article;}

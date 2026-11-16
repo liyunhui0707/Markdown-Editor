@@ -19,7 +19,40 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — transaction response and writing stability, 0.77.3
+### Approved improvement stages (2026-11-16)
+
+The user approved phased work on the three remaining limitations, in this order.
+Keep one complete functional group per short branch/PR and the accepted visuals.
+
+| Improvement stage | Intended outcome and evidence |
+| --- | --- |
+| A. Long-document response | Obtain valid first-key observations, reduce measured parsing/projection cost, and verify continuous input near capacity with exact content/history/recovery. Keep the protected queue and file authority. Report raw-rate pressure separately from paced lifecycle acceptance. |
+| B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
+| C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
+
+### Current batch — first-key and long-document response, 0.77.4 candidate
+
+Start from 0.77.3 (`cb5523e`). Correct the isolated first-key measurement harness,
+use fresh native-visible sessions for 150k mixed and 480k near-capacity articles,
+and distinguish observed acknowledgement/frame callbacks from physical key/paint.
+The initial Air baseline completes ten cases with exact content and normal exits.
+Trailing emphasis Spaces show higher costs than ordinary letters, including
+about 611–627 ms observed confirmation in the measured list/quote cases.
+
+Investigate two measured costs: ordinary spelling that cannot close emphasis
+after an inserted trailing Space, and a repeated freezing walk over relocated
+immutable AST nodes. A lexical refusal must prove only that ordinary spelling
+is invalid; the existing fallback still compares the complete intended document.
+Keep valid interior/code/link Spaces ordinary, fresh mutable projection outputs,
+the bounded immutable AST cache, exact positions/history and all input/file fences.
+A separately proven ASCII-space margin path is limited to isolated single-line
+paragraphs of at most 4096 units and their last exact text leaf. Tabs, delimiter
+changes, long blocks and list/quote/heading margins retain full parsing. Keep
+old-local/global equality, exact new fragment kind/end and cold-AST comparisons.
+Measure before/after, reject regressions, and finish full CI/package checks before
+delivery. Later stages remain approved work, not implemented capability claims.
+
+### Previous batch — transaction response and writing stability, 0.77.3
 
 Remove the second complete before-projection within one synchronous edit and
 copy only the expected document's edited block. Keep fresh mutable projections,

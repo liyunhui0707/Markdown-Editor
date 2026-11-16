@@ -1,5 +1,20 @@
 # AGENTS.md
 
+**0.77.4 long-document response.** Only reject ordinary trailing-Space spelling
+cheaply when exact source frames prove a bold/italic closing delimiter starts at
+the text leaf's end; code, interior, plain and representable link Spaces retain
+ordinary handling. Keep strict payload/history guards and complete fallback PM
+proof. Immutable AST relocation freezes each newly constructed object/array/point
+and borrows already-frozen prefix nodes, avoiding a second freezing walk. Cold
+trees still freeze completely. Keep the same two-entry cache and outer-context
+proofs. A separate literal-margin path permits ASCII-space margin transitions
+only in isolated single-line paragraphs of at most 4096 units, within the last
+exact text leaf/margin, without tabs or Markdown delimiters/reference syntax.
+Old-local/global equality and new fragment kind/end/inline checks remain required;
+other margin changes retain the original full-parser fallback.
+This AST cache is separate from fresh independently mutable projections. Never
+increase queue limits or use paced lifecycle tests as raw-rate performance proof.
+
 **0.77.3 transaction-scoped projection work.** Keep `projectSource` results fresh
 and independently mutable. Do not cache/freeze whole projections: existing list
 planners own and modify their local metadata. Reuse the complete before-document
