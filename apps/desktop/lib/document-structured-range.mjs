@@ -3,6 +3,7 @@ import {splitArticleParts,articleNodes} from './document-article-source.mjs';
 import {joinProseParts,canonicalDocument} from './document-prose-range.mjs';
 import {listNodeAt,sameListParent} from './document-list-source.mjs';
 import sourceEdits from './document-source-edit.js';
+import {copyEditedBlock} from './document-edit-projection.mjs';
 const reject=()=>({ok:false,code:'unsafe-source-range'});
 const paragraph=parts=>({type:'paragraph',content:articleNodes(parts)});
 
@@ -32,7 +33,7 @@ export function mapStructuredRange(source,p,{from,to,insert},project){
 
  const groups=values.map(text=>text?[multiline?{text,frames:[]}:{...mark,text,raw:undefined,breakKind:undefined}]:[]);
  groups[0]=joinProseParts(left[0],groups[0]);groups[groups.length-1]=joinProseParts(groups.at(-1),right[1]);
- const expected=structuredClone(p.doc),node=expected.content[index];let raw;
+ const expected=copyEditedBlock(p.doc,index),node=expected.content[index];let raw;
  if(list){
   const parent=listNodeAt(node,rows[first].path.slice(0,-1)),original=parent.content[rows[first].siblingIndex],ordered=parent.type==='orderedList',row=rows[first];
   const prefix=i=>row.indent+(ordered?`${Math.min(999999999,parseInt(row.marker,10)+i)}${row.marker.trim().at(-1)} `:row.marker)+(row.checked===null?'':'[ ] ');

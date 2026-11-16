@@ -6471,6 +6471,17 @@
 
   // lib/document-article-source.mjs
   var import_document_capacity = __toESM(require_document_capacity(), 1);
+
+  // lib/document-edit-projection.mjs
+  function copyEditedBlock(doc4, index2) {
+    if (!Array.isArray(doc4?.content) || !Number.isInteger(index2) || index2 < 0 || index2 >= doc4.content.length)
+      throw new TypeError("Invalid edited block");
+    const content5 = doc4.content.slice();
+    content5[index2] = structuredClone(content5[index2]);
+    return { ...doc4, content: content5 };
+  }
+
+  // lib/document-article-source.mjs
   var reject = () => ({ ok: false, code: "unsafe-source-range" });
   var cut = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
   var render = (parts, source) => renderInlineParts(parts.map((p) => ({ ...p, text: p.raw ?? p.text })), source);
@@ -6588,7 +6599,7 @@
     const added = { ...first2, text: insert2 };
     delete added.raw;
     delete added.breakKind;
-    const parts = [...a[0], added, ...b[1]], expected = structuredClone(p.doc);
+    const parts = [...a[0], added, ...b[1]], expected = copyEditedBlock(p.doc, i);
     expected.content[i] = paragraph(nodes(parts));
     const result = patch(source, p, i, parts, expected, { from: from2 + insert2.length, to: from2 + insert2.length });
     const leaf = p.spans.find((s) => s.blockIndex === i && from2 >= s.from && to <= s.to);
@@ -6612,7 +6623,7 @@
     if (i < 0) return null;
     const block = p.blocks[i], s = split2(block.parts, from2 - block.from - 1);
     if (!s) return reject();
-    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n", expected = structuredClone(p.doc);
+    const nl = source.slice(block.sourceFrom, block.sourceTo).match(/\r\n|\n|\r/)?.[0] || "\n", expected = copyEditedBlock(p.doc, i);
     expected.content.splice(i, 1, paragraph(nodes(s[0])), paragraph(nodes(s[1])));
     const middle = { text: nl + nl, frames: [] };
     return patch(source, p, i, [...s[0], middle, ...s[1]], expected, { from: from2 + 2, to: from2 + 2 });
@@ -6632,7 +6643,7 @@
     if (!value.trim() || value.trim() !== value) return reject();
     const remove2 = chosen.every((t2) => t2[action]);
     const middle = chosen.map((t2) => toggleInlineFrames(t2, action, source, remove2));
-    const parts = [...a[0], ...middle, ...b[1]], expected = structuredClone(p.doc);
+    const parts = [...a[0], ...middle, ...b[1]], expected = copyEditedBlock(p.doc, i);
     expected.content[i] = paragraph(nodes(parts));
     return verify(patch(source, p, i, parts, expected, { from: from2, to }), project);
   }
@@ -16565,7 +16576,7 @@
     }
     const from2 = a + start, to = a + end, insert2 = raw.slice(start, nextEnd), next = source.slice(0, from2) + insert2 + source.slice(to);
     if (to - from2 > 4096 || insert2.length > 4096 || next.length > import_document_capacity2.default.MAX_SOURCE_UNITS) return reject2();
-    const expected = structuredClone(p.doc);
+    const expected = copyEditedBlock(p.doc, spans[0].blockIndex);
     inlineTarget(expected, spans[0]).content = inlineNodes(pieces);
     return { ok: true, source: next, expected, change: { from: from2, to, insert: insert2 }, inverseSource: { from: from2, to: from2 + insert2.length, insert: source.slice(from2, to) }, structural: true, selection };
   }
@@ -16700,7 +16711,7 @@
     if (left.at(-1)?.breakKind) left[left.length - 1] = materialize2(left.at(-1));
     const nextParts = [...left, added, ...right], raw = render(nextParts, source), next = source.slice(0, start) + raw + source.slice(end), patch2 = import_document_source_edit2.default.sourceDifference(source, next);
     if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return null;
-    const expected = structuredClone(p.doc);
+    const expected = copyEditedBlock(p.doc, s.blockIndex);
     inlineTarget(expected, s).content = nodes(nextParts);
     const projection = project(next);
     if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return null;
@@ -16738,7 +16749,7 @@
     const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...mark2, text: text5, raw: void 0, breakKind: void 0 }] : []);
     groups[0] = join3(left[0], groups[0]);
     groups[groups.length - 1] = join3(groups.at(-1), right[1]);
-    const expected = structuredClone(p.doc), node2 = expected.content[index2];
+    const expected = copyEditedBlock(p.doc, index2), node2 = expected.content[index2];
     let raw;
     if (list3) {
       const parent = listNodeAt(node2, rows[first2].path.slice(0, -1)), original = parent.content[rows[first2].siblingIndex], ordered = parent.type === "orderedList", row = rows[first2];
@@ -16982,7 +16993,7 @@
     if (b - a > 4096 || text5.length > 4096) return reject12();
     const next = source.slice(0, a) + text5 + source.slice(b);
     if (next.length > MAX_SOURCE_UNITS2) return reject12();
-    const expected = structuredClone(projection.doc), nodes2 = [];
+    const expected = copyEditedBlock(projection.doc, index2), nodes2 = [];
     const add2 = (s) => {
       if (!s.text) return;
       const node2 = { type: "text", text: s.text, ...s.link ? { marks: [{ type: "link", attrs: s.link }] } : s.bold || s.italic || s.code ? { marks: [{ type: s.bold ? "bold" : s.italic ? "italic" : "code" }] } : {} }, prev = nodes2.at(-1);
@@ -17510,11 +17521,11 @@
       selection: { from: from2 + insert2.length, to: from2 + insert2.length }
     };
   }
-  function mapTextEditCore(source, change, leaf = null, paragraphSeparator = null) {
+  function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProjection) {
     if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return unsafe();
     const { from: from2, to, insert: insert2 } = change;
     if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || typeof insert2 !== "string" || insert2.length > 4096) return unsafe();
-    const projection = projectSource(source);
+    const projection = beforeProjection();
     if (leaf === null && paragraphSeparator === null) {
       const structured = mapStructuredRange(source, projection, change, projectSource);
       if (structured) return structured;
@@ -17561,7 +17572,7 @@
     const next = source.slice(0, sourceFrom) + insert2 + source.slice(sourceTo);
     if (next.length > MAX_SOURCE_UNITS4) return unsafe();
     const nextProjection = projectSource(next);
-    const expected = structuredClone(projection.doc);
+    const expected = copyEditedBlock(projection.doc, span.blockIndex);
     if (span.textOffset !== void 0) {
       const node2 = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
       node2.text = node2.text.slice(0, at) + text5 + node2.text.slice(at + span.text.length);
@@ -17577,10 +17588,18 @@
       leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold }
     };
   }
+  function textEditResult(source, change, leaf = null, paragraphSeparator = null) {
+    let before;
+    const result = mapTextEditCore(source, change, leaf, paragraphSeparator, () => before ??= projectSource(source));
+    if (result.ok || !before || leaf !== null || paragraphSeparator !== null || !change || change.from !== change.to || typeof change.insert !== "string" || !/^ +$/.test(change.insert)) return { result, before };
+    return { result: mapBoundarySpace(source, before, change, projectSource) || result, before };
+  }
   function mapTextEdit(source, change, leaf = null, paragraphSeparator = null) {
-    const result = mapTextEditCore(source, change, leaf, paragraphSeparator);
-    if (result.ok || leaf !== null || paragraphSeparator !== null || !change || change.from !== change.to || typeof change.insert !== "string" || !/^ +$/.test(change.insert)) return result;
-    return mapBoundarySpace(source, projectSource(source), change, projectSource) || result;
+    return textEditResult(source, change, leaf, paragraphSeparator).result;
+  }
+  function mapTransactionTextEdit(source, change) {
+    const { result, before } = textEditResult(source, change);
+    return result.ok ? { ...result, beforeDoc: before.doc } : result;
   }
 
   // lib/document-boundary-space-input.mjs
@@ -63724,8 +63743,8 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       insert2 = step.slice.content.content.map((n) => n.textContent).join("\n\n");
     } else return null;
     const edit = { from: step.from, to: step.to, insert: insert2 };
-    const mapped = mapTextEdit(source, edit), schema = tr2.doc.type.schema;
-    if (!tr2.before.eq(schema.nodeFromJSON(projectSource(source).doc)) || !mapped.ok || !tr2.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
+    const mapped = mapTransactionTextEdit(source, edit), schema = tr2.doc.type.schema;
+    if (!mapped.ok || !tr2.before.eq(schema.nodeFromJSON(mapped.beforeDoc)) || !tr2.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
     if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
     return { edit, source: mapped.source, structural: !!mapped.structural };
   }

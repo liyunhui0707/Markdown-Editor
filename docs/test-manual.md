@@ -1,5 +1,14 @@
 # Manual Test Checklist
 
+## Transaction response and writing stability — 0.77.3
+
+In a disposable mixed article, type in ordinary and linked paragraphs, wrapped
+list/task items and quotes. Include a Space after emphasis, Chinese candidate
+commit/cancel, selection replacement, Undo/Redo, Source, Save and restart restore.
+Check both the first key and continued input; compare untouched markup and final
+content. Automation/profiler observations do not replace physical IME, spoken
+VoiceOver or the postponed genuine sustained-writing acceptance.
+
 ## Mixed long-article input performance — 0.77.2
 
 Use the existing [actual-writing check](daily-use-check.md) with a disposable long

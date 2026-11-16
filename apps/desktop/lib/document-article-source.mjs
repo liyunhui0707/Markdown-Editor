@@ -91,7 +91,7 @@ export function planArticleRange(source,p,{from,to,insert}){
  const block=p.blocks[i],a=split(block.parts,from-block.from-1),b=split(block.parts,to-block.from-1);if(!a||!b)return reject();
  const first=from===to?(block.parts.find(t=>from>t.from&&from<=t.to)||block.parts[0]):(block.parts.find(t=>from>=t.from&&from<t.to)||block.parts.at(-1));
  const added={...first,text:insert};delete added.raw;delete added.breakKind;
- const parts=[...a[0],added,...b[1]],expected=structuredClone(p.doc);expected.content[i]=paragraph(nodes(parts));
+ const parts=[...a[0],added,...b[1]],expected=copyEditedBlock(p.doc,i);expected.content[i]=paragraph(nodes(parts));
  const result=patch(source,p,i,parts,expected,{from:from+insert.length,to:from+insert.length});
  // Keep the existing composition guard: only an exact edit inside one physical
  // source text leaf is non-structural. Newlines/delimiters/cross-frame changes
@@ -110,7 +110,7 @@ function verify(plan,project){if(!plan?.ok)return plan;const {expected,...r}=pla
 function planArticleSplit(source,p,from){
  const i=p.blocks.findIndex(b=>b?.article&&from>b.from&&from<b.to);if(i<0)return null;
  const block=p.blocks[i],s=split(block.parts,from-block.from-1);if(!s)return reject();
- const nl=source.slice(block.sourceFrom,block.sourceTo).match(/\r\n|\n|\r/)?.[0]||'\n',expected=structuredClone(p.doc);
+ const nl=source.slice(block.sourceFrom,block.sourceTo).match(/\r\n|\n|\r/)?.[0]||'\n',expected=copyEditedBlock(p.doc,i);
  expected.content.splice(i,1,paragraph(nodes(s[0])),paragraph(nodes(s[1])));
  // The separator is a source-only token outside inline frames.
  const middle={text:nl+nl,frames:[]};return patch(source,p,i,[...s[0],middle,...s[1]],expected,{from:from+2,to:from+2});
@@ -125,6 +125,7 @@ export function mapArticleFormat(source,p,{action,from,to},project){
  const value=chosen.map(t=>t.breakKind==='hard'?' ':t.text).join('');if(!value.trim()||value.trim()!==value)return reject();
  const remove=chosen.every(t=>t[action]);
  const middle=chosen.map(t=>toggleInlineFrames(t,action,source,remove));
- const parts=[...a[0],...middle,...b[1]],expected=structuredClone(p.doc);expected.content[i]=paragraph(nodes(parts));
+ const parts=[...a[0],...middle,...b[1]],expected=copyEditedBlock(p.doc,i);expected.content[i]=paragraph(nodes(parts));
  return verify(patch(source,p,i,parts,expected,{from,to}),project);
 }
+import {copyEditedBlock} from './document-edit-projection.mjs';

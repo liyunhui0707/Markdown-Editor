@@ -1,5 +1,15 @@
 # AGENTS.md
 
+**0.77.3 transaction-scoped projection work.** Keep `projectSource` results fresh
+and independently mutable. Do not cache/freeze whole projections: existing list
+planners own and modify their local metadata. Reuse the complete before-document
+only within its synchronous text-edit plan, then retain the controller's full PM
+before/after comparisons. Expected documents may copy just their edited block;
+borrowed neighbouring blocks are read-only and the entire document is still
+compared. No cache across edits, IPC proof flag, queue/history limit or file
+authority change. Reject failed performance experiments rather than weakening
+ownership tests; memory and profiler timings remain scoped observations.
+
 **Git workflow (2026-11-16).** The canonical local checkout is
 `/Users/liyunhui/Liyunhui/Codes/markdown-vault-app`; `main` is the integration
 branch. The former `markdown-vault-app-phase1b3` worktree is retired, not a

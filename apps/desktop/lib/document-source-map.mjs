@@ -17,6 +17,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import {createSourceParser} from './document-source-parse.mjs';
+import {copyEditedBlock} from './document-edit-projection.mjs';
 import { projectSimpleList, listNodeAt } from './document-list-source.mjs';
 import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
@@ -273,12 +274,12 @@ function paragraphReplace(source, projection, change, separator, verify = true) 
     selection: { from: from + insert.length, to: from + insert.length } };
 }
 
-function mapTextEditCore(source, change, leaf = null, paragraphSeparator = null) {
+function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProjection) {
   if (!change || Object.getPrototypeOf(change) !== Object.prototype
       || Object.keys(change).some(k => !['from', 'to', 'insert'].includes(k))) return unsafe();
   const { from, to, insert } = change;
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
-  const projection = projectSource(source);
+  const projection = beforeProjection();
   if(leaf===null&&paragraphSeparator===null){const structured=mapStructuredRange(source,projection,change,projectSource);if(structured)return structured;}
   if(leaf===null&&paragraphSeparator===null){const prose=mapProseRange(source,projection,change,projectSource);if(prose)return prose;}
   if(leaf===null&&paragraphSeparator===null){const article=mapArticleRange(source,projection,change,projectSource);if(article)return article;}
@@ -316,7 +317,7 @@ function mapTextEditCore(source, change, leaf = null, paragraphSeparator = null)
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
-  const expected = structuredClone(projection.doc);
+  const expected = copyEditedBlock(projection.doc,span.blockIndex);
   if (span.textOffset !== undefined) {
     const node = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
     node.text = node.text.slice(0, at) + text + node.text.slice(at + span.text.length);
@@ -328,8 +329,20 @@ function mapTextEditCore(source, change, leaf = null, paragraphSeparator = null)
     leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };
 }
 
+function textEditResult(source,change,leaf=null,paragraphSeparator=null){
+ let before;
+ const result=mapTextEditCore(source,change,leaf,paragraphSeparator,()=>before??=projectSource(source));
+ if(result.ok||!before||leaf!==null||paragraphSeparator!==null||!change||change.from!==change.to||typeof change.insert!=='string'||!/^ +$/.test(change.insert))return {result,before};
+ return {result:mapBoundarySpace(source,before,change,projectSource)||result,before};
+}
+
 export function mapTextEdit(source,change,leaf=null,paragraphSeparator=null){
- const result=mapTextEditCore(source,change,leaf,paragraphSeparator);
- if(result.ok||leaf!==null||paragraphSeparator!==null||!change||change.from!==change.to||typeof change.insert!=='string'||!/^ +$/.test(change.insert))return result;
- return mapBoundarySpace(source,projectSource(source),change,projectSource)||result;
+ return textEditResult(source,change,leaf,paragraphSeparator).result;
+}
+
+// The controller can compare tr.before with the complete projection already
+// constructed in this call. It is neither an IPC field nor a cross-edit cache.
+export function mapTransactionTextEdit(source,change){
+ const {result,before}=textEditResult(source,change);
+ return result.ok?{...result,beforeDoc:before.doc}:result;
 }
