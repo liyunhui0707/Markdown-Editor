@@ -22,8 +22,8 @@ export function mapBoundarySpace(source,p,change,project){
  const {from,to,insert}=change;if(!Number.isSafeInteger(from)||from!==to||typeof insert!=='string'||!/^ +$/.test(insert)||insert.length>4096)return null;
  const s=p.spans.find(s=>from>s.from&&from<=s.to)||p.spans.find(s=>from===s.from);if(!s||s.codeBlock)return null;
  const block=p.blocks[s.blockIndex];if(!block)return null;
- const spans=p.spans.filter(n=>n.blockIndex===s.blockIndex&&n.itemIndex===s.itemIndex&&n.quoteIndex===s.quoteIndex&&n.tableRow===s.tableRow&&n.tableCol===s.tableCol);
- const parts=block.article?block.parts:s.itemIndex!==undefined&&block.items[s.itemIndex].parts?block.items[s.itemIndex].parts:s.quoteIndex!==undefined&&block.quoteRows[s.quoteIndex].parts?block.quoteRows[s.quoteIndex].parts:spans.map(s=>({...s,frames:inlineFrames(s,source)}));
+ const spans=p.spans.filter(n=>n.blockIndex===s.blockIndex&&JSON.stringify(n.containerPath)===JSON.stringify(s.containerPath)&&n.itemIndex===s.itemIndex&&n.quoteIndex===s.quoteIndex&&n.tableRow===s.tableRow&&n.tableCol===s.tableCol);
+ const parts=s.containerPath?block.containerRows.find(r=>JSON.stringify(r.path)===JSON.stringify(s.containerPath))?.parts:block.article?block.parts:s.itemIndex!==undefined&&block.items[s.itemIndex].parts?block.items[s.itemIndex].parts:s.quoteIndex!==undefined&&block.quoteRows[s.quoteIndex].parts?block.quoteRows[s.quoteIndex].parts:spans.map(s=>({...s,frames:inlineFrames(s,source)}));
  if(!parts.length||parts.some(s=>s.textOffset!==undefined))return null;
  const selected=parts.find(s=>from>s.from&&from<=s.to)||parts[0],frames=inlineFrames(selected,source);
  const edge=f=>{const group=parts.filter(p=>inlineFrames(p,source).some(x=>x.kind===f.kind&&x.from===f.from&&x.to===f.to));return from===group[0]?.from||from===group.at(-1)?.to;};

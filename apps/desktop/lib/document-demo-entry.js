@@ -205,7 +205,7 @@ function render(s) {
     document.title = current.label + (temporary ? current.linkedFile?' — '+filePresentation(current,s).label:' — 草稿' : ' — 原文只读');
     if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus('');
     else if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、紧凑列表、普通表格单元格、引用或基本代码块内编辑；复杂 Markdown 可通过「源码」编辑。', true);
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、列表段落、普通表格单元格、明确前缀的引用或基本代码块内编辑；跨层选区和复杂混合子块可通过「源码」编辑。', true);
     else if (s.code === 'memory-edited') viewerStatus(current.originalSave?.available ? '修改保留在草稿中，点击保存后写回文件。' : '修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;

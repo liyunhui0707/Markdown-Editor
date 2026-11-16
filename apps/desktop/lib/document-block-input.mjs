@@ -29,7 +29,7 @@ export function applyStructuredKey(view,event,{controller,loading,invalid,report
  if(!s||loading||invalid||!view.editable||s.confirmed.readOnly||s.locked||s.historyPending||s.recoveryRecords.length
    ||s.composing||s.compositionInvalid||view.composing||event.isComposing||event.keyCode===229)return false;
  const code=pos.parent.type.name==='codeBlock'&&pos.parent.attrs.sourceEditable===true;
- const quoted=pos.depth===2&&pos.node(1).type.name==='blockquote';
+ const quoted=pos.depth>1&&pos.node(pos.depth-1).type.name==='blockquote';
  const plain=!event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.shiftKey;
  if(code&&plain&&['Enter','Tab'].includes(event.key)&&selection.$from.sameParent(selection.$to)){
   event.preventDefault();view.dispatch(view.state.tr.insertText(event.key==='Enter'?'\n':'\t').scrollIntoView());return true;
@@ -39,6 +39,7 @@ export function applyStructuredKey(view,event,{controller,loading,invalid,report
  else if(quoted&&plain&&event.key==='Enter')action='split-quote';
  else if((code||quoted)&&plain&&event.key==='Backspace'&&selection.empty&&pos.parentOffset===0)action=quoted?'join-quote':!pos.parent.content.size?'paragraph':null;
  const inList=pos.depth>1&&pos.node(pos.depth-1).type.name==='listItem';
+ if(inList&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key==='Enter')action='list-paragraph';
  if(inList&&event.key==='Tab'&&!event.metaKey&&!event.ctrlKey&&!event.altKey)action=event.shiftKey?'outdent-list':'indent-list';
  if(!code&&!quoted&&plain){
   const inList=Array.from({length:pos.depth},(_,i)=>pos.node(i+1).type.name).some(n=>n==='bulletList'||n==='orderedList');
@@ -59,7 +60,7 @@ export function applyStructuredKey(view,event,{controller,loading,invalid,report
  }
  if(!action)return false;
  event.preventDefault();const command={action,from:selection.from,to:selection.to},mapped=mapFormatEdit(s.source,command);
- if(!mapped.ok){report('此处暂不支持该块操作，正文已保留。请收起选区；复杂结构暂不拆分，列表空项退出仅支持首项或末项；引用和代码块可用 ⌘Enter 回到正文。',true);return true;}
+ if(!mapped.ok){report('此处暂不支持该块操作，正文已保留。请收起跨结构选区；列表内 ⌘Enter 在文字后另起段落，Enter 创建下一项。无法保持 Markdown 结构的空段和混合子块仍受保护；引用和代码块可用 ⌘Enter 回到正文。',true);return true;}
  const doc=view.state.schema.nodeFromJSON(mapped.projection.doc),tr=view.state.tr.replaceWith(0,view.state.doc.content.size,doc.content);
  tr.setSelection(TextSelection.create(tr.doc,mapped.selection.from,mapped.selection.to)).setStoredMarks(null).setMeta('document-block-shortcut',command);
  view.dispatch(tr.scrollIntoView());return true;

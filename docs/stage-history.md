@@ -1,5 +1,33 @@
 # Stage History
 
+## Multi-paragraph lists and nested quotes — 0.78.0 (2026-11-16)
+
+- Add source-proven container paragraph paths for explicitly indented list items
+  with multiple paragraphs and explicitly prefixed paragraph-only nested quotes.
+  Keep the established simple-container planners. Unsupported child blocks,
+  lazy prefixes and cross-parent selections remain protected.
+- Reuse exact lexical frames/physical prefixes for typing, same-item/same-level
+  ranges and plain multi-paragraph paste, marks and links. Compare the complete
+  intended PM document and keep main-owned exact source inverses/history.
+- List Cmd-Enter creates another paragraph; Enter creates a sibling item. Split,
+  join and whole-item indent/outdent retain task state, ordered marker spelling,
+  later paragraphs and child subtrees, including marker-width changes. Nested
+  quote Enter/Backspace stays at its level; quote/paragraph format nests/lifts.
+- Strict blank prefixes can retain an empty cursor slot (not a CommonMark
+  semantic empty paragraph). Refuse an empty first list paragraph followed by
+  text, since that spelling changes the Markdown structure. Keep six levels,
+  32 rows/items, 4096-unit patches and existing composition/queue/file guards.
+- Add full PM range/inverse matrices, CR/LF/CRLF, Unicode, native target/range,
+  paste, uncertain-response and controller history coverage. Final Node checks
+  before native acceptance: 3,653 pass / two existing skips. Amend only prior
+  refusal assertions for the explicitly approved newly supported grammar.
+- New source helpers are under 300 lines. Existing larger entry/source-map files
+  receive scoped routing and feedback; no framework, serializer, dependencies,
+  native helper, save authority or accepted visual-layout change.
+- Native-visible synthetic writing/save/export/restart and full CI remain required
+  before integration and daily-App replacement. Physical IME/spoken feedback and
+  genuine human sustained writing remain separate, version-scoped acceptance.
+
 ## First-key and long-document response — 0.77.4 (2026-11-16)
 
 - Reject ordinary trailing-Space spelling cheaply only when exact emphasis

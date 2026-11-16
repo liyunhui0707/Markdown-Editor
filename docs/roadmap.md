@@ -30,7 +30,37 @@ Keep one complete functional group per short branch/PR and the accepted visuals.
 | B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
 | C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
 
-### Current batch — first-key and long-document response, 0.77.4 candidate
+### Current batch — complex container writing, 0.78.0 candidate
+
+Deliver one complete authoring group: explicit multi-paragraph list items and
+paragraph-only nested quotes, with native typing/ranges/paste, inline marks and
+links, paragraph/item split and join, whole-item indent/outdent, task state,
+Source, main-owned exact history, Save/export and independent restart recovery.
+Preserve physical prefixes, line endings, untouched child subtrees and the
+accepted visual layout. New path metadata must not identify different paragraphs
+as one inline parent. Simple-container behavior retains its existing planners.
+
+Use Cmd-Enter for another paragraph in a list item; ordinary Enter creates a
+sibling item. Quote Enter/Backspace stays at the current level; nest/lift and
+explicit exit are source-proven. Only strictly owned blank prefixes create an
+empty cursor slot; unrepresentable first-empty-list-paragraph operations refuse.
+Keep six levels / 32 rows and the existing patch/queue/file limits. Arbitrary
+mixed child blocks, lazy prefixes and cross-level selection remain protected.
+
+Development evidence includes complete PM/range and source-inverse matrices,
+controlled composition/history/uncertain responses, full Node and native-visible
+synthetic workflow checks. Physical IME/spoken feedback and genuine human writing
+are not automatically accepted. Finish full CI and exact-package installation
+before delivery. After this group, prioritize file/image compatibility; broader
+cross-structure editing needs its own bounded evidence rather than removing guards.
+
+### Previous batch — first-key and long-document response, 0.77.4
+
+Installed and merged through PR #170; both PR and main CI passed. Air near-capacity
+Space ACK observations improve from about 251–253 to 56–58 ms; six unpaced cycles
+show 28% lower median typing time with exact source/restart results. Explicit raw
+CI input passes without raising the queue cap. Formatted list/quote boundary Spaces
+remain slower; these are scoped observations, not universal latency/IME acceptance.
 
 Start from 0.77.3 (`cb5523e`). Correct the isolated first-key measurement harness,
 use fresh native-visible sessions for 150k mixed and 480k near-capacity articles,

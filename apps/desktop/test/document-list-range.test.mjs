@@ -57,7 +57,8 @@ test('list ranges refuse cross-block, ambiguous multiline, protected syntax and 
   for(const insert of ['One\nTwo','One\n\n','\ud800','[x](url)','**new**','x'.repeat(4097)])
     assert.equal(mapTextEdit(raw,{from:a.from,to:a.to+2,insert}).ok,false);
   assert.equal(mapTextEdit(raw,{from:a.from,to:a.to+2,insert:'One\n\nTwo'}).source,'- One\n- Two**ld** tail\n- Next\n\nEnd');
-  for(const source of ['- [x] Task\n  &amp;','- A\n  - Nested\n    &amp;','- A\n\n  Other paragraph','- A ***nested***','- A [**link &amp;**](x)'])
+  check('- A\n\n  Other paragraph',3,4,'X','- X\n\n  Other paragraph');
+  for(const source of ['- [x] Task\n  &amp;','- A\n  - Nested\n    &amp;','- A ***nested***','- A [**link &amp;**](x)'])
     assert.equal(mapTextEdit(source,{from:3,to:4,insert:'X'}).ok,source==='- A ***nested***',source);
   const pair='- A **😀bold** tail',point=projectSource(pair).spans.find(s=>s.bold).from;
   assert.equal(mapTextEdit(pair,{from:3,to:point+1,insert:'X'}).ok,false);
