@@ -1,4 +1,6 @@
 import {mapBoundarySpace,ordinarySpaceChangesEmphasis} from './document-boundary-space.mjs';
+import {projectComplexContainer,containerNodeAt} from './document-container-source.mjs';
+import {mapContainerRange} from './document-container-edit.mjs';
 import {projectWrappedQuote} from './document-prefixed-paragraph.mjs';
 // Literal punctuation is safe only in exact parser text leaves; decoded escapes,
 // HTML/other node kinds and full projected-document changes stay protected.
@@ -21,7 +23,7 @@ import {copyEditedBlock} from './document-edit-projection.mjs';
 import { projectSimpleList, listNodeAt } from './document-list-source.mjs';
 import {projectStructuredBlock,literalBlockPrefix,mapCodeText} from './document-structured-source.mjs';
 
-export const spanBlock = (projection, span) => span.tableRow!==undefined?projection.doc.content[span.blockIndex].content[span.tableRow].content[span.tableCol].content[0]:span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
+export const spanBlock = (projection, span) => span.containerPath?containerNodeAt(projection.doc.content[span.blockIndex],span.containerPath):span.tableRow!==undefined?projection.doc.content[span.blockIndex].content[span.tableRow].content[span.tableCol].content[0]:span.itemIndex === undefined ? (span.quoteIndex===undefined?projection.doc.content[span.blockIndex]:projection.doc.content[span.blockIndex].content[span.quoteIndex])
   : listNodeAt(projection.doc.content[span.blockIndex],span.itemPath??[span.itemIndex]).content[0];
 
 // Deliberately restricted projection; NOT a serializer. Offsets are UTF-16.
@@ -86,15 +88,15 @@ export function projectSource(source) {
       type: 'paragraph', position: node.position,
       children: [{type:'text',value:pending,position:node.position}],
     };
-    let structured=projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+    let structured=projectComplexContainer(node,source,position,content.length)||projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
     if(structured){
       const gap=lines(source.slice(previousEnd,start));
       if((!content.length&&!fm&&gap.length>=2)||(content.length&&gap.length>=4)){
         emptyParagraph(!content.length?0:previousEnd+gap[0].length+gap[1].length);
-        structured=projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
+        structured=projectComplexContainer(node,source,position,content.length)||projectArticle(node,source,position,content.length)||projectWrappedQuote(node,source,position,content.length)||projectStructuredBlock(node,source,position,content.length)||projectTable(node,source,position,content.length)||projectImage(node,source,position);
       }
       blocks.push(structured.block);content.push(structured.doc);spans.push(...structured.spans);
-      position+=structured.size;previousEnd=end;continue;
+      position+=structured.size;previousEnd=structured.block.sourceTo;continue;
     }
     const list = projectSimpleList(node, source, position, content.length);
     if (list) {
@@ -281,6 +283,7 @@ function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProject
   if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || typeof insert !== 'string' || insert.length > 4096) return unsafe();
   const projection = beforeProjection();
   if(leaf===null&&paragraphSeparator===null&&ordinarySpaceChangesEmphasis(source,projection,change))return unsafe();
+  if(leaf===null&&paragraphSeparator===null){const container=mapContainerRange(source,projection,change,projectSource);if(container)return container;}
   if(leaf===null&&paragraphSeparator===null){const structured=mapStructuredRange(source,projection,change,projectSource);if(structured)return structured;}
   if(leaf===null&&paragraphSeparator===null){const prose=mapProseRange(source,projection,change,projectSource);if(prose)return prose;}
   if(leaf===null&&paragraphSeparator===null){const article=mapArticleRange(source,projection,change,projectSource);if(article)return article;}

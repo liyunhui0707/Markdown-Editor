@@ -42,7 +42,7 @@ test('heading Enter creates a paragraph and preserves following source and CRLF'
   assert.equal(r.projection.doc.content[1].type,'paragraph');assert.deepEqual(r.projection.doc.content[1].content,[]);
 });
 
-test('flat list marker variants keep unmodified spelling; complex lists remain opaque',()=>{
+test('flat list marker variants keep unmodified spelling; unsupported syntax remains opaque',()=>{
   for(const marker of ['- ','+ ','* ','3. ','3) '])for(const nl of ['\n','\r\n']){
     const source=marker+'First'+nl+marker+'Second'+nl;
     const p=projectSource(source);assert.equal(p.spans.length,2);
@@ -52,7 +52,8 @@ test('flat list marker variants keep unmodified spelling; complex lists remain o
     assert.ok(split.source.endsWith(marker+'Second'+nl));
     assert.equal(format(source,'paragraph','First').source,'First'+nl+nl+'Second'+nl);
   }
-  for(const source of ['- a\n\n  second paragraph','- a\n  lazy\ncontinuation','- [**link &amp;**](x)','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
+  assert.equal(projectSource('- a\n\n  second paragraph').doc.content[0].content[0].content.length,2);
+  for(const source of ['- a\n  lazy\ncontinuation','- [**link &amp;**](x)','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
 });
 test('format source inverse exactly restores accepted byte ranges over a small boundary matrix',()=>{
   let accepted=0;

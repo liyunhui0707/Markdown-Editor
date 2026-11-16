@@ -20,9 +20,13 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
   const crossProse=selection.$from.depth===1&&selection.$to.depth===1
     &&selection.$from.parent.type.name==='paragraph'&&selection.$to.parent.type.name==='paragraph'
     &&!selection.$from.sameParent(selection.$to);
-  const crossQuote=selection.$from.depth===2&&selection.$to.depth===2&&selection.$from.node(1)===selection.$to.node(1)
-    &&selection.$from.node(1).type.name==='blockquote'&&!selection.$from.sameParent(selection.$to);
-  if (keyDelete && !crossItems && !crossProse && !crossQuote) return false;
+  const crossQuote=selection.$from.depth>1&&selection.$from.depth===selection.$to.depth
+    &&selection.$from.node(selection.$from.depth-1)===selection.$to.node(selection.$to.depth-1)
+    &&selection.$from.node(selection.$from.depth-1).type.name==='blockquote'&&!selection.$from.sameParent(selection.$to);
+  const crossItemParagraph=inItem&&selection.$from.depth===selection.$to.depth
+    &&selection.$from.node(selection.$from.depth-1)===selection.$to.node(selection.$to.depth-1)
+    &&selection.$to.parent.type.name==='paragraph'&&!selection.$from.sameParent(selection.$to);
+  if (keyDelete && !crossItems && !crossProse && !crossQuote && !crossItemParagraph) return false;
   if (selection.$from.sameParent(selection.$to)
       && (!['paragraph','heading'].includes(selection.$from.parent.type.name)
         || (!inItem && !selection.$from.parent.content.content.some(n => n.marks.some(m => ['bold','italic','code','link'].includes(m.type.name)))))) return false;
@@ -49,7 +53,7 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
   event.preventDefault();
   // PM deleteSelection may expand a whole-list selection into a paragraph. Keep
   // this operation exactly inside the selected item text, with one surviving item.
-  const tr = (crossItems||crossQuote) && event.inputType !== 'insertText'
+  const tr = (crossItems||crossQuote||crossItemParagraph) && event.inputType !== 'insertText'
     ? view.state.tr.delete(selection.from,selection.to).scrollIntoView()
     : view.state.tr.insertText(event.inputType === 'insertText' ? event.data : '').scrollIntoView();
   view.dispatch(tr); // Rejected ranges still produce the controller's normal refusal.

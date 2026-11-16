@@ -1,11 +1,12 @@
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {projectSource,spanBlock} from './document-source-map.mjs';
+import {containerPosition} from './document-container-source.mjs';
 import {inlineTextNode} from './document-inline-leaf.mjs';
 const reject=code=>({ok:false,code:code||'unsafe-link-range'});
 const splits=(s,n)=>/[\uD800-\uDBFF]/.test(s[n-1]||'')&&/[\uDC00-\uDFFF]/.test(s[n]||'');
 const eligible=s=>!s.codeBlock&&s.textOffset===undefined;
-const sameParent=(a,b)=>a.blockIndex===b.blockIndex&&a.itemIndex===b.itemIndex&&a.quoteIndex===b.quoteIndex&&a.tableRow===b.tableRow&&a.tableCol===b.tableCol;
+const sameParent=(a,b)=>a.blockIndex===b.blockIndex&&JSON.stringify(a.containerPath)===JSON.stringify(b.containerPath)&&a.itemIndex===b.itemIndex&&a.quoteIndex===b.quoteIndex&&a.tableRow===b.tableRow&&a.tableCol===b.tableCol;
 const validString=s=>typeof s==='string'&&!/[\u0000-\u001f\u007f]/.test(s)
  && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(s);
 export function validLinkTarget(href){
@@ -71,7 +72,7 @@ export function mapLinkEdit(source,command){
  if(setting&&!validLinkTarget(command.href))return reject('invalid-link-target');
  if(setting&&c.formattedLabel&&label!==c.label)return reject('unsafe-link-label');
  const expected=structuredClone(p.doc),parent=spanBlock({doc:expected},s),block=p.blocks[s.blockIndex];
- const start=s.tableRow!==undefined?block.cells[s.tableRow][s.tableCol].from:s.itemIndex!==undefined?block.items[s.itemIndex].from:s.quoteIndex!==undefined?block.quoteRows[s.quoteIndex].from:block.from+1;
+ const start=s.containerPath?containerPosition(p.doc.content[s.blockIndex],block.from,s.containerPath):s.tableRow!==undefined?block.cells[s.tableRow][s.tableCol].from:s.itemIndex!==undefined?block.items[s.itemIndex].from:s.quoteIndex!==undefined?block.quoteRows[s.quoteIndex].from:block.from+1;
  const attrs=setting?{href:command.href,title:s.link?.title??null}:null;
  let a,b,insert;
  if(c.existing){

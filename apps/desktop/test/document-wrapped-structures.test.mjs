@@ -52,7 +52,8 @@ test('wrapped quote unwrap and conversion remove only owned prefixes',()=>{
  const all=inverse(source,mapFormatEdit(source,{action:'paragraph',from:row.from,to:row.from}));assert.equal(all.source,'**First**\r\nnext [link](target "keep")\r\n\r\nLast');
 });
 test('wrapped unsafe syntax, child blocks, lazy prefixes and budgets stay protected',()=>{
- for(const source of ['- First\nnext','> First\nnext','> First\n> > Nested','- First\n\n  Second paragraph','> First\n> \n> - Child','- First\n  &amp;','> First\n> <b>HTML</b>'])assert.equal(projectSource(source).blocks[0],null,source);
+ for(const source of ['> First\n> > Nested','- First\n\n  Second paragraph'])assert(projectSource(source).blocks[0].containerRows);
+ for(const source of ['- First\nnext','> First\nnext','> First\n> \n> - Child','- First\n  &amp;','> First\n> <b>HTML</b>'])assert.equal(projectSource(source).blocks[0],null,source);
  const source='- First😀\n  next\n- Last',p=projectSource(source),rows=p.blocks[0].items;
  for(const insert of ['a\tb','a\nb','\ud800','x'.repeat(4097)])assert.equal(mapTextEdit(source,{from:rows[0].from,to:rows[1].to,insert}).ok,false);
  assert.equal(mapTextEdit(source,{from:rows[0].from+6,to:rows[0].from+7,insert:'X'}).ok,false);

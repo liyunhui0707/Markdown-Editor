@@ -1,5 +1,30 @@
 # Manual Test Checklist
 
+## Multi-paragraph list and nested quote writing — 0.78.0
+
+Use a disposable file with a task item containing two explicitly indented
+paragraphs and a child list, plus two or three levels of `> ` quote prefixes.
+Keep untouched prose, code and table blocks outside the selected containers.
+
+- Type Chinese/emoji and separating Spaces; change a mark and link address.
+  Select forward/backward across paragraphs of one item or one quote level,
+  type/delete/paste several plain paragraphs, then continue editing.
+- List Cmd-Enter starts a paragraph within the item; Enter creates a sibling,
+  preserving the original task state and starting a new task unchecked.
+  Backspace at a later paragraph start joins it. Tab/Shift+Tab moves the entire
+  item, including later paragraphs and child lists. Inspect numbered width changes.
+- Quote Enter/Backspace splits/joins at the current level. Choose quote to nest
+  and paragraph to lift an inner paragraph; Cmd-Enter returns outside the quote.
+  Empty cursor slots remain writable where exact prefix ownership is provable.
+- Undo/Redo, inspect Source, Save, export a new file, exit/restart and restore.
+  Check exact final text, untouched prefixes/BOM/newlines and the separate backup
+  versus file status. Restoring a draft never restores old file-save authority.
+- Cross-level/child-subtree replacement, unsupported mixed children, over-budget
+  actions and unrepresentable first-empty-item paragraphs must refuse atomically.
+  Candidate text must not be forced to finish by structural commands.
+
+Automated native browser input is not physical IME or spoken VoiceOver acceptance.
+
 ## First-key and long-document response — 0.77.4
 
 Use the existing [actual-writing check](daily-use-check.md), with a disposable

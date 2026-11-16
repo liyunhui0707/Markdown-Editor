@@ -1,9 +1,10 @@
 import capacity from './document-capacity.js';
 import {inlineFrames,renderInlineParts,inlineNodes,toggleInlineFrames} from './document-inline-tree.mjs';
 import {listNodeAt} from './document-list-source.mjs';
+import {containerNodeAt} from './document-container-source.mjs';
 const reject=()=>({ok:false,code:'unsafe-source-range'});
 const cut=(s,n)=>n>0&&n<s.length&&/[\uD800-\uDBFF]/.test(s[n-1])&&/[\uDC00-\uDFFF]/.test(s[n]);
-export const inlineTarget=(doc,s)=>s.tableRow!==undefined?doc.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0]:s.itemIndex!==undefined?listNodeAt(doc.content[s.blockIndex],s.itemPath??[s.itemIndex]).content[0]:s.quoteIndex!==undefined?doc.content[s.blockIndex].content[s.quoteIndex]:doc.content[s.blockIndex];
+export const inlineTarget=(doc,s)=>s.containerPath?containerNodeAt(doc.content[s.blockIndex],s.containerPath):s.tableRow!==undefined?doc.content[s.blockIndex].content[s.tableRow].content[s.tableCol].content[0]:s.itemIndex!==undefined?listNodeAt(doc.content[s.blockIndex],s.itemPath??[s.itemIndex]).content[0]:s.quoteIndex!==undefined?doc.content[s.blockIndex].content[s.quoteIndex]:doc.content[s.blockIndex];
 export function patchInlineParts(source,p,spans,pieces,selection){
  const frames=spans.map(s=>inlineFrames(s,source));
  const a=frames[0][0]?.from??spans[0].sourceFrom,b=frames.at(-1)[0]?.to??spans.at(-1).sourceTo;

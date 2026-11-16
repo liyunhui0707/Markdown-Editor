@@ -1,5 +1,19 @@
 # AGENTS.md
 
+**0.78.0 complex container writing.** Extend the source-preserving Document
+surface only for explicitly indented multi-paragraph list items and explicitly
+prefixed paragraph-only nested quotes. Full PM paragraph paths distinguish rows;
+keep existing simple-container planners unchanged. Exact row parts/prefixes own
+range, formatting, split/join and whole-item movement. Compare the entire intended
+canonical document and keep bounded exact source inverses/main-owned history.
+List Cmd-Enter inserts a paragraph; ordinary Enter creates an item. Nested quotes
+split/join at the current level and can nest/lift a paragraph. Strictly owned blank
+prefixes may provide an empty cursor slot, as with existing top-level whitespace
+slots; CommonMark itself has no semantic empty paragraphs. Never invent an empty
+first list paragraph that would change file structure. Retain six-level/32-row
+and 4096-unit budgets, cross-parent/unsupported-child/composition/queue/file fences.
+No serializer, framework/dependency/native-helper or visual-baseline change.
+
 **0.77.4 long-document response.** Only reject ordinary trailing-Space spelling
 cheaply when exact source frames prove a bold/italic closing delimiter starts at
 the text leaf's end; code, interior, plain and representable link Spaces retain
