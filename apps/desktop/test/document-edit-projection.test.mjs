@@ -42,3 +42,14 @@ test('transaction projection metadata never bypasses input, range or source guar
     assert.equal('beforeDoc' in result,false);
   }
 });
+
+test('format-edge Space fallback retains the exact full before-document proof',()=>{
+  for(const source of ['**target** next','- **target**\n  continued','> **target**  \n> continued',
+    '| A | B |\n| --- | --- |\n| **target** next | intact |']){
+    const before=projectSource(source),span=before.spans.find(s=>s.text==='target');assert(span);
+    const change={from:span.to,to:span.to,insert:' '},ordinary=mapTextEdit(source,change);
+    const planned=mapTransactionTextEdit(source,change);assert(planned.ok,source);
+    const {beforeDoc,...result}=planned;assert.deepEqual(beforeDoc,before.doc);
+    assert.deepEqual(result,ordinary);assert.deepEqual(projectSource(source),before);
+  }
+});

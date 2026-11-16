@@ -12,8 +12,10 @@
   并行开发确实需要隔离时，先明确范围及收尾方法。
 - 旧 `markdown-vault-app-phase1b3` 已归档并解除 Worktree 注册。恢复分支
   `recovery/independent-editor-baseline-20261023` 仅保留历史，不继续产品开发。
-- 唯一 origin 为 `git@github.com:liyunhui0707/Markdown-Editor.git`；公共提交和
-  GitHub 合并使用 `liyunhui0707@gmail.com`。不向另一个账号的同名仓库同步。
+- 唯一 origin 为 `git@github.com:liyunhui0707/Markdown-Editor.git`，提交与合并归属
+  `liyunhui0707` 账号。启用邮箱隐私保护时，使用已核对账号 ID 对应的 GitHub 隐私邮箱
+  `225772637+liyunhui0707@users.noreply.github.com`；不为推送关闭隐私保护。
+  已验证公开邮箱仅在符合账号隐私设置时使用，不向另一个账号的同名仓库同步。
 
 ## 检查点与提交
 
