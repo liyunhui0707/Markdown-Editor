@@ -1,5 +1,36 @@
 # Stage History
 
+## Transaction response and writing stability — 0.77.3 (2026-11-16)
+
+- Reuse the complete before-projection only inside the synchronous text edit
+  that already constructed it. The controller still compares the full PM before
+  and after documents; no IPC proof field, cross-edit cache or retained history
+  document is introduced. Invalid changes cannot reach a new fallback.
+- Expected documents copy their root content array and deep-copy the edited
+  subtree. Untouched blocks are borrowed read-only for whole-document comparison.
+  Apply this ownership rule to supported inline/article/list/quote/table edits,
+  retaining independent mutable `projectSource` results and exact source history.
+- Reject frozen and cloned whole-projection caches after ownership failures and
+  measured regressions. Keep their private failure evidence; no test contract,
+  native timeout, queue limit, layout, dependency or file authority is relaxed.
+- New helper (8 lines) and focused test (55 lines) remain small. Existing larger
+  controller/source-map files receive scoped plumbing, without unrelated splitting.
+  Rebuild and verify the Document renderer bundle.
+- Final Node baseline: 3,617 pass / two existing skips. Air passes mixed article,
+  controlled input lifecycle, wrapped structures and six writing cycles with
+  restart recovery. Matched profiled 68-key totals improve 17–19%; they are not
+  physical first-key or paint measurements. The extra first-key probe fails its
+  isolated launch scope before input and is retained, with no blind GUI rerun.
+- Full CI, package identity and normal-exit installation checks remain integration
+  requirements; physical IME/spoken feedback and genuine sustained writing stay
+  separate acceptance gates. See the [response record](audits/2026-11-16-writing-response.md).
+- Retain the first PR CI failure: sixth-cycle near-capacity fixed-rate input
+  reaches the unchanged 64-operation queue and remains explicitly paused after
+  acknowledgement drain. Pace the lifecycle test in eight-key confirmed bursts,
+  preserving all content/history/recovery checks, and add the existing deliberate
+  saturation/recovery Electron scenario to CI. This changes the test envelope,
+  not the product cap, and does not claim the faster near-capacity rate passes.
+
 ## Mixed long-article input performance — 0.77.2 (2026-11-15)
 
 - Extend the two-revision AST cache to exact explicit-inline-link blocks and

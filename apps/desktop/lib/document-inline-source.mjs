@@ -1,4 +1,5 @@
 import {planTreeRange} from './document-tree-edit.mjs';
+import {copyEditedBlock} from './document-edit-projection.mjs';
 import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import {listNodeAt,sameListParent} from './document-list-source.mjs';
@@ -60,7 +61,7 @@ export function planInlineRange(source, projection, change) {
   if(b-a>4096||text.length>4096)return reject();
   const next=source.slice(0,a)+text+source.slice(b);
   if(next.length>MAX_SOURCE_UNITS)return reject();
-  const expected=structuredClone(projection.doc),nodes=[];
+  const expected=copyEditedBlock(projection.doc,index),nodes=[];
   const add=s=>{
     if(!s.text)return;
     const node={type:'text',text:s.text,...(s.link?{marks:[{type:'link',attrs:s.link}]}:s.bold||s.italic||s.code?{marks:[{type:s.bold?'bold':s.italic?'italic':'code'}]}:{})},prev=nodes.at(-1);

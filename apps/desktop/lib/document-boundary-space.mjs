@@ -33,7 +33,8 @@ export function mapBoundarySpace(source,p,change,project){
  if(left.at(-1)?.breakKind)left[left.length-1]=materialize(left.at(-1));
  const nextParts=[...left,added,...right],raw=renderArticleParts(nextParts,source),next=source.slice(0,start)+raw+source.slice(end),patch=sourceEdits.sourceDifference(source,next);
  if(!patch.ok||patch.change.to-patch.change.from>4096||patch.change.insert.length>4096)return null;
- const expected=structuredClone(p.doc);inlineTarget(expected,s).content=articleNodes(nextParts);
+ const expected=copyEditedBlock(p.doc,s.blockIndex);inlineTarget(expected,s).content=articleNodes(nextParts);
  const projection=project(next);if(JSON.stringify(canonicalDocument(expected))!==JSON.stringify(canonicalDocument(projection.doc)))return null;
  return {ok:true,source:next,projection,change:patch.change,inverseSource:patch.inverse,structural:true,boundarySpace:true,spaceMarks:inlineTextNode(added).marks||[],selection:{from:from+insert.length,to:from+insert.length}};
 }
+import {copyEditedBlock} from './document-edit-projection.mjs';

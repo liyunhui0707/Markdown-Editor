@@ -2,7 +2,7 @@ import capacity from './document-capacity.js';
 const {MAX_SOURCE_UNITS} = capacity;
 import sourceEdits from './document-source-edit.js';
 import { mapFormatEdit } from './document-format-edit.mjs';
-import { projectSource, mapTextEdit } from './document-source-map.mjs';
+import { projectSource, mapTextEdit, mapTransactionTextEdit } from './document-source-map.mjs';
 
 function transactionEdit(source, tr) {
   if (!tr.docChanged || tr.steps.length !== 1) return null;
@@ -32,8 +32,8 @@ function transactionEdit(source, tr) {
     insert=step.slice.content.content.map(n=>n.textContent).join('\n\n');
   } else return null;
   const edit = { from: step.from, to: step.to, insert };
-  const mapped = mapTextEdit(source, edit), schema = tr.doc.type.schema;
-  if (!tr.before.eq(schema.nodeFromJSON(projectSource(source).doc)) || !mapped.ok
+  const mapped = mapTransactionTextEdit(source, edit), schema = tr.doc.type.schema;
+  if (!mapped.ok || !tr.before.eq(schema.nodeFromJSON(mapped.beforeDoc))
       || !tr.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
   if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
   return { edit, source: mapped.source, structural: !!mapped.structural };

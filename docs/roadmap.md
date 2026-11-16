@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-15)
+## Current direction (2026-11-16)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -19,7 +19,36 @@ limits have already been removed.
 | 2. Everyday document editing and saving | Choose ordinary local save folders; edit source and supported rich content; safely save back to a file; work with realistic article/image sizes. | 0.58.0 implements ordinary Home-descendant save destinations; 0.59.0 adds explicit draft source editing with exact history, recovery and export. 0.60.0 adds coordinated, version-preserving bound-file saving; broader filesystem/sync locations remain outside these batches. 0.61.0 extends the complete path to 524,288 UTF-16 units / 2 MiB and 16 bounded local images, with exact recovery/history checks. Functional capacity is implemented; extreme-length interaction latency and full-app memory remain phase-3 gates. Reuse Document Model, Service, File Store, IPC and history. The five limits must be resolved or have a concrete technical blocker, not remain permanent disclaimers. |
 | 3. Daily-use and distribution | A dependable installable app for repeated real writing, with clear failures, recovery and updates. | Native IME historical failure retests, performance/accessibility, full CI and SEC-01, signed/notarized delivery and update/rollback evidence before a daily-use/public release claim. |
 
-### Current batch — mixed long-article input performance, 0.77.2
+### Current batch — transaction response and writing stability, 0.77.3
+
+Remove the second complete before-projection within one synchronous edit and
+copy only the expected document's edited block. Keep fresh mutable projections,
+complete before/after PM comparisons, main-process validation, exact source
+history and all input/file boundaries. Do not introduce a cross-edit projection
+cache or change the accepted editor/layout. Two ineffective cache experiments
+were rejected, not shipped.
+
+The complete Node baseline passes (3,617 pass, two existing skips). On Air, the
+matched profiled mixed-article workflow reduces 68-key burst totals by 17–19%
+in the measured prose/list/quote contexts; controlled input lifecycle, six-cycle
+writing and wrapped structures pass. These totals do not measure physical key
+latency. A separate first-key probe failed its launch precondition before input;
+it was stopped and retained, without a first-key improvement claim.
+
+The first PR CI near-capacity fixed-rate sixth cycle reaches the protected
+confirmation queue. The lifecycle test now uses eight-key confirmed bursts,
+with separate deliberate saturation/recovery coverage in CI. Keep the faster
+near-capacity rate as an unresolved performance target; do not raise the cap or
+represent the paced scenario as proof that the earlier pressure issue disappeared.
+
+Finish full CI and exact-head integration before updating the daily App. Next
+prioritize the remaining measured first-key/whole-document work and genuine
+writing findings within the same stability phase, not another indefinite syntax
+expansion. Physical IME/spoken feedback remain version-scoped and real 20–30 minute
+writing remains postponed. Paid signing/notarization and public delivery stay
+deferred. See the [response record](audits/2026-11-16-writing-response.md).
+
+### Previous batch — mixed long-article input performance, 0.77.2
 
 Reduce measured whole-article re-parsing during ordinary rich paragraph/list/quote
 input. Reuse only an unchanged-context block with cold-parser equivalence checks;

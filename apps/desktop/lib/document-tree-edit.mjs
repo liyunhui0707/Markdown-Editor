@@ -15,7 +15,7 @@ export function patchInlineParts(source,p,spans,pieces,selection){
  if(cut(old,end)||cut(raw,nextEnd)){end++;nextEnd++;}
  const from=a+start,to=a+end,insert=raw.slice(start,nextEnd),next=source.slice(0,from)+insert+source.slice(to);
  if(to-from>4096||insert.length>4096||next.length>capacity.MAX_SOURCE_UNITS)return reject();
- const expected=structuredClone(p.doc);inlineTarget(expected,spans[0]).content=inlineNodes(pieces);
+ const expected=copyEditedBlock(p.doc,spans[0].blockIndex);inlineTarget(expected,spans[0]).content=inlineNodes(pieces);
  return {ok:true,source:next,expected,change:{from,to,insert},inverseSource:{from,to:from+insert.length,insert:source.slice(from,to)},structural:true,selection};
 }
 export function planTreeRange(source,p,{from,to,insert},spans){
@@ -40,3 +40,4 @@ export function mapCombinedMark(source,p,{action,from,to},project){
  if(!plan.ok)return plan;const {expected,...result}=plan,projection=project(plan.source);
  return JSON.stringify(expected)===JSON.stringify(projection.doc)?{...result,projection}:{ok:false,code:'unsafe-format-range'};
 }
+import {copyEditedBlock} from './document-edit-projection.mjs';
