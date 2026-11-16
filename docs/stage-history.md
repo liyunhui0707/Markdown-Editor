@@ -1,5 +1,32 @@
 # Stage History
 
+## First-key and long-document response — 0.77.4 (2026-11-16)
+
+- Reject ordinary trailing-Space spelling cheaply only when exact emphasis
+  delimiters prove it cannot retain the intended document. The existing fallback
+  still proves the complete PM result; interior/code/representable link Spaces
+  retain ordinary handling, payload/history guards and exact inverses.
+- Freeze newly relocated immutable AST objects during construction rather than
+  walking the full suffix twice. Preserve nested custom point metadata, own
+  special keys, two-revision eviction and fresh mutable projections. A review
+  regression exposed shallow custom-point freezing; retain its red result and
+  the corrected deep-immutability test.
+- Permit literal ASCII-space margin transitions only in isolated single-line
+  paragraphs up to 4096 units and their final exact text leaf. Retain old-local
+  versus global equality, new kind/end/inline checks and cold-AST comparisons;
+  tabs, delimiters, long blocks and list/quote/heading margins keep full parsing.
+- Final Node checks: 3,625 pass / two existing skips. Three alternating pure
+  mapping trials show 12–33% lower median time in four 150k-unit contexts. Air
+  passes ten fresh first-key cases and five writing workflows, including six
+  unpaced near-capacity cycles with identical source hashes and restart recovery.
+- Add first-key and unpaced-input CI checks alongside the existing paced lifecycle
+  and deliberate pressure/recovery checks. No queue/timeout/capacity relaxation.
+  Air did not reproduce historical CI queue saturation; native observations are
+  not physical IME/paint latency or human sustained-writing acceptance.
+- New tests remain below 300 lines; the existing larger source-map file receives
+  only an import and early refusal. No unrelated splitting or framework change.
+  See the [measurement and review record](audits/2026-11-16-long-document-input.md).
+
 ## Transaction response and writing stability — 0.77.3 (2026-11-16)
 
 - Reuse the complete before-projection only inside the synchronous text edit

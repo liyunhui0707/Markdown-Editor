@@ -4,6 +4,16 @@ import {splitArticleParts,articleNodes,renderArticleParts} from './document-arti
 import {inlineTarget} from './document-tree-edit.mjs';
 import {canonicalDocument} from './document-prose-range.mjs';
 import sourceEdits from './document-source-edit.js';
+// A closing emphasis delimiter cannot close after whitespace. This proves only
+// that ordinary trailing-Space spelling is invalid; the fallback below still
+// projects and compares the complete intended document. Code Spaces stay ordinary.
+export function ordinarySpaceChangesEmphasis(source,p,change){
+ if(!change||Object.getPrototypeOf(change)!==Object.prototype||Object.keys(change).length!==3||Object.keys(change).some(k=>!['from','to','insert'].includes(k)))return false;
+ const {from,to,insert}=change;if(!Number.isSafeInteger(from)||from!==to||typeof insert!=='string'||!/^ +$/.test(insert)||insert.length>4096)return false;
+ return p.spans.some(s=>from===s.to&&from>s.from&&!s.code&&!s.codeBlock&&inlineFrames(s,source).some(f=>
+  ['bold','italic'].includes(f.kind)&&(f.kind==='bold'?['**','__']:['*','_']).includes(f.close)&&f.open===f.close
+  &&f.to-f.close.length===s.sourceTo&&source.slice(f.from,f.from+f.open.length)===f.open&&source.slice(s.sourceTo,f.to)===f.close));
+}
 // Fallback only after ordinary typing cannot represent a Space at an emphasis
 // edge. Retain the word's raw delimiters; the separating Space leaves only the
 // marks ending/starting here. No arbitrary caller-supplied mark/source authority.

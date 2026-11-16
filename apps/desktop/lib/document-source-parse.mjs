@@ -35,11 +35,49 @@ export function createSourceParser(parseFull) {
       if(n.children)pending.push(...n.children);
     }return false;
   }
+  function literalMargin(node,raw,nextRaw,before,source,from,to,end,oldMargin,newMargin){
+    const last=node.children?.at(-1),changed=before.slice(from,to)+source.slice(from,end);
+    // A bounded isolated single-line paragraph may change its ASCII-space
+    // margin only through its final exact text leaf. No tab, delimiter or
+    // reference syntax is introduced/removed. Old-global proof, new fragment
+    // kind/end/inline checks and blank outer boundaries below still apply.
+    return node.type==='paragraph'&&node.position.start.line===node.position.end.line
+      &&raw.length<=4096&&nextRaw.length<=4096&&last?.type==='text'
+      &&from>=last.position.start.offset&&to<=node.position.end.offset
+      &&before.slice(last.position.start.offset,last.position.end.offset)===last.value
+      &&!oldMargin.includes('\t')&&!newMargin.includes('\t')&&changed.isWellFormed()
+      &&!/[\t\r\n`*_~\[\]<>\\|]/.test(changed);
+  }
+  function freezeGraph(tree){
+    const pending=[tree];
+    while(pending.length){
+      const value=pending.pop();if(!value||typeof value!=='object'||Object.isFrozen(value))continue;
+      for(const child of Object.values(value))pending.push(child);Object.freeze(value);
+    }
+    return tree;
+  }
+  function freezePoint(point){
+    // Standard points have only scalar fields. Preserve deep immutability for
+    // extension metadata too, without walking the entire relocated AST again.
+    for(const key in point){
+      if(!Object.hasOwn(point,key))continue;
+      const value=point[key];if(value&&typeof value==='object')freezeGraph(value);
+    }
+    return Object.freeze(point);
+  }
   function translate(value, point) {
-    if (Array.isArray(value)) return value.map(v => translate(v, point));
+    if (Array.isArray(value)) return Object.freeze(value.map(v => translate(v, point)));
     if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, key === 'position'
-      ? {start: point(v.start), end: point(v.end)} : translate(v, point)]));
+    const copy = {};
+    for (const [key, v] of Object.entries(value)) {
+      const next = key === 'position'
+        ? Object.freeze({start: freezePoint(point(v.start)), end: freezePoint(point(v.end))})
+        : translate(v, point);
+      // Assignment to __proto__ must retain an own data property, as fromEntries did.
+      if (key === '__proto__') Object.defineProperty(copy, key, {value: next, enumerable: true});
+      else copy[key] = next;
+    }
+    return Object.freeze(copy);
   }
   function local(source, previous) {
     if (!previous || source.length < 8192) return null;
@@ -62,7 +100,9 @@ export function createSourceParser(parseFull) {
       ? !blankGap(before.slice(stop, tree.children[index + 1].position.start.offset))
       : !/^[\r\n]*$/.test(before.slice(stop))) return null;
     const nextRaw = source.slice(start, stop + delta);
-    if (!nextRaw||raw.match(/[ \t]*$/)[0]!==nextRaw.match(/[ \t]*$/)[0]) return null;
+    if (!nextRaw) return null;
+    const oldMargin=raw.match(/[ \t]*$/)[0],newMargin=nextRaw.match(/[ \t]*$/)[0];
+    if(oldMargin!==newMargin&&!literalMargin(node,raw,nextRaw,before,source,from,to,end,oldMargin,newMargin))return null;
     const breaks=text=>text.match(/\r\n|\n|\r/g)||[];
     if(JSON.stringify(breaks(raw))!==JSON.stringify(breaks(nextRaw)))return null;
     const editedLine=node.position.start.line+breaks(raw.slice(0,from-start)).length;
@@ -80,9 +120,12 @@ export function createSourceParser(parseFull) {
       offset: p.offset + start, line: p.line + node.position.start.line - 1}));
     const shift = p => ({...p, offset: p.offset + delta,
       column: p.column + (p.line === editedLine ? delta : 0)});
-    return {...tree, children: [...tree.children.slice(0, index), replacement,
-      ...tree.children.slice(index + 1).map(child => translate(child, shift))],
-      position: {start: tree.position.start, end: shift(tree.position.end)}};
+    // Every relocated object is frozen during construction; unchanged prefix
+    // nodes already belong to the immutable cached tree. Avoid a second complete
+    // freezing walk over the new suffix while retaining the cold-tree freeze below.
+    return Object.freeze({...tree, children: Object.freeze([...tree.children.slice(0, index), replacement,
+      ...tree.children.slice(index + 1).map(child => translate(child, shift))]),
+      position: Object.freeze({start: tree.position.start, end: freezePoint(shift(tree.position.end))})});
   }
   return source => {
     if (cached.has(source)) {
@@ -90,11 +133,7 @@ export function createSourceParser(parseFull) {
     }
     let reused;
     try { reused=local(source,[...cached].at(-1)); } catch { /* Uncertain fragment/context: use the complete parser. */ }
-    const tree = reused || parseFull(source), pending = [tree];
-    while (pending.length) {
-      const value = pending.pop(); if (!value || typeof value !== 'object' || Object.isFrozen(value)) continue;
-      for (const child of Object.values(value)) pending.push(child); Object.freeze(value);
-    }
+    const tree = freezeGraph(reused || parseFull(source));
     cached.set(source, tree); if (cached.size > 2) cached.delete(cached.keys().next().value);
     return tree;
   };

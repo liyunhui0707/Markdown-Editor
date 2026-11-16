@@ -72,7 +72,9 @@ test('last multiline block changes an earlier row without shifting EOF column; C
 test('unchanged pre-existing trailing margins do not force a full long-article parse',()=>{
  for(const nl of ['\n','\r\n','\r'])for(const margin of [' ','  ','\t']){
   const h=harness(),source=wrap('A target [label](guide "keep").'+margin,nl);h.parse(source);const next=source.replace('target','target中');const before=h.calls.length;assert.deepEqual(h.parse(next),cold.parse(next));assert(h.calls.slice(before).every(x=>x.length<2048));
-  const changed=next.replace('"keep").'+margin,'"keep").'+margin+' ');assert.deepEqual(h.parse(changed),cold.parse(changed));assert.equal(h.calls.at(-1),changed);
+  const changed=next.replace('"keep").'+margin,'"keep").'+margin+' '),count=h.calls.length;assert.deepEqual(h.parse(changed),cold.parse(changed));
+  if(margin.includes('\t'))assert.equal(h.calls.at(-1),changed);
+  else assert(h.calls.slice(count).every(x=>x.length<2048),'bounded literal paragraph margins have their separate proof');
  }
 });
 

@@ -16683,6 +16683,12 @@
 
   // lib/document-boundary-space.mjs
   var import_document_source_edit2 = __toESM(require_document_source_edit(), 1);
+  function ordinarySpaceChangesEmphasis(source, p, change) {
+    if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).length !== 3 || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return false;
+    const { from: from2, to, insert: insert2 } = change;
+    if (!Number.isSafeInteger(from2) || from2 !== to || typeof insert2 !== "string" || !/^ +$/.test(insert2) || insert2.length > 4096) return false;
+    return p.spans.some((s) => from2 === s.to && from2 > s.from && !s.code && !s.codeBlock && inlineFrames(s, source).some((f) => ["bold", "italic"].includes(f.kind) && (f.kind === "bold" ? ["**", "__"] : ["*", "_"]).includes(f.close) && f.open === f.close && f.to - f.close.length === s.sourceTo && source.slice(f.from, f.from + f.open.length) === f.open && source.slice(s.sourceTo, f.to) === f.close));
+  }
   function mapBoundarySpace(source, p, change, project) {
     if (!change || Object.getPrototypeOf(change) !== Object.prototype || Object.keys(change).length !== 3 || Object.keys(change).some((k) => !["from", "to", "insert"].includes(k))) return null;
     const { from: from2, to, insert: insert2 } = change;
@@ -17057,10 +17063,38 @@
       }
       return false;
     }
+    function literalMargin(node2, raw, nextRaw, before, source, from2, to, end, oldMargin, newMargin) {
+      const last = node2.children?.at(-1), changed = before.slice(from2, to) + source.slice(from2, end);
+      return node2.type === "paragraph" && node2.position.start.line === node2.position.end.line && raw.length <= 4096 && nextRaw.length <= 4096 && last?.type === "text" && from2 >= last.position.start.offset && to <= node2.position.end.offset && before.slice(last.position.start.offset, last.position.end.offset) === last.value && !oldMargin.includes("	") && !newMargin.includes("	") && changed.isWellFormed() && !/[\t\r\n`*_~\[\]<>\\|]/.test(changed);
+    }
+    function freezeGraph(tree) {
+      const pending = [tree];
+      while (pending.length) {
+        const value = pending.pop();
+        if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
+        for (const child of Object.values(value)) pending.push(child);
+        Object.freeze(value);
+      }
+      return tree;
+    }
+    function freezePoint(point3) {
+      for (const key2 in point3) {
+        if (!Object.hasOwn(point3, key2)) continue;
+        const value = point3[key2];
+        if (value && typeof value === "object") freezeGraph(value);
+      }
+      return Object.freeze(point3);
+    }
     function translate(value, point3) {
-      if (Array.isArray(value)) return value.map((v) => translate(v, point3));
+      if (Array.isArray(value)) return Object.freeze(value.map((v) => translate(v, point3)));
       if (!value || typeof value !== "object") return value;
-      return Object.fromEntries(Object.entries(value).map(([key2, v]) => [key2, key2 === "position" ? { start: point3(v.start), end: point3(v.end) } : translate(v, point3)]));
+      const copy2 = {};
+      for (const [key2, v] of Object.entries(value)) {
+        const next = key2 === "position" ? Object.freeze({ start: freezePoint(point3(v.start)), end: freezePoint(point3(v.end)) }) : translate(v, point3);
+        if (key2 === "__proto__") Object.defineProperty(copy2, key2, { value: next, enumerable: true });
+        else copy2[key2] = next;
+      }
+      return Object.freeze(copy2);
     }
     function local(source, previous3) {
       if (!previous3 || source.length < 8192) return null;
@@ -17080,7 +17114,9 @@
       if (index2 ? !blankGap(before.slice(tree.children[index2 - 1].position.end.offset, start)) : start !== 0) return null;
       if (index2 + 1 < tree.children.length ? !blankGap(before.slice(stop, tree.children[index2 + 1].position.start.offset)) : !/^[\r\n]*$/.test(before.slice(stop))) return null;
       const nextRaw = source.slice(start, stop + delta);
-      if (!nextRaw || raw.match(/[ \t]*$/)[0] !== nextRaw.match(/[ \t]*$/)[0]) return null;
+      if (!nextRaw) return null;
+      const oldMargin = raw.match(/[ \t]*$/)[0], newMargin = nextRaw.match(/[ \t]*$/)[0];
+      if (oldMargin !== newMargin && !literalMargin(node2, raw, nextRaw, before, source, from2, to, end, oldMargin, newMargin)) return null;
       const breaks = (text5) => text5.match(/\r\n|\n|\r/g) || [];
       if (JSON.stringify(breaks(raw)) !== JSON.stringify(breaks(nextRaw))) return null;
       const editedLine = node2.position.start.line + breaks(raw.slice(0, from2 - start)).length;
@@ -17099,15 +17135,15 @@
         offset: p.offset + delta,
         column: p.column + (p.line === editedLine ? delta : 0)
       });
-      return {
+      return Object.freeze({
         ...tree,
-        children: [
+        children: Object.freeze([
           ...tree.children.slice(0, index2),
           replacement,
           ...tree.children.slice(index2 + 1).map((child) => translate(child, shift2))
-        ],
-        position: { start: tree.position.start, end: shift2(tree.position.end) }
-      };
+        ]),
+        position: Object.freeze({ start: tree.position.start, end: freezePoint(shift2(tree.position.end)) })
+      });
     }
     return (source) => {
       if (cached.has(source)) {
@@ -17121,13 +17157,7 @@
         reused = local(source, [...cached].at(-1));
       } catch {
       }
-      const tree = reused || parseFull(source), pending = [tree];
-      while (pending.length) {
-        const value = pending.pop();
-        if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
-        for (const child of Object.values(value)) pending.push(child);
-        Object.freeze(value);
-      }
+      const tree = freezeGraph(reused || parseFull(source));
       cached.set(source, tree);
       if (cached.size > 2) cached.delete(cached.keys().next().value);
       return tree;
@@ -17526,6 +17556,7 @@
     const { from: from2, to, insert: insert2 } = change;
     if (!Number.isSafeInteger(from2) || !Number.isSafeInteger(to) || from2 > to || typeof insert2 !== "string" || insert2.length > 4096) return unsafe();
     const projection = beforeProjection();
+    if (leaf === null && paragraphSeparator === null && ordinarySpaceChangesEmphasis(source, projection, change)) return unsafe();
     if (leaf === null && paragraphSeparator === null) {
       const structured = mapStructuredRange(source, projection, change, projectSource);
       if (structured) return structured;

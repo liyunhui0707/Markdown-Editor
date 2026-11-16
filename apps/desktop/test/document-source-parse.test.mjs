@@ -37,7 +37,8 @@ test('structure, references, ambiguous boundaries and nonlocal changes use the c
  for(const replacement of replacements) {
   const {parse,calls}=harness(),source=fixture('Plain text.');parse(source);
   const next=source.replace('Plain text.',replacement);assert.deepEqual(parse(next),full.parse(next));
-  assert.equal(calls.at(-1),['**bold**','`code`'].includes(replacement)?replacement:next,replacement);
+  // The bounded literal-margin path also proves a plain replacement with spaces.
+  assert.equal(calls.at(-1),['**bold**','`code`','hello  '].includes(replacement)?replacement:next,replacement);
  }
  for(const source of [padding+'- item\n\n    continuation',padding+'First\nsecond',padding+'Plain\n---',padding+'[ref]\n\n[ref]: /url']) {
   const {parse,calls}=harness();parse(source);const next=source.replace(/item|First|Plain|url/,'changed');
