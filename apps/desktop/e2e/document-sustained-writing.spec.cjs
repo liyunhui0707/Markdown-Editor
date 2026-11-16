@@ -12,13 +12,20 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
  const source='# Synthetic article\n\nOpening paragraph.\n\n'+Array.from({length:700},(_,i)=>`## Chapter ${i}\n\n${paragraph}\n\n`).join('')
   +'| Name | Value |\n| --- | --- |\n| 中文 | intact |\n\n> Preserved quote.\n\n```text\nprotected payload\n```\n';
  const bytes=Buffer.from('\ufeff'+source),hash=b=>crypto.createHash('sha256').update(b).digest('hex');await fs.writeFile(original,bytes,{flag:'wx',mode:0o600});
- const evidence={root,textUnits:source.length,requestedSoakMinutes:minutes,keyDelayMs:keyDelay,startedAt:Date.now(),cycles:[],samples:[],exits:[],sessionRoots:[],nativeIME:'NOT VERIFIED',nativeDialogs:'controlled',passed:false};
+ const evidence={root,textUnits:source.length,requestedSoakMinutes:minutes,keyDelayMs:keyDelay,inputPacing:'confirmed bursts',maxBurstUnits:8,startedAt:Date.now(),cycles:[],samples:[],exits:[],sessionRoots:[],nativeIME:'NOT VERIFIED',nativeDialogs:'controlled',passed:false};
  let app,p,cdp,exit,probe,lastSample=0;const faults=[],network=[],retained=[];
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=async()=>{try{await expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>s.pending===0&&!s.locked&&!s.historyPending)).toBe(true);}catch(error){
   const diagnostic=await p.evaluate(()=>{const v=document.querySelector('#editor .tiptap')?.editor?.view,s=getSelection();return {status:JSON.parse(document.querySelector('#status').textContent),warning:document.querySelector('#viewer-status').textContent,selection:v?.state.selection.toJSON(),focus:v?.hasFocus(),active:document.activeElement?.tagName,domCollapsed:s?.isCollapsed,pressureVisible:!document.querySelector('#input-pressure-panel').hidden,pressureStatus:document.querySelector('#input-pressure-status').textContent};});
   console.error('soak-idle-failure:'+JSON.stringify(diagnostic));await fs.writeFile(info.outputPath('idle-failure.json'),JSON.stringify(diagnostic,null,2));throw error;
  }};
+ // This checks repeated writing/history/recovery, not an unacknowledged input
+ // rate. CI may confirm a near-capacity document slower than the fixed driver.
+ // Keep each native-key burst bounded; any pause still fails idle(), never resumes
+ // automatically. Deliberate queue saturation has its own recovery workflow.
+ async function typeConfirmed(text){
+  for(let i=0;i<text.length;i+=8){await p.keyboard.type(text.slice(i,i+8),{delay:keyDelay});await idle();}
+ }
  const natural=()=>probe.sample(),sample=()=>probe.sample({collect:true});
  async function progress(label){
   if(evidence.samples.length>=40)throw Error('bounded sample capacity exceeded');
@@ -51,7 +58,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
    const text=(' abcdefghijklmnop').repeat(4),start=Date.now(),rounds=[];let added='',typed=source;
    do{
     if(source.length+added.length+text.length>524288)throw Error('Soak fixture would exceed document capacity');
-    const roundStart=Date.now();await p.keyboard.type(text,{delay:keyDelay});await idle();added+=text;
+    const roundStart=Date.now();await typeConfirmed(text);added+=text;
     typed=source.slice(0,sourceEnd)+added+source.slice(sourceEnd);expect((await snap()).source).toBe(typed);
     const typingMs=Date.now()-roundStart;
     await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source===typed.slice(0,sourceEnd+added.length-1)+typed.slice(sourceEnd+added.length)).toBe(true);
@@ -74,7 +81,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   const restored=await snap();expect(restored.originalSave).toBeNull();expect(restored.linkedFile).toBeNull();expect(restored.canUndo).toBe(false);
   const para=p.locator('#editor .tiptap > p').first();await para.click();await para.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
   await expect.poll(()=>para.evaluate(n=>n.closest('.tiptap').editor.state.selection.$from.parentOffset===n.textContent.length)).toBe(true);
-  await p.keyboard.type(' continued',{delay:keyDelay});await idle();const resumed=last.source.replace('Opening paragraph.','Opening paragraph. continued');expect((await snap()).source).toBe(resumed);
+  await typeConfirmed(' continued');const resumed=last.source.replace('Opening paragraph.','Opening paragraph. continued');expect((await snap()).source).toBe(resumed);
   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source===resumed.replace('continued','continue')).toBe(true);await p.locator('#format-redo').click();await expect.poll(async()=>(await snap())?.source===resumed).toBe(true);
   evidence.restart={exact:true,continued:true,restoredHash:hash(Buffer.from(last.source)),sample:await sample()};expect(hash(await fs.readFile(original))).toBe(hash(bytes));expect(faults).toEqual([]);expect(network).toEqual([]);evidence.passed=true;
  }finally{await stop();await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,elapsedMs:Date.now()-evidence.startedAt,faults,network,artifacts:'only synthetic files in the named OS temporary directories; retained'},null,2));}

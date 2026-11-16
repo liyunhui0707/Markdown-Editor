@@ -24,6 +24,12 @@
 - Full CI, package identity and normal-exit installation checks remain integration
   requirements; physical IME/spoken feedback and genuine sustained writing stay
   separate acceptance gates. See the [response record](audits/2026-11-16-writing-response.md).
+- Retain the first PR CI failure: sixth-cycle near-capacity fixed-rate input
+  reaches the unchanged 64-operation queue and remains explicitly paused after
+  acknowledgement drain. Pace the lifecycle test in eight-key confirmed bursts,
+  preserving all content/history/recovery checks, and add the existing deliberate
+  saturation/recovery Electron scenario to CI. This changes the test envelope,
+  not the product cap, and does not claim the faster near-capacity rate passes.
 
 ## Mixed long-article input performance — 0.77.2 (2026-11-15)
 

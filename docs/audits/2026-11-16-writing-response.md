@@ -61,6 +61,27 @@ workflows check controlled composition commit/cancel, exact source, Source
 Undo/Redo, native Save, external conflict, retained export and restart recovery.
 Candidate input-lifecycle and wrapped-structure scenarios also pass.
 
+The first PR CI run (`43789936356`, head `0156291`) passes Node, generated
+assets and 23 of 24 Electron flows, including the unchanged 150k-unit mixed
+workflow. At the sixth near-capacity writing cycle it reaches the 64-operation
+confirmation queue and correctly preserves the first refused edit; pending
+acknowledgements later drain, but the explicit pause remains. This is not an
+idle timeout that a longer wait would fix. It is retained as a real throughput
+limit; the evidence does not establish whether CI host load or implementation
+changes account for the particular saturation timing.
+
+The sustained-history/recovery driver now sends the same individual native keys
+in bursts of eight, waiting for confirmation between bursts. It keeps all six
+positions, exact source/history/restart checks, document size, timeouts and pause
+assertions; it never resumes a paused editor automatically. This changes the
+test's input-rate envelope, not the product. Its later elapsed time is not
+comparable to the original unpaced run. The unpaced 150k mixed-flow remains
+unchanged, and CI additionally runs the existing deliberate saturation workflow:
+hold acknowledgement, fill exactly 64 slots, retain the refused 65th edit, refuse
+further typing, and require explicit acknowledgement before recovery and history.
+The product queue cap and guards are not increased or disabled. Faster continuous
+typing near the document limit remains a performance target, not a passed gate.
+
 The candidate six-cycle writing run passes on a 480,929-unit document in 42.29
 seconds, with normal exits and exact restart/continued input. It is not a
 20-minute soak. Collected renderer heap changes from 4,090,908 empty bytes to

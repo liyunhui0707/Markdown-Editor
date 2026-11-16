@@ -35,6 +35,12 @@ writing and wrapped structures pass. These totals do not measure physical key
 latency. A separate first-key probe failed its launch precondition before input;
 it was stopped and retained, without a first-key improvement claim.
 
+The first PR CI near-capacity fixed-rate sixth cycle reaches the protected
+confirmation queue. The lifecycle test now uses eight-key confirmed bursts,
+with separate deliberate saturation/recovery coverage in CI. Keep the faster
+near-capacity rate as an unresolved performance target; do not raise the cap or
+represent the paced scenario as proof that the earlier pressure issue disappeared.
+
 Finish full CI and exact-head integration before updating the daily App. Next
 prioritize the remaining measured first-key/whole-document work and genuine
 writing findings within the same stability phase, not another indefinite syntax
