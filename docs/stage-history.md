@@ -1,5 +1,27 @@
 # Stage History
 
+## Existing local pictures and raster drop — 0.79.0 (2026-11-16)
+
+- Existing standalone relative PNG/JPEG references may be explicitly collected
+  from the opened original's directory or child directories. Spaces, Unicode
+  names and once-encoded names are supported. Collection stages bytes; Apply is
+  a separate exact image-reference edit with original title/alt, Undo/Redo and
+  unchanged backup/export formats. Cancelling never changes source or originals.
+- Capture only a main-owned canonical directory identity at open; an edit copy
+  inherits it, a blank/recovered draft does not. Check the current source reference,
+  directory identity, every child directory, no-follow bounded read, real decode
+  and document/session image budgets. Reject traversal, hidden/secrets components,
+  symlinks, remote/absolute targets and encoded separators. Missing references can
+  still be reselected through the existing native chooser.
+- One raster event File can be dropped at a proven ordinary paragraph hit using
+  the existing paste-byte import/format/history path. HTML, URLs, other files,
+  internal dragging and drops into protected structures remain suppressed.
+- New resolver and drop modules remain below 100 lines; existing larger IPC and
+  entry modules receive only related routing, avoiding unrelated restructuring.
+  No dependencies, native helper, filesystem save policy, capacity increase or
+  visual-baseline change. Native dialogs/drag in automated evidence are controlled;
+  physical Finder dragging and human IME/VoiceOver remain separate acceptance.
+
 ## Multi-paragraph lists and nested quotes — 0.78.0 (2026-11-16)
 
 - Add source-proven container paragraph paths for explicitly indented list items

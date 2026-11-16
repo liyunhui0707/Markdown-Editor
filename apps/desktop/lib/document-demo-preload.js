@@ -42,7 +42,7 @@ const request = async (operation, data = {}) => {
   }
   const archiveRevealing=operation==='reveal-draft-archive';
   if(archiveRevealing&&(composing||pending||unknown.size))return {ok:false,code:composing?'composition-active':pending?'document-busy':'ipc-outcome-unknown'};
-  const importing = operation === 'import-image'||operation==='import-pasted-image';
+  const importing = ['import-image','import-pasted-image','import-referenced-image'].includes(operation);
   if(operation==='import-pasted-image'&&(typeof data?.base64!=='string'||data.base64.length>MAX_IMAGE_DATA_URL))return {ok:false,code:'image-size-limit'};
   const managing = operation === 'manage-draft' || operation === 'offload-save-recovery';
   if (operation === 'source-edit' && unknown.size) return { ok: false, code: 'ipc-outcome-unknown' };
@@ -155,6 +155,7 @@ async function imagePreview(data) {
   } catch { return {ok:false,code:'image-preview-unavailable'}; }
 }
 contextBridge.exposeInMainWorld('documentDemo', {
+  importReferencedImage: data => request('import-referenced-image',data),
   importPastedImage: data => request('import-pasted-image',data),
   importImage: data => request('import-image', data), imagePreview,
   renameDraft: data => request('rename-draft', data),

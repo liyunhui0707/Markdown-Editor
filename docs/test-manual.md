@@ -1,5 +1,26 @@
 # Manual Test Checklist
 
+## Existing picture portability — 0.79.0 candidate
+
+Use disposable Markdown and PNG/JPEG copies. These steps are a checklist, not
+recorded human acceptance.
+
+1. Open a document containing standalone `![Picture](images/photo.png)` and a
+   Unicode/space filename. Select its image card → image toolbar → 收集此本地引用.
+   The field becomes an attachment name; Cancel leaves the original source exact.
+   Repeat and Apply: preview appears, alt/title remain, Undo/Redo is exact.
+2. Drag one small PNG/JPEG from Finder onto an ordinary paragraph. It is inserted
+   after that paragraph, with preview and Undo/Redo. Try a protected block, SVG,
+   multiple files and oversized image: source remains intact with a useful notice.
+3. Save, then export to another ordinary supported folder. Original picture files
+   stay intact; each managed attachment accompanies the Markdown. Move the whole
+   exported set together, reopen, and confirm all previews and exact source.
+4. Wait for backup, exit and restore the draft. Images survive without the old
+   image folder; recovery does not restore old save/reference-read authority.
+5. Remote, absolute, parent/hidden/secrets and symlink references are not collected.
+   Use the native image chooser when an intentional picture lies elsewhere.
+   Network/sync/non-APFS save restrictions and existing image limits still apply.
+
 ## Multi-paragraph list and nested quote writing — 0.78.0
 
 Use a disposable file with a task item containing two explicitly indented

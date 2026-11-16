@@ -18211,7 +18211,7 @@
   } }) {
     let running = false;
     const blocked = (c) => !c.controller || !c.editor || c.loading || c.invalid || c.state.confirmed.readOnly || c.state.locked || c.state.pending || c.state.historyPending || c.state.composing || c.state.compositionInvalid || c.state.recoveryRecords.length || c.editor.view.composing || c.state.source !== c.state.confirmed.source;
-    function paste(event) {
+    function paste(event, label = "\u7C98\u8D34\u7684\u56FE\u7247") {
       const files = Array.from(event.clipboardData?.files || []);
       if (!files.some((f) => f.type.startsWith("image/"))) return false;
       event.preventDefault();
@@ -18249,11 +18249,11 @@
           }
           if (r.sessionId !== owner.id || r.revision !== owner.revision || !/^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(r.href)) return notify("\u5BFC\u5165\u7ED3\u679C\u672A\u83B7\u786E\u8BA4\uFF0C\u5F53\u524D\u6B63\u6587\u4FDD\u7559\uFF1B\u8BF7\u68C0\u67E5\u4F1A\u8BDD\u72B6\u6001\uFF0C\u4E0D\u8981\u91CD\u590D\u7C98\u8D34\u3002");
           busy(false);
-          const ok3 = await owner.controller.format({ action: "set-image", ...selection, label: "\u7C98\u8D34\u7684\u56FE\u7247", href: r.href });
+          const ok3 = await owner.controller.format({ action: "set-image", ...selection, label, href: r.href });
           if (context().controller === owner.controller) {
             if (ok3) {
               owner.editor.view.focus();
-              notify("\u56FE\u7247\u5DF2\u7C98\u8D34\uFF0C\u53EF\u64A4\u9500\u3002\u8BF7\u7B49\u5F85\u8349\u7A3F\u5907\u4EFD\uFF1B\u4FDD\u5B58\u548C\u53E6\u5B58\u65F6\u4F1A\u643A\u5E26\u9644\u4EF6\u3002", false);
+              notify("\u56FE\u7247\u5DF2\u63D2\u5165\uFF0C\u53EF\u64A4\u9500\u3002\u8BF7\u7B49\u5F85\u8349\u7A3F\u5907\u4EFD\uFF1B\u4FDD\u5B58\u548C\u53E6\u5B58\u65F6\u4F1A\u643A\u5E26\u9644\u4EF6\u3002", false);
             } else notify("\u56FE\u7247\u5C1A\u672A\u63D2\u5165\uFF0C\u539F\u6587\u4FDD\u7559\uFF1B\u8BF7\u68C0\u67E5\u5149\u6807\u4F4D\u7F6E\u548C\u4F1A\u8BDD\u72B6\u6001\u3002");
           }
         } catch {
@@ -18268,6 +18268,38 @@
       return true;
     }
     return { paste };
+  }
+
+  // lib/document-image-drop.mjs
+  var import_document_capacity11 = __toESM(require_document_capacity(), 1);
+  function dropImage(view, event, { paste, state, blocked, report }) {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (blocked || !state || state.composing || state.locked || state.pending || state.historyPending || state.compositionInvalid || state.recoveryRecords?.length || state.confirmed.readOnly || state.source !== state.confirmed.source || view.composing) {
+      report("\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u8F93\u5165\u6216\u64CD\u4F5C\uFF0C\u518D\u62D6\u5165\u56FE\u7247\uFF1B\u6B63\u6587\u4FDD\u7559\u3002", true);
+      return true;
+    }
+    if (files.length !== 1 || !["image/png", "image/jpeg"].includes(files[0].type)) {
+      report("\u6BCF\u6B21\u53EF\u62D6\u5165\u4E00\u5F20 PNG/JPEG\uFF1B\u6587\u672C\u3001\u94FE\u63A5\u53CA\u5176\u4ED6\u6587\u4EF6\u62D6\u653E\u6682\u4E0D\u652F\u6301\u3002", true);
+      return true;
+    }
+    if (!files[0].size || files[0].size > import_document_capacity11.default.MAX_IMAGE_BYTES) {
+      report("\u56FE\u7247\u4E3A\u7A7A\u6216\u8D85\u8FC7 4 MiB\uFF0C\u672A\u5BFC\u5165\uFF1B\u6B63\u6587\u4FDD\u7559\u3002", true);
+      return true;
+    }
+    const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (!hit || !imageSelection(state.source, { from: hit.pos, to: hit.pos })) {
+      report("\u8BF7\u628A\u56FE\u7247\u62D6\u5230\u666E\u901A\u6BB5\u843D\u4E2D\uFF1B\u6B63\u6587\u4FDD\u7559\u3002", true);
+      return true;
+    }
+    const selection = Selection.near(view.state.doc.resolve(hit.pos));
+    if (selection.from !== hit.pos || selection.to !== hit.pos) {
+      report("\u6B64\u5904\u4E0D\u80FD\u63D2\u5165\u56FE\u7247\uFF0C\u6B63\u6587\u4FDD\u7559\u3002", true);
+      return true;
+    }
+    view.dispatch(view.state.tr.setSelection(selection));
+    return paste.paste({ preventDefault: () => {
+    }, clipboardData: { files } }, "\u62D6\u5165\u7684\u56FE\u7247");
   }
 
   // lib/document-file-comparison-view.mjs
@@ -18795,7 +18827,7 @@
   function createImageView({ api: api2, byId: byId2, context, report }) {
     const button = byId2("format-image"), dialog = byId2("image-dialog"), form = byId2("image-form");
     const label = byId2("image-label"), href = byId2("image-href"), error = byId2("image-error"), apply2 = byId2("image-apply"), remove2 = byId2("image-remove");
-    const choose = byId2("image-choose");
+    const choose = byId2("image-choose"), collect = byId2("image-collect");
     let captured = null, busy = false, composing = false, local = false;
     const blocked = (c) => !c.controller || !c.editor || c.loading || c.invalid || c.state.confirmed.readOnly || c.state.locked || c.state.pending || c.state.historyPending || c.state.composing || c.state.compositionInvalid || c.state.recoveryRecords.length || c.editor.view.composing;
     const current = () => {
@@ -18810,7 +18842,7 @@
         report("\u8BF7\u628A\u5149\u6807\u653E\u5728\u666E\u901A\u6BB5\u843D\u4E2D\u63D2\u5165\u56FE\u7247\u5F15\u7528\uFF0C\u6216\u5148\u9009\u4E2D\u4E00\u5F20\u56FE\u7247\u5F15\u7528\u5361\u7247\u3002", true);
         return false;
       }
-      captured = { controller: c.controller, editor: c.editor, source: c.state.source, revision: c.state.confirmed.revision, selection, json: c.editor.state.selection.toJSON() };
+      captured = { controller: c.controller, editor: c.editor, source: c.state.source, revision: c.state.confirmed.revision, reference: range.block.image?.src, selection, json: c.editor.state.selection.toJSON() };
       local = false;
       label.value = range.block.image?.alt || "";
       href.value = range.block.image?.src || "";
@@ -18867,13 +18899,14 @@
         report(removing ? "\u5DF2\u79FB\u9664\u56FE\u7247\u5F15\u7528\uFF0C\u53EF\u64A4\u9500\u3002" : local ? "\u672C\u5730\u56FE\u7247\u5DF2\u63D2\u5165\uFF1B\u8BF7\u7B49\u5F85\u8349\u7A3F\u5907\u4EFD\u3002\u6309 Enter \u7EE7\u7EED\u5199\u4F5C\u3002" : "\u56FE\u7247\u5F15\u7528\u5DF2\u66F4\u65B0\u3002\u6309 Enter \u7EE7\u7EED\u5199\u4F5C\u3002");
       } else error.textContent = "\u6B64\u64CD\u4F5C\u672A\u786E\u8BA4\uFF0C\u6B63\u6587\u548C\u9762\u677F\u8F93\u5165\u4ECD\u4FDD\u7559\u3002\u8BF7\u68C0\u67E5\u9009\u533A\u548C\u6587\u6863\u72B6\u6001\u3002";
     }
-    async function pick() {
-      if (busy || composing || !current()) return;
+    async function pick(reference = false) {
+      if (busy || composing || !current() || reference && href.value !== captured.reference) return;
       const c = captured;
       busy = true;
       sync();
       try {
-        const r = await api2.importImage({ sessionId: context().state.confirmed.sessionId, expectedRevision: c.revision });
+        const data2 = { sessionId: context().state.confirmed.sessionId, expectedRevision: c.revision };
+        const r = await (reference ? api2.importReferencedImage({ ...data2, href: href.value }) : api2.importImage(data2));
         if (!current()) {
           error.textContent = "\u6587\u6863\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8BF7\u53D6\u6D88\u540E\u91CD\u65B0\u9009\u62E9\u3002";
           return;
@@ -18882,7 +18915,7 @@
           href.value = r.href;
           local = true;
           error.textContent = "\u56FE\u7247\u5DF2\u8BFB\u53D6\u3002\u70B9\u51FB\u63D2\u5165\u540E\u4F1A\u968F\u8349\u7A3F\u5907\u4EFD\uFF0C\u53E6\u5B58\u65F6\u643A\u5E26\u9644\u4EF6\u3002";
-        } else if (r?.code !== "image-cancelled") error.textContent = `\u65E0\u6CD5\u4F7F\u7528\u6B64\u56FE\u7247\uFF08${r?.code || "image-import-failed"}\uFF09\u3002\u4EC5\u652F\u6301\u6BCF\u5F20\u4E0D\u8D85\u8FC7 4 MiB\u30014096 \u50CF\u7D20\u8FB9\u957F\u7684 PNG/JPEG\uFF0C\u6BCF\u7BC7\u6700\u591A 16 \u5F20\uFF08\u5408\u8BA1 16 MiB / 3200 \u4E07\u50CF\u7D20\uFF09\u3002\u6B63\u6587\u672A\u6539\u53D8\u3002`;
+        } else if (r?.code !== "image-cancelled") error.textContent = reference ? "\u672A\u6536\u96C6\u6B64\u5F15\u7528\u3002\u9700\u4E3A\u5F53\u524D\u6587\u6863\u540C\u76EE\u5F55\u6216\u5B50\u76EE\u5F55\u4E2D\u53EF\u8BFB\u53D6\u7684 PNG/JPEG\uFF1B\u4E0D\u652F\u6301\u4E0A\u7EA7\u3001\u9690\u85CF\u76EE\u5F55\u3001\u7B26\u53F7\u94FE\u63A5\u6216\u8FDC\u7A0B\u5730\u5740\u3002\u4E5F\u53EF\u4F7F\u7528\u201C\u9009\u62E9\u672C\u5730\u56FE\u7247\u201D\u91CD\u65B0\u9009\u62E9\u3002\u56FE\u7247\u5BB9\u91CF\u9650\u5236\u4FDD\u6301\u4E0D\u53D8\uFF0C\u6B63\u6587\u672A\u6539\u53D8\u3002" : `\u65E0\u6CD5\u4F7F\u7528\u6B64\u56FE\u7247\uFF08${r?.code || "image-import-failed"}\uFF09\u3002\u4EC5\u652F\u6301\u6BCF\u5F20\u4E0D\u8D85\u8FC7 4 MiB\u30014096 \u50CF\u7D20\u8FB9\u957F\u7684 PNG/JPEG\uFF0C\u6BCF\u7BC7\u6700\u591A 16 \u5F20\uFF08\u5408\u8BA1 16 MiB / 3200 \u4E07\u50CF\u7D20\uFF09\u3002\u6B63\u6587\u672A\u6539\u53D8\u3002`;
       } catch {
         error.textContent = "\u56FE\u7247\u9009\u62E9\u672A\u786E\u8BA4\uFF0C\u6B63\u6587\u672A\u6539\u53D8\u3002";
       } finally {
@@ -18892,14 +18925,20 @@
     }
     href.addEventListener("input", () => {
       local = false;
+      sync();
     });
     if (choose) choose.onclick = () => void pick();
+    if (collect) collect.onclick = () => void pick(true);
     function sync() {
       const c = context();
       button.disabled = !!blocked(c);
       button.setAttribute("aria-pressed", String(c.editor?.state.selection.node?.type.name === "documentImage"));
       if (dialog.open) {
         if (choose) choose.disabled = busy || composing || !api2?.importImage;
+        if (collect) {
+          collect.hidden = remove2.hidden || /^markdown-image-[a-f0-9]{64}\.(png|jpg)$/.test(href.value);
+          collect.disabled = busy || composing || !api2?.importReferencedImage || href.value !== captured?.reference;
+        }
         apply2.disabled = remove2.disabled = busy || composing;
         byId2("image-cancel").disabled = busy;
         label.disabled = href.disabled = busy;
@@ -19028,11 +19067,11 @@
   }
 
   // lib/document-format-edit.mjs
-  var import_document_capacity16 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity17 = __toESM(require_document_capacity(), 1);
 
   // lib/document-table-edit.mjs
-  var import_document_capacity11 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity11.default;
+  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS6 } = import_document_capacity12.default;
   var reject8 = () => ({ ok: false, code: "unsafe-format-range" });
   var tableActions = ["insert-table", "table-add-row", "table-delete-row", "table-add-column", "table-delete-column", "table-before", "table-exit"];
   function mapTableEdit(source, p, { action, from: from2, to }, project) {
@@ -19121,8 +19160,8 @@
   }
 
   // lib/document-list-edit.mjs
-  var import_document_capacity12 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS7 } = import_document_capacity12.default;
+  var import_document_capacity13 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS7 } = import_document_capacity13.default;
   var rejectListEdit = () => ({ ok: false, code: "unsafe-format-range" });
   var cutsListSurrogate = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var listMarkType = (p) => p.bold ? "bold" : p.italic ? "italic" : p.code ? "code" : null;
@@ -19319,8 +19358,8 @@
   }
 
   // lib/document-structured-edit.mjs
-  var import_document_capacity13 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity13.default;
+  var import_document_capacity14 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS8 } = import_document_capacity14.default;
   var reject9 = () => ({ ok: false, code: "unsafe-format-range" });
   var inline3 = (text5) => text5 ? [{ type: "text", text: text5 }] : [];
   var paragraph6 = (content5) => ({ type: "paragraph", content: content5 });
@@ -19457,8 +19496,8 @@
   }
 
   // lib/document-link-edit.mjs
-  var import_document_capacity14 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity14.default;
+  var import_document_capacity15 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS9 } = import_document_capacity15.default;
   var reject10 = (code3) => ({ ok: false, code: code3 || "unsafe-link-range" });
   var splits3 = (s, n) => /[\uD800-\uDBFF]/.test(s[n - 1] || "") && /[\uDC00-\uDFFF]/.test(s[n] || "");
   var eligible = (s) => !s.codeBlock && s.textOffset === void 0;
@@ -19595,8 +19634,8 @@
   }
 
   // lib/document-boundary-edit.mjs
-  var import_document_capacity15 = __toESM(require_document_capacity(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity15.default;
+  var import_document_capacity16 = __toESM(require_document_capacity(), 1);
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS10 } = import_document_capacity16.default;
   var reject11 = () => ({ ok: false, code: "unsafe-format-range" });
   var paragraph7 = (content5) => ({ type: "paragraph", content: content5 });
   var item = (content5) => ({ type: "listItem", content: [paragraph7(content5)] });
@@ -19773,7 +19812,7 @@
   }
 
   // lib/document-format-edit.mjs
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity16.default;
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS11 } = import_document_capacity17.default;
   var reject12 = () => ({ ok: false, code: "unsafe-format-range" });
   var actions = ["paragraph", "heading-1", "heading-2", "heading-3", "heading-4", "heading-5", "heading-6", "block-shortcut", "fence-shortcut", "blockquote", "code-block", "split-quote", "join-quote", "exit-block", "bold", "italic", "code", "bullet-list", "ordered-list", "split-list", "join-list", "split-heading", "split-paragraph", "join-paragraph", "task-list", "task-shortcut", "toggle-task", "indent-list", "outdent-list"];
   var paragraph8 = (content5) => ({ type: "paragraph", content: content5 });
@@ -20153,7 +20192,7 @@
   }
 
   // lib/document-replace.mjs
-  var import_document_capacity17 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity18 = __toESM(require_document_capacity(), 1);
   function planDocumentReplace(source, doc4, matches2, insert2, selection = { from: 1, to: 1 }) {
     const fail = (code3) => ({ ok: false, code: code3 });
     if (typeof insert2 !== "string" || insert2.length > 4096 || /[\0\r\n]/.test(insert2) || !insert2.isWellFormed() || !Array.isArray(matches2) || !matches2.length || matches2.length > 1e3) return fail("invalid-replacement");
@@ -20182,7 +20221,7 @@
       }
       const overlap = edits2.some((e, i) => i > 0 && edits2[i - 1].b > e.a);
       if (overlap && source.length * matches2.length > 32e6) return fail("replacement-budget");
-      if (source.length + edits2.reduce((n, e) => n + e.text.length - (e.b - e.a), 0) > import_document_capacity17.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
+      if (source.length + edits2.reduce((n, e) => n + e.text.length - (e.b - e.a), 0) > import_document_capacity18.default.MAX_SOURCE_UNITS) return fail("invalid-replacement");
       const tr2 = new Transform(doc4);
       let candidate = source, work = 0;
       for (const e of edits2.toReversed()) {
@@ -63983,9 +64022,9 @@ SHA-256: ${last.sha256}` : "";
           notice.setAttribute?.("role", "status");
           host.append(notice);
         }
-        const capacity19 = doc4.createElement("p");
-        capacity19.textContent = `\u5DE5\u4F5C\u533A\u4FDD\u5B58\u7248\u672C ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}\uFF1B\u6062\u590D\u5F52\u6863 ${r.archived?.length ?? 0} \u6761\u3002\u5F52\u6863\u4FDD\u7559\u6750\u6599\u5E76\u817E\u51FA\u4FDD\u5B58\u540D\u989D\uFF0C\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\u3002\u6BCF\u4E2A\u6587\u4EF6\u7684\u6700\u65B0\u7248\u672C\u53CA\u4E0D\u786E\u5B9A\u8BB0\u5F55\u4E0D\u53C2\u4E0E\u6574\u7406\u3002` + (r.archiveWarning ? " \u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u6750\u6599\u4FDD\u7559\u3002" : "");
-        host.append(capacity19);
+        const capacity20 = doc4.createElement("p");
+        capacity20.textContent = `\u5DE5\u4F5C\u533A\u4FDD\u5B58\u7248\u672C ${r.capacity?.records ?? r.records.length} / ${r.capacity?.maxRecords ?? 128}\uFF1B\u6062\u590D\u5F52\u6863 ${r.archived?.length ?? 0} \u6761\u3002\u5F52\u6863\u4FDD\u7559\u6750\u6599\u5E76\u817E\u51FA\u4FDD\u5B58\u540D\u989D\uFF0C\u4ECD\u5360\u7528\u78C1\u76D8\u7A7A\u95F4\u3002\u6BCF\u4E2A\u6587\u4EF6\u7684\u6700\u65B0\u7248\u672C\u53CA\u4E0D\u786E\u5B9A\u8BB0\u5F55\u4E0D\u53C2\u4E0E\u6574\u7406\u3002` + (r.archiveWarning ? " \u5F52\u6863\u533A\u6682\u4E0D\u53EF\u7528\uFF0C\u6750\u6599\u4FDD\u7559\u3002" : "");
+        host.append(capacity20);
         if (!r.records.length) host.textContent = "\u5C1A\u65E0\u4FDD\u5B58\u56DE\u539F\u6587\u4EF6\u7684\u8BB0\u5F55\u3002";
         for (const record of [...r.records, ...r.archived || []]) {
           const row = doc4.createElement("div"), text5 = doc4.createElement("p"), button = doc4.createElement("button");
@@ -64216,9 +64255,9 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   }
 
   // lib/document-edit-controller.mjs
-  var import_document_capacity18 = __toESM(require_document_capacity(), 1);
+  var import_document_capacity19 = __toESM(require_document_capacity(), 1);
   var import_document_source_edit7 = __toESM(require_document_source_edit(), 1);
-  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity18.default;
+  var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity19.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
     const shortcut = tr2.getMeta("document-block-shortcut");
@@ -65971,11 +66010,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
             blocked: activeInvalid() || loading || readOnlyDocument(),
             report: viewerStatus
           }),
-          drop: (_view, event) => {
-            event.preventDefault();
-            show("unsupported-drop");
-            return true;
-          },
+          drop: (view, event) => dropImage(view, event, { paste: imagePaste, state: controller?.state(), blocked: activeInvalid() || loading || readOnlyDocument(), report: viewerStatus }),
           compositionstart: () => {
             if (activeInvalid()) return true;
             controller.beginComposition();
