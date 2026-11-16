@@ -32,10 +32,15 @@ static BOOL same(NSDictionary *a, NSDictionary *b, NSArray *keys) {
 }
 static NSArray *posixKeys(void){return @[@"dev",@"ino",@"mode",@"uid",@"gid"];}
 #import "document-directory-location.h"
+static NSDictionary *attributes(int fd);
 static NSData *readBytesLimit(int fd, size_t limit) {
   struct stat s;if(fstat(fd,&s)||!S_ISREG(s.st_mode)||s.st_nlink!=1||(unsigned long long)s.st_size>limit||s.st_size<0)refuse(@"unsupported-file");
+  // Check provider storage state before touching the data fork. Cross-operation
+  // ctime normalization must not weaken a single bounded read's raw stat proof.
+  if(oneDriveFiles)attributes(fd);
   NSMutableData *d=[NSMutableData dataWithLength:(NSUInteger)s.st_size];size_t offset=0;
   while(offset<d.length){ssize_t n=pread(fd,(char *)d.mutableBytes+offset,d.length-offset,offset);if(n<=0)refuse(@"read-failed");offset+=n;}
+  if(oneDriveFiles){struct stat after;if(fstat(fd,&after)||s.st_dev!=after.st_dev||s.st_ino!=after.st_ino||s.st_size!=after.st_size||s.st_mode!=after.st_mode||s.st_uid!=after.st_uid||s.st_gid!=after.st_gid||s.st_nlink!=after.st_nlink||s.st_flags!=after.st_flags||s.st_mtimespec.tv_sec!=after.st_mtimespec.tv_sec||s.st_mtimespec.tv_nsec!=after.st_mtimespec.tv_nsec||s.st_ctimespec.tv_sec!=after.st_ctimespec.tv_sec||s.st_ctimespec.tv_nsec!=after.st_ctimespec.tv_nsec)refuse(@"file-changed");}
   return d;
 }
 static NSData *readBytes(int fd) {return readBytesLimit(fd,DOCUMENT_MAX_BYTES);}
