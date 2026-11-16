@@ -7,14 +7,14 @@ const {inspectMacMetadata} = require('./document-save-policy');
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function verifyAttachment(root, asset, directory, expected = null) {
   const filePath = path.join(root,asset.name);
-  const native = inspectMacMetadata(filePath,{newlyCreatedFile:true});
+  const native = inspectMacMetadata(filePath,{newlyCreatedFile:true,oneDriveFile:!!directory.oneDrive});
   const read = readImageFile(filePath);
   const metadataHash = digest(native);
   const unchanged = () => { const s = fs.lstatSync(filePath,{bigint:true});
     return [s.dev,s.ino,s.mode,s.uid,s.gid,s.nlink,s.size,s.mtimeNs,s.ctimeNs].join(':') === read.identity; };
   if (read.name !== asset.name || !read.bytes.equals(asset.bytes) || read.mode !== 0o600
       || read.uid !== directory.uid || read.gid !== directory.gid
-      || digest(inspectMacMetadata(filePath,{newlyCreatedFile:true})) !== metadataHash
+      || digest(inspectMacMetadata(filePath,{newlyCreatedFile:true,oneDriveFile:!!directory.oneDrive})) !== metadataHash
       || !unchanged()
       || (expected && (expected.name !== asset.name || expected.fileIdentity !== read.fileIdentity
         || expected.fileMetadataSha256 !== metadataHash || expected.sha256 !== read.sha256))) {

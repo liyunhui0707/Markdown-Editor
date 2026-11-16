@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <uuid/uuid.h>
+// Set only after independently checking a main-owned OneDrive grant.
+static BOOL oneDriveFiles=NO;
 
 static void refuse(NSString *code) { @throw [NSException exceptionWithName:code reason:nil userInfo:nil]; }
 static NSString *digest(NSData *data) {
@@ -22,7 +24,7 @@ static NSDictionary *identity(int fd) {
   return @{@"dev":[NSString stringWithFormat:@"%llu",(unsigned long long)s.st_dev],
     @"ino":[NSString stringWithFormat:@"%llu",s.st_ino], @"size":[NSString stringWithFormat:@"%lld",s.st_size],
     @"mtimeNs":[NSString stringWithFormat:@"%lld",(long long)s.st_mtimespec.tv_sec*1000000000+s.st_mtimespec.tv_nsec],
-    @"ctimeNs":[NSString stringWithFormat:@"%lld",(long long)s.st_ctimespec.tv_sec*1000000000+s.st_ctimespec.tv_nsec],
+    @"ctimeNs":oneDriveFiles&&S_ISREG(s.st_mode)?@"0":[NSString stringWithFormat:@"%lld",(long long)s.st_ctimespec.tv_sec*1000000000+s.st_ctimespec.tv_nsec],
     @"mode":@(s.st_mode&07777),@"uid":@(s.st_uid),@"gid":@(s.st_gid)};
 }
 static BOOL same(NSDictionary *a, NSDictionary *b, NSArray *keys) {
@@ -30,15 +32,20 @@ static BOOL same(NSDictionary *a, NSDictionary *b, NSArray *keys) {
 }
 static NSArray *posixKeys(void){return @[@"dev",@"ino",@"mode",@"uid",@"gid"];}
 #import "document-directory-location.h"
+static NSDictionary *attributes(int fd);
 static NSData *readBytesLimit(int fd, size_t limit) {
   struct stat s;if(fstat(fd,&s)||!S_ISREG(s.st_mode)||s.st_nlink!=1||(unsigned long long)s.st_size>limit||s.st_size<0)refuse(@"unsupported-file");
+  // Check provider storage state before touching the data fork. Cross-operation
+  // ctime normalization must not weaken a single bounded read's raw stat proof.
+  if(oneDriveFiles)attributes(fd);
   NSMutableData *d=[NSMutableData dataWithLength:(NSUInteger)s.st_size];size_t offset=0;
   while(offset<d.length){ssize_t n=pread(fd,(char *)d.mutableBytes+offset,d.length-offset,offset);if(n<=0)refuse(@"read-failed");offset+=n;}
+  if(oneDriveFiles){struct stat after;if(fstat(fd,&after)||s.st_dev!=after.st_dev||s.st_ino!=after.st_ino||s.st_size!=after.st_size||s.st_mode!=after.st_mode||s.st_uid!=after.st_uid||s.st_gid!=after.st_gid||s.st_nlink!=after.st_nlink||s.st_flags!=after.st_flags||s.st_mtimespec.tv_sec!=after.st_mtimespec.tv_sec||s.st_mtimespec.tv_nsec!=after.st_mtimespec.tv_nsec||s.st_ctimespec.tv_sec!=after.st_ctimespec.tv_sec||s.st_ctimespec.tv_nsec!=after.st_ctimespec.tv_nsec)refuse(@"file-changed");}
   return d;
 }
 static NSData *readBytes(int fd) {return readBytesLimit(fd,DOCUMENT_MAX_BYTES);}
-static NSDictionary *checkedAttributes(int fd, BOOL directory, BOOL *hasACL, unsigned int expectedFlags) {
-  struct stat s;if(fstat(fd,&s)||s.st_flags!=expectedFlags)refuse(@"unsupported-flags");
+static NSDictionary *scopedAttributes(int fd, BOOL directory, BOOL *hasACL, unsigned int expectedFlags, NSString *role) {
+  struct stat s;if(fstat(fd,&s)||(oneDriveFiles&&!directory?(s.st_flags&~UF_TRACKED):s.st_flags)!=expectedFlags)refuse(@"unsupported-flags");
   // On macOS a valid fd with no extended ACL returns ENOENT. Other failures refuse.
   errno=0;acl_t acl=acl_get_fd_np(fd,ACL_TYPE_EXTENDED);
   if(!acl&&errno!=ENOENT)refuse(@"metadata-unavailable");
@@ -46,12 +53,16 @@ static NSDictionary *checkedAttributes(int fd, BOOL directory, BOOL *hasACL, uns
   if(acl){@try{acl_entry_t entry;int has=acl_get_entry(acl,ACL_FIRST_ENTRY,&entry);
     if(has==0){
       if(!directory)refuse(@"unsupported-acl");
+      BOOL domain=[role isEqual:@"domain"];NSUInteger count=domain?2:1;
+      for(NSUInteger index=0;index<count;index++){
       acl_tag_t tag;acl_permset_mask_t mask;acl_flagset_t flags;
-      if(acl_get_tag_type(entry,&tag)||tag!=ACL_EXTENDED_DENY||acl_get_permset_mask_np(entry,&mask)||mask!=ACL_DELETE||acl_get_flagset_np(entry,&flags))refuse(@"unsupported-acl");
+      if(acl_get_tag_type(entry,&tag)||tag!=ACL_EXTENDED_DENY||acl_get_permset_mask_np(entry,&mask)||mask!=(domain&&index==0?ACL_WRITE_EXTATTRIBUTES:ACL_DELETE)||acl_get_flagset_np(entry,&flags))refuse(@"unsupported-acl");
       for(NSNumber *flag in @[@(ACL_ENTRY_INHERITED),@(ACL_ENTRY_FILE_INHERIT),@(ACL_ENTRY_DIRECTORY_INHERIT),@(ACL_ENTRY_LIMIT_INHERIT),@(ACL_ENTRY_ONLY_INHERIT)])if(acl_get_flag_np(flags,flag.intValue)!=0)refuse(@"unsupported-acl");
       void *qualifier=acl_get_qualifier(entry);if(!qualifier)refuse(@"unsupported-acl");
       char text[37];uuid_unparse_upper(qualifier,text);acl_free(qualifier);
-      if(strcmp(text,"ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C")||acl_get_entry(acl,ACL_NEXT_ENTRY,&entry)==0)refuse(@"unsupported-acl");
+      if(strcmp(text,"ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C"))refuse(@"unsupported-acl");
+      int next=acl_get_entry(acl,ACL_NEXT_ENTRY,&entry);if((index+1<count&&next!=0)||(index+1==count&&next==0))refuse(@"unsupported-acl");
+      }
       if(hasACL)*hasACL=YES;
     }else if(errno!=EINVAL&&errno!=ENOENT)refuse(@"metadata-unavailable");
   }@finally{acl_free(acl);}}
@@ -63,12 +74,14 @@ static NSDictionary *checkedAttributes(int fd, BOOL directory, BOOL *hasACL, uns
   const char *p=names.bytes;size_t offset=0;
   while(offset<(size_t)size){size_t n=strnlen(p+offset,size-offset);if(n==size-offset)refuse(@"unsupported-xattrs");
     NSString *name=[[NSString alloc] initWithBytes:p+offset length:n encoding:NSUTF8StringEncoding];
-    if(![@[@"com.apple.provenance",@"com.apple.macl",@"com.apple.lastuseddate#PS"] containsObject:name]||(directory&&[name isEqual:@"com.apple.lastuseddate#PS"]))refuse(@"unsupported-xattrs");
+    BOOL scoped=([role isEqual:@"library"]&&[name isEqual:@"com.apple.FinderInfo"])||([role isEqual:@"domain"]&&[name isEqual:@"com.apple.file-provider-domain-id"]);
+    if((!scoped&&![@[@"com.apple.provenance",@"com.apple.macl",@"com.apple.lastuseddate#PS"] containsObject:name])||(directory&&[name isEqual:@"com.apple.lastuseddate#PS"]))refuse(@"unsupported-xattrs");
     ssize_t count=fgetxattr(fd,p+offset,NULL,0,0,0);if(count<0||count>65536)refuse(@"unsupported-xattrs");
     NSMutableData *value=[NSMutableData dataWithLength:count];if(fgetxattr(fd,p+offset,value.mutableBytes,count,0,0)!=count)refuse(@"metadata-changed");
     attrs[name]=digest(value);offset+=n+1;
   }return attrs;
 }
+static NSDictionary *checkedAttributes(int fd,BOOL directory,BOOL *acl,unsigned int flags){return scopedAttributes(fd,directory,acl,flags,nil);}
 static NSDictionary *nativeAttributes(int fd,BOOL directory,BOOL *acl){return checkedAttributes(fd,directory,acl,0);}
 static NSDictionary *attributes(int fd){return nativeAttributes(fd,NO,NULL);}
 static int openRegular(int dir, const char *name, int flags) {
@@ -96,7 +109,9 @@ static void verifyAncestors(NSArray *ancestors) {
       if([a[@"trustedTransit"] boolValue]){struct stat transit;if(fstat(fd,&transit)||transit.st_uid!=0)refuse(@"invalid-transit");
         mode_t mode=transit.st_mode&07777;BOOL sticky=([p isEqual:@"/Users/Shared"]||[p isEqual:@"/private/tmp"])&&mode==01777;
         if(mode!=0755&&mode!=0555&&!sticky)refuse(@"invalid-transit");flags=(unsigned int)[a[@"metadata"][@"flags"] longLongValue];}
-      NSDictionary *attrs=checkedAttributes(fd,YES,&acl,flags);
+      NSString *role=a[@"oneDriveRole"];
+      if(role){if(!oneDriveFiles)refuse(@"invalid-onedrive-role");if([role isEqual:@"library"]){flags=(unsigned int)[a[@"metadata"][@"flags"] longLongValue];if(flags!=0&&flags!=UF_HIDDEN)refuse(@"invalid-onedrive-flags");}}
+      NSDictionary *attrs=scopedAttributes(fd,YES,&acl,flags,role);
       if(a[@"location"]){
         if(![a[@"location"] isEqual:@{@"ubiquitous":@NO}])refuse(@"invalid-directory-location");
         verifyLocalDirectory(p);

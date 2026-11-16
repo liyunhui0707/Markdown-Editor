@@ -18,6 +18,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
           || revision < 0 || typeof isAuthorized !== 'function' || !authorized()) throw Object.assign(Error(), { code: 'copy-authorization-expired' });
       assets = decodeAttachments(attachments);
       target = captureCopyDestination(filePath);
+      filePath=target.filePath;
     } catch (cause) {
       return { ok: false, state: cause.code === 'target-exists' ? 'target-exists' : 'not-created', created: false,
         code: cause.code || 'copy-directory-refused' };
@@ -35,7 +36,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
         const finish = result => {
           if (settled) return; settled = true; clearTimeout(timer); clearTimeout(termination); active.delete(child);
           const { fileMetadataSha256, ...receipt } = result; // Internal writer proof, not renderer authority.
-          resolve({ ...receipt, ...(assets.length ? {attachmentPaths:assets.map(a=>path.join(target.root,a.name))} : {}),
+          resolve({ ...receipt,...(target.state.oneDrive?{localProvider:'onedrive'}:{}), ...(assets.length ? {attachmentPaths:assets.map(a=>path.join(target.root,a.name))} : {}),
             filePath, directoryIdentity: target.state.identity });
         };
         const stop = code => {
@@ -74,7 +75,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
               if (response.state !== 'created-confirmed' || response.created !== true || response.filePath !== filePath
                   || response.sha256 !== sha256 || response.byteLength !== bytes.length) throw Error('invalid receipt');
               const verifyNativeMetadata = () => {
-                const actual = inspectMacMetadata(filePath, { newlyCreatedFile: true });
+                const actual = inspectMacMetadata(filePath, { newlyCreatedFile: true,oneDriveFile:!!target.state.oneDrive });
                 if (typeof response.fileMetadataSha256 !== 'string'
                     || createHash('sha256').update(JSON.stringify(actual)).digest('hex') !== response.fileMetadataSha256) throw Error('created attributes changed');
               };
@@ -85,7 +86,7 @@ function createCopyProcess({ fork, writerPath = path.join(__dirname, 'document-c
                   || read.sha256 !== sha256 || !read.bytes.equals(bytes)) throw Error('created file changed');
               verifyNativeMetadata();
               if (!Array.isArray(response.attachments || []) || (response.attachments || []).length !== assets.length) throw Error('missing attachments');
-              assets.forEach((a,i) => verifyAttachment(target.root,a,target.state.identity,response.attachments[i]));
+              assets.forEach((a,i) => verifyAttachment(target.root,a,{...target.state.identity,oneDrive:!!target.state.oneDrive},response.attachments[i]));
               target.verify();
             } catch { finish({ ...response, ok: false, state: 'created-unverified', code: 'copy-post-verification-failed' }); return; }
           } else if (!Object.hasOwn({ 'not-created': false, 'target-exists': false, 'created-partial': true, 'created-unverified': true, 'durability-uncertain': true, 'create-outcome-unknown': null }, response.state)

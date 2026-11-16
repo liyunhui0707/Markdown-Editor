@@ -68,3 +68,22 @@ test('newly created persistent files accept only observed native MACL and last-u
   assert.throws(() => inspect({ ...options, acl: protection }), { code: 'unsupported-acl' });
   assert.throws(() => inspect({ ...options, names: options.names + 'com.apple.quarantine\n' }), { code: 'unsupported-xattrs' });
 });
+
+test('provider metadata exceptions are path/role scoped; tracked files still refuse other flags and attributes',()=>{
+ const home=require('node:os').homedir(),base=home+'/Library/CloudStorage/OneDrive-Unit';
+ const domainACL=' 0: group:everyone deny writeextattr\n 1: group:everyone deny delete';
+ function at(file,role,opts={}){
+  const {acl='',names='',flags='0\n',directory=true}=opts;
+  const spawn=(exe,args)=>({status:0,stdout:exe==='/bin/ls'?`${directory?'d':'-'}rwx------@ 1 owner group 0 Jan 1 00:00 synthetic\n${acl?acl+'\n':''}`:exe==='/usr/bin/stat'?flags:args[0]==='-px'?'01 02 AB\n':names});
+  return inspectMacMetadata(file,{spawn,platform:'darwin',newFileDirectory:directory,...(role?{oneDriveRole:role}:{}),...(!directory?{oneDriveFile:true}:{})});
+ }
+ assert.equal(at(home+'/Library','library',{flags:'32768\n',acl:protection,names:'com.apple.FinderInfo\n'}).flags,'32768');
+ assert.equal(at(base,'domain',{acl:domainACL,names:'com.apple.file-provider-domain-id\n'}).acl.split('\n').length,2);
+ assert.equal(at(base+'/A.md',null,{directory:false,flags:'64\n',names:'com.apple.provenance\n'}).flags,'0');
+ assert.deepEqual(Object.keys(at(base+'/A.md',null,{directory:false,names:'com.apple.macl\ncom.apple.lastuseddate#PS\n'}).xattrs),['com.apple.lastuseddate#PS','com.apple.macl']);
+ for(const flags of ['32\n','96\n','2\n','32768\n','1073741824\n'])assert.throws(()=>at(base+'/A.md',null,{directory:false,flags}),{code:'unsupported-flags'});
+ assert.throws(()=>at(base+'/A.md',null,{directory:false,names:'com.apple.decmpfs\n'}),{code:'unsupported-xattrs'});
+ assert.throws(()=>at('/ordinary/A.md',null,{directory:false,flags:'64\n'}),{code:'invalid-onedrive-file'});
+ assert.throws(()=>at('/ordinary','domain',{acl:domainACL}),{code:'invalid-onedrive-role'});
+ assert.throws(()=>at(base,'domain',{acl:domainACL.replace('deny writeextattr','allow writeextattr')}),{code:'unsupported-acl'});
+});

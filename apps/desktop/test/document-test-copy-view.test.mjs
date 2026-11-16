@@ -50,6 +50,10 @@ test('no successful copy is invented before a confirmed receipt', () => {
   assert.equal(h.text('test-copy-result'), '');
   assert.equal(h.text('test-copy-operation'), '');
 });
+test('OneDrive receipt claims local writing only, never confirmed cloud upload',async()=>{
+ const h=harness();await h.attempt({...confirmed(),localProvider:'onedrive'});
+ assert.match(h.text('test-copy-operation'),/OneDrive 本机文件写入/);assert.match(h.text('test-copy-operation'),/上传状态请在 OneDrive/);
+});
 test('last confirmed path, revision and hash survive target-exists and cancellation', async () => {
   const h = harness(), before = structuredClone(h.documents.get('A').state.confirmed);
   await h.attempt(confirmed());

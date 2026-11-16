@@ -19,3 +19,7 @@ test('rechecking never hides a paused save or downgrades an uncertain replacemen
  current.linkedFile.checked.state='changed';assert.match(originalSaveNotice(current),/保存已暂停/);
  current.originalSave.receipt={ok:false,committed:null};assert.match(originalSaveNotice(current),/保存未确认，原路径可能已经更新/);
 });
+test('OneDrive display names the local file without claiming cloud synchronization',()=>{
+ const c={temporary:true,copySha256:'saved',linkedFile:{filePath:'/synthetic/One.md',baselineSha256:'saved'},originalSave:{available:true,localProvider:'onedrive'}};
+ assert.equal(filePresentation(c).kind,'OneDrive 本机文件 · 正文已保存');
+});

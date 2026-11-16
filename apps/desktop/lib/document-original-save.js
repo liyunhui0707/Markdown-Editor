@@ -89,7 +89,7 @@ function createOriginalSave({root,binary,timeoutMs=15000}) {
    const assets=require('./document-local-images').decodeAttachments(attachments).map(a=>({name:a.name,body:a.bytes.toString('base64'),sha256:a.sha256}));
    recordId=randomUUID();tx=path.join(root,recordId);fs.mkdirSync(tx,{mode:0o700});
    const request={filePath:key,recoveryPath:tx,recoveryIdentity:id(fs.lstatSync(tx,{bigint:true})),
-    expectedIdentity:expected.identity,expectedSha256:expected.sha256,body:bytes.toString('base64'),sha256:hash(bytes),revision,ancestors:state.ancestors,assets,...(state.volume?{volume:state.volume}:{})};
+    expectedIdentity:expected.identity,expectedSha256:expected.sha256,body:bytes.toString('base64'),sha256:hash(bytes),revision,ancestors:state.ancestors,assets,...(state.volume?{volume:state.volume}:{}),...(state.oneDrive?{oneDrive:state.oneDrive}:{})};
    const file=path.join(tx,'request.json');const fd=fs.openSync(file,'wx',0o600);
    try{fs.writeFileSync(fd,JSON.stringify({version:1,filePath:key,revision,time:Date.now(),expectedSha256:expected.sha256,sha256:request.sha256}));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
    for(const p of [tx,root]){const d=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW);try{fs.fsyncSync(d);}finally{fs.closeSync(d);}}

@@ -4,8 +4,8 @@ const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:
 const {directoryHelperPath,inspectDirectoryLocation}=require('./document-directory-location');
 const fail=code=>{throw Object.assign(Error(code),{code,status:'blocked'});};
 const identity=s=>({dev:String(s.dev),ino:String(s.ino),mode:Number(s.mode&0o7777n),uid:Number(s.uid),gid:Number(s.gid)});
-function inspectLocalVolume(directory){
- const r=spawnSync(directoryHelperPath(),['--inspect-volume',directory],{encoding:'utf8',timeout:3000,maxBuffer:4096,env:{PATH:'/usr/bin:/bin',LC_ALL:'C'}});
+function inspectLocalVolume(directory,{oneDrive=false}={}){
+ const r=spawnSync(directoryHelperPath(),[oneDrive?'--inspect-onedrive-volume':'--inspect-volume',directory],{encoding:'utf8',timeout:3000,maxBuffer:4096,env:{PATH:'/usr/bin:/bin',LC_ALL:'C'}});
  let v;try{if(r.error||r.signal||r.status!==0)throw Error();v=JSON.parse(r.stdout);}catch{fail('volume-inspection-unavailable');}
  if(v?.ok!==true||v.filesystem!=='apfs'||v.local!==true||v.writable!==true||v.ownership!==true||typeof v.uuid!=='string'||!/^[A-Fa-f0-9-]{36}$/.test(v.uuid)||typeof v.dev!=='string'||typeof v.mount!=='string'||!path.isAbsolute(v.mount)||Object.keys(v).length!==8)fail(v?.code==='cloud-directory'?'cloud-directory':'unsupported-filesystem');
  const {ok,...proof}=v;return proof;

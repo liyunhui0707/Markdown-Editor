@@ -1,5 +1,32 @@
 # Stage History
 
+## OneDrive local saving — 0.80.0 (2026-11-16)
+
+- Enable only canonical current-user OneDrive File Provider domains on the Home
+  APFS device after ownership, exact ACL/domain marker, ancestor and volume checks.
+  The native helper verifies the grant independently. The explicit `~/OneDrive`
+  selection alias resolves to that domain; no general symlink exception is added.
+- Save and exclusive Save As coordinate Markdown plus managed PNG/JPEG files.
+  Same-name creation refuses; conflict, unknown outcome and unsupported storage
+  state retain the writing and pause the binding. Recovery never restores grants.
+- Provider tracking-only ctime/UF_TRACKED changes no longer masquerade as content
+  conflicts. Keep raw within-read identity, hashes, mtime/mode/owner and supported
+  metadata proofs. Faulting/compressed/dataless, unknown flags/attrs and other
+  providers/network/non-APFS remain refused.
+- Always stage original-file exchanges within the provider domain, retaining the
+  actual displaced inode there and independent full baseline/draft/previous bytes
+  locally. An earlier real cross-domain probe committed but correctly refused to
+  confirm a faulted displaced object; that evidence is retained and not retried.
+- First-save consent discloses that hidden provider recovery contains old contents
+  that may sync. Success reports a local write, not upload completion. No automatic
+  cleanup/adoption/rollback. Small new modules extend existing safety/history flows;
+  no dependencies, image/document limits, editor framework or visual layout change.
+- Real-provider automation uses only the user-authorized synthetic namespace;
+  native dialogs are controlled. CI uses fresh isolated simulated provider layouts,
+  archives only its own fixtures and is not cloud-service acceptance. Physical IME,
+  cloud upload/other devices and prolonged human writing are separate checks.
+
+
 ## Existing local pictures and raster drop — 0.79.0 (2026-11-16)
 
 - Existing standalone relative PNG/JPEG references may be explicitly collected

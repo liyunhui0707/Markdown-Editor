@@ -1,6 +1,7 @@
 // One bounded coordinated transaction. All input is main-owned; no renderer IPC.
 #import "document-save-io.h"
 #import "document-save-staging.h"
+#import "document-onedrive-policy.h"
 
 static void checkpoint(NSDictionary *request,NSString *step) {
 #ifdef DOCUMENT_SAVE_TESTING
@@ -36,6 +37,7 @@ static void verifyAssets(int dir,NSArray *proofs){
   @try{struct stat named;if(fstatat(dir,[a[@"name"] fileSystemRepresentation],&named,AT_SYMLINK_NOFOLLOW)||named.st_ino!=strtoull([a[@"identity"][@"ino"] UTF8String],NULL,10)||named.st_dev!=[a[@"identity"][@"dev"] longLongValue])refuse(@"asset-changed");if(![identity(fd) isEqual:a[@"identity"]]||![digest(readBytesLimit(fd,DOCUMENT_MAX_IMAGE_BYTES)) isEqual:a[@"sha256"]]||![attributes(fd) isEqual:a[@"attributes"]]||![identity(fd) isEqual:a[@"identity"]])refuse(@"asset-changed");}@finally{close(fd);}
  }
 }
+#import "document-onedrive-copy.h"
 static NSDictionary *transaction(NSDictionary *r) {
   __block BOOL exchanged=NO,attempted=NO;BOOL journalReady=NO;__block NSDictionary *receipt;
   __block int target=-1,recovery=-1,original=-1,candidate=-1,swap=-1,stageRoot=-1;
@@ -45,12 +47,13 @@ static NSDictionary *transaction(NSDictionary *r) {
     if(![file isKindOfClass:NSString.class]||![root isKindOfClass:NSString.class]||![file hasPrefix:@"/"]||![root hasPrefix:@"/"]||![name.pathExtension.lowercaseString isEqual:@"md"]||![r[@"ancestors"] isKindOfClass:NSArray.class])refuse(@"invalid-request");
     NSData *bytes=[[NSData alloc] initWithBase64EncodedString:r[@"body"] options:0];
     if(!bytes||bytes.length>DOCUMENT_MAX_BYTES||![digest(bytes) isEqual:r[@"sha256"]])refuse(@"invalid-body");
+    verifyOneDriveGrant(r);
     recovery=open(root.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
     if(recovery<0||!same(identity(recovery),r[@"recoveryIdentity"],posixKeys())||[identity(recovery)[@"mode"] intValue]!=0700)refuse(@"recovery-directory-changed");
     journalReady=YES;
     NSError *coordinationError=nil;
     NSFileCoordinator *coordinator=[[NSFileCoordinator alloc] initWithFilePresenter:nil];
-    [coordinator coordinateWritingItemAtURL:[NSURL fileURLWithPath:file] options:NSFileCoordinatorWritingForReplacing error:&coordinationError byAccessor:^(NSURL *url){
+    coordinateDocumentWrite(r,coordinator,&coordinationError,^(NSURL *url){
       @try {
         if(![url.path isEqual:file])refuse(@"coordinated-path-changed");
         verifyAncestors(r[@"ancestors"]);
@@ -66,7 +69,7 @@ static NSDictionary *transaction(NSDictionary *r) {
         int draft=createBytes(recovery,"draft.md",bytes);close(draft);
         if(fsync(recovery))refuse(@"sync-failed");
         NSDictionary *stage=nil;swap=recovery;
-        if(![identity(target)[@"dev"] isEqual:identity(recovery)[@"dev"]]){
+        if(oneDriveFiles||![identity(target)[@"dev"] isEqual:identity(recovery)[@"dev"]]){
           if(![r[@"volume"] isEqual:localVolume(directory)])refuse(@"staging-volume-changed");
           swap=-1;stage=prepareStaging(r,target,recovery,&stageRoot,&swap);
         }
@@ -107,7 +110,7 @@ static NSDictionary *transaction(NSDictionary *r) {
  fprintf(stderr,"%s: %s\n",e.name.UTF8String,e.reason.UTF8String);
 #endif
  receipt=@{@"ok":@NO,@"state":exchanged?@"save-unverified":attempted?@"save-outcome-unknown":@"not-saved",@"committed":exchanged?@YES:attempted?(id)NSNull.null:@NO,@"code":e.name};}
-    }];
+    });
     if(coordinationError||!receipt)refuse(@"coordination-failed");
   }@catch(NSException *e){
 #ifdef DOCUMENT_SAVE_TESTING
@@ -121,6 +124,9 @@ static NSDictionary *transaction(NSDictionary *r) {
   return receipt;
 }
 int main(int argc,const char **argv){@autoreleasepool {
+  if(argc==3&&!strcmp(argv[1],"--inspect-onedrive-volume")){
+    NSData *output=[NSJSONSerialization dataWithJSONObject:inspectOneDriveVolume([NSString stringWithUTF8String:argv[2]]) options:0 error:NULL];fwrite(output.bytes,1,output.length,stdout);putchar('\n');return 0;
+  }
   if(argc==3&&(!strcmp(argv[1],"--inspect-directory")||!strcmp(argv[1],"--inspect-volume"))){
     NSDictionary *result=!strcmp(argv[1],"--inspect-volume")?inspectLocalVolume([NSString stringWithUTF8String:argv[2]]):inspectDirectoryLocation([NSString stringWithUTF8String:argv[2]]);
     NSData *output=[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
@@ -132,11 +138,12 @@ int main(int argc,const char **argv){@autoreleasepool {
   while((c=getchar())!='\n'&&c!=EOF){if(data.length>=DOCUMENT_MAX_REQUEST_BYTES)return 64;unsigned char b=c;[data appendBytes:&b length:1];}
   NSDictionary *request=[NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
   if(![request isKindOfClass:NSDictionary.class])return 64;
-  NSMutableSet *keys=[NSMutableSet setWithArray:@[@"filePath",@"recoveryPath",@"recoveryIdentity",@"body",@"sha256",@"expectedIdentity",@"expectedSha256",@"ancestors",@"revision",@"assets",@"volume"]];
+  NSMutableSet *keys=[NSMutableSet setWithArray:@[@"filePath",@"recoveryPath",@"recoveryIdentity",@"body",@"sha256",@"expectedIdentity",@"expectedSha256",@"ancestors",@"revision",@"assets",@"volume",@"oneDrive",@"operation"]];
 #ifdef DOCUMENT_SAVE_TESTING
   [keys addObjectsFromArray:@[@"testPoint",@"testFault"]];
 #endif
   for(id key in request)if(![keys containsObject:key])return 64;
-  NSDictionary *result=transaction(request);NSData *output=[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
+  if(request[@"operation"]&&![request[@"operation"] isEqual:@"create-onedrive-copy"])return 64;
+  NSDictionary *result=request[@"operation"]?createOneDriveCopy(request):transaction(request);NSData *output=[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
   fwrite(output.bytes,1,output.length,stdout);putchar('\n');return 0;
 }}
