@@ -30,3 +30,12 @@ test('position-free metadata and own special keys retain exact values without pr
  for(const n of tree.children){assert.equal(Object.getPrototypeOf(n.data),Object.prototype);assert(Object.hasOwn(n.data,'__proto__'));assert.equal(n.data.__proto__.safe,true);}
  assert.equal(Object.prototype.safe,undefined);
 });
+
+test('relocated position points also freeze nested custom metadata from fresh fragments',()=>{
+ const full=s=>{const tree=cold.parse(s),pending=[tree];while(pending.length){const n=pending.pop();
+  if(n.position)for(const point of [n.position.start,n.position.end])point.extra={rows:[{tag:'synthetic'}]};
+  pending.push(...(n.children||[]));}return tree;};
+ const parse=createSourceParser(full),source='Plain target.\n\n'+padding;parse(source);
+ const next=source.replace('target','targetx'),tree=parse(next);assert.deepEqual(tree,full(next));frozen(tree);
+ assert.throws(()=>{tree.children[0].position.start.extra.rows[0].tag='changed';},TypeError);
+});

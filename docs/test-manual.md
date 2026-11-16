@@ -1,5 +1,16 @@
 # Manual Test Checklist
 
+## First-key and long-document response — 0.77.4
+
+Use the existing [actual-writing check](daily-use-check.md), with a disposable
+long article. Start fresh editing sessions and type a letter, then Space and
+another word at a plain paragraph end and after bold/italic text in a list or
+quote. Repeat near the end of the article. Check responsiveness, exact Spaces,
+Chinese candidate commit/cancel, Undo/Redo, Source, Save and restart recovery.
+Record size, duration and input method; automation does not mark this passed.
+If fast input pauses, retain the writing and follow explicit recovery; never
+repeat a save of uncertain outcome. Queue protection is intentionally unchanged.
+
 ## Transaction response and writing stability — 0.77.3
 
 In a disposable mixed article, type in ordinary and linked paragraphs, wrapped

@@ -48,13 +48,30 @@ export function createSourceParser(parseFull) {
       &&!oldMargin.includes('\t')&&!newMargin.includes('\t')&&changed.isWellFormed()
       &&!/[\t\r\n`*_~\[\]<>\\|]/.test(changed);
   }
+  function freezeGraph(tree){
+    const pending=[tree];
+    while(pending.length){
+      const value=pending.pop();if(!value||typeof value!=='object'||Object.isFrozen(value))continue;
+      for(const child of Object.values(value))pending.push(child);Object.freeze(value);
+    }
+    return tree;
+  }
+  function freezePoint(point){
+    // Standard points have only scalar fields. Preserve deep immutability for
+    // extension metadata too, without walking the entire relocated AST again.
+    for(const key in point){
+      if(!Object.hasOwn(point,key))continue;
+      const value=point[key];if(value&&typeof value==='object')freezeGraph(value);
+    }
+    return Object.freeze(point);
+  }
   function translate(value, point) {
     if (Array.isArray(value)) return Object.freeze(value.map(v => translate(v, point)));
     if (!value || typeof value !== 'object') return value;
     const copy = {};
     for (const [key, v] of Object.entries(value)) {
       const next = key === 'position'
-        ? Object.freeze({start: Object.freeze(point(v.start)), end: Object.freeze(point(v.end))})
+        ? Object.freeze({start: freezePoint(point(v.start)), end: freezePoint(point(v.end))})
         : translate(v, point);
       // Assignment to __proto__ must retain an own data property, as fromEntries did.
       if (key === '__proto__') Object.defineProperty(copy, key, {value: next, enumerable: true});
@@ -108,7 +125,7 @@ export function createSourceParser(parseFull) {
     // freezing walk over the new suffix while retaining the cold-tree freeze below.
     return Object.freeze({...tree, children: Object.freeze([...tree.children.slice(0, index), replacement,
       ...tree.children.slice(index + 1).map(child => translate(child, shift))]),
-      position: Object.freeze({start: tree.position.start, end: Object.freeze(shift(tree.position.end))})});
+      position: Object.freeze({start: tree.position.start, end: freezePoint(shift(tree.position.end))})});
   }
   return source => {
     if (cached.has(source)) {
@@ -116,11 +133,7 @@ export function createSourceParser(parseFull) {
     }
     let reused;
     try { reused=local(source,[...cached].at(-1)); } catch { /* Uncertain fragment/context: use the complete parser. */ }
-    const tree = reused || parseFull(source), pending = [tree];
-    while (pending.length) {
-      const value = pending.pop(); if (!value || typeof value !== 'object' || Object.isFrozen(value)) continue;
-      for (const child of Object.values(value)) pending.push(child); Object.freeze(value);
-    }
+    const tree = freezeGraph(reused || parseFull(source));
     cached.set(source, tree); if (cached.size > 2) cached.delete(cached.keys().next().value);
     return tree;
   };

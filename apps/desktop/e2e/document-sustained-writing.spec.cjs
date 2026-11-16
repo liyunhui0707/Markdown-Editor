@@ -89,5 +89,6 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   await typeConfirmed(' continued');const resumed=last.source.replace('Opening paragraph.','Opening paragraph. continued');expect((await snap()).source).toBe(resumed);
   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source===resumed.replace('continued','continue')).toBe(true);await p.locator('#format-redo').click();await expect.poll(async()=>(await snap())?.source===resumed).toBe(true);
   evidence.restart={exact:true,continued:true,restoredHash:hash(Buffer.from(last.source)),sample:await sample()};expect(hash(await fs.readFile(original))).toBe(hash(bytes));expect(faults).toEqual([]);expect(network).toEqual([]);evidence.passed=true;
+  console.log('soak-input-envelope:'+JSON.stringify({inputPacing:evidence.inputPacing,keyDelayMs:keyDelay,maxBurstUnits:evidence.maxBurstUnits,cycles:evidence.cycles.map(c=>({cycle:c.cycle,typingMs:c.typingMs,pendingPeak:c.pendingPeak,sourceSha256:c.sourceSha256})),restart:evidence.restart.exact}));
  }finally{await stop();await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,elapsedMs:Date.now()-evidence.startedAt,faults,network,artifacts:'only synthetic files in the named OS temporary directories; retained'},null,2));}
 });

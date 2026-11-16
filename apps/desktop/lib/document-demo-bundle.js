@@ -17067,12 +17067,30 @@
       const last = node2.children?.at(-1), changed = before.slice(from2, to) + source.slice(from2, end);
       return node2.type === "paragraph" && node2.position.start.line === node2.position.end.line && raw.length <= 4096 && nextRaw.length <= 4096 && last?.type === "text" && from2 >= last.position.start.offset && to <= node2.position.end.offset && before.slice(last.position.start.offset, last.position.end.offset) === last.value && !oldMargin.includes("	") && !newMargin.includes("	") && changed.isWellFormed() && !/[\t\r\n`*_~\[\]<>\\|]/.test(changed);
     }
+    function freezeGraph(tree) {
+      const pending = [tree];
+      while (pending.length) {
+        const value = pending.pop();
+        if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
+        for (const child of Object.values(value)) pending.push(child);
+        Object.freeze(value);
+      }
+      return tree;
+    }
+    function freezePoint(point3) {
+      for (const key2 in point3) {
+        if (!Object.hasOwn(point3, key2)) continue;
+        const value = point3[key2];
+        if (value && typeof value === "object") freezeGraph(value);
+      }
+      return Object.freeze(point3);
+    }
     function translate(value, point3) {
       if (Array.isArray(value)) return Object.freeze(value.map((v) => translate(v, point3)));
       if (!value || typeof value !== "object") return value;
       const copy2 = {};
       for (const [key2, v] of Object.entries(value)) {
-        const next = key2 === "position" ? Object.freeze({ start: Object.freeze(point3(v.start)), end: Object.freeze(point3(v.end)) }) : translate(v, point3);
+        const next = key2 === "position" ? Object.freeze({ start: freezePoint(point3(v.start)), end: freezePoint(point3(v.end)) }) : translate(v, point3);
         if (key2 === "__proto__") Object.defineProperty(copy2, key2, { value: next, enumerable: true });
         else copy2[key2] = next;
       }
@@ -17124,7 +17142,7 @@
           replacement,
           ...tree.children.slice(index2 + 1).map((child) => translate(child, shift2))
         ]),
-        position: Object.freeze({ start: tree.position.start, end: Object.freeze(shift2(tree.position.end)) })
+        position: Object.freeze({ start: tree.position.start, end: freezePoint(shift2(tree.position.end)) })
       });
     }
     return (source) => {
@@ -17139,13 +17157,7 @@
         reused = local(source, [...cached].at(-1));
       } catch {
       }
-      const tree = reused || parseFull(source), pending = [tree];
-      while (pending.length) {
-        const value = pending.pop();
-        if (!value || typeof value !== "object" || Object.isFrozen(value)) continue;
-        for (const child of Object.values(value)) pending.push(child);
-        Object.freeze(value);
-      }
+      const tree = freezeGraph(reused || parseFull(source));
       cached.set(source, tree);
       if (cached.size > 2) cached.delete(cached.keys().next().value);
       return tree;
