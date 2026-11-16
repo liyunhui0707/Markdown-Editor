@@ -54,7 +54,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function copyState(s, receipt = service.getCopyState(s.document)) {
     if (!receipt) return null;
     const safe = {};
-    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId', 'attachments', 'attachmentPaths'])
+    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId', 'attachments', 'attachmentPaths','localProvider'])
       if (Object.hasOwn(receipt, key)) safe[key] = receipt[key];
     return safe;
   }
@@ -99,7 +99,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
       if (opened.document) service.close(opened.document);
       const code = ['ENOENT', 'ENOTDIR'].includes(opened.code) ? 'file-unavailable'
         : ['EACCES', 'EPERM'].includes(opened.code) ? 'read-failed'
-        : ['unsupported-path', 'unsupported-file', 'unsupported-size', 'unsupported-encoding', 'parse-failed', 'external-change'].includes(opened.code) ? opened.code : 'open-failed';
+        : ['unsupported-path', 'unsupported-file', 'unsupported-size', 'unsupported-encoding', 'parse-failed', 'external-change','onedrive-file-not-local'].includes(opened.code) ? opened.code : 'open-failed';
       return failure(code);
     }
     try {

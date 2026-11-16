@@ -7,7 +7,7 @@ const { copyName } = require('./document-save-policy');
 let started = false, complete = false, acknowledgement;
 const port = process.parentPort;
 if (!port) throw Error('Electron utility parent required');
-port.on('message', ({ data }) => {
+port.on('message', async ({ data }) => {
   if (complete) {
     if (data?.ack === acknowledgement) process.exit(0); // Receipt delivered; all file descriptors already closed.
     else process.exit(1);
@@ -25,7 +25,8 @@ port.on('message', ({ data }) => {
         || createHash('sha256').update(bytes).digest('hex') !== data.sha256) throw Error('invalid-writer-task');
     const store = createDocumentFileStore({ persistentCreateTask: data.destination });
     attempted = true;
-    result = require('./document-image-export').createWithAttachments({store, name:data.name, bytes, attachments:data.attachments, destination:data.destination});
+    const create=data.destination.state.oneDrive?require('./document-onedrive-copy').createOneDriveCopy:args=>require('./document-image-export').createWithAttachments({...args,store});
+    result=await create({name:data.name,bytes,attachments:data.attachments,destination:data.destination},store);
     if (result.ok) {
       // Recheck the authorized directory identity after creating the selected new file.
       const fs = require('node:fs');

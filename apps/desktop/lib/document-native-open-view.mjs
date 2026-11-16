@@ -1,4 +1,5 @@
 const messages = {
+  'onedrive-file-not-local':'OneDrive 文件尚未就绪或带有当前不支持的存储元数据。请先在 OneDrive 下载并保留在本机，再重新打开；应用不会自动下载或修改同步设置。',
   'session-limit': '已达到八份文档上限，请关闭一份后再打开。',
   'unsupported-path': '请选择普通 .md 文件。',
   'unsupported-file': '符号链接、硬链接和非普通文件暂不支持。',

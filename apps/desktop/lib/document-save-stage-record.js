@@ -12,14 +12,14 @@ function validateStageRecord(proof,{root,recordId,filePath}){
 }
 function locateStage(proof,options,json){
  validateStageRecord(proof,options);
- const parent=path.dirname(options.filePath),volume=inspectLocalVolume(parent);
+ const parent=path.dirname(options.filePath),provider={oneDrive:!!require('./document-onedrive-policy').oneDriveLayout(parent)},volume=inspectLocalVolume(parent,provider);
  // dev changes on reconnect; a volume UUID plus inode and current metadata binds
  // this explicit read-only reveal to the original volume, not a reused mount name.
  if(volume.uuid!==proof.volume.uuid)fail();
  const root=path.dirname(proof.path),dirs=[[root,proof.rootIdentity],[proof.path,proof.identity]];
  function check(){for(const [p,wanted] of dirs){const s=fs.lstatSync(p,{bigint:true});if(!s.isDirectory()||s.isSymbolicLink()||String(s.ino)!==wanted.ino||String(s.dev)!==volume.dev||Number(s.uid)!==wanted.uid||Number(s.gid)!==wanted.gid||Number(s.mode&0o7777n)!==0o700||fs.realpathSync(p)!==p)fail();const m=inspectMacMetadata(p,{newFileDirectory:true});if(m.acl)fail();}}
- check();const owner=json(path.join(root,'owner.json'));
+ check();if(provider.oneDrive)inspectMacMetadata(path.join(root,'owner.json'),{oneDriveArtifact:true});const owner=json(path.join(root,'owner.json'));
  if(owner.version!==proof.owner.version||owner.localRecoveryRoot!==proof.owner.localRecoveryRoot||owner.uid!==proof.owner.uid||Object.keys(owner).length!==3)fail();check();
- if(inspectLocalVolume(parent).uuid!==volume.uuid)fail();return proof.path;
+ if(inspectLocalVolume(parent,provider).uuid!==volume.uuid)fail();return proof.path;
 }
 module.exports={validateStageRecord,locateStage};

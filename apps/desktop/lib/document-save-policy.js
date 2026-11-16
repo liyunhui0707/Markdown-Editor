@@ -7,8 +7,13 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const deny = code => { throw Object.assign(Error(code.replaceAll('-', ' ')), { code, status: 'blocked' }); };
 
-function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform, newFileDirectory = false, newlyCreatedFile = false, trustedTransit = false } = {}) {
+function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.platform, newFileDirectory = false, newlyCreatedFile = false, trustedTransit = false, oneDriveRole = null, oneDriveFile = false, oneDriveArtifact=false } = {}) {
   if (platform !== 'darwin') return deny('metadata-inspection-unavailable');
+  const provider=require('./document-onedrive-policy'),layout=provider.oneDriveLayout(path.dirname(filePath));
+  if(oneDriveArtifact){if(!provider.oneDriveArtifact(filePath))return deny('invalid-onedrive-file');oneDriveFile=true;}
+  else if(oneDriveFile&&!layout)return deny('invalid-onedrive-file');
+  if(oneDriveRole){const roleLayout=provider.oneDriveLayout(filePath);const root=roleLayout?.root||path.join(os.homedir(),'Library/CloudStorage/OneDrive-Placeholder');
+    if(!['library','storage','domain','child'].includes(oneDriveRole)||provider.oneDriveRole(filePath,root)!==oneDriveRole)return deny('invalid-onedrive-role');}
   function command(executable, args) {
     const result = spawn(executable, args, { encoding: 'utf8', timeout: 2000, maxBuffer: 128 * 1024,
       env: { PATH: '/usr/bin:/bin', LC_ALL: 'C' } });
@@ -26,13 +31,15 @@ function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.pl
   if (listing[10] === '+' || entries.length) {
     // macOS's protection against deleting the directory itself grants no access
     // and has no inheritance flags. No other ACE/rights/principal is supported.
-    if (!directoryOnly || entries.length !== 1
-        || !/^\s*0: (?:group:everyone|ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C) deny delete$/i.test(entries[0])) return deny('unsupported-acl');
-    acl = entries[0].trim(); // Compare the entire approved ACE at every checkpoint.
+    const principal='(?:group:everyone|ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C)';
+    const ordinary=entries.length===1&&new RegExp('^\\s*0: '+principal+' deny delete$','i').test(entries[0]);
+    const domain=oneDriveRole==='domain'&&entries.length===2&&new RegExp('^\\s*0: '+principal+' deny writeextattr$','i').test(entries[0])&&new RegExp('^\\s*1: '+principal+' deny delete$','i').test(entries[1]);
+    if(!directoryOnly||!(ordinary||domain))return deny('unsupported-acl');
+    acl = entries.map(e=>e.trim()).join('\n'); // Compare the entire approved ACL at every checkpoint.
   }
   const flags = command('/usr/bin/stat', ['-f', '%f', filePath]).trim();
   if (!/^\d+$/.test(flags)) return deny('metadata-inspection-unavailable');
-  if (BigInt(flags) !== 0n && !trustedTransit) return deny('unsupported-flags');
+  if (BigInt(flags)!==0n&&!trustedTransit&&!(oneDriveRole==='library'&&flags==='32768')&&!(oneDriveFile&&flags==='64'))return deny('unsupported-flags');
   const names = command('/usr/bin/xattr', [filePath]);
   if (names !== '' && (!names.endsWith('\n') || names.slice(0, -1).split('\n').some(name => !name))) return deny('unsupported-xattrs');
   const attributes = names === '' ? [] : names.slice(0, -1).split('\n');
@@ -42,14 +49,17 @@ function inspectMacMetadata(filePath, { spawn = spawnSync, platform = process.pl
   // Existing-file replacement and isolated-create defaults remain strict.
   if (attributes.some(name => name !== 'com.apple.provenance'
       && !((directoryOnly || createdFileOnly) && name === 'com.apple.macl')
-      && !(createdFileOnly && name === 'com.apple.lastuseddate#PS'))) return deny('unsupported-xattrs');
+      && !(createdFileOnly && name === 'com.apple.lastuseddate#PS')
+      && !(oneDriveRole==='library'&&name==='com.apple.FinderInfo')
+      && !(oneDriveRole==='domain'&&name==='com.apple.file-provider-domain-id')
+      && !(oneDriveFile&&['com.apple.macl','com.apple.lastuseddate#PS'].includes(name)))) return deny('unsupported-xattrs');
   const xattrs = {};
   for (const name of attributes.sort()) {
     const hex = command('/usr/bin/xattr', ['-px', name, filePath]).replace(/\s/g, '');
     if (!/^(?:[0-9a-fA-F]{2})*$/.test(hex)) return deny('metadata-inspection-unavailable');
     xattrs[name] = createHash('sha256').update(Buffer.from(hex, 'hex')).digest('hex');
   }
-  return { acl, flags, xattrs };
+  return { acl, flags:oneDriveFile?'0':flags, xattrs };
 }
 
 function createSavePolicy({ fs = nativeFs, unsafeExperimentalRoot } = {}) {
@@ -161,6 +171,7 @@ function persistentDirectory(root) {
   const home = nativeFs.realpathSync(os.homedir());
   if (process.platform !== 'darwin' || typeof root !== 'string' || !path.isAbsolute(root)
       || root !== path.normalize(root) || root === home) return deny('unsupported-copy-directory');
+  if(require('./document-onedrive-policy').oneDriveLayout(root,home))return require('./document-onedrive-policy').captureOneDrive(root,inspectMacMetadata,require('./document-save-locations').inspectLocalVolume);
   if (!root.startsWith(home + path.sep)) return require('./document-save-locations').captureLocalDirectory(root, inspectMacMetadata);
   const parts = root.slice(home.length + 1).split(path.sep);
   if (parts.length > 32 || parts.some(unsupportedFolder)
@@ -207,6 +218,7 @@ function suggestCopyPath(root, proposedName = 'Untitled.md') {
 }
 function captureCopyDestination(filePath) {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !copyName(path.basename(filePath))) return deny('invalid-copy-name');
+  filePath=require('./document-onedrive-policy').canonicalDestination(filePath);
   const root = path.dirname(filePath), name = path.basename(filePath), state = persistentDirectory(root);
   let fd;
   try {

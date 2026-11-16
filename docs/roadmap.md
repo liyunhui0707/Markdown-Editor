@@ -30,7 +30,29 @@ Keep one complete functional group per short branch/PR and the accepted visuals.
 | B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
 | C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
 
-### Current batch — existing picture portability, 0.79.0 candidate
+### Current batch — OneDrive local saving, 0.80.0 candidate
+
+Complete one provider-specific workflow: open locally materialized Markdown,
+Save with independent local old/draft copies, export exclusively with managed
+PNG/JPEG attachments, refuse external-content conflicts and recover an independent
+draft after restart. Native coordination covers the document and managed images.
+Only owned canonical OneDrive File Provider directories on the Home APFS device
+are enabled; unknown/faulting/compressed metadata and other providers stay refused.
+
+Always stage exchanges inside OneDrive: an early real-provider probe showed that
+moving the displaced inode out of its domain can turn it into a faulting file.
+Keep that failed result unconfirmed and preserved. Old contents in the hidden
+provider recovery directory may sync; disclose this before saving. Local complete
+plaintext recovery stays independently available. Never infer upload completion,
+automatically retry unknown outcomes, adopt staging or remove retained versions.
+
+Acceptance requires real authorized OneDrive synthetic save/export/conflict/restart
+checks plus local/native CI and exact-package verification. A simulated CI layout
+is regression coverage, not proof of cloud sync. Continue with measured writing
+stability and bounded cross-structure authoring after this compatibility group;
+network/non-APFS, other providers and increased image budgets need separate proof.
+
+### Previous batch — existing picture portability, 0.79.0
 
 Complete one existing-document image workflow: explicitly collect standalone
 same-directory/descendant PNG/JPEG references, Apply with exact history, drop one

@@ -14,11 +14,11 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
 function operationMessage(receipt) {
   if (!receipt || (!receipt.code && receipt.state === 'not-created')) return '';
   if (!receipt.ok && receipt.attachmentPaths?.length && receipt.created !== false) return `正文和图片附件尚未全部确认，可能已有文件创建。请保留草稿，不要重复导出；不会自动清理。\n原因：${receipt.code || receipt.state}\n${[receipt.filePath,...receipt.attachmentPaths].filter(Boolean).join('\n')}`;
-  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
+  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。${receipt.localProvider==='onedrive'?' 已确认 OneDrive 本机文件写入，云端上传状态请在 OneDrive 中查看。':''}${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
   let text;
   if (receipt.created === false) {
     const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选其他归你所有的普通本地 APFS 文件夹或子文件夹，仍需通过权限检查。'
-      : receipt.code === 'unsupported-copy-directory' ? '该位置不受支持。请选择归你所有的普通本地 APFS 文件夹或其子文件夹（支持主目录之外与外接 APFS 卷）；隐藏、同步、资源库及应用程序目录暂不支持。'
+      : receipt.code === 'unsupported-copy-directory' ? '该位置不受支持。请选择归你所有的普通本地 APFS 文件夹或其子文件夹（支持主目录之外与外接 APFS 卷）；仅额外支持经校验的 OneDrive 本机目录；其他同步服务、隐藏、任意资源库及应用程序目录暂不支持。'
       : receipt.code === 'cloud-directory' ? '此文件夹由 iCloud 管理。请选择未同步的普通本地文件夹；应用不会关闭同步或搬动已有内容。'
       : receipt.code === 'directory-location-unavailable' ? '暂时无法确认此文件夹是否为普通本地位置。请选择其他本地文件夹；没有创建文件。'
       : receipt.code === 'copy-directory-changed' ? '文件夹或其上级目录发生变化，请重新选择位置。'
@@ -47,7 +47,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     byId('create-test-copy').textContent = persistent ? '另存新文件…' : '创建测试副本';
     byId('confirm-test-copy').textContent = persistent ? '选择位置…' : '创建测试副本';
     byId('test-copy-description').textContent = persistent
-      ? '选择归你所有的普通本地 APFS 文件夹及其子文件夹（包括主目录之外及外接 APFS 卷），例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。本地且未同步的桌面、文稿及其子目录也可在通过检查后使用。主文件夹本身、资源库、应用程序、隐藏与同步目录不受支持；仅支持防止删除目录自身的默认权限（ACL），其他额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
+      ? '选择归你所有的普通本地 APFS 文件夹及其子文件夹（包括主目录之外及外接 APFS 卷），例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。本地且未同步的桌面、文稿及其子目录也可在通过检查后使用。另支持受检查的 OneDrive 本机文件夹；其保存确认不代表云端上传完成。其他同步服务、主文件夹本身、任意资源库、应用程序与隐藏目录不受支持；不符合该位置策略的额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
       : 'Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.';
     byId('create-test-copy').hidden = !enabled;
     byId('test-copy-panel').hidden = !enabled;

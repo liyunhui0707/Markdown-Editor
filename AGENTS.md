@@ -1,5 +1,19 @@
 # AGENTS.md
 
+**0.80.0 OneDrive local saving.** Only canonical current-user
+`Library/CloudStorage/OneDrive-*` domains with exact domain marker/ACL, owned
+ancestors and local writable APFS on the Home device receive the provider grant.
+The native helper independently verifies it. Normalize only provider UF_TRACKED
+and between-read ctime; retain within-read identity, content hashes, mode/owner,
+mtime and xattr proofs. Faulting/compressed/dataless/unknown metadata still refuses.
+Coordinate Markdown and managed images; exclusive new files never overwrite.
+Always exchange within the provider domain, retaining actual displaced objects
+there plus full independent plaintext baseline/draft/previous copies locally.
+Unknown results/conflicts pause; never retry, swap back, adopt or clean them up
+automatically. Provider recovery may sync old contents: disclose before saving.
+Local write confirmation is not cloud-upload confirmation. Other sync providers,
+network/non-APFS and externally located OneDrive domains remain excluded.
+
 **0.79.0 local image portability.** Reference collection is explicit and main-owned: only a current standalone image reference beneath a canonical original directory captured at open and inherited by its edit copy. No directory scan, automatic resource read, recovery-derived path grant, parent traversal, hidden/secrets components, symlinks or URLs. Stage bounded decoded PNG/JPEG bytes without source mutation; Apply reuses exact format/history and unchanged managed attachment backup/export. Raster drop uses event File bytes and the same import pipeline at a proven paragraph hit; suppress every other drop. Keep existing capacity, native save policy/helper and visual baseline.
 
 **0.78.0 complex container writing.** Extend the source-preserving Document

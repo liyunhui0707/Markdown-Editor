@@ -50,6 +50,7 @@ function decodeAttachments(value = []) {
 function readImageFile(file) {
   if (typeof file !== 'string' || !path.isAbsolute(file) || !/\.(png|jpe?g)$/i.test(file)
       || file.split(path.sep).some(s => s.startsWith('.') || s === 'secrets')) fail('unsupported-image-path');
+  require('./document-onedrive-policy').inspectProviderFile(file);
   const parent = path.dirname(file), directory = fs.lstatSync(parent,{bigint:true});
   if (!directory.isDirectory() || fs.realpathSync(parent) !== parent) fail('image-directory-changed');
   const before = fs.lstatSync(file,{bigint:true}); let fd;

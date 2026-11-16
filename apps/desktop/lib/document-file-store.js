@@ -33,6 +33,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       throw error('unsupported-path', 'Expected an authorized absolute Markdown file path.');
     }
     const filePath = path.join(fs.realpathSync(path.dirname(requestedPath)), path.basename(requestedPath));
+    require('./document-onedrive-policy').inspectProviderFile(filePath);
     const named = fs.lstatSync(filePath, { bigint: true });
     if (!named.isFile() || named.nlink !== 1n) {
       throw error('unsupported-file', 'Symlinks, hardlinks and non-regular files are not supported.');
@@ -62,7 +63,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
           || current.nlink !== 1n || !sameMetadata(metadata(after), metadata(current))) {
         throw error('external-change', 'File changed while reading.');
       }
-      return { requestedPath, filePath, bytes, sha256: hash(bytes), identity: metadata(after) };
+      return { requestedPath, filePath, bytes, sha256: hash(bytes), identity: require('./document-onedrive-policy').normalizeProviderIdentity(filePath,metadata(after)) };
     } finally { if (fd !== undefined) fs.closeSync(fd); }
   }
 
@@ -71,7 +72,7 @@ function createDocumentFileStore({ fs = nativeFs, unsafeExperimentalRoot, isolat
       const current = read(expected.requestedPath);
       if (sameSnapshot(expected, current)) return { ok: true, status: 'unchanged' };
     } catch (cause) {
-      if (!['ENOENT', 'ENOTDIR', 'ELOOP', 'external-change', 'unsupported-file', 'unsupported-size'].includes(cause.code)) {
+      if (!['ENOENT', 'ENOTDIR', 'ELOOP', 'external-change', 'unsupported-file', 'unsupported-size','onedrive-file-not-local'].includes(cause.code)) {
         return { ok: false, status: 'error', code: 'read-failed', error: 'Unable to check the current disk file.' };
       }
     }

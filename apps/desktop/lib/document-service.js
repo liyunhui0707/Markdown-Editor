@@ -1,5 +1,6 @@
 'use strict';
 const {MAX_DOCUMENT_BYTES} = require('./document-capacity');
+const path=require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { createDocumentModel } = require('./document-model');
 const { createDocumentFileStore } = require('./document-file-store');
@@ -259,6 +260,7 @@ function createDocumentService(options = {}) {
   function getOriginalState(document) {
     const s=sessions.get(document),o=s?.origin;
     return o ? {available:true,filePath:o.snapshot.filePath,stopped:o.stopped,
+      ...(require('./document-onedrive-policy').oneDriveLayout(path.dirname(o.snapshot.filePath))?{localProvider:'onedrive'}:{}),
       receipt:o.receipt?{...o.receipt}:null,lastConfirmed:o.confirmed?{...o.confirmed}:null} : null;
   }
   async function saveOriginal(document,{expectedRevision,isAuthorized}) {

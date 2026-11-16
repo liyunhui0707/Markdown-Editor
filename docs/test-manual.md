@@ -1,5 +1,32 @@
 # Manual Test Checklist
 
+## OneDrive local saving — 0.80.0 candidate
+
+Use disposable, locally available Markdown/PNG/JPEG copies in your own OneDrive.
+These are proposed human checks, not recorded human acceptance.
+
+1. Open a downloaded `.md` through Finder or the native chooser. Confirm the file
+   details identify OneDrive. Edit, Save, and read the first-save recovery notice:
+   old text may sync in the hidden recovery directory; success confirms only the
+   local write. Verify the current source and the local saved version.
+2. Insert a small PNG/JPEG; Save and Save As a fresh name through the OneDrive
+   selection alias. Reopen and verify text, image, BOM/line endings where relevant.
+   An existing target must remain intact when a name collides.
+3. Edit in Markdown, then change the disk copy externally. Save must pause and
+   retain current writing; compare/open the disk version or export elsewhere.
+   Do not automatically retry a committed-but-unverified or unknown result.
+4. Wait for backup, exit, restore and compare exact text/images. Recovery is an
+   independent draft and does not inherit the old write grant. Local old/draft
+   copies remain available even if the provider directory becomes unavailable.
+5. A not-downloaded file or unknown metadata must be refused with a useful notice.
+   Download intentionally through Finder/OneDrive before retrying an open. Do not
+   remove metadata/ACL or alter account settings to bypass refusal. Other cloud,
+   network/non-APFS and externally located OneDrive domains remain unsupported.
+
+Cloud upload completion and cross-device sync must be observed in OneDrive itself;
+local App automation does not establish either. Retained recovery is not auto-pruned.
+
+
 ## Existing picture portability — 0.79.0 candidate
 
 Use disposable Markdown and PNG/JPEG copies. These steps are a checklist, not
