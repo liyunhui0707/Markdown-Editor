@@ -8,14 +8,14 @@ test('daily file workflow: disk check, separate external version, saved status, 
  const fixture=createSaveFolderFixture(info.outputDir),original=path.join(fixture.dir,'原文.md'),target=path.join(fixture.dir,'保留草稿.md');
  const bytes=Buffer.from('\ufeff# 原文\r\n\r\nFirst **bold** paragraph.\r\n');await fs.writeFile(original,bytes,{mode:0o600,flag:'wx'});
  const env={PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8'};for(const k of ['TMPDIR','TMP','TEMP'])if(process.env[k])env[k]=process.env[k];
- let app,exit,passed=false;const faults=[],requests=[];
+ let app,exit,p,passed=false;const faults=[],requests=[];
  const snap=p=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const switchTo=async(p,id)=>{await p.locator(`.session-row[data-session-id="${id}"]`).click();await expect.poll(async()=>(await snap(p)).sessionId).toBe(id);};
  const backup=async p=>expect.poll(async()=>{const s=await snap(p);return s.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
  try{
   const cwd=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-')));
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+path.join(root,'drafts'),'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+path.join(root,'versions')],cwd,env,chromiumSandbox:true});
-  exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));const p=await app.firstWindow();p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
+  exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));p=await app.firstWindow();p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow,shell},{original,target})=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;global.reveals=[];shell.showItemInFolder=p=>global.reveals.push(p);const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},{original,target});
   await expect(p.locator('#empty-open')).toBeEnabled();await p.locator('#empty-open').click();const ro=await snap(p);await p.locator('#show-details').click();await p.locator('#inspect-linked-file').click();await expect(p.locator('#linked-file-status')).toContainText('一致');await expect(p.locator('#linked-file-path')).toHaveText(original);await p.locator('#reveal-linked-file').click();expect(await app.evaluate(()=>global.reveals)).toEqual([original]);await p.locator('#close-document-details-dialog').click();
   await p.locator('#edit-copy').click();const draft=(await snap(p)).sessionId;

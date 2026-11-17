@@ -22,7 +22,10 @@ test('controlled input lifecycle: composed text, cancellation and history across
    const node=p.locator(selector).filter({hasText:text}).first();await caret(node);const before=await snap();
    await cdp.send('Input.imeSetComposition',{text:'mo',selectionStart:2,selectionEnd:2});await expect(p.locator('#status')).toContainText('"composing":true');
    await cdp.send('Input.imeSetComposition',{text:'moxing',selectionStart:6,selectionEnd:6});expect((await snap()).source).toBe(source);expect((await snap()).revision).toBe(before.revision);
-   for(const id of ['show-source','show-details','create-test-copy','save-original','close-current-document'])await expect(p.locator('#'+id)).toBeDisabled();
+   // Stable controls retain an intent entry; native composition still prevents execution.
+   for(const id of ['show-source','create-test-copy','save-original','close-current-document'])await expect(p.locator('#'+id)).toBeEnabled();
+   await app.evaluate(({Menu})=>{const item=Menu.getApplicationMenu().items.find(i=>i.label==='文件').submenu.items.find(i=>i.label==='保存');item.click();});
+   await expect(p.locator('#workflow-status')).toContainText('请先完成当前选词');expect((await snap()).revision).toBe(before.revision);await expect(p.locator('dialog[open]')).toHaveCount(0);
    const backupDuring=await snap();expect(backupDuring.draftBackup.revision).toBe(before.revision);await p.keyboard.press('F6');await expect(p.locator('#editor .tiptap')).toBeFocused();
    await cdp.send('Input.insertText',{text:'模型😀'});await idle();const expected=source.replace(text,text.slice(0,2)+'模型😀'+text.slice(2));
    expect((await snap()).source).toBe(expected);expect((await snap()).revision).toBe(before.revision+1);await backup();
