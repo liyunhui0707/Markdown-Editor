@@ -1,10 +1,35 @@
 # Manual Test Checklist
 
+## Complete document workflow — 0.81.0 candidate
+
+Use disposable local documents. These are proposed checks, not recorded passes.
+
+1. Cmd-N, write, Cmd-S: choose one name/location panel, then verify the new name,
+   target and saved status. Edit and Cmd-S again; no routine local warning.
+2. More → Save As: create another name, continue editing and Save. Only the new
+   target changes. More → Export Copy: export elsewhere, continue and Save; the
+   current target changes and the exported snapshot remains unchanged.
+3. Edit Source, Cmd-S: source is applied and saved. Cmd-Enter and Apply and Return alone leave
+   file modifications unsaved. Undo/Redo in Source and text fields affects that
+   editor, not the document behind it. Cancelling a chooser retains all writing.
+4. Saved files and empty new drafts close quietly. Unsaved close offers Save,
+   Keep Draft and Close, Cancel. Failed/cancelled Save leaves the document open.
+   Whole-window close handles all documents; unfinished Source/IME stays visible.
+5. Click New/Save/Save As during quick ordinary input: execute once after exact
+   confirmation. During native candidate selection, retain the candidate and
+   show a brief completion prompt. Do not automatically perform the old request
+   when selection later finishes. Test the real input methods separately.
+6. Check the file menu, narrow/normal windows, keyboard focus, Source, dark mode
+   and VoiceOver. Ordinary writing stays quiet; failure remains visible near the
+   end of a document with a usable recovery action. Backup and file-save labels
+   must remain distinct.
+
+
 ## Ordinary Save and failure visibility — 0.80.1
 
 Use a disposable file created outside Markdown, retaining its original metadata. This checklist is not recorded human acceptance.
 
-1. Open, edit near the end and press Cmd-S. Confirm the first-save dialog, then verify「正文已保存」and reopen the file after closing: the edit is present. Repeat with Chinese, BOM/CRLF and ordinary read permissions.
+1. Open, edit near the end and press Cmd-S. For ordinary local Save, no extra confirmation is needed; verify「正文已保存」and reopen the file after closing: the edit is present. Repeat with Chinese, BOM/CRLF and ordinary read permissions.
 2. For a deliberately unsupported synthetic file, Save must explain refusal in the visible viewport even near the document end. Current text/caret and dirty state remain; the disk file is unchanged. Do not remove unknown metadata from personal files to bypass refusal.
 3. After backup, close and recover the failed-save draft from「草稿」. It retains the edit but does not regain the old write grant. Merely reopening the disk file shows the last successful save; closing the window does not silently save a refused write.
 

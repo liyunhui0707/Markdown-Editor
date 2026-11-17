@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { authorMixedDocument } = require('./common-authoring.cjs');
 const fs = require('node:fs/promises'), path = require('node:path');
@@ -764,7 +765,7 @@ test('save copy UI V1 creates confirmed revision, preserves writing and reopens 
     expect((await page.evaluate(s => window.documentDemo.createTestCopy({ sessionId: s.sessionId, expectedRevision: s.revision, expectedSha256: s.copySha256 }), before)).code).toBe('composition-active');
     await page.locator('#editor .tiptap').evaluate(el => el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
     await expect(page.locator('#create-test-copy')).toBeEnabled();
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#test-copy-result')).toContainText('Test copy created: revision');
     const after = (await snapshot(temporary)).snapshot; receipt = after.copyState;
     for (const k of ['source', 'revision', 'dirty', 'canUndo', 'canRedo', 'saveState']) expect(after[k]).toEqual(before[k]);
@@ -834,7 +835,7 @@ test('persistent copy V1 creates a selected new file and reopens after Electron 
       };
       dialog.showMessageBoxSync = () => 1;
     }, target);
-    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    const create = async () => { await createMarkdownCopy(page); };
     await create();
     await expect.poll(() => app.evaluate(() => globalThis.persistentDialog.calls.length)).toBe(1);
     const saveOptions = await app.evaluate(() => globalThis.persistentDialog.calls[0]);
@@ -949,7 +950,7 @@ test('existing document editing V1 forks, writes paragraphs and persistently reo
       dialog.showMessageBox = async () => ({ response: 1 });
       dialog.showSaveDialog = async () => ({ canceled: globalThis.editingSaveCancel, filePath });
     }, target);
-    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    const create = async () => { await createMarkdownCopy(page); };
     await create(); await expect(page.locator('#test-copy-operation')).toContainText('create-cancelled');
     expect((await snapshot(copy)).snapshot.source).toBe(split); await expect.poll(() => fs.access(target).then(() => true, () => false)).toBe(false);
     await app.evaluate(() => { globalThis.editingSaveCancel = false; });
@@ -1159,7 +1160,7 @@ test('soft paragraph V1 edits source lines, refuses crossing and saves exact new
     expect((await snapshot(copy)).snapshot.source).toBe(expected);
     await app.evaluate(({dialog},filePath)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath});},target);
     const before=(await snapshot(copy)).snapshot;
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#test-copy-result')).toContainText('New Markdown file created: revision');
     const after=(await snapshot(copy)).snapshot;receipt=after.copyState;written=await fs.readFile(target);
     expect(written.equals(Buffer.from('\ufeff'+expected))).toBe(true);expect(hash(written)).toBe(receipt.sha256);
@@ -1225,7 +1226,7 @@ test('paste V1 accepts plain clipboard text and preserves the original session',
       dialog.showMessageBox = async () => ({ response: 1 });
       dialog.showSaveDialog = async () => ({ canceled: globalThis.pasteSaveCancel, filePath: globalThis.pasteSaveTarget });
     }, target);
-    const create = async () => { await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click(); };
+    const create = async () => { await createMarkdownCopy(page); };
     const beforeCreate = (await snapshot(copy)).snapshot;
     expect(beforeCreate.source).toBe('First 中文😀.\r\n\r\nSecond. nextThird.');
     await create(); await expect(page.locator('#test-copy-summary')).toContainText('已创建新文件');
@@ -1332,7 +1333,7 @@ test('multiline paste V1 writes paragraphs atomically and reopens a faithful new
       dialog.showMessageBox = async () => ({ response: 1 }); dialog.showSaveDialog = async () => ({ canceled: false, filePath });
     }, target);
     const beforeSave = (await snapshot(copy)).snapshot;
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#test-copy-summary')).toContainText('已创建新文件');
     const saved = (await snapshot(copy)).snapshot; receipt = saved.copyState; savedBytes = await fs.readFile(target);
     expect(savedBytes.equals(Buffer.from('\ufeff' + finalSource))).toBe(true);
@@ -1343,7 +1344,7 @@ test('multiline paste V1 writes paragraphs atomically and reopens a faithful new
     await expect(page.locator('#test-copy-summary')).toContainText('后续修改尚未导出');
     const beforeCancel = (await snapshot(copy)).snapshot.source;
     await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true }); });
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#test-copy-operation')).toContainText('操作已取消');
     expect((await snapshot(copy)).snapshot.source).toBe(beforeCancel);
     expect((await fs.readFile(target)).equals(savedBytes)).toBe(true); expect((await fs.readFile(originalFile)).equals(originalBytes)).toBe(true);
@@ -1418,7 +1419,7 @@ test('local drafts V1 restores two confirmed documents after direct process exit
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showMessageBox = async () => ({ response: 1 }); dialog.showSaveDialog = async () => ({ canceled: false, filePath });
     }, target);
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#test-copy-operation')).toContainText('本次已创建新文件');
     saved = (await snapshot(firstId)).snapshot.copyState; exported = await fs.readFile(target);
     expect(exported.equals(Buffer.from('\ufeff' + continued))).toBe(true); expect(hash(exported)).toBe(saved.sha256);
@@ -1591,7 +1592,7 @@ test('writing UI V2 panels, composition gate, copy feedback and document switchi
     ownedFixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(ownedFixture.dir, 'writing-ui.md');
     console.log('writing-ui-export-fixture:' + target);
     await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, target);
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-summary-compact')).toBeVisible(); await expect(page.locator('#copy-summary-compact')).toContainText('当前内容已导出');
     await expect(page.locator('#copy-confirm-dialog')).toBeHidden(); await expect(page.locator('#editor .tiptap')).toBeFocused();
     exported = await fs.readFile(target); expect(exported.toString()).toBe(edited.source); ownedFixture.recordFile('writing-ui.md', exported);
@@ -1599,7 +1600,7 @@ test('writing UI V2 panels, composition gate, copy feedback and document switchi
     expect(require('node:crypto').createHash('sha256').update(exported).digest('hex')).toBe(receipt.sha256);
     await select('#editor p:nth-of-type(2)', 0); await page.keyboard.type('LATER '); await settled();
     await expect(page.locator('#copy-summary-compact')).toContainText('后续修改尚未导出');
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-operation-alert')).toBeVisible(); await expect(page.locator('#copy-operation-alert')).toContainText('同名目标已存在');
     await expect(page.locator('#copy-summary-compact')).toContainText('writing-ui.md');
     expect((await fs.readFile(target)).equals(exported)).toBe(true); expect(await fs.readFile(original, 'utf8')).toBe(raw);
@@ -1691,7 +1692,7 @@ test('writing V3 quiet composition and safe formatting export reopen', async ({}
     await captureTestWindow(app,info.outputPath('formatted-writing.png'));
     fixture=createHomeFixture('Writing-synthetic-E2E-');target=path.join(fixture.dir,'formatted.md');
     await app.evaluate(({dialog},filePath)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath});},target);
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-summary-compact')).toContainText('当前内容已导出');
     exported=await fs.readFile(target);expect(exported.equals(Buffer.from('\ufeff'+beforeUnsupported.source))).toBe(true);
     fixture.recordFile('formatted.md',exported);const after=(await snapshot(id)).snapshot;
@@ -2022,7 +2023,7 @@ test('confirmed export shortcuts reopen readonly, retain later edits and request
     const originalId = await page.locator('#documents').inputValue();
     await page.locator('#edit-copy').click(); const draftId = await page.locator('#documents').inputValue();
     await select('#editor p:first-child', 0); await page.keyboard.insertText('Exported '); await settled();
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
     await expect(page.locator('#document-scroll #open-confirmed-copy')).toBeInViewport();
     await expect(page.locator('#reveal-confirmed-copy')).toBeInViewport();
@@ -2047,7 +2048,7 @@ test('confirmed export shortcuts reopen readonly, retain later edits and request
     await page.locator('#format-undo').click(); await settled(); expect((await snapshot(draftId)).snapshot.source).toBe(exported.source);
     await page.locator('#format-redo').click(); await settled(); expect((await snapshot(draftId)).snapshot.source).toBe(later.source);
     // A rejected subsequent export must not disable the prior successful receipt.
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-operation-alert')).toContainText('同名目标已存在');
     expect((await snapshot(draftId)).snapshot.confirmedCopy.copyId).toBe(exported.confirmedCopy.copyId);
     await page.locator('#open-confirmed-copy').click();
@@ -2212,7 +2213,7 @@ test('paragraph range V1 replaces selections, continues writing and reopens an e
     await selectDocument(page, id); await page.locator('#format-undo').click(); await settled();
     expect((await snapshot(id)).snapshot.source).toBe(pasted);
     await page.locator('#format-redo').click(); await settled(); const ready = (await snapshot(id)).snapshot;
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect.poll(async () => (await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const after = (await snapshot(id)).snapshot; receipt = after.copyState;
     exported = await fs.readFile(receipt.filePath);
@@ -2292,7 +2293,7 @@ test('inline range V1 edits mixed bold text, continues typing and exports exact 
     expect((await snapshot(originalId)).snapshot.source).toBe(before);
     await selectDocument(page,id);await page.locator('#format-undo').click();await settled();expect(await source()).toBe(before);
     await page.locator('#format-redo').click();await settled();expect(await source()).toBe(pasted);
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const after=(await snapshot(id)).snapshot;receipt=after.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes.equals(Buffer.from('\ufeff'+pasted))).toBe(true);expect(hash(bytes)).toBe(receipt.sha256);
@@ -2358,7 +2359,7 @@ test('writing boundaries V1 splits joins and exits lists with exact export reope
     await page.locator('#editor li p').click();await page.keyboard.press('Enter');
     await expect.poll(async()=>(await snapshot(blankId)).snapshot.source).toBe('');
     await selectDocument(page,id);await page.keyboard.press('Escape');expect(await source()).toBe(finished);
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes.equals(Buffer.from('\ufeff'+finished))).toBe(true);expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
@@ -2435,7 +2436,7 @@ test('list ranges V2 replacement deletion paste and continuous editing export re
     await page.keyboard.type('Q');finished=finished.replace('最终😀','最终😀Q');await expect.poll(source).toBe(finished);
     await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);
     await selectDocument(page,id);await page.keyboard.press('Escape');await key('Meta+z',finished.replace('最终😀Q','最终😀'));await key('Meta+Shift+z',finished);
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes).toEqual(Buffer.from('\ufeff'+finished));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
@@ -2487,7 +2488,7 @@ test('italic V1 toolbar shortcut continuous editing export and readonly reopen',
     const pasted=typed.replace('st *ita','单行*');await expect.poll(source).toBe(pasted);await key('Meta+z',typed);
     await range('#editor li:nth-child(2) strong',0,4);await page.locator('#format-italic').click();await settled();expect(await source()).toBe(typed);await expect(page.locator('#viewer-status')).toContainText('暂不支持叠加');
     await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
-    expect(await source()).toBe(typed);await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    expect(await source()).toBe(typed);await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes).toEqual(Buffer.from('\ufeff'+typed));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);
@@ -2539,7 +2540,7 @@ test('code V1 toolbar shortcut continuous editing export and readonly reopen',as
     const pasted=typed.replace('st `cod','单行`');await expect.poll(source).toBe(pasted);await key('Meta+z',typed);
     await range('#editor li:nth-child(2) strong',0,4);await page.locator('#format-code').click();await settled();expect(await source()).toBe(typed);await expect(page.locator('#viewer-status')).toContainText('暂不支持叠加');
     await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
-    expect(await source()).toBe(typed);await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    expect(await source()).toBe(typed);await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes).toEqual(Buffer.from('\ufeff'+typed));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);
@@ -2594,7 +2595,7 @@ test('link text V1 inert clicks editing history export and readonly reopen',asyn
     await page.locator('#editor pre').click();await page.keyboard.type('Blocked');await settled();expect(await source()).toBe(final);
     await selectDocument(page,originalId);expect((await snapshot(originalId)).snapshot.source).toBe(before);await selectDocument(page,id);await page.keyboard.press('Escape');
     await key('Meta+z',pasted);await key('Meta+Shift+z',final);
-    await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes).toEqual(Buffer.from('\ufeff'+final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);expect(await fs.readFile(original)).toEqual(raw);expect((await fs.stat(original)).mode&0o777).toBe(0o400);
@@ -2638,7 +2639,7 @@ test('block input V1 blank draft heading list typing history export and reopen',
     await page.locator('#editor h6').evaluate(p=>{p.closest('.tiptap').focus();const s=getSelection();s.collapse(p.firstChild,0);document.dispatchEvent(new Event('selectionchange'));});
     await page.keyboard.press('Backspace');await expect.poll(source).toBe(base+'末尾');
     await page.locator('#format-block').selectOption('heading-4');await expect.poll(source).toBe(base+'#### 末尾');
-    const final=await source();await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+    const final=await source();await createMarkdownCopy(page);
     await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
     const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
     expect(bytes).toEqual(Buffer.from(final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
@@ -2701,7 +2702,7 @@ test('link panel V1 insert edit cancel remove stale guard export and reopen',asy
   // Ordinary editing remains possible after a declined form operation.
   await range('#editor li p',4);await page.keyboard.insertText('more ');const final=result.snapshot.source.replace('List item','Listmore  item');await expect.poll(source).toBe(final);
   await page.locator('#editor [data-document-link]').first().click();expect(page.url()).toBe(url);expect(app.windows()).toHaveLength(1);await expect(page.locator('#editor a')).toHaveCount(0);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+  await createMarkdownCopy(page);
   await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');receipt=(await snapshot(id)).snapshot.copyState;bytes=await fs.readFile(receipt.filePath);
   expect(bytes).toEqual(Buffer.from('\ufeff'+final));expect(hash(bytes)).toBe(receipt.sha256);expect(await fs.readFile(original)).toEqual(raw);expect((await fs.stat(original)).mode&0o777).toBe(0o400);
  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
@@ -2734,7 +2735,7 @@ test('quote code V1 natural creation editing history export and reopen',async({}
   // Same toolbar handles conversion back to prose, without touching the previous code.
   await page.locator('#format-block').selectOption('blockquote');await expect.poll(source).toBe(pasted+'\n\n> After code');
   await page.locator('#format-block').selectOption('paragraph');const final=pasted+'\n\nAfter code';await expect.poll(source).toBe(final);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();
+  await createMarkdownCopy(page);
   await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);
   expect(bytes).toEqual(Buffer.from(final));expect(hash(bytes)).toBe(receipt.sha256);expect(saved.dirty).toBe(true);
   await captureTestWindow(app,info.outputPath('quote-code.png'));
@@ -2765,7 +2766,7 @@ test('quote code V1 loaded CRLF blocks preserve original and reject unsupported 
   await range('#editor pre:first-of-type code',0,3);await page.keyboard.insertText('```\n# escape');await settled();expect(await source()).toBe(typed);
   await expect(page.locator('#editor pre').last()).toHaveAttribute('contenteditable','false');await page.locator('#editor pre').last().click();await page.keyboard.type('REFUSE');await settled();expect(await source()).toBe(typed);
   await range('#editor pre:first-of-type code',3);await page.keyboard.type('c');const final=typed.replace('a\r\nb','a\r\nbc');await expect.poll(source).toBe(final);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
   const receipt=(await snapshot(id)).snapshot.copyState;expect(await fs.readFile(receipt.filePath)).toEqual(Buffer.from('\ufeff'+final));expect(await fs.readFile(file)).toEqual(raw);expect((await fs.stat(file)).mode&0o777).toBe(0o400);
   console.log('quote-code-loaded-evidence:'+JSON.stringify({original:file,exported:receipt.filePath,sha256:receipt.sha256,originalUnchanged:true,crlfPreserved:true,area}));
  },info,null,true,true,false,null,{root:path.join(area,'drafts')});
@@ -2778,7 +2779,7 @@ test('common authoring closeout mixed document export restart recovery and conti
  await usingDemo(async({app,page,snapshot})=>{
   await page.locator('#empty-new').click();const id=await page.locator('#documents').inputValue();
   expected=await authorMixedDocument(page,async()=>(await snapshot(id)).snapshot.source);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snapshot(id)).snapshot.copyState.state).toBe('created-confirmed');
   const saved=(await snapshot(id)).snapshot;receipt=saved.copyState;bytes=await fs.readFile(receipt.filePath);expect(bytes).toEqual(Buffer.from(expected));expect(saved.dirty).toBe(true);
   await page.locator('#open-confirmed-copy').click();await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable','false');expect((await snapshot(await page.locator('#documents').inputValue())).snapshot.source).toBe(expected);
   await selectDocument(page,id);await page.keyboard.press('Escape');await expect.poll(async()=>(await snapshot(id)).snapshot.draftBackup.state).toBe('backed-up');

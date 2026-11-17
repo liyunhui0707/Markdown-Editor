@@ -1,5 +1,18 @@
 # AGENTS.md
 
+**0.81.0 document workflow candidate.** Save As explicitly rebinds a verified new
+file and clears only its saved baseline; Export preserves the target/dirty/history.
+Source Cmd-S applies then saves; Cmd-Enter remains Apply and Return. No renderer-supplied paths or overwrite policy.
+Close saved files only after fresh bound-file verification; unknown writes and
+unconfirmed input remain protected. Whole-window close uses per-document native
+Save/Keep Draft/Cancel and only completes after main revokes every session.
+One bounded action intent waits for existing exact edits without forcing native
+IME or replaying unknown outcomes. Coalesce only ordinary optimistic presentation;
+IPC/edit proofs and protected/settled states remain immediate. Projection equality
+must compare the entire ordered JSON graph and preserve source/PM/main proofs.
+Retain queue limits, original metadata/volume checks and the accepted visual base.
+
+
 **0.80.1 original-save metadata.** Only the cross-inode prepared-candidate comparison may differ in opaque `com.apple.provenance`. Do not remove/decode/force that attribute on disk. Pin the complete prepared candidate attributes independently, compare the actual displaced inode against the complete old attributes, and compare the new target against the complete prepared attributes. Unknown xattrs/ACL, permissions, bytes, volume and within-read identity guards remain. A failed Save must remain visible while the document is scrolled; preserve the editor position and dirty/draft state.
 
 **0.80.0 OneDrive local saving.** Only canonical current-user

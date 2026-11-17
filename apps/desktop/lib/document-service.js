@@ -148,7 +148,8 @@ function createDocumentService(options = {}) {
 
   const unresolvedCopy = s => s.copy && !s.copy.ok && s.copy.created !== false;
   async function createPersistentCopy(document, options = {}) {
-    if (!record(options, ['filePath', 'expectedRevision', 'expectedSha256', 'isAuthorized'])) return failure('invalid-options');
+    if (!record(options, ['filePath', 'expectedRevision', 'expectedSha256', 'isAuthorized', 'mode'])
+        || (options.mode !== undefined && !['save-as','export'].includes(options.mode))) return failure('invalid-options');
     const s = sessions.get(document);
     if (!s) return unknown();
     if (!s.syntheticTemporary || !persistentWriter) return failure('persistent-copy-unavailable');
@@ -179,11 +180,15 @@ function createDocumentService(options = {}) {
         result.ok = false; result.code = 'copy-source-changed';
         if (result.created !== false) result.state = 'created-unverified';
       }
-      s.copy = rememberCopy(s, { ...result, revision: options.expectedRevision, expectedSha256: sha256 });
-      if(originalWriter&&s.copy.ok&&s.copy.state==='created-confirmed'){
-        try{s.origin={snapshot:confirmedSnapshot(document,s.copy.copyId),receipt:null,stopped:false};}catch{/* Export receipt remains independent. */}
+      s.copy = rememberCopy(s, { ...result, ...(options.mode?{purpose:options.mode}:{}), revision: options.expectedRevision, expectedSha256: sha256 });
+      if(originalWriter&&s.copy.ok&&s.copy.state==='created-confirmed'&&options.mode!=='export'){
+        try{
+          const snapshot=confirmedSnapshot(document,s.copy.copyId);
+          s.origin={snapshot,receipt:null,stopped:false};
+          if(options.mode==='save-as'){s.acceptSaved(document.text,snapshot.identity);s.state='saved-confirmed';s.committed=true;s.lastCode=null;}
+        }catch{/* Keep the independently verified copy, but do not invent a file binding. */}
       }
-      return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
+      return getCopyState(document); // Export preserves the binding; Save As changes only its verified baseline, never history.
     } catch (cause) {
       s.copy = Object.freeze({ ok: false, state: started ? 'create-outcome-unknown' : 'not-created',
         created: started ? null : false, code: cause.code || 'persistent-copy-rejected' });
@@ -224,7 +229,7 @@ function createDocumentService(options = {}) {
         if (result.created !== false) result.state = 'created-unverified';
       }
       s.copy = rememberCopy(s, { ...result, revision: options.expectedRevision, expectedSha256: sha256 });
-      return getCopyState(document); // No acceptSaved, baseline, dirty or history change.
+      return getCopyState(document); // Export preserves the binding; Save As changes only its verified baseline, never history.
     } catch (cause) {
       s.copy = Object.freeze({ ok: false, state: creationStarted ? 'create-outcome-unknown' : 'not-created',
         created: creationStarted ? null : false, code: cause.code || 'create-rejected' });

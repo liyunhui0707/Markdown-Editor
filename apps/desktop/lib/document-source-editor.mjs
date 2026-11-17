@@ -13,13 +13,13 @@ const sourceHighlight=HighlightStyle.define([
 ]);
 import {searchKeymap} from '@codemirror/search';
 import {sourceState,rawSource,displayOffset,rawOffset} from './document-source-buffer.mjs';
-export function createSourceEditor({parent,source,selection=0,changed=()=>{},rejected=()=>{},apply=()=>{}}) {
+export function createSourceEditor({parent,source,selection=0,changed=()=>{},rejected=()=>{},apply=()=>{},save=apply}) {
  const wrap=new Compartment(),lock=new Compartment();let composing=false;
  const view=new EditorView({parent,state:sourceState(source,[
   lineNumbers(),highlightActiveLine(),drawSelection(),markdown(),syntaxHighlighting(sourceHighlight),
   wrap.of(EditorView.lineWrapping),lock.of([]),
   EditorView.contentAttributes.of({'aria-label':'Markdown 源码编辑','spellcheck':'false'}),
-  keymap.of([{key:'Mod-s',run:()=>{apply();return true;}},{key:'Mod-Enter',run:()=>{apply();return true;}},...defaultKeymap,...historyKeymap,...searchKeymap]),
+  keymap.of([{key:'Mod-s',run:()=>{save();return true;}},{key:'Mod-Enter',run:()=>{apply();return true;}},...defaultKeymap,...historyKeymap,...searchKeymap]),
   EditorView.domEventHandlers({compositionstart(){composing=true;changed();},compositionend(){composing=false;queueMicrotask(changed);}}),
   EditorView.updateListener.of(update=>changed(update.docChanged)),
  ],rejected)});

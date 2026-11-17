@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -44,7 +45,7 @@ test('local image portability workflow: explicit collection, drop, exact history
   await page.locator('#format-undo').click();expected=beforeDrop;await check();await expect(loaded()).toHaveCount(2);await page.locator('#format-redo').click();expected=beforeDrop.replace('Drop here.','Drop here.\r\n\r\n![拖入的图片](<'+dropped+'>)');await check();await backup();
   await page.keyboard.press('Meta+s');await expect.poll(async()=>(await snap())?.dirty).toBe(false);expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+expected);
   expect(await fs.readFile(path.join(assets,'图 示.png'))).toEqual(png);expect(await fs.readFile(path.join(assets,'photo.jpg'))).toEqual(jpeg);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
   const exported=await snap(),label=exported.label;expect(exported.confirmedCopy.attachments).toHaveLength(3);expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);
   for(const [i,bytes] of [png,jpeg,drop].entries())expect(await fs.readFile(path.join(folder,names[i]))).toEqual(bytes);
   await selectImage(0);await page.screenshot({path:info.outputPath('image-panel-normal.png')});await page.locator('#image-cancel').click();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(920,760));await selectImage(0);await page.screenshot({path:info.outputPath('image-panel-narrow.png')});expect(await page.evaluate(()=>document.body.scrollWidth<=innerWidth)).toBe(true);await page.locator('#image-cancel').click();

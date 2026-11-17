@@ -6310,6 +6310,22 @@
     }
   };
 
+  // lib/document-projection-equal.mjs
+  function equalProjection(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (!equalProjection(a[i], b[i])) return false;
+      return true;
+    }
+    if (Object.getPrototypeOf(a) !== Object.prototype || Object.getPrototypeOf(b) !== Object.prototype) return false;
+    const keys2 = Object.keys(a), other = Object.keys(b);
+    if (keys2.length !== other.length) return false;
+    for (let i = 0; i < keys2.length; i++) if (keys2[i] !== other[i] || !equalProjection(a[keys2[i]], b[keys2[i]])) return false;
+    return true;
+  }
+
   // lib/document-inline-leaf.mjs
   function projectInlineLeaf(child, source) {
     const bold = child.type === "strong", italic = child.type === "emphasis", code3 = child.type === "inlineCode", link2 = child.type === "link";
@@ -17571,7 +17587,9 @@
       if (Array.isArray(value)) return Object.freeze(value.map((v) => translate(v, point3)));
       if (!value || typeof value !== "object") return value;
       const copy2 = {};
-      for (const [key2, v] of Object.entries(value)) {
+      for (const key2 in value) {
+        if (!Object.hasOwn(value, key2)) continue;
+        const v = value[key2];
         const next = key2 === "position" ? Object.freeze({ start: freezePoint(point3(v.start)), end: freezePoint(point3(v.end)) }) : translate(v, point3);
         if (key2 === "__proto__") Object.defineProperty(copy2, key2, { value: next, enumerable: true });
         else copy2[key2] = next;
@@ -17975,7 +17993,7 @@
     const next = source.slice(0, a) + text5 + source.slice(b);
     if (next.length > MAX_SOURCE_UNITS4) return unsafe();
     const nextProjection = projectSource(next);
-    if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+    if (!equalProjection(expected, nextProjection.doc)) return unsafe();
     if (verify2) {
       const back = paragraphEdit(next, nextProjection, inverse, false, paragraphSeparator);
       if (!back?.ok || back.source !== source) return unsafe();
@@ -18015,7 +18033,7 @@
     const text5 = parts.join(delimiter), next = source.slice(0, a) + text5 + source.slice(b);
     if (text5.length > 4096 || next.length > MAX_SOURCE_UNITS4) return unsafe();
     const nextProjection = projectSource(next);
-    if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+    if (!equalProjection(expected, nextProjection.doc)) return unsafe();
     const inverse = { from: from2, to: from2 + insert2.length, insert: inverseInsert };
     if (verify2) {
       const back = paragraphReplace(next, nextProjection, inverse, delimiter, false);
@@ -18096,7 +18114,7 @@
     } else if (!span.text || !text5) spanBlock({ doc: expected }, span).content = text5 ? [{ type: "text", text: text5 }] : [];
     else spanBlock({ doc: expected }, span).content[span.inlineIndex ?? span.childIndex].text = text5;
     if (!text5 && !nextProjection.spans.some((s) => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
-    if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+    if (!equalProjection(expected, nextProjection.doc)) return unsafe();
     return {
       ok: true,
       source: next,
@@ -18412,6 +18430,73 @@
         if (dialog.open) dialog.close();
       }
     } };
+  }
+
+  // lib/document-presentation-scheduler.mjs
+  function createPresentationScheduler({ render: render5, fast, schedule = requestAnimationFrame, cancel = cancelAnimationFrame }) {
+    let frame = null, latest = null;
+    function clear() {
+      if (frame !== null) cancel(frame);
+      frame = null;
+      latest = null;
+    }
+    function update(state) {
+      if (state.pending && !state.locked && !state.composing && !state.compositionInvalid && !state.historyPending && !state.recoveryRecords.length) {
+        latest = state;
+        fast(state);
+        if (frame === null) frame = schedule(() => {
+          const current = latest;
+          frame = null;
+          latest = null;
+          if (current) render5(current);
+        });
+      } else {
+        clear();
+        render5(state);
+      }
+    }
+    return { update, clear };
+  }
+
+  // lib/document-action-intent.mjs
+  function createActionIntent({ context, changed = () => {
+  }, report = () => {
+  }, timeoutMs = 5e3 }) {
+    let waiting = false;
+    const unsafe2 = (c) => c.invalid || c.loading || c.nativeComposing || c.state?.composing || c.state?.compositionInvalid || c.state?.locked || c.state?.historyPending || c.state?.recoveryRecords?.length;
+    async function run3(label, action) {
+      const before = context();
+      if (waiting || unsafe2(before)) {
+        if (before.nativeComposing || before.state?.composing) report(`\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u9009\u8BCD\uFF0C\u518D${label}\u3002`);
+        return false;
+      }
+      report("");
+      const controller2 = before.controller, source = before.state?.source, abort = new AbortController();
+      let timer, expired = false;
+      waiting = true;
+      changed();
+      try {
+        if (controller2) await Promise.race([controller2.idle({ signal: abort.signal }), new Promise((resolve) => {
+          timer = setTimeout(() => {
+            expired = true;
+            resolve();
+          }, timeoutMs);
+        })]);
+        if (expired) {
+          report(`\u8F93\u5165\u786E\u8BA4\u8017\u65F6\u8F83\u957F\uFF0C\u5C1A\u672A\u6267\u884C${label}\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF1B\u5F53\u524D\u5185\u5BB9\u4FDD\u7559\u3002`);
+          return false;
+        }
+        const now = context();
+        if (now.controller !== controller2 || unsafe2(now) || now.state?.source !== source || controller2 && (now.state.pending || now.state.source !== now.state.confirmed.source)) return false;
+        return await action();
+      } finally {
+        clearTimeout(timer);
+        abort.abort();
+        waiting = false;
+        changed();
+      }
+    }
+    return { run: run3, waiting: () => waiting };
   }
 
   // lib/document-file-presentation.mjs
@@ -20046,10 +20131,10 @@
   function createNameView({ api: api2, byId: byId2, context, busy, rerender, changed }) {
     const button = byId2("rename-draft"), dialog = byId2("name-dialog"), input = byId2("draft-name-input"), error = byId2("draft-name-error");
     let captured = null, inFlight = false, composing = false;
-    const blocked = (c) => !c.state?.confirmed.temporary || c.loading || c.invalid || c.nativeComposing || c.state.pending || c.state.composing || c.state.compositionInvalid || c.state.historyPending || c.state.locked || c.state.recoveryRecords.length || c.state.source !== c.state.confirmed.source;
+    const blocked = (c) => !!c.state?.confirmed.linkedFile || !c.state?.confirmed.temporary || c.loading || c.invalid || c.nativeComposing || c.state.pending || c.state.composing || c.state.compositionInvalid || c.state.historyPending || c.state.locked || c.state.recoveryRecords.length || c.state.source !== c.state.confirmed.source;
     function sync() {
       const c = context();
-      button.hidden = !c.state?.confirmed.temporary;
+      button.hidden = !!c.state?.confirmed.linkedFile || !c.state?.confirmed.temporary;
       button.disabled = inFlight || !!blocked(c);
       byId2("name-apply").disabled = inFlight || composing;
       byId2("name-cancel").disabled = inFlight;
@@ -20142,7 +20227,7 @@
   }
 
   // lib/document-close-view.mjs
-  function createCloseView({ api: api2, byId: byId2, context, busy, rerender, closed, report }) {
+  function createCloseView({ api: api2, byId: byId2, context, busy, rerender, closed, report, run: run3 }) {
     let enabled = false, inFlight = false;
     const button = byId2("close-current-document");
     function blocked() {
@@ -20152,9 +20237,13 @@
     function sync() {
       button.hidden = !enabled || !context().controller;
       button.disabled = !!blocked();
+      if (run3 && context().controller) {
+        const c = context(), s = c.controller.state();
+        button.disabled = !!(inFlight || c.loading || c.invalid || s.locked || s.historyPending || s.compositionInvalid || s.recoveryRecords.length);
+      }
     }
     async function close2() {
-      if (blocked() || button.ownerDocument.querySelector("dialog[open]")) return;
+      if (blocked() || button.ownerDocument.querySelector("dialog[open]")) return false;
       const c = context(), expected = c.controller.state().confirmed;
       inFlight = true;
       busy(true);
@@ -20162,13 +20251,18 @@
       try {
         const result = await api2.closeDocument({ sessionId: expected.sessionId, expectedRevision: expected.revision });
         if (context().controller !== c.controller || context().selected !== expected.sessionId) return;
-        if (result?.ok === true && result.closed === true && result.sessionId === expected.sessionId && result.requestRevision === expected.revision) await closed(expected.sessionId);
-        else {
+        if (result?.ok === true && result.closed === true && result.sessionId === expected.sessionId && result.requestRevision === expected.revision) {
+          await closed(expected.sessionId);
+          return true;
+        } else {
           if (result?.closed === false && result.sessionId === expected.sessionId && result.requestRevision === expected.revision && result.snapshot && !context().invalid) c.controller.refresh(result);
           const messages2 = {
             "close-cancelled": "\u5DF2\u53D6\u6D88\u5173\u95ED\uFF0C\u7EE7\u7EED\u7F16\u8F91\u3002",
             "close-backup-unverified": "\u672C\u5730\u8349\u7A3F\u5C1A\u672A\u901A\u8FC7\u5B8C\u6574\u6027\u9A8C\u8BC1\uFF0C\u6587\u6863\u672A\u5173\u95ED\u3002\u8BF7\u53E6\u5B58\u65B0\u6587\u4EF6\u4FDD\u7559\u5185\u5BB9\u3002",
             "unresolved-save-state": "\u6587\u4EF6\u521B\u5EFA\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u6587\u6863\u4FDD\u6301\u6253\u5F00\uFF0C\u8BF7\u5148\u68C0\u67E5\u73B0\u6709\u6587\u4EF6\u3002",
+            "create-cancelled": "\u5DF2\u53D6\u6D88\u4FDD\u5B58\uFF0C\u6587\u6863\u4FDD\u6301\u6253\u5F00\u3002",
+            "metadata-copy-failed": "\u4FDD\u5B58\u672A\u6210\u529F\uFF0C\u6587\u6863\u4FDD\u6301\u6253\u5F00\u3002\u8BF7\u67E5\u770B\u4FDD\u5B58\u63D0\u793A\u3002",
+            "close-save-failed": "\u4FDD\u5B58\u672A\u786E\u8BA4\uFF0C\u6587\u6863\u4FDD\u6301\u6253\u5F00\u3002",
             "composition-active": "\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u5F53\u524D\u8F93\u5165\uFF0C\u518D\u5173\u95ED\u6587\u6863\u3002"
           };
           report(messages2[result?.code] || "\u672A\u80FD\u786E\u8BA4\u5173\u95ED\u7ED3\u679C\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF1B\u8BF7\u52FF\u5237\u65B0\u7A97\u53E3\u3002", result?.code !== "close-cancelled");
@@ -20184,11 +20278,12 @@
     button.onpointerdown = (event) => {
       if (blocked()) event.preventDefault();
     };
-    button.onclick = close2;
+    const request = () => run3 ? run3("\u5173\u95ED\u6587\u6863", close2) : close2();
+    button.onclick = request;
     api2.onCloseRequest(() => {
-      void close2();
+      void request();
     });
-    return { sync, configure() {
+    return { sync, close: close2, configure() {
       enabled = true;
       sync();
     } };
@@ -52417,7 +52512,7 @@
   function createSourceEditor({ parent, source, selection = 0, changed = () => {
   }, rejected = () => {
   }, apply: apply2 = () => {
-  } }) {
+  }, save = apply2 }) {
     const wrap3 = new Compartment(), lock = new Compartment();
     let composing = false;
     const view = new EditorView2({ parent, state: sourceState(source, [
@@ -52430,7 +52525,7 @@
       lock.of([]),
       EditorView2.contentAttributes.of({ "aria-label": "Markdown \u6E90\u7801\u7F16\u8F91", "spellcheck": "false" }),
       keymap.of([{ key: "Mod-s", run: () => {
-        apply2();
+        save();
         return true;
       } }, { key: "Mod-Enter", run: () => {
         apply2();
@@ -52490,7 +52585,7 @@
     const names = kinds.map((value) => ({ "\r\n": "CRLF", "\n": "LF", "\r": "CR" })[value]);
     return `${endings.length + 1} \u884C \xB7 ${names.join(" / ") || "\u65E0\u6362\u884C"} \xB7 ${bom ? "UTF-8 BOM" : "\u65E0 BOM"}`;
   }
-  function createSourceView({ byId: byId2, context, createEditor }) {
+  function createSourceView({ byId: byId2, context, createEditor, run: run3, saveFile: saveFile2 = async () => false }) {
     const button = byId2("show-source"), dialog = byId2("source-dialog"), text5 = byId2("source-text"), doc4 = dialog.ownerDocument;
     let enabled = false, snapshot = null, wrapped = true, buffer = null, inFlight = false, stale = false, discarding = false;
     const dirty = () => buffer && buffer.source !== snapshot?.source;
@@ -52508,7 +52603,7 @@
       byId2("source-redo").disabled = !editing || inFlight || buffer.composing || !buffer.canRedo;
       byId2("close-source").disabled = inFlight || !!buffer?.composing;
       byId2("source-discard").hidden = !discarding;
-      byId2("source-note").textContent = editing ? "\u7F16\u8F91\u72EC\u7ACB\u8349\u7A3F\u7684\u5B8C\u6574 Markdown\uFF1B\u5E94\u7528\u540E\u8FDB\u5165\u8349\u7A3F\u5907\u4EFD\u3002\u672A\u5E94\u7528\u4FEE\u6539\u53EA\u5728\u6B64\u7A97\u53E3\u4E2D\uFF0C\u539F\u6587\u4EF6\u4E0D\u4F1A\u6539\u5199\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF0C\u53EF\u9009\u62E9\u5E76\u590D\u5236\u3002\u8BF7\u5148\u521B\u5EFA\u7F16\u8F91\u526F\u672C\uFF0C\u518D\u4FEE\u6539\u6E90\u7801\u3002";
+      byId2("source-note").textContent = editing ? "\u7F16\u8F91\u5B8C\u6574 Markdown\u3002\u5E94\u7528\u5E76\u8FD4\u56DE\u4EC5\u66F4\u65B0\u6B63\u6587\uFF1B\u2318S \u4F1A\u5E94\u7528\u5E76\u4FDD\u5B58\u6587\u4EF6\u3002\u672A\u5E94\u7528\u4FEE\u6539\u6682\u7559\u5728\u6B64\u7A97\u53E3\u3002" : "\u539F\u6587\u53EA\u8BFB\uFF0C\u53EF\u9009\u62E9\u5E76\u590D\u5236\u3002\u8BF7\u5148\u521B\u5EFA\u7F16\u8F91\u526F\u672C\uFF0C\u518D\u4FEE\u6539\u6E90\u7801\u3002";
       if (editing) byId2("source-metadata").textContent = sourceSummary({ source: buffer.source, bom: snapshot.bom }) + (dirty() ? " \xB7 \u5C1A\u672A\u5E94\u7528" : "");
     }
     function close2() {
@@ -52522,6 +52617,8 @@
     }
     function sync() {
       button.disabled = !ready();
+      const c = context(), s = c.state;
+      if (run3 && s?.confirmed && !c.loading && !c.invalid && !s.locked && !s.historyPending && !s.compositionInvalid && !s.recoveryRecords?.length) button.disabled = false;
       const current = context().state?.confirmed;
       if (dialog.open && (!ready() || current?.sessionId !== snapshot?.sessionId || current?.revision !== snapshot.revision || current?.source !== snapshot.source)) {
         if (!buffer) dialog.close();
@@ -52532,7 +52629,7 @@
       }
       if (dialog.open) controls();
     }
-    async function apply2() {
+    async function apply2({ save = false } = {}) {
       if (!buffer || inFlight || stale || buffer.composing || !ready()) return;
       const { controller: controller2 } = context(), expected = snapshot, candidate = buffer.source, caret = buffer.selection;
       if (!controller2 || controller2.state().confirmed.sessionId !== expected.sessionId) return;
@@ -52550,6 +52647,8 @@
       if (ok3 && context().controller === controller2 && controller2.state().confirmed.source === candidate) {
         context().restoreSelection?.(caret);
         dialog.close();
+        if (save) return await saveFile2();
+        return true;
       } else {
         byId2("source-status").textContent = "\u4FEE\u6539\u672A\u786E\u8BA4\u5E94\u7528\uFF0C\u6E90\u7801\u4ECD\u4FDD\u7559\u5728\u6B64\u7A97\u53E3\u3002\u8BF7\u52FF\u91CD\u590D\u63D0\u4EA4\u672A\u77E5\u7ED3\u679C\uFF1B\u53EF\u4EE5\u5168\u9009\u590D\u5236\u540E\u68C0\u67E5\u8349\u7A3F\u3002";
         sync();
@@ -52572,7 +52671,7 @@
     button.onpointerdown = (event) => {
       if (!ready()) event.preventDefault();
     };
-    button.onclick = () => {
+    function open() {
       if (!ready() || doc4.querySelector("dialog[open]")) return;
       snapshot = { ...context().state.confirmed };
       stale = false;
@@ -52600,7 +52699,8 @@
           rejected: () => {
             byId2("source-status").textContent = "\u672C\u6B21\u8F93\u5165\u8D85\u8FC7\u5F53\u524D\u6587\u672C\u9650\u5236\u6216\u5305\u542B\u65E0\u6548\u5B57\u7B26\uFF0C\u672A\u5E94\u7528\uFF1B\u4E4B\u524D\u7684\u5185\u5BB9\u5DF2\u4FDD\u7559\u3002";
           },
-          apply: apply2
+          apply: apply2,
+          save: () => apply2({ save: true })
         });
         buffer.setWrap(wrapped);
         buffer.focus();
@@ -52610,7 +52710,8 @@
         text5.focus({ preventScroll: true });
       }
       controls();
-    };
+    }
+    button.onclick = () => run3 ? run3("\u6253\u5F00\u6E90\u7801", open) : open();
     byId2("close-source").onclick = close2;
     byId2("apply-source").onclick = apply2;
     byId2("apply-source").onpointerdown = (event) => {
@@ -52666,7 +52767,7 @@
       button.setAttribute("aria-expanded", "false");
       if (!button.disabled) button.focus({ preventScroll: true });
     });
-    return { sync, close: close2, isOpen: () => dialog.open, configure() {
+    return { sync, close: close2, save: () => apply2({ save: true }), isOpen: () => dialog.open, configure() {
       enabled = true;
       sync();
     } };
@@ -63922,6 +64023,161 @@ ${prefix2}
     } };
   }
 
+  // lib/document-test-copy-view.mjs
+  function copyRefusal(s, { loading: loading2 = false, invalid = false } = {}) {
+    if (!s || !s.confirmed.temporary || s.confirmed.readOnly || !s.confirmed.copyEnabled) return "test-copy-unavailable";
+    if (invalid || s.locked || s.confirmed.blocked) return "document-locked";
+    if (s.composing || s.compositionInvalid) return "composition-active";
+    if (loading2 || s.pending || s.historyPending) return "document-busy";
+    if (s.source !== s.confirmed.source || s.recoveryRecords.length) return "unconfirmed-input";
+    if (!/^[a-f0-9]{64}$/.test(s.confirmed.copySha256 || "")) return "unverified-source";
+    const receipt = s.confirmed.copyState;
+    if (receipt && !receipt.ok && receipt.created !== false) return "unresolved-copy-state";
+    return null;
+  }
+  function operationMessage(receipt) {
+    if (!receipt || !receipt.code && receipt.state === "not-created") return "";
+    if (!receipt.ok && receipt.attachmentPaths?.length && receipt.created !== false) return `\u6B63\u6587\u548C\u56FE\u7247\u9644\u4EF6\u5C1A\u672A\u5168\u90E8\u786E\u8BA4\uFF0C\u53EF\u80FD\u5DF2\u6709\u6587\u4EF6\u521B\u5EFA\u3002\u8BF7\u4FDD\u7559\u8349\u7A3F\uFF0C\u4E0D\u8981\u91CD\u590D\u5BFC\u51FA\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u6E05\u7406\u3002
+\u539F\u56E0\uFF1A${receipt.code || receipt.state}
+${[receipt.filePath, ...receipt.attachmentPaths].filter(Boolean).join("\n")}`;
+    if (receipt.ok && receipt.state === "created-confirmed") return `${receipt.purpose === "save-as" ? "\u5DF2\u4FDD\u5B58\u4E3A\u65B0\u6587\u4EF6\uFF0C\u540E\u7EED\u4FDD\u5B58\u5C06\u66F4\u65B0\u6B64\u6587\u4EF6\u3002" : "\u5DF2\u5BFC\u51FA\u526F\u672C\uFF0C\u5F53\u524D\u6587\u6863\u7684\u4FDD\u5B58\u4F4D\u7F6E\u4FDD\u6301\u4E0D\u53D8\u3002"}\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002${receipt.localProvider === "onedrive" ? " \u5DF2\u786E\u8BA4 OneDrive \u672C\u673A\u6587\u4EF6\u5199\u5165\uFF0C\u4E91\u7AEF\u4E0A\u4F20\u72B6\u6001\u8BF7\u5728 OneDrive \u4E2D\u67E5\u770B\u3002" : ""}${receipt.attachments?.length ? ` \u5DF2\u786E\u8BA4 ${receipt.attachments.length} \u4E2A\u56FE\u7247\u9644\u4EF6\uFF0C\u8BF7\u4E0E Markdown \u4E00\u8D77\u79FB\u52A8\u3002` : ""}`;
+    let text5;
+    if (receipt.created === false) {
+      const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u5176\u4ED6\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u6216\u5B50\u6587\u4EF6\u5939\uFF0C\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\u3002" : receipt.code === "unsupported-copy-directory" ? "\u8BE5\u4F4D\u7F6E\u4E0D\u53D7\u652F\u6301\u3002\u8BF7\u9009\u62E9\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u6216\u5176\u5B50\u6587\u4EF6\u5939\uFF08\u652F\u6301\u4E3B\u76EE\u5F55\u4E4B\u5916\u4E0E\u5916\u63A5 APFS \u5377\uFF09\uFF1B\u4EC5\u989D\u5916\u652F\u6301\u7ECF\u6821\u9A8C\u7684 OneDrive \u672C\u673A\u76EE\u5F55\uFF1B\u5176\u4ED6\u540C\u6B65\u670D\u52A1\u3001\u9690\u85CF\u3001\u4EFB\u610F\u8D44\u6E90\u5E93\u53CA\u5E94\u7528\u7A0B\u5E8F\u76EE\u5F55\u6682\u4E0D\u652F\u6301\u3002" : receipt.code === "cloud-directory" ? "\u6B64\u6587\u4EF6\u5939\u7531 iCloud \u7BA1\u7406\u3002\u8BF7\u9009\u62E9\u672A\u540C\u6B65\u7684\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\uFF1B\u5E94\u7528\u4E0D\u4F1A\u5173\u95ED\u540C\u6B65\u6216\u642C\u52A8\u5DF2\u6709\u5185\u5BB9\u3002" : receipt.code === "directory-location-unavailable" ? "\u6682\u65F6\u65E0\u6CD5\u786E\u8BA4\u6B64\u6587\u4EF6\u5939\u662F\u5426\u4E3A\u666E\u901A\u672C\u5730\u4F4D\u7F6E\u3002\u8BF7\u9009\u62E9\u5176\u4ED6\u672C\u5730\u6587\u4EF6\u5939\uFF1B\u6CA1\u6709\u521B\u5EFA\u6587\u4EF6\u3002" : receipt.code === "copy-directory-changed" ? "\u6587\u4EF6\u5939\u6216\u5176\u4E0A\u7EA7\u76EE\u5F55\u53D1\u751F\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u4F4D\u7F6E\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
+      text5 = `\u672A\u521B\u5EFA\u6587\u4EF6\uFF1A${reason}\u6587\u5B57\u4ECD\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3\u3002`;
+    } else {
+      text5 = {
+        "created-partial": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5185\u5BB9\u53EF\u80FD\u4E0D\u5B8C\u6574",
+        "created-unverified": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5B8C\u6574\u6027\u5C1A\u672A\u786E\u8BA4",
+        "durability-uncertain": "\u6587\u4EF6\u5DF2\u5199\u5165\uFF0C\u4F46\u6301\u4E45\u6027\u5C1A\u672A\u786E\u8BA4"
+      }[receipt.state] || "\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u7ECF\u5B58\u5728";
+      text5 += "\u3002\u4E0D\u8981\u8986\u76D6\u6216\u91CD\u590D\u521B\u5EFA\uFF1B\u8BF7\u4FDD\u7559\u5F53\u524D\u7A97\u53E3\u548C\u4E0B\u65B9\u8DEF\u5F84\uFF0C\u68C0\u67E5\u7ED3\u679C\u3002\u5F53\u524D\u6587\u5B57\u4ECD\u4FDD\u7559\u3002";
+    }
+    return `${text5}
+\u539F\u56E0\uFF1A${receipt.code || receipt.state}\uFF1B\u72B6\u6001\uFF1A${receipt.state || "create-outcome-unknown"}${receipt.filePath ? `
+${receipt.filePath}` : ""}`;
+  }
+  function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
+    const receipts = /* @__PURE__ */ new Map(), confirmedReceipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
+    let confirmation = null;
+    let persistent = false;
+    const refusal = (c) => unknown.has(c.selected) ? "copy-outcome-unknown" : copyRefusal(c.controller?.state(), c);
+    function render5(s) {
+      const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
+      persistent = enabled && s.confirmed.persistentCopyEnabled === true;
+      byId2("create-test-copy").textContent = persistent ? "\u53E6\u5B58\u4E3A\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
+      byId2("confirm-test-copy").textContent = persistent ? "\u9009\u62E9\u4F4D\u7F6E\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
+      byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u53CA\u5176\u5B50\u6587\u4EF6\u5939\uFF08\u5305\u62EC\u4E3B\u76EE\u5F55\u4E4B\u5916\u53CA\u5916\u63A5 APFS \u5377\uFF09\uFF0C\u4F8B\u5982\u4E0B\u8F7D\u6216\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u672C\u5730\u4E14\u672A\u540C\u6B65\u7684\u684C\u9762\u3001\u6587\u7A3F\u53CA\u5176\u5B50\u76EE\u5F55\u4E5F\u53EF\u5728\u901A\u8FC7\u68C0\u67E5\u540E\u4F7F\u7528\u3002\u53E6\u652F\u6301\u53D7\u68C0\u67E5\u7684 OneDrive \u672C\u673A\u6587\u4EF6\u5939\uFF1B\u5176\u4FDD\u5B58\u786E\u8BA4\u4E0D\u4EE3\u8868\u4E91\u7AEF\u4E0A\u4F20\u5B8C\u6210\u3002\u5176\u4ED6\u540C\u6B65\u670D\u52A1\u3001\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u4EFB\u610F\u8D44\u6E90\u5E93\u3001\u5E94\u7528\u7A0B\u5E8F\u4E0E\u9690\u85CF\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4E0D\u7B26\u5408\u8BE5\u4F4D\u7F6E\u7B56\u7565\u7684\u989D\u5916\u6743\u9650\u4ECD\u4F1A\u88AB\u62D2\u7EDD\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
+      byId2("create-test-copy").hidden = !enabled;
+      byId2("test-copy-panel").hidden = !enabled;
+      for (const id2 of ["copy-summary-compact", "copy-operation-alert"]) byId2(id2).hidden = true;
+      if (!enabled) return;
+      const reason = refusal(c);
+      const transient = c.coordinate && !s.compositionInvalid && ["document-busy", "composition-active"].includes(reason) && !c.loading && !s.historyPending;
+      byId2("create-test-copy").disabled = !!reason && !transient;
+      byId2("export-copy").hidden = !persistent;
+      byId2("export-copy").disabled = !!reason && !transient;
+      byId2("test-copy-reason").textContent = confirmation ? "\u8BF7\u786E\u8BA4\u5185\u5BB9\u540E\u9009\u62E9\u4F4D\u7F6E\uFF0C\u6216\u53D6\u6D88\u8FD4\u56DE\u7F16\u8F91\u3002" : reason ? `\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF08${reason}\uFF09\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002` : "";
+      byId2("test-copy-confirmation").hidden = !confirmation || confirmation.persistent || confirmation.sessionId !== c.selected;
+      const receipt = receipts.get(c.selected) || s.confirmed.copyState;
+      const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
+      if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
+      const last = confirmedReceipts.get(c.selected);
+      byId2("test-copy-result").textContent = last ? `\u6700\u540E\u786E\u8BA4\u7684${persistent ? "Markdown \u6587\u4EF6" : "\u6D4B\u8BD5\u526F\u672C"} \xB7 \u4FEE\u8BA2 ${last.revision}\u3002\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u3002
+${last.filePath}
+SHA-256: ${last.sha256}${last.attachments?.length ? "\n\u56FE\u7247\u9644\u4EF6\uFF1A\n" + last.attachments.map((a) => `${a.filePath} \xB7 SHA-256: ${a.sha256}`).join("\n") : ""}` : "";
+      byId2("test-copy-summary").textContent = last ? `\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF1A${last.filePath}
+\u5DF2\u786E\u8BA4\u4FEE\u8BA2 ${last.revision}\u3002${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA\u3002" : "\u4EC5\u4EE3\u8868\u8BE5\u4FEE\u8BA2\u7684\u65B0\u6587\u4EF6\u526F\u672C\u3002"}${last.purpose === "save-as" ? "\u540E\u7EED\u53EF\u7528\u4FDD\u5B58\u66F4\u65B0\u8BE5\u6587\u4EF6\u3002" : "\u5BFC\u51FA\u526F\u672C\u4E0D\u6539\u53D8\u5F53\u524D\u4FDD\u5B58\u4F4D\u7F6E\u3002"}` : "";
+      byId2("test-copy-receipt").hidden = !last;
+      byId2("confirmed-copy-card").hidden = !last;
+      byId2("copy-empty").hidden = !!last;
+      const compact = byId2("copy-summary-compact"), alert = byId2("copy-operation-alert");
+      compact.textContent = last ? `${last.purpose === "save-as" ? "\u5DF2\u53E6\u5B58\u4E3A" : "\u5DF2\u5BFC\u51FA\u526F\u672C"}\uFF1A${last.filePath.split("/").pop()}${last.purpose === "save-as" ? "" : ` \xB7 ${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA" : "\u5F53\u524D\u5185\u5BB9\u5DF2\u5BFC\u51FA"} \xB7 \u5F53\u524D\u4FDD\u5B58\u4F4D\u7F6E\u4E0D\u53D8`}\u3002` : "";
+      compact.hidden = !last || last.purpose === "save-as";
+      alert.textContent = receipt?.ok === false ? operationMessage(receipt).split("\n\u539F\u56E0\uFF1A")[0] + (receipt.filePath ? `
+${receipt.filePath}` : "") : reason && !confirmation ? {
+        "composition-active": s.compositionInvalid ? "\u5F53\u524D\u8F93\u5165\u672A\u80FD\u786E\u8BA4\uFF0C\u8BF7\u67E5\u770B\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002" : "",
+        "unconfirmed-input": "\u8FD8\u6709\u672A\u786E\u8BA4\u7684\u8F93\u5165\uFF0C\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF1B\u8BF7\u5148\u68C0\u67E5\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002",
+        "document-locked": "\u5F53\u524D\u6587\u6863\u6682\u4E0D\u80FD\u5BFC\u51FA\u3002\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u9519\u8BEF\u63D0\u793A\u3002",
+        "unresolved-copy-state": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002",
+        "copy-outcome-unknown": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002"
+      }[reason] || "" : "";
+      alert.hidden = !alert.textContent;
+      alert.dataset.tone = receipt?.code === "create-cancelled" || !receipt?.code ? "neutral" : "error";
+      byId2("test-copy-operation").textContent = operationMessage(receipt);
+      byId2("latest-copy-card").hidden = !byId2("test-copy-operation").textContent;
+      byId2("test-copy-operation").dataset.tone = confirmed ? "success" : receipt?.code === "create-cancelled" ? "neutral" : receipt?.ok === false ? "error" : "neutral";
+      byId2("latest-copy-card").dataset.tone = byId2("test-copy-operation").dataset.tone;
+    }
+    function finish2() {
+      confirmation = null;
+      busy(false);
+      rerender();
+      const c = context();
+      if (!c.invalid && !c.controller?.state().locked) focus2();
+    }
+    byId2("create-test-copy").onpointerdown = (event) => {
+      if (refusal(context())) event.preventDefault();
+    };
+    function begin(mode = "save-as") {
+      const c = context();
+      if (refusal(c)) return Promise.resolve(false);
+      const s = c.controller.state().confirmed;
+      confirmation = { persistent, mode, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
+      busy(true);
+      if (persistent) {
+        rerender();
+        return submit();
+      }
+      byId2("test-copy-confirm-revision").textContent = `\u5C06\u4FEE\u8BA2 ${s.revision} \u521B\u5EFA\u4E3A\u6D4B\u8BD5\u526F\u672C\u3002`;
+      byId2("confirm-test-copy").disabled = false;
+      byId2("cancel-test-copy").disabled = false;
+      rerender();
+    }
+    byId2("create-test-copy").onclick = () => begin();
+    byId2("export-copy").onpointerdown = byId2("create-test-copy").onpointerdown;
+    byId2("export-copy").onclick = () => begin("export");
+    byId2("cancel-test-copy").onclick = () => {
+      if (confirmation) finish2();
+    };
+    async function submit() {
+      const q = confirmation, c = context();
+      if (!q || q.started) return false;
+      q.started = true;
+      const s = c.controller?.state();
+      if (c.controller !== q.controller || c.selected !== q.sessionId || copyRefusal(s, { invalid: c.invalid }) || s.confirmed.revision !== q.revision || s.confirmed.source !== q.source || s.confirmed.copySha256 !== q.hash) {
+        finish2();
+        return;
+      }
+      byId2("confirm-test-copy").disabled = true;
+      byId2("cancel-test-copy").disabled = true;
+      try {
+        const r = await (q.persistent ? api2.createPersistentCopy : api2.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash, ...q.persistent ? { mode: q.mode } : {} });
+        const now = context();
+        const valid2 = now.controller === q.controller && now.selected === q.sessionId && !now.invalid && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;
+        if (!valid2 || r.ok && r.copy?.purpose === "save-as" && (r.snapshot.originalSave?.filePath !== r.copy.filePath || r.snapshot.dirty !== false) || r.ok && (r.copy?.state !== "created-confirmed" || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash)) {
+          unknown.add(q.sessionId);
+          receipts.set(q.sessionId, { ...r?.copy, ok: false, code: r?.code || "copy-outcome-unknown", state: "create-outcome-unknown", created: null });
+        } else {
+          receipts.set(q.sessionId, r.ok ? r.copy : { ...r.copy, ok: false, code: r.code || r.copy?.code });
+          q.controller.refresh(r);
+          return r.ok === true;
+        }
+      } catch {
+        unknown.add(q.sessionId);
+        receipts.set(q.sessionId, { ok: false, state: "create-outcome-unknown", created: null, code: "copy-outcome-unknown" });
+      } finally {
+        finish2();
+      }
+    }
+    byId2("confirm-test-copy").onclick = submit;
+    return { render: render5, create: begin, release(sessionId) {
+      receipts.delete(sessionId);
+      confirmedReceipts.delete(sessionId);
+      unknown.delete(sessionId);
+    } };
+  }
+
   // lib/document-original-save-view.mjs
   function originalSaveRefusal(s, c = {}) {
     const o = s?.confirmed?.originalSave;
@@ -63936,9 +64192,11 @@ ${prefix2}
     const doc4 = byId2("save-original").ownerDocument;
     function render5(s) {
       const c = context(), o = s.confirmed.originalSave, button = byId2("save-original");
-      button.hidden = !o?.available;
-      button.disabled = !!originalSaveRefusal(s, c) || unknown.has(c.selected);
-      button.title = o?.filePath ? `\u4FDD\u5B58\u56DE ${o.filePath}\uFF08\u2318S\uFF09` : "";
+      button.hidden = !o?.available && !s.confirmed.persistentCopyEnabled;
+      button.disabled = !!(o?.available ? originalSaveRefusal(s, c) : copyRefusal(s, c)) || unknown.has(c.selected);
+      if (c.coordinate && !c.loading && !c.invalid && !s.locked && !s.confirmed.blocked && !s.historyPending && !s.compositionInvalid && !s.recoveryRecords.length && !o?.stopped && !unknown.has(c.selected)) button.disabled = false;
+      button.textContent = o?.available ? "\u4FDD\u5B58" : "\u4FDD\u5B58\u2026";
+      button.title = o?.filePath ? `\u4FDD\u5B58\u56DE ${o.filePath}\uFF08\u2318S\uFF09` : "\u4FDD\u5B58\u6587\u6863\uFF08\u2318S\uFF09";
       const history4 = byId2("original-save-receipt"), last = o?.lastConfirmed;
       history4.hidden = !last;
       history4.textContent = last ? `\u6700\u540E\u786E\u8BA4\u4FDD\u5B58 \xB7 \u4FEE\u8BA2 ${last.revision}
@@ -63997,6 +64255,7 @@ SHA-256: ${last.sha256}` : "";
         } else {
           c.controller.refresh(r);
           if (!r.ok && !r.snapshot.originalSave?.receipt) notices.set(c.selected, r.code === "save-cancelled" ? "\u5DF2\u53D6\u6D88\u4FDD\u5B58\u3002" : `\u6682\u672A\u4FDD\u5B58\uFF08${r.code}\uFF09\uFF0C\u5F53\u524D\u8349\u7A3F\u4FDD\u7559\u3002`);
+          return r.ok === true;
         }
       } catch {
         unknown.add(c.selected);
@@ -64111,148 +64370,6 @@ SHA-256: ${last.sha256}` : "";
     byId2("show-drafts").addEventListener("click", refresh);
     return { render: render5, save, release(sessionId) {
       notices.delete(sessionId);
-      unknown.delete(sessionId);
-    } };
-  }
-
-  // lib/document-test-copy-view.mjs
-  function copyRefusal(s, { loading: loading2 = false, invalid = false } = {}) {
-    if (!s || !s.confirmed.temporary || s.confirmed.readOnly || !s.confirmed.copyEnabled) return "test-copy-unavailable";
-    if (invalid || s.locked || s.confirmed.blocked) return "document-locked";
-    if (s.composing || s.compositionInvalid) return "composition-active";
-    if (loading2 || s.pending || s.historyPending) return "document-busy";
-    if (s.source !== s.confirmed.source || s.recoveryRecords.length) return "unconfirmed-input";
-    if (!/^[a-f0-9]{64}$/.test(s.confirmed.copySha256 || "")) return "unverified-source";
-    const receipt = s.confirmed.copyState;
-    if (receipt && !receipt.ok && receipt.created !== false) return "unresolved-copy-state";
-    return null;
-  }
-  function operationMessage(receipt) {
-    if (!receipt || !receipt.code && receipt.state === "not-created") return "";
-    if (!receipt.ok && receipt.attachmentPaths?.length && receipt.created !== false) return `\u6B63\u6587\u548C\u56FE\u7247\u9644\u4EF6\u5C1A\u672A\u5168\u90E8\u786E\u8BA4\uFF0C\u53EF\u80FD\u5DF2\u6709\u6587\u4EF6\u521B\u5EFA\u3002\u8BF7\u4FDD\u7559\u8349\u7A3F\uFF0C\u4E0D\u8981\u91CD\u590D\u5BFC\u51FA\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u6E05\u7406\u3002
-\u539F\u56E0\uFF1A${receipt.code || receipt.state}
-${[receipt.filePath, ...receipt.attachmentPaths].filter(Boolean).join("\n")}`;
-    if (receipt.ok && receipt.state === "created-confirmed") return `\u672C\u6B21\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF08\u4FEE\u8BA2 ${receipt.revision}\uFF09\u3002\u540E\u7EED\u7F16\u8F91\u4FDD\u7559\u5728\u8349\u7A3F\u4E2D\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u8BE5\u6587\u4EF6\u3002${receipt.localProvider === "onedrive" ? " \u5DF2\u786E\u8BA4 OneDrive \u672C\u673A\u6587\u4EF6\u5199\u5165\uFF0C\u4E91\u7AEF\u4E0A\u4F20\u72B6\u6001\u8BF7\u5728 OneDrive \u4E2D\u67E5\u770B\u3002" : ""}${receipt.attachments?.length ? ` \u5DF2\u786E\u8BA4 ${receipt.attachments.length} \u4E2A\u56FE\u7247\u9644\u4EF6\uFF0C\u8BF7\u4E0E Markdown \u4E00\u8D77\u79FB\u52A8\u3002` : ""}`;
-    let text5;
-    if (receipt.created === false) {
-      const reason = receipt.code === "unsupported-acl" ? "\u6B64\u76EE\u5F55\u5E26\u6709\u5F53\u524D\u4E0D\u652F\u6301\u7684\u989D\u5916\u6743\u9650\uFF08ACL\uFF09\uFF0C\u8BF7\u6539\u9009\u5176\u4ED6\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u6216\u5B50\u6587\u4EF6\u5939\uFF0C\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\u3002" : receipt.code === "unsupported-copy-directory" ? "\u8BE5\u4F4D\u7F6E\u4E0D\u53D7\u652F\u6301\u3002\u8BF7\u9009\u62E9\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u6216\u5176\u5B50\u6587\u4EF6\u5939\uFF08\u652F\u6301\u4E3B\u76EE\u5F55\u4E4B\u5916\u4E0E\u5916\u63A5 APFS \u5377\uFF09\uFF1B\u4EC5\u989D\u5916\u652F\u6301\u7ECF\u6821\u9A8C\u7684 OneDrive \u672C\u673A\u76EE\u5F55\uFF1B\u5176\u4ED6\u540C\u6B65\u670D\u52A1\u3001\u9690\u85CF\u3001\u4EFB\u610F\u8D44\u6E90\u5E93\u53CA\u5E94\u7528\u7A0B\u5E8F\u76EE\u5F55\u6682\u4E0D\u652F\u6301\u3002" : receipt.code === "cloud-directory" ? "\u6B64\u6587\u4EF6\u5939\u7531 iCloud \u7BA1\u7406\u3002\u8BF7\u9009\u62E9\u672A\u540C\u6B65\u7684\u666E\u901A\u672C\u5730\u6587\u4EF6\u5939\uFF1B\u5E94\u7528\u4E0D\u4F1A\u5173\u95ED\u540C\u6B65\u6216\u642C\u52A8\u5DF2\u6709\u5185\u5BB9\u3002" : receipt.code === "directory-location-unavailable" ? "\u6682\u65F6\u65E0\u6CD5\u786E\u8BA4\u6B64\u6587\u4EF6\u5939\u662F\u5426\u4E3A\u666E\u901A\u672C\u5730\u4F4D\u7F6E\u3002\u8BF7\u9009\u62E9\u5176\u4ED6\u672C\u5730\u6587\u4EF6\u5939\uFF1B\u6CA1\u6709\u521B\u5EFA\u6587\u4EF6\u3002" : receipt.code === "copy-directory-changed" ? "\u6587\u4EF6\u5939\u6216\u5176\u4E0A\u7EA7\u76EE\u5F55\u53D1\u751F\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u4F4D\u7F6E\u3002" : receipt.code === "target-exists" ? "\u540C\u540D\u76EE\u6807\u5DF2\u5B58\u5728\uFF0C\u6CA1\u6709\u8986\u76D6\u5B83\uFF1B\u8BF7\u4F7F\u7528\u65B0\u6587\u4EF6\u540D\u3002" : receipt.code === "create-cancelled" ? "\u64CD\u4F5C\u5DF2\u53D6\u6D88\u3002" : "\u76EE\u6807\u4F4D\u7F6E\u6216\u521B\u5EFA\u64CD\u4F5C\u672A\u901A\u8FC7\u68C0\u67E5\uFF0C\u8BF7\u67E5\u770B\u539F\u56E0\u5E76\u9009\u62E9\u53D7\u652F\u6301\u7684\u4F4D\u7F6E\u3002";
-      text5 = `\u672A\u521B\u5EFA\u6587\u4EF6\uFF1A${reason}\u6587\u5B57\u4ECD\u4FDD\u7559\u5728\u5F53\u524D\u7A97\u53E3\u3002`;
-    } else {
-      text5 = {
-        "created-partial": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5185\u5BB9\u53EF\u80FD\u4E0D\u5B8C\u6574",
-        "created-unverified": "\u6587\u4EF6\u5DF2\u521B\u5EFA\uFF0C\u4F46\u5B8C\u6574\u6027\u5C1A\u672A\u786E\u8BA4",
-        "durability-uncertain": "\u6587\u4EF6\u5DF2\u5199\u5165\uFF0C\u4F46\u6301\u4E45\u6027\u5C1A\u672A\u786E\u8BA4"
-      }[receipt.state] || "\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u7ECF\u5B58\u5728";
-      text5 += "\u3002\u4E0D\u8981\u8986\u76D6\u6216\u91CD\u590D\u521B\u5EFA\uFF1B\u8BF7\u4FDD\u7559\u5F53\u524D\u7A97\u53E3\u548C\u4E0B\u65B9\u8DEF\u5F84\uFF0C\u68C0\u67E5\u7ED3\u679C\u3002\u5F53\u524D\u6587\u5B57\u4ECD\u4FDD\u7559\u3002";
-    }
-    return `${text5}
-\u539F\u56E0\uFF1A${receipt.code || receipt.state}\uFF1B\u72B6\u6001\uFF1A${receipt.state || "create-outcome-unknown"}${receipt.filePath ? `
-${receipt.filePath}` : ""}`;
-  }
-  function createTestCopyView({ api: api2, byId: byId2, context, busy, rerender, focus: focus2 }) {
-    const receipts = /* @__PURE__ */ new Map(), confirmedReceipts = /* @__PURE__ */ new Map(), unknown = /* @__PURE__ */ new Set();
-    let confirmation = null;
-    let persistent = false;
-    const refusal = (c) => unknown.has(c.selected) ? "copy-outcome-unknown" : copyRefusal(c.controller?.state(), c);
-    function render5(s) {
-      const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
-      persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-      byId2("create-test-copy").textContent = persistent ? "\u53E6\u5B58\u65B0\u6587\u4EF6\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
-      byId2("confirm-test-copy").textContent = persistent ? "\u9009\u62E9\u4F4D\u7F6E\u2026" : "\u521B\u5EFA\u6D4B\u8BD5\u526F\u672C";
-      byId2("test-copy-description").textContent = persistent ? "\u9009\u62E9\u5F52\u4F60\u6240\u6709\u7684\u666E\u901A\u672C\u5730 APFS \u6587\u4EF6\u5939\u53CA\u5176\u5B50\u6587\u4EF6\u5939\uFF08\u5305\u62EC\u4E3B\u76EE\u5F55\u4E4B\u5916\u53CA\u5916\u63A5 APFS \u5377\uFF09\uFF0C\u4F8B\u5982\u4E0B\u8F7D\u6216\u4F60\u81EA\u884C\u51C6\u5907\u7684 Markdown Writing\uFF08\u4ECD\u9700\u901A\u8FC7\u6743\u9650\u68C0\u67E5\uFF09\u3002\u672C\u5730\u4E14\u672A\u540C\u6B65\u7684\u684C\u9762\u3001\u6587\u7A3F\u53CA\u5176\u5B50\u76EE\u5F55\u4E5F\u53EF\u5728\u901A\u8FC7\u68C0\u67E5\u540E\u4F7F\u7528\u3002\u53E6\u652F\u6301\u53D7\u68C0\u67E5\u7684 OneDrive \u672C\u673A\u6587\u4EF6\u5939\uFF1B\u5176\u4FDD\u5B58\u786E\u8BA4\u4E0D\u4EE3\u8868\u4E91\u7AEF\u4E0A\u4F20\u5B8C\u6210\u3002\u5176\u4ED6\u540C\u6B65\u670D\u52A1\u3001\u4E3B\u6587\u4EF6\u5939\u672C\u8EAB\u3001\u4EFB\u610F\u8D44\u6E90\u5E93\u3001\u5E94\u7528\u7A0B\u5E8F\u4E0E\u9690\u85CF\u76EE\u5F55\u4E0D\u53D7\u652F\u6301\uFF1B\u4E0D\u7B26\u5408\u8BE5\u4F4D\u7F6E\u7B56\u7565\u7684\u989D\u5916\u6743\u9650\u4ECD\u4F1A\u88AB\u62D2\u7EDD\u3002\u6587\u4EF6\u5939\u987B\u5F52\u4F60\u6240\u6709\u4E14\u4E0D\u80FD\u7531\u5176\u4ED6\u7528\u6237\u5199\u5165\u3002\u53EA\u7528\u65B0\u6587\u4EF6\u540D\uFF0C\u5DF2\u6709\u6587\u4EF6\u7EDD\u4E0D\u8986\u76D6\uFF1B\u5E94\u7528\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u5939\u6743\u9650\u3002" : "Disposable test copy only. Files may be cleaned by the system; do not use for important or long-term documents.";
-      byId2("create-test-copy").hidden = !enabled;
-      byId2("test-copy-panel").hidden = !enabled;
-      for (const id2 of ["copy-summary-compact", "copy-operation-alert"]) byId2(id2).hidden = true;
-      if (!enabled) return;
-      const reason = refusal(c);
-      byId2("create-test-copy").disabled = !!reason;
-      byId2("test-copy-reason").textContent = confirmation ? "\u8BF7\u786E\u8BA4\u5185\u5BB9\u540E\u9009\u62E9\u4F4D\u7F6E\uFF0C\u6216\u53D6\u6D88\u8FD4\u56DE\u7F16\u8F91\u3002" : reason ? `\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF08${reason}\uFF09\uFF0C\u5F53\u524D\u5185\u5BB9\u4ECD\u4FDD\u7559\u3002` : "";
-      byId2("test-copy-confirmation").hidden = !confirmation || confirmation.sessionId !== c.selected;
-      const receipt = receipts.get(c.selected) || s.confirmed.copyState;
-      const confirmed = receipt?.ok === true && receipt.state === "created-confirmed";
-      if (confirmed) confirmedReceipts.set(c.selected, { ...receipt });
-      const last = confirmedReceipts.get(c.selected);
-      byId2("test-copy-result").textContent = last ? `\u6700\u540E\u786E\u8BA4\u7684${persistent ? "Markdown \u6587\u4EF6" : "\u6D4B\u8BD5\u526F\u672C"} \xB7 \u4FEE\u8BA2 ${last.revision}\u3002\u540E\u7EED\u7F16\u8F91\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u3002
-${last.filePath}
-SHA-256: ${last.sha256}${last.attachments?.length ? "\n\u56FE\u7247\u9644\u4EF6\uFF1A\n" + last.attachments.map((a) => `${a.filePath} \xB7 SHA-256: ${a.sha256}`).join("\n") : ""}` : "";
-      byId2("test-copy-summary").textContent = last ? `\u5DF2\u521B\u5EFA\u65B0\u6587\u4EF6\uFF1A${last.filePath}
-\u5DF2\u786E\u8BA4\u4FEE\u8BA2 ${last.revision}\u3002${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA\u3002" : "\u4EC5\u4EE3\u8868\u8BE5\u4FEE\u8BA2\u7684\u65B0\u6587\u4EF6\u526F\u672C\u3002"}\u540E\u7EED\u7F16\u8F91\u4FDD\u7559\u5728\u8349\u7A3F\u4E2D\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u5199\u56DE\u8BE5\u6587\u4EF6\u3002` : "";
-      byId2("test-copy-receipt").hidden = !last;
-      byId2("confirmed-copy-card").hidden = !last;
-      byId2("copy-empty").hidden = !!last;
-      const compact = byId2("copy-summary-compact"), alert = byId2("copy-operation-alert");
-      compact.textContent = last ? `\u5DF2\u53E6\u5B58\u65B0\u6587\u4EF6\uFF1A${last.filePath.split("/").pop()} \xB7 ${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? "\u540E\u7EED\u4FEE\u6539\u5C1A\u672A\u5BFC\u51FA" : "\u5F53\u524D\u5185\u5BB9\u5DF2\u5BFC\u51FA"}\u3002` : "";
-      compact.hidden = !last;
-      alert.textContent = receipt?.ok === false ? operationMessage(receipt).split("\n\u539F\u56E0\uFF1A")[0] + (receipt.filePath ? `
-${receipt.filePath}` : "") : reason && !confirmation ? {
-        "composition-active": s.compositionInvalid ? "\u5F53\u524D\u8F93\u5165\u672A\u80FD\u786E\u8BA4\uFF0C\u8BF7\u67E5\u770B\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002" : "",
-        "unconfirmed-input": "\u8FD8\u6709\u672A\u786E\u8BA4\u7684\u8F93\u5165\uFF0C\u6682\u4E0D\u80FD\u53E6\u5B58\u6587\u4EF6\uFF1B\u8BF7\u5148\u68C0\u67E5\u4FDD\u7559\u7684\u8F93\u5165\u5185\u5BB9\u3002",
-        "document-locked": "\u5F53\u524D\u6587\u6863\u6682\u4E0D\u80FD\u5BFC\u51FA\u3002\u5185\u5BB9\u4ECD\u4FDD\u7559\uFF0C\u8BF7\u67E5\u770B\u8F93\u5165\u6216\u4F1A\u8BDD\u9519\u8BEF\u63D0\u793A\u3002",
-        "unresolved-copy-state": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002",
-        "copy-outcome-unknown": "\u4E0A\u6B21\u521B\u5EFA\u7ED3\u679C\u672A\u77E5\uFF0C\u6682\u505C\u518D\u6B21\u521B\u5EFA\uFF1B\u8BF7\u67E5\u770B\u8BE6\u60C5\uFF0C\u4FDD\u7559\u5F53\u524D\u5185\u5BB9\u3002"
-      }[reason] || "" : "";
-      alert.hidden = !alert.textContent;
-      alert.dataset.tone = receipt?.code === "create-cancelled" || !receipt?.code ? "neutral" : "error";
-      byId2("test-copy-operation").textContent = operationMessage(receipt);
-      byId2("latest-copy-card").hidden = !byId2("test-copy-operation").textContent;
-      byId2("test-copy-operation").dataset.tone = confirmed ? "success" : receipt?.code === "create-cancelled" ? "neutral" : receipt?.ok === false ? "error" : "neutral";
-      byId2("latest-copy-card").dataset.tone = byId2("test-copy-operation").dataset.tone;
-    }
-    function finish2() {
-      confirmation = null;
-      busy(false);
-      rerender();
-      const c = context();
-      if (!c.invalid && !c.controller?.state().locked) focus2();
-    }
-    byId2("create-test-copy").onpointerdown = (event) => {
-      if (refusal(context())) event.preventDefault();
-    };
-    byId2("create-test-copy").onclick = () => {
-      const c = context();
-      if (refusal(c)) return;
-      const s = c.controller.state().confirmed;
-      confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
-      busy(true);
-      byId2("test-copy-confirm-revision").textContent = `\u5C06\u5DF2\u786E\u8BA4\u7684\u4FEE\u8BA2 ${s.revision} \u521B\u5EFA\u4E3A${persistent ? "\u65B0\u7684 Markdown \u6587\u4EF6" : "\u6D4B\u8BD5\u526F\u672C"}\u3002\u8BF7\u9009\u62E9\u4F4D\u7F6E\uFF0C\u6216\u53D6\u6D88\u8FD4\u56DE\u7F16\u8F91\u3002`;
-      byId2("confirm-test-copy").disabled = false;
-      byId2("cancel-test-copy").disabled = false;
-      rerender();
-    };
-    byId2("cancel-test-copy").onclick = () => {
-      if (confirmation) finish2();
-    };
-    byId2("confirm-test-copy").onclick = async () => {
-      const q = confirmation, c = context();
-      if (!q) return;
-      const s = c.controller?.state();
-      if (c.controller !== q.controller || c.selected !== q.sessionId || copyRefusal(s, { invalid: c.invalid }) || s.confirmed.revision !== q.revision || s.confirmed.source !== q.source || s.confirmed.copySha256 !== q.hash) {
-        finish2();
-        return;
-      }
-      byId2("confirm-test-copy").disabled = true;
-      byId2("cancel-test-copy").disabled = true;
-      try {
-        const r = await (q.persistent ? api2.createPersistentCopy : api2.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
-        const now = context();
-        const valid2 = now.controller === q.controller && now.selected === q.sessionId && !now.invalid && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;
-        if (!valid2 || r.ok && (r.copy?.state !== "created-confirmed" || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash)) {
-          unknown.add(q.sessionId);
-          receipts.set(q.sessionId, { ...r?.copy, ok: false, code: r?.code || "copy-outcome-unknown", state: "create-outcome-unknown", created: null });
-        } else {
-          receipts.set(q.sessionId, r.ok ? r.copy : { ...r.copy, ok: false, code: r.code || r.copy?.code });
-          q.controller.refresh(r);
-        }
-      } catch {
-        unknown.add(q.sessionId);
-        receipts.set(q.sessionId, { ok: false, state: "create-outcome-unknown", created: null, code: "copy-outcome-unknown" });
-      } finally {
-        finish2();
-      }
-    };
-    return { render: render5, release(sessionId) {
-      receipts.delete(sessionId);
-      confirmedReceipts.delete(sessionId);
       unknown.delete(sessionId);
     } };
   }
@@ -64379,7 +64496,20 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     const settle = () => {
       if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve();
     };
-    const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise((resolve) => waiters.push(resolve));
+    const idle = ({ signal } = {}) => !flight && !queue.length ? Promise.resolve() : new Promise((resolve) => {
+      const finish2 = () => {
+        signal?.removeEventListener("abort", cancel);
+        resolve();
+      };
+      const cancel = () => {
+        const index2 = waiters.indexOf(finish2);
+        if (index2 >= 0) waiters.splice(index2, 1);
+        finish2();
+      };
+      waiters.push(finish2);
+      if (signal?.aborted) cancel();
+      else signal?.addEventListener("abort", cancel, { once: true });
+    });
     async function reconcile(reply, reason) {
       const recovery = rememberDraft(reason);
       queue.length = 0;
@@ -64906,9 +65036,16 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     const info = byId2("document-info"), doc4 = info.ownerDocument, title = info.querySelector("summary");
     const canDismissTitle = () => enabled && info.open && !blocked() && !doc4.querySelector("dialog[open]");
     doc4.addEventListener("pointerdown", (event) => {
+      if (!event.defaultPrevented && !byId2("file-actions").contains(event.target)) byId2("file-actions").open = false;
       if (!event.defaultPrevented && canDismissTitle() && !info.contains(event.target)) info.open = false;
     }, true);
     doc4.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && byId2("file-actions").open && !event.isComposing) {
+        byId2("file-actions").open = false;
+        byId2("file-actions-toggle").focus();
+        event.preventDefault();
+        return;
+      }
       if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229 || !canDismissTitle()) return;
       const returnFocus = info.contains(doc4.activeElement);
       event.preventDefault();
@@ -64930,10 +65067,13 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (media?.matches) sidebar(false);
     }
     function navigate(id2) {
-      const select = byId2("documents"), c = context();
-      if (!enabled || blocked() || select.disabled || c.unavailable?.(id2) || ![...select.options].some((o) => o.value === id2) || id2 === c.state?.confirmed?.sessionId) return;
-      select.value = id2;
-      return select.onchange?.();
+      const run3 = () => {
+        const select = byId2("documents"), c = context();
+        if (!enabled || blocked() || select.disabled || c.unavailable?.(id2) || ![...select.options].some((o) => o.value === id2) || id2 === c.state?.confirmed?.sessionId) return;
+        select.value = id2;
+        return select.onchange?.();
+      };
+      return context().run ? context().run("\u5207\u6362\u6587\u6863", run3) : run3();
     }
     function syncNavigation() {
       if (!enabled) return;
@@ -64965,7 +65105,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
         label.textContent = option.textContent;
         button.title = option.textContent;
         button.setAttribute("aria-current", String(id2 === confirmed?.sessionId));
-        button.disabled = !!(blocked() || select.disabled || c.unavailable?.(id2));
+        button.disabled = !!((c.run ? c.loading || c.state?.locked || c.state?.compositionInvalid || c.state?.historyPending : blocked()) || select.disabled || c.unavailable?.(id2));
         detail.textContent = c.unavailable?.(id2) ? "\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528" : c.pendingSession === id2 ? "\u6B63\u5728\u5207\u6362\u2026" : m?.detail || (m?.temporary ? "\u72EC\u7ACB\u8349\u7A3F" : m?.readOnly ? "\u539F\u6587\u53EA\u8BFB" : "\u5DF2\u6253\u5F00\u6587\u6863");
         button.hidden = !option.textContent.toLocaleLowerCase().includes(byId2("session-filter").value.trim().toLocaleLowerCase());
       }
@@ -64977,10 +65117,13 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       if (!enabled) return;
       const s = context().state, current = s?.confirmed;
       byId2("writing-status").hidden = !s;
+      byId2("file-actions").hidden = !s?.confirmed?.persistentCopyEnabled;
+      const destination = s?.confirmed?.persistentCopyEnabled ? byId2("file-actions-content") : byId2("writing-actions");
+      for (const id2 of ["create-test-copy", "export-copy"]) if (byId2(id2).parentElement !== destination) destination.append(byId2(id2));
       byId2("show-drafts").disabled = !!blocked() || byId2("draft-recovery-panel").hidden;
       byId2("show-details").disabled = !!blocked() || !s;
       byId2("empty-new").disabled = !!blocked() || byId2("new-temporary").disabled;
-      for (const id2 of ["toggle-session-sidebar", "close-session-sidebar", "session-filter", "sidebar-scrim"]) byId2(id2).disabled = !!blocked();
+      for (const id2 of ["toggle-session-sidebar", "close-session-sidebar", "session-filter", "sidebar-scrim"]) byId2(id2).disabled = !!(context().loading || s?.historyPending || s?.compositionInvalid || s?.composing);
       byId2("reading-mode").hidden = !current?.readOnly;
       byId2("document-statistics").textContent = current ? current.source.replace(/\s/gu, "").length.toLocaleString() + " \u5B57\u7B26 \xB7 Markdown" : "Markdown";
       if (current?.sessionId !== previousSession) {
@@ -65012,6 +65155,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
       byId2("sidebar-bottom").append(byId2("show-drafts"));
       byId2("header-start").append(byId2("document-info"));
       byId2("header-end").prepend(byId2("writing-actions"));
+      byId2("writing-actions").append(byId2("file-actions"));
       byId2("writing-workspace").prepend(byId2("document-header"));
       byId2("writing-toolbar").prepend(byId2("format-toolbar"));
       byId2("document-scroll").append(byId2("native-open-panel"), byId2("original-save-status"), byId2("copy-summary-compact"), byId2("confirmed-copy-actions"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
@@ -65597,6 +65741,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var resetting = false;
   var loading = false;
   var selected = null;
+  var closingWindow = false;
   var switching = false;
   var switchEpoch = 0;
   var pendingSession = null;
@@ -65604,6 +65749,11 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var navigationError = "";
   var drafts = /* @__PURE__ */ new Map();
   var lifecycles = /* @__PURE__ */ new Map();
+  var fileIntent = createActionIntent({ context: () => ({ controller, state: controller?.state(), loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }), changed: () => {
+    if (controller) render4(controller.state());
+  }, report: (message) => {
+    byId("workflow-status").textContent = message;
+  } });
   var formatView = createFormatView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
   var tableView = createTableView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
   var imagePreviews = createImagePreviews({ api, context: () => ({ state: controller?.state(), loading }) });
@@ -65614,7 +65764,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var imageView = createImageView({ api, byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
   var linkView = createLinkView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }), report: viewerStatus });
   var readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-  var sourceView = createSourceView({ byId, createEditor: createSourceEditor, context: () => ({
+  var sourceView = createSourceView({ byId, createEditor: createSourceEditor, saveFile: () => fileIntent.run("\u4FDD\u5B58", saveFile), run: (label, action) => fileIntent.run(label, action), context: () => ({
     controller,
     editor,
     state: controller?.state(),
@@ -65630,7 +65780,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     }
   }) });
   var accessibility = createAccessibilityView({ byId, context: () => ({ editor, state: controller?.state(), loading }) });
-  var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2) }), refreshDrafts: () => draftView.refresh() });
+  var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2), run: (label, action) => fileIntent.run(label, action) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ hasSession: (id2) => [...byId("documents").options].some((o) => o.value === id2), state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
   var recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: (id2) => openDocument(false, false, null, null, id2), restore: (id2) => openDocument(true, false, id2) });
@@ -65736,7 +65886,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var testCopyView = createTestCopyView({
     api,
     byId,
-    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    context: () => ({ controller, selected, loading, coordinate: true, invalid: activeInvalid() }),
     busy: (value) => {
       loading = value;
     },
@@ -65777,7 +65927,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var originalSaveView = createOriginalSaveView({
     api,
     byId,
-    context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+    context: () => ({ controller, selected, loading, coordinate: true, invalid: activeInvalid() }),
     busy: (value) => {
       loading = value;
     },
@@ -65791,6 +65941,7 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
   var closeView = createCloseView({
     api,
     byId,
+    run: (label, action) => fileIntent.run(label, action),
     context: () => ({ controller, selected, loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
     busy: (value) => {
       loading = value;
@@ -65832,10 +65983,14 @@ ${receipt.filePath}` : "") : reason && !confirmation ? {
     });
   }
   function render4(s) {
+    presentation.clear();
+    if (!s.composing && !editor?.view.composing && byId("workflow-status").textContent.startsWith("\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u9009\u8BCD")) byId("workflow-status").textContent = "";
     drafts.set(selected, s.recoveryRecords);
     const records = s.recoveryRecords.filter((r) => r.reason !== "edit-queue-full");
     byId("documents").value = selected;
-    byId("source").textContent = s.confirmed.source;
+    const currentOption = [...byId("documents").options].find((o) => o.value === selected);
+    if (currentOption && currentOption.textContent !== s.confirmed.label) currentOption.textContent = s.confirmed.label;
+    if (byId("source").textContent !== s.confirmed.source) byId("source").textContent = s.confirmed.source;
     byId("recovery").textContent = records.map((r) => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? "snapshot matches" : "not reapplied"}
 ${r.source}${"visibleText" in r ? `
 Partial DOM text (possibly incomplete):
@@ -65852,18 +66007,19 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (records.some((r) => String(r.id) === recoveryId)) byId("recovery-record").value = recoveryId;
     const busy = loading || s.pending > 0 || s.composing || s.historyPending;
     for (const id2 of ["documents", "reload", "check", "save"]) byId(id2).disabled = busy;
+    byId("documents").disabled = loading || s.historyPending || s.locked || activeInvalid() || s.compositionInvalid;
     for (const id2 of ["reload", "check", "save"]) byId(id2).disabled ||= activeInvalid();
     byId("undo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
     byId("redo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
     byId("discard-recovery").disabled = busy || records.length === 0;
-    const editable2 = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
+    const editable2 = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading && !fileIntent.waiting();
     if (editor && editor.isEditable !== editable2) editor.setEditable(editable2, false);
     for (const button of editor?.view.dom.querySelectorAll(".document-task-toggle") || []) {
       button.disabled = !editable2 || s.composing || s.compositionInvalid || s.recoveryRecords.length > 0;
       button.setAttribute("aria-disabled", String(button.disabled));
     }
     if (readOnlyWindow) {
-      for (const id2 of ["open-file", "empty-open", "new-temporary"]) byId(id2).disabled = busy;
+      for (const id2 of ["open-file", "empty-open", "new-temporary"]) byId(id2).disabled = loading || s.historyPending || s.locked || activeInvalid() || s.compositionInvalid;
       const current = s.confirmed, temporary = current.temporary === true;
       byId("edit-copy").hidden = current.readOnly !== true || current.editCopyEnabled !== true;
       byId("edit-copy").disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
@@ -65905,6 +66061,11 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     accessibility.sync();
     show();
   }
+  var presentation = createPresentationScheduler({ render: render4, fast: (s) => {
+    byId("readonly-badge").textContent = filePresentation(s.confirmed, s).label;
+    byId("backup-summary").textContent = "\u6B63\u5728\u786E\u8BA4\u4FEE\u6539\u2026";
+    show();
+  } });
   function resetSource(source, selection) {
     if (!editor) return;
     const old = selection || { from: editor.state.selection.from, to: editor.state.selection.to };
@@ -65949,6 +66110,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     return false;
   }
   function install(snapshot) {
+    presentation.clear();
     if (lifecycles.has(snapshot.sessionId)) throw Error("Blocked session");
     projectSource(snapshot.source);
     controller?.dispose();
@@ -65959,7 +66121,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     ++copyEpoch;
     controller = createEditController(snapshot, {
       send: (operation, data2) => operation === "source-edit" ? api.sourceEdit(data2) : api[operation](data2),
-      onChange: render4,
+      onChange: presentation.update,
       onReset: resetSource,
       recoveryRecords: drafts.get(selected) || []
     });
@@ -66183,6 +66345,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     }
   });
   async function finishDocumentClose(id2) {
+    presentation.clear();
     const options = [...byId("documents").options], index2 = options.findIndex((o) => o.value === id2);
     const next = options[index2 + 1] || options[index2 - 1];
     const copyId = controller?.state().confirmed.confirmedCopy?.copyId;
@@ -66277,7 +66440,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   }
   async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {
     const state = controller?.state();
-    if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
+    if (!readOnlyWindow || closingWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
     const original = state?.confirmed;
     if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length || state.source !== original.source || confirmedCopy.sessionId !== selected || confirmedCopy.expectedRevision !== original.revision || confirmedCopy.copyId !== original.confirmedCopy?.copyId)) return;
     if (linkedRequest && (activeInvalid() || state.locked || state.recoveryRecords.length || state.source !== original.source || linkedRequest.sessionId !== selected || linkedRequest.expectedRevision !== original.revision || !original.linkedFile)) return;
@@ -66383,25 +66546,91 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   byId("open-file").onclick = openReadOnly;
   byId("empty-open").onclick = openReadOnly;
   api.onOpenRequest(openReadOnly);
+  async function saveFile() {
+    if (controller?.state().confirmed.originalSave?.available) return originalSaveView.save();
+    return testCopyView.create("save-as");
+  }
   var saveCurrent = () => {
-    if (sourceView.isOpen()) {
-      byId("apply-source").click();
-      return;
+    if (sourceView.isOpen()) return sourceView.save();
+    if (document.querySelector("dialog[open]")) return false;
+    return fileIntent.run("\u4FDD\u5B58", saveFile);
+  };
+  byId("save-original").onclick = saveCurrent;
+  byId("create-test-copy").onclick = () => {
+    byId("file-actions").open = false;
+    return fileIntent.run("\u53E6\u5B58", () => testCopyView.create("save-as"));
+  };
+  byId("export-copy").onclick = () => {
+    byId("file-actions").open = false;
+    return fileIntent.run("\u5BFC\u51FA", () => testCopyView.create("export"));
+  };
+  byId("new-temporary").onclick = () => fileIntent.run("\u65B0\u5EFA", () => openDocument(true));
+  byId("open-file").onclick = () => fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly);
+  byId("empty-open").onclick = byId("open-file").onclick;
+  byId("file-actions-toggle").onpointerdown = (event) => {
+    if (editor?.view.composing || controller?.state().composing) event.preventDefault();
+  };
+  byId("file-actions-toggle").onclick = (event) => {
+    event.preventDefault();
+    return fileIntent.run("\u6253\u5F00\u6587\u6863\u64CD\u4F5C", () => {
+      byId("file-actions").open = !byId("file-actions").open;
+    });
+  };
+  api.onFileAction?.((action) => {
+    if (closingWindow) return;
+    if (action === "save") return void saveCurrent();
+    if (["undo", "redo"].includes(action)) {
+      if (sourceView.isOpen()) {
+        byId("source-" + action).click();
+        return;
+      }
+      if (document.activeElement?.matches("input,textarea")) {
+        document.execCommand(action);
+        return;
+      }
+    }
+    if (action === "close" && sourceView.isOpen()) {
+      sourceView.close();
+      if (sourceView.isOpen()) return;
     }
     if (document.querySelector("dialog[open]")) return;
-    if (controller?.state().confirmed.originalSave?.available) void originalSaveView.save();
-    else byId("create-test-copy").click();
-  };
+    if (action === "new") void byId("new-temporary").onclick();
+    if (action === "open") void byId("open-file").onclick();
+    if (action === "save-as" || action === "export") void fileIntent.run(action === "export" ? "\u5BFC\u51FA" : "\u53E6\u5B58", () => testCopyView.create(action));
+    if (action === "close") void byId("close-current-document").onclick();
+    if (action === "undo" || action === "redo") void history3(action);
+  });
+  api.onWindowCloseRequest?.(async () => {
+    if (closingWindow) return;
+    if (sourceView.isOpen()) {
+      sourceView.close();
+      if (sourceView.isOpen()) return;
+    }
+    if (document.querySelector("dialog[open]")) {
+      viewerStatus("\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u5F53\u524D\u5BF9\u8BDD\u6846\uFF0C\u518D\u5173\u95ED\u7A97\u53E3\u3002", true);
+      return;
+    }
+    closingWindow = true;
+    try {
+      while (controller) {
+        if (!await fileIntent.run("\u5173\u95ED\u6587\u6863", () => closeView.close())) return;
+      }
+      const result = await api.finishWindowClose();
+      if (!result?.ok) viewerStatus("\u8FD8\u6709\u672A\u5B8C\u6210\u7684\u6587\u6863\u64CD\u4F5C\uFF0C\u7A97\u53E3\u4FDD\u6301\u6253\u5F00\u3002", true);
+    } finally {
+      closingWindow = false;
+    }
+  });
   api.onSaveRequest(saveCurrent);
   window.addEventListener("keydown", (event) => {
-    if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "s" && !sourceView.isOpen()) {
+    if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "s" && !sourceView.isOpen()) {
       event.preventDefault();
       saveCurrent();
       return;
     }
     if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "o") {
       event.preventDefault();
-      void openReadOnly();
+      void fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly);
     }
   });
   api.onReady((data2) => {

@@ -14,7 +14,7 @@ export function copyRefusal(s, { loading = false, invalid = false } = {}) {
 function operationMessage(receipt) {
   if (!receipt || (!receipt.code && receipt.state === 'not-created')) return '';
   if (!receipt.ok && receipt.attachmentPaths?.length && receipt.created !== false) return `正文和图片附件尚未全部确认，可能已有文件创建。请保留草稿，不要重复导出；不会自动清理。\n原因：${receipt.code || receipt.state}\n${[receipt.filePath,...receipt.attachmentPaths].filter(Boolean).join('\n')}`;
-  if (receipt.ok && receipt.state === 'created-confirmed') return `本次已创建新文件（修订 ${receipt.revision}）。后续编辑保留在草稿中，不会自动写回该文件。${receipt.localProvider==='onedrive'?' 已确认 OneDrive 本机文件写入，云端上传状态请在 OneDrive 中查看。':''}${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
+  if (receipt.ok && receipt.state === 'created-confirmed') return `${receipt.purpose==='save-as'?'已保存为新文件，后续保存将更新此文件。':'已导出副本，当前文档的保存位置保持不变。'}（修订 ${receipt.revision}）。${receipt.localProvider==='onedrive'?' 已确认 OneDrive 本机文件写入，云端上传状态请在 OneDrive 中查看。':''}${receipt.attachments?.length ? ` 已确认 ${receipt.attachments.length} 个图片附件，请与 Markdown 一起移动。` : ''}`;
   let text;
   if (receipt.created === false) {
     const reason = receipt.code === 'unsupported-acl' ? '此目录带有当前不支持的额外权限（ACL），请改选其他归你所有的普通本地 APFS 文件夹或子文件夹，仍需通过权限检查。'
@@ -44,7 +44,7 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
   function render(s) {
     const c = context(), enabled = s.confirmed.copyEnabled && s.confirmed.temporary && !s.confirmed.readOnly;
     persistent = enabled && s.confirmed.persistentCopyEnabled === true;
-    byId('create-test-copy').textContent = persistent ? '另存新文件…' : '创建测试副本';
+    byId('create-test-copy').textContent = persistent ? '另存为…' : '创建测试副本';
     byId('confirm-test-copy').textContent = persistent ? '选择位置…' : '创建测试副本';
     byId('test-copy-description').textContent = persistent
       ? '选择归你所有的普通本地 APFS 文件夹及其子文件夹（包括主目录之外及外接 APFS 卷），例如下载或你自行准备的 Markdown Writing（仍需通过权限检查）。本地且未同步的桌面、文稿及其子目录也可在通过检查后使用。另支持受检查的 OneDrive 本机文件夹；其保存确认不代表云端上传完成。其他同步服务、主文件夹本身、任意资源库、应用程序与隐藏目录不受支持；不符合该位置策略的额外权限仍会被拒绝。文件夹须归你所有且不能由其他用户写入。只用新文件名，已有文件绝不覆盖；应用不会修改文件夹权限。'
@@ -54,9 +54,11 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     for (const id of ['copy-summary-compact', 'copy-operation-alert']) byId(id).hidden = true;
     if (!enabled) return;
     const reason = refusal(c);
-    byId('create-test-copy').disabled = !!reason;
+    const transient=c.coordinate&&!s.compositionInvalid&&['document-busy','composition-active'].includes(reason)&&!c.loading&&!s.historyPending;
+    byId('create-test-copy').disabled = !!reason&&!transient;
+    byId('export-copy').hidden=!persistent;byId('export-copy').disabled=!!reason&&!transient;
     byId('test-copy-reason').textContent = confirmation ? '请确认内容后选择位置，或取消返回编辑。' : reason ? `暂不能另存文件（${reason}），当前内容仍保留。` : '';
-    byId('test-copy-confirmation').hidden = !confirmation || confirmation.sessionId !== c.selected;
+    byId('test-copy-confirmation').hidden = !confirmation || confirmation.persistent || confirmation.sessionId !== c.selected;
     const receipt = receipts.get(c.selected) || s.confirmed.copyState;
     const confirmed = receipt?.ok === true && receipt.state === 'created-confirmed';
     // Display history only: never use an earlier success to clear the latest refusal/unknown state.
@@ -65,14 +67,14 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
     byId('test-copy-result').textContent = last
       ? `最后确认的${persistent ? 'Markdown 文件' : '测试副本'} · 修订 ${last.revision}。后续编辑不会自动写回。\n${last.filePath}\nSHA-256: ${last.sha256}${last.attachments?.length ? '\n图片附件：\n'+last.attachments.map(a=>`${a.filePath} · SHA-256: ${a.sha256}`).join('\n') : ''}` : '';
     byId('test-copy-summary').textContent = last
-      ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}后续编辑保留在草稿中，不会自动写回该文件。`
+      ? `已创建新文件：${last.filePath}\n已确认修订 ${last.revision}。${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出。' : '仅代表该修订的新文件副本。'}${last.purpose==='save-as'?'后续可用保存更新该文件。':'导出副本不改变当前保存位置。'}`
       : '';
     byId('test-copy-receipt').hidden = !last;
     byId('confirmed-copy-card').hidden = !last;
     byId('copy-empty').hidden = !!last;
     const compact = byId('copy-summary-compact'), alert = byId('copy-operation-alert');
-    compact.textContent = last ? `已另存新文件：${last.filePath.split('/').pop()} · ${s.source !== s.confirmed.source || s.confirmed.revision !== last.revision ? '后续修改尚未导出' : '当前内容已导出'}。` : '';
-    compact.hidden = !last;
+    compact.textContent = last ? `${last.purpose==='save-as'?'已另存为':'已导出副本'}：${last.filePath.split('/').pop()}${last.purpose==='save-as'?'': ` · ${s.source!==s.confirmed.source||s.confirmed.revision!==last.revision?'后续修改尚未导出':'当前内容已导出'} · 当前保存位置不变`}。` : '';
+    compact.hidden = !last || last.purpose==='save-as';
     // Essential failures stay on the writing surface, even with an earlier success.
     alert.textContent = receipt?.ok === false ? operationMessage(receipt).split('\n原因：')[0] + (receipt.filePath ? `\n${receipt.filePath}` : '')
       : reason && !confirmation ? ({ 'composition-active': s.compositionInvalid ? '当前输入未能确认，请查看保留的输入内容。' : '',
@@ -95,36 +97,43 @@ export function createTestCopyView({ api, byId, context, busy, rerender, focus }
   byId('create-test-copy').onpointerdown = event => {
     if (refusal(context())) event.preventDefault(); // Never blur an active composition into apparent readiness.
   };
-  byId('create-test-copy').onclick = () => {
-    const c = context(); if (refusal(c)) return;
-    const s = c.controller.state().confirmed;
-    confirmation = { persistent, controller: c.controller, sessionId: c.selected, revision: s.revision, source: s.source, hash: s.copySha256 };
-    busy(true); // Freeze edits, history and switching through confirmation and response.
-    byId('test-copy-confirm-revision').textContent = `将已确认的修订 ${s.revision} 创建为${persistent ? '新的 Markdown 文件' : '测试副本'}。请选择位置，或取消返回编辑。`;
-    byId('confirm-test-copy').disabled = false; byId('cancel-test-copy').disabled = false; rerender();
-  };
-  byId('cancel-test-copy').onclick = () => { if (confirmation) finish(); }; // No IPC or source mutation.
-  byId('confirm-test-copy').onclick = async () => {
-    const q = confirmation, c = context(); if (!q) return;
+  function begin(mode='save-as') {
+    const c=context();if(refusal(c))return Promise.resolve(false);
+    const s=c.controller.state().confirmed;
+    confirmation={persistent,mode,controller:c.controller,sessionId:c.selected,revision:s.revision,source:s.source,hash:s.copySha256};
+    busy(true);
+    if(persistent){rerender();return submit();} // Native destination panel is the only ordinary save step.
+    byId('test-copy-confirm-revision').textContent=`将修订 ${s.revision} 创建为测试副本。`;
+    byId('confirm-test-copy').disabled=false;byId('cancel-test-copy').disabled=false;rerender();
+  }
+  byId('create-test-copy').onclick=()=>begin();
+  byId('export-copy').onpointerdown=byId('create-test-copy').onpointerdown;
+  byId('export-copy').onclick=()=>begin('export');
+  byId('cancel-test-copy').onclick=()=>{if(confirmation)finish();};
+  async function submit() {
+    const q = confirmation, c = context(); if (!q || q.started) return false;
+    q.started=true;
     const s = c.controller?.state();
     if (c.controller !== q.controller || c.selected !== q.sessionId || copyRefusal(s, { invalid: c.invalid })
       || s.confirmed.revision !== q.revision || s.confirmed.source !== q.source || s.confirmed.copySha256 !== q.hash) { finish(); return; }
     byId('confirm-test-copy').disabled = true; byId('cancel-test-copy').disabled = true;
     try {
-      const r = await (q.persistent ? api.createPersistentCopy : api.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash });
+      const r = await (q.persistent ? api.createPersistentCopy : api.createTestCopy)({ sessionId: q.sessionId, expectedRevision: q.revision, expectedSha256: q.hash, ...(q.persistent?{mode:q.mode}:{}) });
       const now = context();
       const valid = now.controller === q.controller && now.selected === q.sessionId && !now.invalid
         && r?.snapshot?.sessionId === q.sessionId && r.snapshot.revision === q.revision && r.snapshot.source === q.source;
-      if (!valid || (r.ok && (r.copy?.state !== 'created-confirmed' || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash))) {
+      if (!valid || (r.ok && r.copy?.purpose==='save-as' && (r.snapshot.originalSave?.filePath!==r.copy.filePath || r.snapshot.dirty!==false)) || (r.ok && (r.copy?.state !== 'created-confirmed' || r.copy.revision !== q.revision || r.copy.sha256 !== q.hash))) {
         unknown.add(q.sessionId);
         receipts.set(q.sessionId, { ...r?.copy, ok: false, code: r?.code || 'copy-outcome-unknown', state: 'create-outcome-unknown', created: null });
       } else {
         receipts.set(q.sessionId, r.ok ? r.copy : { ...r.copy, ok: false, code: r.code || r.copy?.code });
-        q.controller.refresh(r); // Same source/revision only; no baseline or history reset.
+        q.controller.refresh(r); // Same source/revision; main alone owns save binding and baseline.
+        return r.ok===true;
       }
     } catch {
       unknown.add(q.sessionId); receipts.set(q.sessionId, { ok: false, state: 'create-outcome-unknown', created: null, code: 'copy-outcome-unknown' });
     } finally { finish(); }
-  };
-  return { render, release(sessionId) { receipts.delete(sessionId); confirmedReceipts.delete(sessionId); unknown.delete(sessionId); } };
+  }
+  byId('confirm-test-copy').onclick=submit;
+  return { render, create:begin, release(sessionId) { receipts.delete(sessionId); confirmedReceipts.delete(sessionId); unknown.delete(sessionId); } };
 }

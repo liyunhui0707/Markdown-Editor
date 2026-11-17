@@ -1,5 +1,30 @@
 # Stage History
 
+## Document workflow consolidation — 0.81.0 candidate (2026-11-17)
+
+- Save opens one destination panel for an unbound draft; Save As binds the new
+  verified file and updates its name/baseline without resetting Undo. Export
+  explicitly preserves the current target and dirty state. Ordinary local Save
+  has no routine warning; OneDrive keeps provider-specific disclosure.
+- Source Cmd-S applies then saves; Cmd-Enter and Apply and Return remain buffer-only.
+  Native menus include New, Save As, export and history, with Source/field history
+  routed to their own editing context. Saved/empty close is quiet; dirty close
+  offers Save, Keep Draft, Cancel. Whole-window closure revokes each document via
+  the same checks, and a revoked renderer requires explicit native confirmation.
+- One bounded action intent drains exact confirmed input without forcing IME
+  candidates; unknown, changed and recovery states cancel it. Ordinary optimistic
+  presentation coalesces one frame, while settled/error/IME/pressure stays
+  immediate. JSON projection equality checks every node/key/type without making
+  two whole-document strings; AST relocation retains immutable own properties.
+- Retain the approved visual baseline, emphasize Save, group secondary file
+  actions, tighten sidebar/status and shorten contextual notices. Existing large
+  entry/IPC/source-map modules receive scoped routing; new helpers stay under
+  100 lines rather than unrelated architecture restructuring.
+- Node/native, unchanged raw-rate input, native-window flows, screenshot review,
+  full CI and package checks are required before delivery. Current installation
+  remains 0.80.1 until verified replacement. Manual acceptance is not inferred.
+
+
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
 
 - A real ordinary Markdown file reported `metadata-copy-failed` before replacement. Metadata-only comparison showed matching mode/owner/last-used attributes but different provenance on original/candidate objects. The original was never updated; the failed-write notice could be outside the scrolled viewport.

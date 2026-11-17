@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -17,7 +18,7 @@ test('nested save: edit original copy, export, reopen, refusal and cancellation 
   const p=await app.firstWindow();p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow},{original,target})=>{dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});BrowserWindow.getAllWindows()[0].hide();},{original,target});
   const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
-  const save=async()=>{await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();};
+  const save=async()=>{await createMarkdownCopy(p);};
   await p.locator('#empty-open').click();await p.locator('#edit-copy').click();
   await p.locator('#editor .tiptap p').click();await p.keyboard.press('End');await p.keyboard.insertText('X');
   await expect.poll(async()=>(await snap())?.source).toContain('Synthetic original.X');

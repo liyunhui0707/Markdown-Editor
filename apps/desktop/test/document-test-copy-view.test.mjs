@@ -36,8 +36,7 @@ function harness() {
   return { view, byId, documents, responses, render, calls: () => calls,
     select(id) { selected = id; render(); },
     async attempt(response) {
-      responses.push(response); byId('create-test-copy').onclick();
-      await byId('confirm-test-copy').onclick();
+      responses.push(response); await byId('create-test-copy').onclick();
     },
     text: id => byId(id).textContent };
 }
@@ -221,4 +220,10 @@ test('confirmed close releases old export notices without changing other open se
  h.select('A');assert.equal(h.text('test-copy-result'),'');
  assert.match(h.text('test-copy-operation'),/target-exists/);
  assert.equal(h.documents.get('A').state.source,'A text');
+});
+
+
+test('ordinary Save As goes straight to the native chooser; export carries distinct intent',async()=>{
+ const h=harness();h.responses.push(confirmed());await h.view.create('export');assert.equal(h.calls(),1);assert.equal(h.byId('test-copy-confirmation').hidden,true);
+ h.responses.push(refused('create-cancelled'));await h.view.create('save-as');assert.equal(h.calls(),2);assert.equal(h.byId('test-copy-confirmation').hidden,true);
 });

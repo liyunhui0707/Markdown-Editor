@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test, expect, _electron} = require('@playwright/test');
 const fs = require('node:fs/promises'), os = require('node:os'), path = require('node:path');
 const crypto = require('node:crypto'), zlib = require('node:zlib');
@@ -79,7 +80,7 @@ test('broader writing: image, long navigation, source, export isolation and rest
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].hide());
     fixture=createSaveFolderFixture(info.outputDir);const target=path.join(fixture.dir,'Article.md');
     await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},target);
-    await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(p);
     await expect.poll(async()=>(await snap(p))?.confirmedCopy?.filePath).toBe(target);
     const exported=await snap(p),bytes=await fs.readFile(target);expect(bytes).toEqual(Buffer.from('\ufeff'+withImage.source));
     expect(exported.confirmedCopy.sha256).toBe(hash(bytes));expect(exported.confirmedCopy.attachments).toHaveLength(1);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSourceView, sourceSummary } from '../lib/document-source-view.mjs';
 
-function fixture(editable=false) {
+function fixture(editable=false,saveFile=async()=>false) {
   const nodes = new Map();
   const doc = { activeElement: null, querySelector: () => nodes.get('source-dialog')?.open ? {} : null,
     createRange: () => ({ selectNodeContents(n) { this.node = n; } }),
@@ -19,7 +19,7 @@ function fixture(editable=false) {
     confirmed: { source, label: 'Test.md', sessionId: 'a', revision: 4, bom: true } } };
   let buffer;
   if(editable)Object.assign(c.state.confirmed,{temporary:true,readOnly:false});
-  const view = createSourceView({ byId, context: () => c,createEditor:({changed})=>buffer={notify:()=>changed(false),source:c.state.source,selection:0,composing:false,canUndo:true,canRedo:false,setWrap(){},setLocked(){},focus(){},destroy(){this.destroyed=true;}} }); view.configure();
+  const view = createSourceView({ byId, saveFile, context: () => c,createEditor:({changed})=>buffer={notify:()=>changed(false),source:c.state.source,selection:0,composing:false,canUndo:true,canRedo:false,setWrap(){},setLocked(){},focus(){},destroy(){this.destroyed=true;}} }); view.configure();
   return { byId, c, doc, view, buffer:()=>buffer };
 }
 test('source summary distinguishes BOM and mixed line endings including empty text', () => {
@@ -77,4 +77,13 @@ test('composition blocks apply/cancel and failed apply retains source',async()=>
  f.byId('show-source').onclick();f.buffer().source='retained';f.buffer().composing=true;f.view.sync();
  await f.byId('apply-source').onclick();f.byId('close-source').onclick();assert.equal(calls,0);assert.equal(f.byId('source-dialog').open,true);
  f.buffer().composing=false;await f.byId('apply-source').onclick();assert.equal(calls,1);assert.equal(f.buffer().source,'retained');assert.equal(f.byId('source-dialog').open,true);
+});
+
+
+test('source save applies first, writes only a confirmed candidate, and leaves failed application open',async()=>{
+ let saves=0;const f=fixture(true,async()=>{saves++;assert.equal(f.byId('source-dialog').open,false);assert.equal(f.c.state.confirmed.source,'Confirmed source');return true;});
+ f.c.controller={state:()=>f.c.state,applySource:async candidate=>{f.c.state.source=candidate;f.c.state.confirmed={...f.c.state.confirmed,source:candidate,revision:5};return true;}};
+ f.byId('show-source').onclick();f.buffer().source='Confirmed source';assert.equal(await f.view.save(),true);assert.equal(saves,1);
+ const failed=fixture(true,async()=>{assert.fail('No disk write before confirmed source');});failed.c.controller={state:()=>failed.c.state,applySource:async()=>false};
+ failed.byId('show-source').onclick();failed.buffer().source='Retained source';await failed.view.save();assert.equal(failed.byId('source-dialog').open,true);assert.equal(failed.buffer().source,'Retained source');
 });

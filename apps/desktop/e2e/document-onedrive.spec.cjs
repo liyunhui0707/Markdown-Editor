@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
 const {createOneDriveFixture}=require('../test/helpers/onedrive-fixture.cjs'),{syntheticPNG}=require('../test/helpers/synthetic-raster.cjs');
@@ -26,7 +27,7 @@ test('OneDrive local workflow: coordinated save, attachments, alias export, conf
   await page.keyboard.press('Meta+s');await expect(page.locator('#original-save-status')).toContainText('本机文件写入');await expect.poll(async()=>(await snap())?.dirty).toBe(false);
   expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+expected);expect(await fs.readFile(path.join(fixture.dir,href))).toEqual(png);
   const consents=await app.evaluate(()=>global.syntheticOneDriveConsents);expect(consents.some(s=>s?.includes('旧正文可能被同步'))).toBe(true);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect(page.locator('#test-copy-operation')).toContainText('OneDrive 本机文件写入');await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
+  await createMarkdownCopy(page,'save-as');await expect(page.locator('#test-copy-operation')).toContainText('OneDrive 本机文件写入');await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
   expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);const exported=await snap();expect(exported.confirmedCopy.localProvider).toBe('onedrive');expect(exported.confirmedCopy.attachments).toHaveLength(1);
   await page.screenshot({path:info.outputPath('onedrive-saved-normal.png')});await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(920,760));await page.screenshot({path:info.outputPath('onedrive-saved-narrow.png')});expect(await page.evaluate(()=>document.body.scrollWidth<=innerWidth)).toBe(true);
   await page.locator('#editor .tiptap > h1').click();await page.keyboard.press('Meta+ArrowRight');await page.keyboard.insertText(' More');expected=expected.replace('# OneDrive','# OneDrive More');await check();await backup();

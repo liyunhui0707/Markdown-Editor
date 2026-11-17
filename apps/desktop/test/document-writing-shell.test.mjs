@@ -84,7 +84,7 @@ test('sidebar guards pending/composition states and ignores revoked or removed s
     c.state[field] = 1; shell.sync(); let prevented = false;
     row('draft').onpointerdown({ preventDefault() { prevented = true; } }); row('draft').onclick();
     assert.equal(prevented, true); assert.equal(calls, 0); assert.equal(byId('documents').value, 'original');
-    assert.equal(byId('session-filter').disabled, true); c.state[field] = 0;
+    assert.equal(byId('session-filter').disabled, field !== 'pending'); c.state[field] = 0;
   }
   c.unavailable = id => id === 'draft'; shell.sync();
   row('draft').onclick(); assert.equal(calls, 0); assert.equal(row('draft').disabled, true);

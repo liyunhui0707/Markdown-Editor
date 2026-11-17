@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -38,7 +39,7 @@ test('source authoring preserves raw bytes, pending buffer, history, export and 
   await p.locator('#show-source').click();await replaceWord(p,'edited','discarded');await p.keyboard.press('Escape');await p.locator('#discard-source').click();expect((await snap(p)).source).toBe(continued);
   await p.locator('#show-reading-settings').click();await p.locator('#reading-theme-dark').click();await p.locator('#close-reading-settings').click();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(780,720));
   await p.locator('#show-source').click();expect(await p.locator('#source-dialog').evaluate(n=>n.scrollWidth<=n.clientWidth&&n.scrollHeight<=n.clientHeight)).toBe(true);await p.screenshot({path:info.outputPath('source-edit-dark-narrow.png')});await p.keyboard.press('Escape');await backup(p);
-  await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},target);await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snap(p))?.confirmedCopy?.filePath).toBe(target);
+  await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},target);await createMarkdownCopy(p);await expect.poll(async()=>(await snap(p))?.confirmedCopy?.filePath).toBe(target);
   const bytes=await fs.readFile(target),exported=await snap(p);expect(bytes).toEqual(Buffer.from('\ufeff'+continued));expect(exported.confirmedCopy.sha256).toBe(crypto.createHash('sha256').update(bytes).digest('hex'));
   await p.locator('#show-source').click();await replaceWord(p,'edited','later');await p.locator('#source-editor .cm-content').press('Meta+s');await expect(p.locator('#source-dialog')).toBeHidden();const later=continued.replace('edited','later');await expect.poll(async()=>(await snap(p)).source).toBe(later);expect((await snap(p)).confirmedCopy).toEqual(exported.confirmedCopy);await backup(p);
   const draftId=await p.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,(await snap(p)).label);await stop();p=await launch();await p.locator('#show-drafts').click();await p.locator(`[data-draft-id="${draftId}"]`).getByRole('button',{name:'恢复副本'}).click();

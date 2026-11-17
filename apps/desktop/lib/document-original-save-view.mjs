@@ -1,4 +1,5 @@
 import {originalSaveNotice} from './document-file-presentation.mjs';
+import {copyRefusal} from './document-test-copy-view.mjs';
 // Save authority stays in main. This view only selects the current bound session.
 export function originalSaveRefusal(s, c = {}) {
   const o=s?.confirmed?.originalSave;
@@ -12,8 +13,11 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
   const doc=byId('save-original').ownerDocument;
   function render(s){
     const c=context(),o=s.confirmed.originalSave,button=byId('save-original');
-    button.hidden=!o?.available;button.disabled=!!originalSaveRefusal(s,c)||unknown.has(c.selected);
-    button.title=o?.filePath?`保存回 ${o.filePath}（⌘S）`:'';
+    button.hidden=!o?.available&&!s.confirmed.persistentCopyEnabled;
+    button.disabled=!!(o?.available?originalSaveRefusal(s,c):copyRefusal(s,c))||unknown.has(c.selected);
+    if(c.coordinate&&!c.loading&&!c.invalid&&!s.locked&&!s.confirmed.blocked&&!s.historyPending&&!s.compositionInvalid&&!s.recoveryRecords.length&&!o?.stopped&&!unknown.has(c.selected))button.disabled=false;
+    button.textContent=o?.available?'保存':'保存…';
+    button.title=o?.filePath?`保存回 ${o.filePath}（⌘S）`:'保存文档（⌘S）';
     const history=byId('original-save-receipt'),last=o?.lastConfirmed;history.hidden=!last;history.textContent=last?`最后确认保存 · 修订 ${last.revision}\n${last.filePath}\nSHA-256: ${last.sha256}`:'';
     const alert=byId('original-save-status');alert.replaceChildren();alert.hidden=!o;
     if(!o)return;
@@ -31,7 +35,7 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
     try{
       const r=await api.saveOriginal({sessionId:c.selected,expectedRevision:revision}),now=context();
       if(now.controller!==c.controller||now.selected!==c.selected||r?.snapshot?.sessionId!==c.selected||r.snapshot.revision!==revision||r.snapshot.source!==source||(r.ok&&(r.snapshot.originalSave?.receipt?.revision!==revision||r.snapshot.originalSave?.receipt?.sha256!==s.confirmed.copySha256||r.snapshot.originalSave?.filePath!==s.confirmed.originalSave.filePath))){unknown.add(c.selected);notices.set(c.selected,'保存结果未知，请保留当前草稿，并查看“草稿”中的保存版本。');}
-      else{c.controller.refresh(r);if(!r.ok&&!r.snapshot.originalSave?.receipt)notices.set(c.selected,r.code==='save-cancelled'?'已取消保存。':`暂未保存（${r.code}），当前草稿保留。`);}
+      else{c.controller.refresh(r);if(!r.ok&&!r.snapshot.originalSave?.receipt)notices.set(c.selected,r.code==='save-cancelled'?'已取消保存。':`暂未保存（${r.code}），当前草稿保留。`);return r.ok===true;}
     }catch{unknown.add(c.selected);notices.set(c.selected,'保存结果未知，请保留当前草稿，并检查保存版本。');}
     finally{busy(false);rerender();focus();}
   }

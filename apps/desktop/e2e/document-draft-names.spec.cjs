@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const { createHash } = require('node:crypto');
@@ -50,7 +51,7 @@ test('draft name survives recovery and suggests export name without changing fil
     await expect(page.locator('#name-dialog')).not.toBeVisible();
   }
   async function exportFile(page) {
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-confirm-dialog')).not.toBeVisible();
   }
   try {

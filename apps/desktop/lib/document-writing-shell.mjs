@@ -57,9 +57,11 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
   const canDismissTitle = () => enabled && info.open && !blocked() && !doc.querySelector('dialog[open]');
   doc.addEventListener('pointerdown', event => {
     // Close only this disclosure; let the destination receive its normal click/focus.
+    if(!event.defaultPrevented&&!byId('file-actions').contains(event.target))byId('file-actions').open=false;
     if (!event.defaultPrevented && canDismissTitle() && !info.contains(event.target)) info.open = false;
   }, true);
   doc.addEventListener('keydown', event => {
+    if(event.key==='Escape'&&byId('file-actions').open&&!event.isComposing){byId('file-actions').open=false;byId('file-actions-toggle').focus();event.preventDefault();return;}
     if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229 || !canDismissTitle()) return;
     const returnFocus = info.contains(doc.activeElement);
     event.preventDefault(); event.stopPropagation(); info.open = false;
@@ -74,13 +76,12 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     if (media?.matches) sidebar(false);
   }
   function navigate(id) {
-    const select = byId('documents'), c = context();
-    // Resolve against the existing main-approved session list at click time.
-    // Highlight/content change only when the existing load path confirms identity.
-    if (!enabled || blocked() || select.disabled || c.unavailable?.(id)
-        || ![...select.options].some(o => o.value === id) || id === c.state?.confirmed?.sessionId) return;
-    select.value = id;
-    return select.onchange?.();
+    const run=()=>{
+      const select=byId('documents'),c=context();
+      if(!enabled||blocked()||select.disabled||c.unavailable?.(id)||![...select.options].some(o=>o.value===id)||id===c.state?.confirmed?.sessionId)return;
+      select.value=id;return select.onchange?.();
+    };
+    return context().run?context().run('切换文档',run):run();
   }
   function syncNavigation() {
     if (!enabled) return;
@@ -101,7 +102,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       const { button, label, detail } = rows.get(id), m = metadata.get(id);
       label.textContent = option.textContent; button.title = option.textContent;
       button.setAttribute('aria-current', String(id === confirmed?.sessionId));
-      button.disabled = !!(blocked() || select.disabled || c.unavailable?.(id));
+      button.disabled = !!((c.run?(c.loading||c.state?.locked||c.state?.compositionInvalid||c.state?.historyPending):blocked()) || select.disabled || c.unavailable?.(id));
       detail.textContent = c.unavailable?.(id) ? '会话已不可用' : c.pendingSession === id ? '正在切换…'
         : m?.detail || (m?.temporary ? '独立草稿' : m?.readOnly ? '原文只读' : '已打开文档');
       button.hidden = !option.textContent.toLocaleLowerCase().includes(byId('session-filter').value.trim().toLocaleLowerCase());
@@ -114,10 +115,13 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     if (!enabled) return;
     const s = context().state, current = s?.confirmed;
     byId('writing-status').hidden = !s;
+    byId('file-actions').hidden=!s?.confirmed?.persistentCopyEnabled;
+    const destination=s?.confirmed?.persistentCopyEnabled?byId('file-actions-content'):byId('writing-actions');
+    for(const id of ['create-test-copy','export-copy'])if(byId(id).parentElement!==destination)destination.append(byId(id));
     byId('show-drafts').disabled = !!blocked() || byId('draft-recovery-panel').hidden;
     byId('show-details').disabled = !!blocked() || !s;
     byId('empty-new').disabled = !!blocked() || byId('new-temporary').disabled;
-    for (const id of ['toggle-session-sidebar', 'close-session-sidebar', 'session-filter', 'sidebar-scrim']) byId(id).disabled = !!blocked();
+    for (const id of ['toggle-session-sidebar', 'close-session-sidebar', 'session-filter', 'sidebar-scrim']) byId(id).disabled = !!(context().loading||s?.historyPending||s?.compositionInvalid||s?.composing);
     byId('reading-mode').hidden = !current?.readOnly;
     byId('document-statistics').textContent = current ? current.source.replace(/\s/gu, '').length.toLocaleString() + ' 字符 · Markdown' : 'Markdown';
     if (current?.sessionId !== previousSession) {
@@ -144,6 +148,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('sidebar-bottom').append(byId('show-drafts'));
     byId('header-start').append(byId('document-info'));
     byId('header-end').prepend(byId('writing-actions'));
+    byId('writing-actions').append(byId('file-actions'));
     byId('writing-workspace').prepend(byId('document-header'));
     byId('writing-toolbar').prepend(byId('format-toolbar'));
     byId('document-scroll').append(byId('native-open-panel'), byId('original-save-status'), byId('copy-summary-compact'), byId('confirmed-copy-actions'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));

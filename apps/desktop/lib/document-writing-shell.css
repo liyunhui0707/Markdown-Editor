@@ -280,6 +280,24 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 #original-save-status { color: var(--text-muted, #53695b); margin: 16px auto; max-width: var(--reading-width, 820px); }
 #original-save-status p { margin: 0 0 8px; }
 #original-save-status[data-tone="error"] { position:sticky;top:0;z-index:2;padding:14px 18px;border-left:3px solid #b77b43;background:var(--paper);box-shadow:0 2px 8px #26312818; }
+
+/* Document workflow polish: one primary Save and a compact secondary menu. */
+.sidebar-brand {min-height:66px}
+#sidebar-actions {margin-bottom:14px}
+body[data-document-viewer][data-document-state=open] #sidebar-actions #new-temporary {background:var(--surface);color:var(--ink);border-color:var(--line)}
+#file-actions {position:relative;flex:none}
+#file-actions>summary {list-style:none;cursor:pointer;padding:5px 9px;letter-spacing:2px;color:var(--muted);border-radius:5px}
+#file-actions>summary::-webkit-details-marker {display:none}
+#file-actions>summary:hover,#file-actions[open]>summary {background:var(--active)}
+#file-actions-content {position:absolute;right:0;top:calc(100% + 8px);z-index:7;min-width:180px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:0 8px 24px #26312820}
+#file-actions-content button {display:block;width:100%;text-align:left;border:0;background:transparent!important;padding:8px 10px;color:var(--ink)!important}
+#file-actions-content button:hover:enabled {background:var(--active)!important}
+#workflow-status {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#785d33}
+#workflow-status:empty {display:none}
+#original-save-status[data-tone=success] {display:flex;align-items:center;gap:10px;width:calc(100% - 2 * var(--gutter));font-size:12px;margin:12px auto 0}
+#original-save-status[data-tone=success] p {margin:0}
+#original-save-status[data-tone=success] button {font-size:11px;border:0;background:transparent;padding:3px 7px;white-space:nowrap}
+body[data-document-viewer] #original-save-status[data-tone=error] {width:calc(100% - 2 * var(--gutter));font-size:12px;line-height:1.7}
 #save-original { color: white; background: #506d59; border-color: #506d59; }
 .save-version-row { border-top: 1px solid #8883; padding: 12px 0; overflow-wrap: anywhere; }
 #save-versions p { font-size: 13px; line-height: 1.7; }

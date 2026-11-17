@@ -1380,3 +1380,11 @@ test('combined emphasis: controlled composition, acknowledgement and history ret
  const before=h.document.text,p=projectSource(before);h.controller.beginComposition();assert.equal(h.edit(p.spans[0].from,p.spans[2].to,'X'),false);
  h.controller.endComposition();await h.controller.idle();assert.equal(h.document.text,before);assert.equal(h.controller.state().locked,false);assert.deepEqual(fs.readFileSync(h.file),h.disk);
 });
+
+
+test('aborting an idle observer preserves the pending edit, its acknowledgement and history',async()=>{
+ const h=harness('Plain.'),abort=new AbortController();h.delayed=true;
+ assert.equal(h.edit(2,2,'x'),true);await tick();const idle=h.controller.idle({signal:abort.signal});abort.abort();await idle;
+ assert.equal(h.controller.state().pending,1);assert.equal(h.requests.length,1);assert.equal(h.resets.length,0);
+ h.delayed=false;h.replies.shift()();await h.controller.idle();assert.equal(h.document.text,'Pxlain.');assert.equal(h.controller.state().confirmed.canUndo,true);
+});

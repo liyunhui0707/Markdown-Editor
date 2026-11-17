@@ -1,6 +1,7 @@
 'use strict';
-// Close one main-owned session. This grants no file-write or discard authority.
-async function closeDocumentSession({ id, session: s, revision, authorized, service, backups, confirm, invalidate, snapshot }) {
+// Close one main-owned session. Only an explicit native Save choice invokes the
+// existing main-owned writer; renderer closure supplies no path/discard authority.
+async function closeDocumentSession({ id, session: s, revision, authorized, service, backups, confirm, save, invalidate, snapshot }) {
   const reply = result => authorized()
     ? { ...result, ...(!result.ok && snapshot ? { snapshot: snapshot() } : {}), sessionId: id, requestRevision: revision, closed: result.ok === true }
     : { ok: false, code: 'close-outcome-unknown' };
@@ -16,15 +17,24 @@ async function closeDocumentSession({ id, session: s, revision, authorized, serv
     if (!state.ok || state.durabilityUncertain || state.replacementUnverified
         || (copy.created !== false && !copy.ok)) return fail('unresolved-save-state');
     let unchangedFile=false;
-    if(s.fileDocument&&s.document.revision===0&&!s.document.dirty&&backups?.status(s.document)?.state==='file-unmodified'){
+    const origin=service.getOriginalState?.(s.document);
+    if((origin?.available||s.fileDocument)&&!origin?.stopped&&!s.document.dirty){
       service.inspectLinkedFile(s.document);unchangedFile=service.getLinkedFile(s.document)?.checked?.state==='unchanged';
     }
-    if (s.temporary&&!unchangedFile) {
+    const emptyDraft=!origin&&!s.fileDocument&&!s.document.revision&&!s.document.text.length;
+    if (s.temporary&&!unchangedFile&&!emptyDraft) {
       if (typeof confirm !== 'function') return fail('close-unavailable');
       const accepted = await confirm(s.win, s.label);
       if (!authorized()) return { ok: false, code: 'close-outcome-unknown' };
-      if (accepted !== true) return fail('close-cancelled');
+      if (accepted !== true && !['save','keep-draft'].includes(accepted)) return fail('close-cancelled');
       if (s.document.revision !== revision) return fail('stale-revision');
+      if(accepted==='save'){
+        if(typeof save!=='function')return fail('close-save-unavailable');
+        const saved=await save();
+        if(!authorized())return {ok:false,code:'close-outcome-unknown'};
+        if(!saved?.ok)return fail(saved?.code||'close-save-failed');
+        if(s.document.revision!==revision)return fail('stale-revision');
+      }
       if ((s.document.text.length || s.document.revision) && !backups?.verifyForClose(s.document)) return fail('close-backup-unverified');
     }
     const result = service.close(s.document);
