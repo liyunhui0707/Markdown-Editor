@@ -1,3 +1,4 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
@@ -23,7 +24,7 @@ test('mixed inline authoring: native selection, batch replacement, export and re
   await launch();await page.locator('#empty-open').click();await page.locator('#show-document-find').click();await page.locator('#find-query').fill('alpha');
   await expect(page.locator('#find-replace-all')).toBeDisabled();await page.keyboard.press('Escape');
   await page.locator('#edit-copy').click();const initial=await snap();
-  async function selectText(paragraph,word){await paragraph.click();
+  async function selectText(paragraph,word){await paragraph.click();await settleNativeCaret(paragraph);
   await paragraph.evaluate((node,word)=>{const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);const nodes=[];let n;while(n=walker.nextNode())nodes.push(n);
    const text=node.textContent,start=text.indexOf(word),end=start+word.length;let at=0,a,b;
    for(const n of nodes){if(!a&&start>=at&&start<at+n.length)a=[n,start-at];if(end>at&&end<=at+n.length)b=[n,end-at];at+=n.length;}

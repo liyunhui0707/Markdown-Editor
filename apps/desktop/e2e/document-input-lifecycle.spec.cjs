@@ -1,3 +1,4 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
@@ -13,7 +14,7 @@ test('controlled input lifecycle: composed text, cancellation and history across
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=()=>expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>!s.composing&&!s.pending&&!s.historyPending&&!s.locked)).toBe(true);
  const backup=()=>expect.poll(async()=>{const s=await snap();return s?.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
- async function caret(node){await node.click();await node.evaluate(n=>{const t=n.firstChild;if(t.nodeType!==Node.TEXT_NODE)throw Error('expected a synthetic text leaf');const r=document.createRange();r.setStart(t,2);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
+ async function caret(node){await node.click();await settleNativeCaret(node);await node.evaluate(n=>{const t=n.firstChild;if(t.nodeType!==Node.TEXT_NODE)throw Error('expected a synthetic text leaf');const r=document.createRange();r.setStart(t,2);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
   await expect.poll(()=>node.evaluate(n=>{const v=n.closest('.tiptap').editor.view,s=getSelection();return v.state.selection.empty&&v.state.selection.from===v.posAtDOM(s.anchorNode,s.anchorOffset);})).toBe(true);}
  try{
   await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);

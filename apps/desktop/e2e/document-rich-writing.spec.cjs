@@ -1,3 +1,4 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
@@ -23,7 +24,7 @@ test('rich long writing: headings, formatted paragraphs, source, history, export
  try{
   await launch();await page.locator('#empty-open').click();await page.locator('#edit-copy').click();
   for(const [selector,index,marker] of [['p',0,'target.'],['h2',300,'## Chapter 300 **bold** heading.'],['p',599,'target.']]){
-   const node=page.locator(`#editor .tiptap > ${selector}`).nth(index);await node.click();
+   const node=page.locator(`#editor .tiptap > ${selector}`).nth(index);await node.click();await settleNativeCaret(node);
    await node.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);range.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(range);});
    const text='abcdefghijklmnop',start=Date.now();await page.keyboard.type(text,{delay:50});
    const raw=selector==='h2'?marker:`Paragraph ${index} **bold** *italic* \`code\` ${'中文 🌿 ordinary text. '.repeat(25)}target.`;

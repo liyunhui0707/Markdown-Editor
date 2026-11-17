@@ -1,3 +1,4 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
@@ -20,7 +21,7 @@ test('common Markdown compatibility: combined marks, soft lines, continuation, r
   await expect(page.locator('#empty-open')).toBeEnabled();
  }
  async function stop(){if(app){await closeDocumentApp(app,{page,evidencePath:info.outputPath('close-diagnostic.json')});app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
- async function select(node,word,caret=null){await node.click();await node.evaluate((node,{word,caret})=>{
+ async function select(node,word,caret=null){await node.click();await settleNativeCaret(node);await node.evaluate((node,{word,caret})=>{
   const nodes=[],walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode())nodes.push(n);
   const start=node.textContent.indexOf(word);if(start<0)throw Error('Synthetic selection not found');
   const end=caret===null?start+word.length:start+caret,begin=caret===null?start:end;let offset=0,a,b;

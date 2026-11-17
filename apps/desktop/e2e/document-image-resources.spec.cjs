@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const {createResourceProbe}=require('./helpers/document-resource-probe.cjs');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
@@ -25,7 +26,7 @@ test('image resource lifecycle: repeated references share transfers and closed s
    ipcMain.handle('document-demo:request',async(event,data)=>{const r=await handler(event,data);if(data?.operation==='image-preview'){globalThis.syntheticPreviewTransfers.requests++;if(r?.ok)globalThis.syntheticPreviewTransfers.bytes+=Buffer.byteLength(r.dataUrl);}return r;});
    dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();
   },original);
-  await expect(p.locator('#empty-open')).toBeEnabled();await sample('empty');await p.locator('#empty-open').click();
+  await expect(p.locator('#empty-open')).toBeEnabled();await focusNativeWindow(app,p);await sample('empty');await p.locator('#empty-open').click();
   await expect(p.locator('#editor img.document-local-image:not([hidden])')).toHaveCount(40);
   firstTransfers=await transfers();await sample('readonly-loaded');expect(firstTransfers.requests).toBe(1);
   await p.locator('#edit-copy').click();await expect(p.locator('#editor img.document-local-image:not([hidden])')).toHaveCount(40);await backup();
@@ -34,7 +35,7 @@ test('image resource lifecycle: repeated references share transfers and closed s
   for(let cycle=0;cycle<8;cycle++){
    await p.locator('#show-drafts').click();await p.locator(`[data-draft-id="${id}"]`).getByRole('button',{name:'恢复副本'}).click();
    await expect(p.locator('#editor img.document-local-image:not([hidden])')).toHaveCount(40);expect((await snap()).source).toBe(source);
-   const para=p.locator('#editor .tiptap > p').first();await para.click();await para.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);});
+   const para=p.locator('#editor .tiptap > p').first();await para.click();await settleNativeCaret(para);await para.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);});
    await p.keyboard.press('End');await p.keyboard.insertText(' added');await expect.poll(async()=>(await snap())?.source).toBe(source.replace('Opening paragraph.','Opening paragraph. added'));
    await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source).toBe(source);await backup();
    await p.locator('#show-source').click();await expect(p.locator('#source-editor .cm-content')).toBeVisible();await p.keyboard.press('Escape');await sample('open-'+cycle);

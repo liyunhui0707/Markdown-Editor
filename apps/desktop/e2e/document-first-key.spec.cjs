@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{pathToFileURL}=require('node:url');
 test('fresh first-key observations across mixed and near-capacity articles',async({},info)=>{
@@ -19,8 +20,8 @@ test('fresh first-key observations across mixed and near-capacity articles',asyn
    const exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));
    try{
     const page=await app.firstWindow();await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},file);
-    await page.locator('#empty-open').click();await page.locator('#edit-copy').click();
-    const node=(word?page.locator(selector).filter({hasText:word}):page.locator(selector)).nth(index);await node.click();await page.locator('#editor .tiptap').focus();
+    await focusNativeWindow(app,page);await page.locator('#empty-open').click();await page.locator('#edit-copy').click();
+    const node=(word?page.locator(selector).filter({hasText:word}):page.locator(selector)).nth(index);await node.click();await page.locator('#editor .tiptap').focus();await settleNativeCaret(node);
     const at=await node.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);return n.closest('.tiptap').editor.view.posAtDOM(s.anchorNode,s.anchorOffset);});
     await expect.poll(()=>node.evaluate(n=>n.closest('.tiptap').editor.state.selection.from)).toBe(at);
     const api=await import(pathToFileURL(src+'/lib/document-source-map.mjs').href),mapped=api.mapTextEdit(source,{from:at,to:at,insert:key});expect(mapped.ok).toBe(true);
