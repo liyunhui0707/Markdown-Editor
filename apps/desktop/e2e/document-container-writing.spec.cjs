@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
@@ -19,10 +20,11 @@ test('complex container workflow: paragraphs, nested quotes, native ranges, exac
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow},{original,target})=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},{original,target});
   await expect(page.locator('#empty-open')).toBeEnabled();
+  await focusNativeWindow(app,page);
  }
  async function stop(){if(app){await app.close();app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
  async function select(a,aw,ao,b=a,bw=aw,bo=ao,reverse=false){
-  await a.click();await page.locator('#editor .tiptap').focus();
+  await a.click();await page.locator('#editor .tiptap').focus();await settleNativeCaret(a);
   const wanted=await a.evaluate((node,{aw,ao,bw,bo,other,reverse})=>{
    const root=node.closest('.tiptap'),end=other?Array.from(root.querySelectorAll('p')).find(n=>n.textContent===other):node;if(!end)throw Error('end paragraph missing');
    function point(n,word,offset){const i=n.textContent.indexOf(word);if(i<0)throw Error('word missing');let at=0;const w=document.createTreeWalker(n,NodeFilter.SHOW_TEXT);let t;

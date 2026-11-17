@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
@@ -17,11 +18,11 @@ test('article and pasted images: multiline writing, exact history, native save, 
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-writing-open','--document-drafts-test-root='+path.join(root,'drafts'),'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+path.join(root,'versions')],cwd:await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-article-session-'))),env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(r=>app.process().once('close',(code,signal)=>r({code,signal})));p=await app.firstWindow();p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow},{original,target})=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;BrowserWindow.getAllWindows()[0].setContentSize(1280,850);},{original,target});
-  expect(await app.evaluate(({nativeImage},base64)=>!nativeImage.createFromBuffer(Buffer.from(base64,'base64')).isEmpty(),png.toString('base64'))).toBe(true);await expect(p.locator('#empty-open')).toBeEnabled();await p.evaluate(()=>{window.syntheticPasteStatuses=[];new MutationObserver(()=>window.syntheticPasteStatuses.push(document.querySelector('#viewer-status').textContent)).observe(document.querySelector('#viewer-status'),{childList:true,subtree:true});});
+  expect(await app.evaluate(({nativeImage},base64)=>!nativeImage.createFromBuffer(Buffer.from(base64,'base64')).isEmpty(),png.toString('base64'))).toBe(true);await expect(p.locator('#empty-open')).toBeEnabled();await focusNativeWindow(app,p);await p.evaluate(()=>{window.syntheticPasteStatuses=[];new MutationObserver(()=>window.syntheticPasteStatuses.push(document.querySelector('#viewer-status').textContent)).observe(document.querySelector('#viewer-status'),{childList:true,subtree:true});});
  }
  async function stop(){if(app){await app.close();app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
  async function select(node,startWord,startOffset=0,endWord=startWord,endOffset=startWord.length){
-  await node.click();await node.evaluate((node,{startWord,startOffset,endWord,endOffset})=>{
+  await node.click();await settleNativeCaret(node);await node.evaluate((node,{startWord,startOffset,endWord,endOffset})=>{
    const text=node.textContent,a=text.indexOf(startWord)+startOffset,b=text.indexOf(endWord)+endOffset;if(a<0||b<a)throw Error('synthetic range');
    const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT),nodes=[];let n;while(n=walker.nextNode())nodes.push(n);let offset=0,left,right;
    for(const n of nodes){if(!left&&a>=offset&&a<=offset+n.length)left=[n,a-offset];if(!right&&b>=offset&&b<=offset+n.length)right=[n,b-offset];offset+=n.length;}

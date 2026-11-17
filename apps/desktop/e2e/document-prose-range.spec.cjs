@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
@@ -17,18 +18,12 @@ test('formatted prose range workflow: native replacement, plain paste, joins, hi
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow,shell},{original,target,hidden})=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;shell.showItemInFolder=()=>{};if(hidden)BrowserWindow.getAllWindows()[0].hide();else BrowserWindow.getAllWindows()[0].showInactive();},{original,target,hidden:process.env.DOCUMENT_PROSE_RANGE_HIDDEN==='1'});
   await expect(page.locator('#empty-open')).toBeEnabled();
-  if(process.env.DOCUMENT_PROSE_RANGE_HIDDEN!=='1'){
-   await page.bringToFront();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].focus());
-   await expect.poll(()=>page.evaluate(()=>document.hasFocus())).toBe(true);
-  }
+  await focusNativeWindow(app,page,process.env.DOCUMENT_PROSE_RANGE_HIDDEN==='1');
  }
  async function stop(){if(app){await app.close();app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
  async function select(a,aw,ao,b=a,bw=aw,bo=ao,reverse=false){
   await expect(page.locator('dialog[open]')).toHaveCount(0);await a.click();await page.locator('#editor .tiptap').focus();
-  // Finish the click/focus selection transaction before setting the native range.
-  // This observes the real DOM/PM selection; it neither dispatches a PM selection
-  // nor repeatedly resets the requested range until the assertion passes.
-  await expect.poll(()=>a.evaluate(n=>{const v=n.closest('.tiptap').editor.view,s=getSelection();return s.rangeCount>0&&v.state.selection.from===Math.min(v.posAtDOM(s.anchorNode,s.anchorOffset),v.posAtDOM(s.focusNode,s.focusOffset))&&v.state.selection.to===Math.max(v.posAtDOM(s.anchorNode,s.anchorOffset),v.posAtDOM(s.focusNode,s.focusOffset));})).toBe(true);
+  await settleNativeCaret(a);
   const data=await a.evaluate((node,{aw,ao,bw,bo,other,reverse})=>{
    const root=node.closest('.tiptap'),end=other?Array.from(root.children).find(n=>n.tagName==='P'&&n.textContent.includes(other)):node;
    if(!end)throw Error('end paragraph not found');
