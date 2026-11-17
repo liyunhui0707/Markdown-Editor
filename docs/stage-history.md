@@ -22,8 +22,11 @@
   100 lines rather than unrelated architecture restructuring.
 - Multi-document close waits only for overlapping catalog reads, then rechecks every fence. Confirmed queue pauses may retain overflow while navigating; sync failure, editing, Save and Close remain protected. Save As receipts hide export-only shortcuts.
 - Node/native, unchanged raw-rate input, native-window flows, screenshot review,
-  full CI and package checks are required before delivery. Current installation
-  remains 0.80.1 until verified replacement. Manual acceptance is not inferred.
+  full CI and package checks are required before delivery. Source checkpoint 5d5273d
+  passes 3,698 Node checks (2 existing skips) and all seven Air workflows; the
+  near-capacity unpaced test retains its original driver and queue limits. Daily
+  App replacement remains gated by complete CI and safe installation. Manual
+  acceptance is not inferred.
 
 
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
