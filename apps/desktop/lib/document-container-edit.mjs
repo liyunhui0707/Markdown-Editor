@@ -1,7 +1,8 @@
+import {equalCanonicalProjection} from './document-canonical-equal.mjs';
 import {containerRows,containerNodeAt,containerPosition} from './document-container-source.mjs';
 import {renderRow} from './document-prefixed-paragraph.mjs';
 import {splitArticleParts,articleNodes} from './document-article-source.mjs';
-import {joinProseParts,canonicalDocument} from './document-prose-range.mjs';
+import {joinProseParts} from './document-prose-range.mjs';
 import {toggleInlineFrames} from './document-inline-tree.mjs';
 import {continueInProse} from './document-prose-continuation.mjs';
 import sourceEdits from './document-source-edit.js';
@@ -17,7 +18,7 @@ function moveTail(raw,before,after){
 function finish(source,p,index,expected,a,b,raw,targetPath,offset,project,selectionLength=0){
  const next=source.slice(0,a)+raw+source.slice(b),patch=sourceEdits.sourceDifference(source,next);
  if(!patch.ok||patch.change.to-patch.change.from>4096||patch.change.insert.length>4096)return reject();
- const projection=project(next);if(!same(canonicalDocument(expected),canonicalDocument(projection.doc)))return reject();
+ const projection=project(next);if(!equalCanonicalProjection(expected,projection.doc))return reject();
  const from=containerPosition(projection.doc.content[index],projection.blocks[index].from,targetPath)+offset;
  if(!Number.isSafeInteger(from)||from<1||from+selectionLength>=projection.blocks[index].to)return reject();
  return {ok:true,source:next,projection,change:patch.change,inverseSource:patch.inverse,structural:true,selection:{from,to:from+selectionLength}};

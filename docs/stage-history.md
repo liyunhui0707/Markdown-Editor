@@ -28,6 +28,11 @@
   passes / two existing skips and 110 matching packaged runtime files; its full
   CI is required before installation. Keep finite first-key observations separate
   from physical IME/VoiceOver and long human writing acceptance.
+- CI 111 still exposes mixed-list raw-input saturation. Two container planners
+  compare the entire canonical tree without whole-tree normalization copies or
+  JSON strings; retain neighboring attributes, adjacent-text semantics, mutable
+  projection ownership, PM/main proofs and unchanged pressure limits. Full GUI/CI
+  remains required; Node component samples alone do not close that performance gate.
 
 
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)

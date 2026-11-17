@@ -6559,9 +6559,9 @@
       if (n.type !== "text") {
         const leaves = projectInlineParts(n, source);
         if (!leaves) return false;
-        const merged = leaves.map((leaf) => framedInlinePart(leaf, frames, source));
-        if (merged.some((p) => !p)) return false;
-        parts.push(...merged);
+        const merged2 = leaves.map((leaf) => framedInlinePart(leaf, frames, source));
+        if (merged2.some((p) => !p)) return false;
+        parts.push(...merged2);
         return true;
       }
       if (typeof n.value !== "string" || raw.replace(/\r\n|\r/g, "\n") !== n.value.replace(/\r\n|\r/g, "\n") || /\0/.test(raw) || !raw.isWellFormed()) return false;
@@ -16985,6 +16985,39 @@
     return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, boundarySpace: true, spaceMarks: inlineTextNode(added).marks || [], selection: { from: from2 + insert2.length, to: from2 + insert2.length } };
   }
 
+  // lib/document-canonical-equal.mjs
+  function runEnd(content5, start) {
+    const node2 = content5[start];
+    let end = start + 1;
+    if (node2.type === "text" && content5[end]?.type === "text") {
+      const marks2 = JSON.stringify(node2.marks);
+      while (end < content5.length && content5[end].type === "text" && JSON.stringify(content5[end].marks) === marks2) end++;
+    }
+    return end;
+  }
+  function merged(content5, start, end) {
+    if (end === start + 1) return content5[start];
+    let text5 = content5[start].text;
+    for (let i = start + 1; i < end; i++) text5 += content5[i].text;
+    return { ...content5[start], text: text5 };
+  }
+  function equalCanonicalProjection(a, b) {
+    if (a === b) return true;
+    if (!a?.content || !b?.content) return equalProjection(a, b);
+    if (!Array.isArray(a.content) || !Array.isArray(b.content)) return false;
+    const keys2 = Object.keys(a), other = Object.keys(b);
+    if (keys2.length !== other.length) return false;
+    for (let i = 0; i < keys2.length; i++) if (keys2[i] !== other[i] || keys2[i] !== "content" && !equalProjection(a[keys2[i]], b[keys2[i]])) return false;
+    let x = 0, y = 0;
+    while (x < a.content.length && y < b.content.length) {
+      const endX = runEnd(a.content, x), endY = runEnd(b.content, y);
+      if (!equalCanonicalProjection(merged(a.content, x, endX), merged(b.content, y, endY))) return false;
+      x = endX;
+      y = endY;
+    }
+    return x === a.content.length && y === b.content.length;
+  }
+
   // lib/document-prose-continuation.mjs
   var import_document_capacity3 = __toESM(require_document_capacity(), 1);
   function continueInProse(source, p, index2, before, project) {
@@ -17020,7 +17053,7 @@
     const next = source.slice(0, a) + raw + source.slice(b), patch2 = import_document_source_edit3.default.sourceDifference(source, next);
     if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject4();
     const projection = project(next);
-    if (!same(canonical(expected), canonical(projection.doc))) return reject4();
+    if (!equalCanonicalProjection(expected, projection.doc)) return reject4();
     const from2 = containerPosition(projection.doc.content[index2], projection.blocks[index2].from, targetPath) + offset;
     if (!Number.isSafeInteger(from2) || from2 < 1 || from2 + selectionLength >= projection.blocks[index2].to) return reject4();
     return { ok: true, source: next, projection, change: patch2.change, inverseSource: patch2.inverse, structural: true, selection: { from: from2, to: from2 + selectionLength } };
@@ -17287,7 +17320,7 @@
     const a = rows[first2].bodyFrom, b = rows[last].sourceTo, next = source.slice(0, a) + raw + source.slice(b), patch2 = import_document_source_edit4.default.sourceDifference(source, next);
     if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject5();
     const projection = project(next);
-    if (JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(projection.doc))) return reject5();
+    if (!equalCanonicalProjection(expected, projection.doc)) return reject5();
     const at = from2 + insert2.length + (list3 ? 2 * (values2.length - 1) : 0);
     const leaf = first2 === last && p.spans.find((s) => s.blockIndex === index2 && from2 >= s.from && to <= s.to);
     const simple = leaf && source.slice(0, leaf.sourceFrom + from2 - leaf.from) + insert2 + source.slice(leaf.sourceFrom + to - leaf.from) === next;
@@ -17999,8 +18032,8 @@
     } else if (insert2 === "" && to === from2 + 2) {
       const left = spans.find((s) => s.to === from2), right = spans.find((s) => s.from === to);
       if (!left || !right || right.blockIndex !== left.blockIndex + 1 || !left.text && !right.text || source.slice(left.sourceTo, right.sourceFrom) !== delimiter) return null;
-      const merged = left.text + right.text;
-      expected.content.splice(left.blockIndex, 2, { type: "paragraph", content: merged ? [{ type: "text", text: merged }] : [] });
+      const merged2 = left.text + right.text;
+      expected.content.splice(left.blockIndex, 2, { type: "paragraph", content: merged2 ? [{ type: "text", text: merged2 }] : [] });
       a = left.sourceTo;
       b = right.sourceFrom;
       text5 = "";
@@ -19407,10 +19440,10 @@
           if (offset !== 0 || i === 0) return rejectListEdit();
           const previous3 = parentList.items[i - 1], left = pieces(previous3);
           if (!left || previous3.child) return rejectListEdit();
-          const merged = join3(left, parts);
+          const merged2 = join3(left, parts);
           offset = left.map((p2) => p2.text).join("").length;
-          previous3.body = renderListPieces(merged);
-          previous3.content = listInlineNodes(merged);
+          previous3.body = renderListPieces(merged2);
+          previous3.content = listInlineNodes(merged2);
           previous3.child = selected2.child;
           parentList.items.splice(i, 1);
           target = previous3;
@@ -19692,14 +19725,14 @@
       at = next;
     }
     if (!inserted && label !== null) out.push(marked({ text: label, marks: insertionMarks }));
-    const merged = [];
+    const merged2 = [];
     for (const n of out) {
       if (n.type === "text" && !n.text) continue;
-      const last = merged.at(-1);
+      const last = merged2.at(-1);
       if (last?.type === "text" && n.type === "text" && JSON.stringify(last.marks) === JSON.stringify(n.marks)) last.text += n.text;
-      else merged.push(n);
+      else merged2.push(n);
     }
-    parent.content = merged;
+    parent.content = merged2;
     return true;
   }
   function mapLinkEdit(source, command3) {
@@ -56203,15 +56236,15 @@
       if (blockRange) ranges.push(blockRange);
     }
     ranges.sort((a, b) => a.from - b.from);
-    const merged = [];
+    const merged2 = [];
     for (const range of ranges) {
-      const last = merged[merged.length - 1];
+      const last = merged2[merged2.length - 1];
       if (last && range.from <= last.to) last.to = Math.max(last.to, range.to);
-      else merged.push({ ...range });
+      else merged2.push({ ...range });
     }
     return {
       type: "ranges",
-      ranges: merged
+      ranges: merged2
     };
   }
   function mapDecorationSet(set, mapping, doc4, widgetKeys) {
@@ -56234,9 +56267,9 @@
     return DecorationSet.create(doc4, allDecorations);
   }
   function unionWidgetKeys(widgetKeysByExtension) {
-    const merged = /* @__PURE__ */ new Set();
-    for (const keys2 of Object.values(widgetKeysByExtension)) for (const key2 of keys2) merged.add(key2);
-    return merged;
+    const merged2 = /* @__PURE__ */ new Set();
+    for (const keys2 of Object.values(widgetKeysByExtension)) for (const key2 of keys2) merged2.add(key2);
+    return merged2;
   }
   function validateDecorationSpec(name2, spec) {
     var _update;
@@ -63066,9 +63099,9 @@ ${prefix2}
       let oldItems = this.items, lastItem = !preserveItems && oldItems.length ? oldItems.get(oldItems.length - 1) : null;
       for (let i = 0; i < transform.steps.length; i++) {
         let step = transform.steps[i].invert(transform.docs[i]);
-        let item3 = new Item(transform.mapping.maps[i], step, selection), merged;
-        if (merged = lastItem && lastItem.merge(item3)) {
-          item3 = merged;
+        let item3 = new Item(transform.mapping.maps[i], step, selection), merged2;
+        if (merged2 = lastItem && lastItem.merge(item3)) {
+          item3 = merged2;
           if (i)
             newItems.pop();
           else
@@ -63174,9 +63207,9 @@ ${prefix2}
             let selection = item3.selection && item3.selection.map(remap.slice(mapFrom));
             if (selection)
               events++;
-            let newItem = new Item(map4.invert(), step, selection), merged, last = items.length - 1;
-            if (merged = items.length && items[last].merge(newItem))
-              items[last] = merged;
+            let newItem = new Item(map4.invert(), step, selection), merged2, last = items.length - 1;
+            if (merged2 = items.length && items[last].merge(newItem))
+              items[last] = merged2;
             else
               items.push(newItem);
           }
@@ -63627,14 +63660,14 @@ ${prefix2}
   function mergeRanges(ranges) {
     if (ranges.length === 0) return [];
     const sorted = [...ranges].sort((a, b) => a.from - b.from);
-    const merged = [{ ...sorted[0] }];
+    const merged2 = [{ ...sorted[0] }];
     for (let i = 1; i < sorted.length; i += 1) {
-      const last = merged[merged.length - 1];
+      const last = merged2[merged2.length - 1];
       const current = sorted[i];
       if (current.from <= last.to) last.to = Math.max(last.to, current.to);
-      else merged.push({ ...current });
+      else merged2.push({ ...current });
     }
-    return merged;
+    return merged2;
   }
   function collectBlocksForChange(doc4, change) {
     const ranges = getTopLevelBlocksInRange(doc4, change.from, change.to);
