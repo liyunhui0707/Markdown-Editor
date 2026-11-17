@@ -28,11 +28,13 @@
   passes / two existing skips and 110 matching packaged runtime files; its full
   CI is required before installation. Keep finite first-key observations separate
   from physical IME/VoiceOver and long human writing acceptance.
-- CI 111 still exposes mixed-list raw-input saturation. Two container planners
+- CI 111 exposed mixed-list raw-input saturation. Two container planners
   compare the entire canonical tree without whole-tree normalization copies or
   JSON strings; retain neighboring attributes, adjacent-text semantics, mutable
   projection ownership, PM/main proofs and unchanged pressure limits. Full GUI/CI
   remains required; Node component samples alone do not close that performance gate.
+  Canonical-comparison checks pass 3,704 Node cases / two existing skips; its
+  package matches all 111 runtime files. Final flow results are tracked by PR #175.
 
 
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
