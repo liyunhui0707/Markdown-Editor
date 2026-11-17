@@ -279,7 +279,7 @@ body[data-document-viewer] .document-image-reference.ProseMirror-selectednode { 
 /* Bound file save: quiet success, distinct unresolved outcome. */
 #original-save-status { color: var(--text-muted, #53695b); margin: 16px auto; max-width: var(--reading-width, 820px); }
 #original-save-status p { margin: 0 0 8px; }
-#original-save-status[data-tone="error"] { padding: 14px 18px; border-left: 3px solid #b77b43; background: #b77b4315; }
+#original-save-status[data-tone="error"] { position:sticky;top:0;z-index:2;padding:14px 18px;border-left:3px solid #b77b43;background:var(--paper);box-shadow:0 2px 8px #26312818; }
 #save-original { color: white; background: #506d59; border-color: #506d59; }
 .save-version-row { border-top: 1px solid #8883; padding: 12px 0; overflow-wrap: anywhere; }
 #save-versions p { font-size: 13px; line-height: 1.7; }

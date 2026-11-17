@@ -20,6 +20,8 @@ export function linkedFileMessage(file,stopped=false){
 
 export function originalSaveNotice(current){
  const o=current.originalSave,r=o?.receipt;
+ if(r?.committed===false&&r.code==='metadata-copy-failed')return '未保存：无法完整保留文件属性，原文件未改写。当前草稿保留，可另存新文件。';
+ if(r?.committed===false&&r.code==='unsupported-xattrs')return '未保存：文件带有当前不支持的扩展属性，原文件未改写。当前草稿保留，可另存新文件；请勿为保存而移除未知属性。';
  if(r?.committed===false&&r.code==='save-recovery-capacity')return '保存版本工作区已满。请打开“草稿”，将已确认的旧保存版本移入恢复归档，再保存；当前正文保留。';
  if(r?.ok===false&&r.committed!==false)return '本次保存未确认，原路径可能已经更新。各版本已保留，请检查恢复材料；不会自动重试或回退。';
  if(o?.stopped)return ['changed','missing'].includes(current.linkedFile?.checked?.state)

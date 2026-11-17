@@ -1,5 +1,13 @@
 # Manual Test Checklist
 
+## Ordinary Save and failure visibility — 0.80.1
+
+Use a disposable file created outside Markdown, retaining its original metadata. This checklist is not recorded human acceptance.
+
+1. Open, edit near the end and press Cmd-S. Confirm the first-save dialog, then verify「正文已保存」and reopen the file after closing: the edit is present. Repeat with Chinese, BOM/CRLF and ordinary read permissions.
+2. For a deliberately unsupported synthetic file, Save must explain refusal in the visible viewport even near the document end. Current text/caret and dirty state remain; the disk file is unchanged. Do not remove unknown metadata from personal files to bypass refusal.
+3. After backup, close and recover the failed-save draft from「草稿」. It retains the edit but does not regain the old write grant. Merely reopening the disk file shows the last successful save; closing the window does not silently save a refused write.
+
 ## OneDrive local saving — 0.80.0 candidate
 
 Use disposable, locally available Markdown/PNG/JPEG copies in your own OneDrive.
