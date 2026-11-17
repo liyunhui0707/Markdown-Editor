@@ -43,7 +43,9 @@ existing native write, unknown-result, recovery and queue guards.
 Ordinary optimistic presentation may coalesce one frame; editing/IPC, settled
 receipts and protected input remain immediate. Full projection comparison avoids
 large temporary JSON strings without skipping neighbors. The existing main CI
-unpaced-input failure is open until the unchanged test passes. No human writing,
+unpaced-input failure is preserved. Checkpoint 5d5273d passed the unchanged Air
+raw-rate scenario; final full CI must confirm the resulting candidate, including
+passive-panel routing and existing file/provider workflows. No human writing,
 physical IME, VoiceOver or public-release acceptance is inferred from automation.
 
 ### Previous batch — OneDrive local saving, 0.80.0

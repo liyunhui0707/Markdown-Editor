@@ -23,11 +23,11 @@
 - File commands dismiss passive presentation panels through their guarded controls; Cmd-W closes a panel first. Unapplied source/link/name/image input and pending management remain protected.
 - Multi-document close waits only for overlapping catalog reads, then rechecks every fence. Confirmed queue pauses may retain overflow while navigating; sync failure, editing, Save and Close remain protected. Save As receipts hide export-only shortcuts.
 - Node/native, unchanged raw-rate input, native-window flows, screenshot review,
-  full CI and package checks are required before delivery. Source checkpoint 5d5273d
-  passes 3,698 Node checks (2 existing skips) and all seven Air workflows; the
-  near-capacity unpaced test retains its original driver and queue limits. Daily
-  App replacement remains gated by complete CI and safe installation. Manual
-  acceptance is not inferred.
+  full CI and package checks are required before delivery. Checkpoint 5d5273d
+  passed seven Air workflows. Panel-routing checkpoint 501421d has 3,701 Node
+  passes / two existing skips and 110 matching packaged runtime files; its full
+  CI is required before installation. Keep finite first-key observations separate
+  from physical IME/VoiceOver and long human writing acceptance.
 
 
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
