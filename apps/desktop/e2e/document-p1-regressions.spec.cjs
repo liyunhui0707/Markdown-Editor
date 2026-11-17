@@ -1,4 +1,4 @@
-const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
+const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { authorMixedDocument } = require('./common-authoring.cjs');
 const fs = require('node:fs/promises'), path = require('node:path');
@@ -132,7 +132,12 @@ async function usingDemo(body, info, secondSource = null, readOnly = false, test
     timer = setTimeout(() => { watchdog = true; if (group === child.pid && !gone(-group)) process.kill(-group, 'SIGKILL'); else if (!gone(child.pid)) child.kill('SIGKILL'); }, 45000);
     try {
       if (draftOptions.directExit) await app.evaluate(({ app }) => { setImmediate(() => app.exit(0)); });
-      else await app.close();
+      else {
+        // This fixture deliberately revokes renderer authority above. Explicitly
+        // accept only the synthetic unavailable-window warning during teardown.
+        await app.evaluate(({dialog})=>{dialog.showMessageBoxSync=()=>1;dialog.showMessageBox=async()=>({response:1});});
+        await closeDocumentApp(app,{evidencePath:info.outputPath('close-diagnostic.json')});
+      }
       const result = await closed, deadline = Date.now() + 3000;
       while (Date.now() < deadline && (!ids.every(gone) || (group && !gone(-group)))) await new Promise(r => setTimeout(r, 30));
       const remaining = !ids.every(gone) || !!(group && !gone(-group));

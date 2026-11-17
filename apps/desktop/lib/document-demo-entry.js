@@ -1,3 +1,4 @@
+import {dismissPassivePanels} from './document-window-panels.mjs';
 import {applyBoundarySpace} from './document-boundary-space-input.mjs';
 import {createImagePaste} from './document-image-paste.mjs';
 import {dropImage} from './document-image-drop.mjs';
@@ -504,7 +505,7 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if ((temporary||candidate?.temporary) && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => { if (!document.querySelector('dialog[open]') && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
+const openReadOnly = () => { dismissPassivePanels(byId);if (!document.querySelector('dialog[open]') && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;
@@ -516,6 +517,7 @@ async function saveFile(){
 }
 const saveCurrent=()=>{
   if(sourceView.isOpen())return sourceView.save();
+  dismissPassivePanels(byId);
   if(document.querySelector('dialog[open]'))return false;
   return fileIntent.run('保存',saveFile);
 };
@@ -534,7 +536,9 @@ api.onFileAction?.(action=>{
     if(sourceView.isOpen()){byId('source-'+action).click();return;}
     if(document.activeElement?.matches('input,textarea')){document.execCommand(action);return;}
   }
-  if(action==='close'&&sourceView.isOpen()){sourceView.close();if(sourceView.isOpen())return;}
+  if(action==='close'&&sourceView.isOpen()){sourceView.close();return;}
+  if(action==='close'&&dismissPassivePanels(byId))return;
+  if(['new','open','save-as','export'].includes(action))dismissPassivePanels(byId);
   if(document.querySelector('dialog[open]'))return;
   if(action==='new')void byId('new-temporary').onclick();
   if(action==='open')void byId('open-file').onclick();
@@ -545,6 +549,7 @@ api.onFileAction?.(action=>{
 api.onWindowCloseRequest?.(async()=>{
   if(closingWindow)return;
   if(sourceView.isOpen()){sourceView.close();if(sourceView.isOpen())return;}
+  dismissPassivePanels(byId);
   if(document.querySelector('dialog[open]')){viewerStatus('请先完成或取消当前对话框，再关闭窗口。',true);return;}
   closingWindow=true;
   try{

@@ -189,6 +189,25 @@
     }
   });
 
+  // lib/document-window-panels.mjs
+  function dismissPassivePanels(byId2) {
+    let dismissed = false;
+    for (const [id2, button] of [
+      ["document-details-dialog", "close-document-details-dialog"],
+      ["recent-dialog", "close-recent-dialog"],
+      ["reading-settings-dialog", "close-reading-settings"],
+      ["draft-dialog", "close-draft-dialog"],
+      ["file-comparison-dialog", "close-file-comparison"]
+    ]) {
+      const panel = byId2(id2), control = byId2(button);
+      if (panel.open && !control.disabled) {
+        control.click();
+        if (!panel.open) dismissed = true;
+      }
+    }
+    return dismissed;
+  }
+
   // node_modules/orderedmap/dist/index.js
   function OrderedMap(content5) {
     this.content = content5;
@@ -66545,6 +66564,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     }
   }
   var openReadOnly = () => {
+    dismissPassivePanels(byId);
     if (!document.querySelector("dialog[open]") && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false);
   };
   byId("new-temporary").onclick = () => openDocument(true);
@@ -66558,6 +66578,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
   }
   var saveCurrent = () => {
     if (sourceView.isOpen()) return sourceView.save();
+    dismissPassivePanels(byId);
     if (document.querySelector("dialog[open]")) return false;
     return fileIntent.run("\u4FDD\u5B58", saveFile);
   };
@@ -66597,8 +66618,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     }
     if (action === "close" && sourceView.isOpen()) {
       sourceView.close();
-      if (sourceView.isOpen()) return;
+      return;
     }
+    if (action === "close" && dismissPassivePanels(byId)) return;
+    if (["new", "open", "save-as", "export"].includes(action)) dismissPassivePanels(byId);
     if (document.querySelector("dialog[open]")) return;
     if (action === "new") void byId("new-temporary").onclick();
     if (action === "open") void byId("open-file").onclick();
@@ -66612,6 +66635,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       sourceView.close();
       if (sourceView.isOpen()) return;
     }
+    dismissPassivePanels(byId);
     if (document.querySelector("dialog[open]")) {
       viewerStatus("\u8BF7\u5148\u5B8C\u6210\u6216\u53D6\u6D88\u5F53\u524D\u5BF9\u8BDD\u6846\uFF0C\u518D\u5173\u95ED\u7A97\u53E3\u3002", true);
       return;

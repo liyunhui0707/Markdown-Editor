@@ -1,3 +1,4 @@
+const {closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
 test('controlled input lifecycle: composed text, cancellation and history across common writing contexts',async({},info)=>{
@@ -33,5 +34,5 @@ test('controlled input lifecycle: composed text, cancellation and history across
   await cdp.send('Input.imeSetComposition',{text:'yuanma',selectionStart:6,selectionEnd:6});await expect(p.locator('#apply-source')).toBeDisabled();expect((await snap()).source).toBe(source);
   await cdp.send('Input.imeSetComposition',{text:'',selectionStart:0,selectionEnd:0});await expect(p.locator('#apply-source')).toBeEnabled();await p.keyboard.press('Escape');await expect(p.locator('#source-dialog')).toBeHidden();expect((await snap()).source).toBe(source);
   expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+source);expect(faults).toEqual([]);expect(network).toEqual([]);evidence.sourceCancellation=true;evidence.passed=true;
- }finally{await app.close();evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,network},null,2));}
+ }finally{await closeDocumentApp(app,{page:p,evidencePath:info.outputPath('close-diagnostic.json')});evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,network},null,2));}
 });

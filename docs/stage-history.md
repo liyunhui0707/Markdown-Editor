@@ -20,6 +20,7 @@
   actions, tighten sidebar/status and shorten contextual notices. Existing large
   entry/IPC/source-map modules receive scoped routing; new helpers stay under
   100 lines rather than unrelated architecture restructuring.
+- File commands dismiss passive presentation panels through their guarded controls; Cmd-W closes a panel first. Unapplied source/link/name/image input and pending management remain protected.
 - Multi-document close waits only for overlapping catalog reads, then rechecks every fence. Confirmed queue pauses may retain overflow while navigating; sync failure, editing, Save and Close remain protected. Save As receipts hide export-only shortcuts.
 - Node/native, unchanged raw-rate input, native-window flows, screenshot review,
   full CI and package checks are required before delivery. Source checkpoint 5d5273d

@@ -14,7 +14,7 @@ Use disposable local documents. These are proposed checks, not recorded passes.
    editor, not the document behind it. Cancelling a chooser retains all writing.
 4. Saved files and empty new drafts close quietly. Unsaved close offers Save,
    Keep Draft and Close, Cancel. Failed/cancelled Save leaves the document open.
-   Whole-window close and Quit handle multiple documents even while the recent/draft lists refresh; unfinished Source/IME stays visible.
+   Whole-window close and Quit handle multiple documents even while the recent/draft lists refresh. Passive details/recent/settings panels dismiss first; unfinished Source/IME stays visible. Cmd-W in a panel closes that panel first. Save from a passive panel still saves the document.
 5. Click New/Save/Save As during quick ordinary input: execute once after exact
    confirmation. During native candidate selection, retain the candidate and
    show a brief completion prompt. Do not automatically perform the old request

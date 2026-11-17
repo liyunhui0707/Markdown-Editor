@@ -1,4 +1,4 @@
-const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
+const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -16,10 +16,10 @@ test('common Markdown compatibility: combined marks, soft lines, continuation, r
   const cwd=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-common-session-')));
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+path.join(root,'drafts')],cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>faults.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;BrowserWindow.getAllWindows()[0].hide();},original);
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;BrowserWindow.getAllWindows()[0].hide();},original);
   await expect(page.locator('#empty-open')).toBeEnabled();
  }
- async function stop(){if(app){await app.close();app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
+ async function stop(){if(app){await closeDocumentApp(app,{page,evidencePath:info.outputPath('close-diagnostic.json')});app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
  async function select(node,word,caret=null){await node.click();await node.evaluate((node,{word,caret})=>{
   const nodes=[],walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode())nodes.push(n);
   const start=node.textContent.indexOf(word);if(start<0)throw Error('Synthetic selection not found');
