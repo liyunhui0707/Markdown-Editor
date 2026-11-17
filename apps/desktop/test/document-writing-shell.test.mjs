@@ -169,7 +169,7 @@ test('title dismissal leaves composing, pending and modal-owned interactions alo
 
 test('confirmed export shortcuts belong to the scrollable writing area beside the receipt', () => {
   const { byId } = fixture(), contents = byId('document-scroll').children;
-  const actions = contents.indexOf(byId('confirmed-copy-actions'));
-  assert.ok(actions > contents.indexOf(byId('copy-summary-compact')));
-  assert.ok(actions < contents.indexOf(byId('editor')));
+  const feedback=byId('copy-feedback'),row=feedback.children;
+  assert.ok(contents.indexOf(feedback)<contents.indexOf(byId('editor')));
+  assert.deepEqual(row,[byId('copy-summary-compact'),byId('confirmed-copy-actions')]);
 });

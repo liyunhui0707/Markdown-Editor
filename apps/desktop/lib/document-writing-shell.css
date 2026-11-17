@@ -308,3 +308,9 @@ body[data-document-viewer] #original-save-status[data-tone=error] {width:calc(10
 #format-inline-tools {display:flex;align-items:center;gap:inherit}
 body[data-document-viewer][data-keyboard-navigation] .tiptap:focus-visible {outline:2px solid var(--accent);outline-offset:8px}
 body[data-document-viewer] input::placeholder {opacity:1;color:var(--muted)}
+
+/* One small export receipt; routine file-save state stays in the footer. */
+#copy-feedback {display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;max-width:var(--reading-width);width:calc(100% - 2 * var(--gutter));margin:12px auto 0;font-size:12px}
+#copy-feedback #copy-summary-compact {flex:1 1 220px;min-width:0;width:auto;max-width:none;margin:0}
+#copy-feedback #confirmed-copy-actions {width:auto;max-width:none;margin:0}
+#copy-feedback .copy-action-buttons button {border:0;background:transparent;padding:3px 5px;font-size:11px;color:var(--muted)}

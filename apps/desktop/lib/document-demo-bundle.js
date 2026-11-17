@@ -64237,7 +64237,7 @@ SHA-256: ${last.sha256}` : "";
         reveal.onclick = () => api2.revealSaveRecovery(r.recordId);
         alert.append(reveal);
       }
-      alert.hidden = !alert.childNodes.length;
+      alert.hidden = !message;
       alert.dataset.tone = message ? "error" : "success";
     }
     async function save() {
@@ -65117,6 +65117,7 @@ SHA-256: ${last.sha256}` : "";
       if (!enabled) return;
       const s = context().state, current = s?.confirmed;
       byId2("writing-status").hidden = !s;
+      byId2("copy-feedback").hidden = byId2("copy-summary-compact").hidden && byId2("confirmed-copy-actions").hidden;
       byId2("file-actions").hidden = !s?.confirmed?.persistentCopyEnabled;
       const destination = s?.confirmed?.persistentCopyEnabled ? byId2("file-actions-content") : byId2("writing-actions");
       for (const id2 of ["create-test-copy", "export-copy"]) if (byId2(id2).parentElement !== destination) destination.append(byId2(id2));
@@ -65158,7 +65159,8 @@ SHA-256: ${last.sha256}` : "";
       byId2("writing-actions").append(byId2("file-actions"));
       byId2("writing-workspace").prepend(byId2("document-header"));
       byId2("writing-toolbar").prepend(byId2("format-toolbar"));
-      byId2("document-scroll").append(byId2("native-open-panel"), byId2("original-save-status"), byId2("copy-summary-compact"), byId2("confirmed-copy-actions"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
+      byId2("copy-feedback").append(byId2("copy-summary-compact"), byId2("confirmed-copy-actions"));
+      byId2("document-scroll").append(byId2("native-open-panel"), byId2("original-save-status"), byId2("copy-feedback"), byId2("copy-operation-alert"), byId2("viewer-status"), byId2("input-alerts"), byId2("empty-state"), byId2("editor"));
       byId2("writing-footer").prepend(byId2("writing-status"));
       byId2("document-switcher").append(byId2("documents"));
       byId2("draft-dialog-content").append(byId2("draft-recovery-panel"));

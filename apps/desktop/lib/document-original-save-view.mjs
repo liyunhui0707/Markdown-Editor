@@ -27,7 +27,7 @@ export function createOriginalSaveView({api,byId,context,busy,rerender,focus}) {
     if(message){const text=doc.createElement('p');text.textContent=message+(r?.code?`（${r.code}）`:'');alert.append(text);}
     if(o.stopped&&s.confirmed.linkedFile){for(const [label,id] of [['核对两份内容','compare-linked-file'],['打开磁盘版','open-linked-file'],['另存新文件…','create-test-copy']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=!!(c.loading||c.invalid||s.locked||s.pending||s.historyPending||s.composing||s.compositionInvalid||s.recoveryRecords.length||s.source!==s.confirmed.source);b.onpointerdown=e=>byId(id).onpointerdown?.(e);b.onclick=()=>byId(id).click();alert.append(b);}}
     if(r?.recordId){const reveal=doc.createElement('button');reveal.type='button';reveal.textContent='查看保存版本';reveal.disabled=!!c.loading;reveal.onclick=()=>api.revealSaveRecovery(r.recordId);alert.append(reveal);}
-    alert.hidden=!alert.childNodes.length;alert.dataset.tone=message?'error':'success';
+    alert.hidden=!message;alert.dataset.tone=message?'error':'success'; // Routine success is already shown in the footer, without shifting the writing surface.
   }
   async function save(){
     const c=context(),s=c.controller?.state();if(originalSaveRefusal(s,c)||unknown.has(c.selected))return;

@@ -115,6 +115,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     if (!enabled) return;
     const s = context().state, current = s?.confirmed;
     byId('writing-status').hidden = !s;
+    byId('copy-feedback').hidden=byId('copy-summary-compact').hidden&&byId('confirmed-copy-actions').hidden;
     byId('file-actions').hidden=!s?.confirmed?.persistentCopyEnabled;
     const destination=s?.confirmed?.persistentCopyEnabled?byId('file-actions-content'):byId('writing-actions');
     for(const id of ['create-test-copy','export-copy'])if(byId(id).parentElement!==destination)destination.append(byId(id));
@@ -151,7 +152,8 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
     byId('writing-actions').append(byId('file-actions'));
     byId('writing-workspace').prepend(byId('document-header'));
     byId('writing-toolbar').prepend(byId('format-toolbar'));
-    byId('document-scroll').append(byId('native-open-panel'), byId('original-save-status'), byId('copy-summary-compact'), byId('confirmed-copy-actions'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
+    byId('copy-feedback').append(byId('copy-summary-compact'),byId('confirmed-copy-actions'));
+    byId('document-scroll').append(byId('native-open-panel'), byId('original-save-status'), byId('copy-feedback'), byId('copy-operation-alert'), byId('viewer-status'), byId('input-alerts'), byId('empty-state'), byId('editor'));
     byId('writing-footer').prepend(byId('writing-status'));
     byId('document-switcher').append(byId('documents'));
     byId('draft-dialog-content').append(byId('draft-recovery-panel'));

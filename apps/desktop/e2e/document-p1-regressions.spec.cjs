@@ -1581,12 +1581,12 @@ test('writing UI V2 panels, composition gate, copy feedback and document switchi
     // Controlled composition tests UI gating only; not native macOS IME acceptance.
     await page.locator('#editor .tiptap').dispatchEvent('compositionstart', { data: '' });
     await expect(page.locator('#show-drafts')).toBeDisabled(); await expect(page.locator('#show-details')).toBeDisabled();
-    await expect(page.locator('#create-test-copy')).toBeDisabled();
+    await expect(page.locator('#create-test-copy')).toBeEnabled(); // Explicit intent preserves candidate input rather than disabling file actions.
     await page.locator('#editor .tiptap').dispatchEvent('compositionend', { data: '' }); await settled();
     await expect(page.locator('#show-drafts')).toBeEnabled();
-    await page.locator('#create-test-copy').click(); await expect(page.locator('#copy-confirm-dialog')).toBeVisible();
-    await captureTestWindow(app, info.outputPath('panels-save-confirmation.png'));
-    await page.keyboard.press('Escape'); await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
+    await page.locator('#file-actions-toggle').click();
+    await captureTestWindow(app, info.outputPath('panels-file-actions.png'));
+    await page.keyboard.press('Escape'); await expect(page.locator('#file-actions')).not.toHaveAttribute('open','');
     expect(await app.evaluate(() => globalThis.uiSaveCalls || 0)).toBe(0);
     expect((await snapshot(copyId)).snapshot.source).toBe(edited.source);
     ownedFixture = createHomeFixture('Writing-synthetic-E2E-'); target = path.join(ownedFixture.dir, 'writing-ui.md');
@@ -1876,8 +1876,8 @@ test('integrated appearance acceptance preserves writing across panels and respo
       await page.keyboard.press('Escape'); await expect(page.locator('#' + panel)).toBeHidden();
       await expect(page.locator('#' + button)).toBeFocused();
     }
-    await page.locator('#create-test-copy').click(); await expect(page.locator('#copy-confirm-dialog')).toBeVisible();
-    await page.keyboard.press('Escape'); await expect(page.locator('#copy-confirm-dialog')).toBeHidden();
+    await page.locator('#file-actions-toggle').click();await expect(page.locator('#create-test-copy')).toBeVisible();
+    await page.keyboard.press('Escape');await expect(page.locator('#file-actions')).not.toHaveAttribute('open','');
     expect((await snapshot(draftId)).snapshot).toEqual(before);
     const raw = '# 给文字留一点空间\n\n把零散的想法写下来，再慢慢整理成自己的语言。\n\n## 今天的笔记\n\n一个安静的界面，让注意力回到正在写下的内容。\n\n- 记录观察\n- 整理思路\n- 留下明天的起点\n\n## 关于写作\n\nGood writing begins with a clear thought.\n\n```js\nconst thought = "Keep it simple.";\n```\n';
     const original = path.join(root, '给文字留一点空间 — 一份用于整体界面验收的合成文档.md');
