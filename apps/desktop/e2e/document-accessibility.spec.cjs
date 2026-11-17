@@ -25,7 +25,7 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   expect(nodes.find(n=>n.role==='heading'&&n.name==='Heading').level).toBe(1);
  }
  try{
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;
    const window=BrowserWindow.getAllWindows()[0];window.setContentSize(1280,850);window.hide();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();await p.locator('#empty-open').click();
   const editor=p.locator('#editor .tiptap');

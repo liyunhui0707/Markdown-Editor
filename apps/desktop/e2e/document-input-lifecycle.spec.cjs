@@ -15,7 +15,7 @@ test('controlled input lifecycle: composed text, cancellation and history across
  async function caret(node){await node.click();await node.evaluate(n=>{const t=n.firstChild;if(t.nodeType!==Node.TEXT_NODE)throw Error('expected a synthetic text leaf');const r=document.createRange();r.setStart(t,2);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
   await expect.poll(()=>node.evaluate(n=>{const v=n.closest('.tiptap').editor.view,s=getSelection();return v.state.selection.empty&&v.state.selection.from===v.posAtDOM(s.anchorNode,s.anchorOffset);})).toBe(true);}
  try{
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();await p.locator('#empty-open').click();await p.locator('#edit-copy').click();await backup();
   for(const [selector,text] of [['#editor h1','标题中文'],['#editor .tiptap > p:first-of-type','普通中文段落。'],['#editor strong','粗体中文'],['#editor strong em','组合中文'],['#editor li p','列表中文'],['#editor td p',' 表格内容 ']]){
    const node=p.locator(selector).filter({hasText:text}).first();await caret(node);const before=await snap();
