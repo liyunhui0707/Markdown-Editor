@@ -1,5 +1,12 @@
 # Stage History
 
+## Original-file saving and visible failure — 0.80.1 (2026-11-17)
+
+- A real ordinary Markdown file reported `metadata-copy-failed` before replacement. Metadata-only comparison showed matching mode/owner/last-used attributes but different provenance on original/candidate objects. The original was never updated; the failed-write notice could be outside the scrolled viewport.
+- Keep macOS-assigned opaque provenance on each inode. Only cross-object comparison excludes that one attribute; the complete prepared attributes are journalled and pinned, the displaced old object retains its full metadata proof, and all candidate/target changes after preparation still refuse. Unknown attributes and existing ACL/ownership/content/conflict guards remain. No user-file metadata is stripped or fabricated.
+- Save failure status stays visible in the current document viewport without moving the caret. Known attribute refusals state that the original was not changed and the draft remains. Normal Save and restart must reproduce exact saved bytes; refusal must retain dirty text and independent draft recovery.
+- A test-only public-xattr boundary harness reproduces differing provenance without personal values or production hooks; tests include prepared/new-target/displaced-object mutations and unknown metadata. Existing larger modules receive only scoped changes; no framework, capacity or layout rewrite.
+
 ## OneDrive local saving — 0.80.0 (2026-11-16)
 
 - Enable only canonical current-user OneDrive File Provider domains on the Home

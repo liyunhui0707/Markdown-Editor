@@ -38,6 +38,13 @@ static void verifyAssets(int dir,NSArray *proofs){
  }
 }
 #import "document-onedrive-copy.h"
+// Cross-inode comparison only. macOS may assign opaque provenance to the new
+// inode; do not remove, decode or force it to match the old inode. Each object's
+// complete attribute set remains pinned independently before/after exchange.
+static BOOL sameReplacementAttributes(NSDictionary *old,NSDictionary *fresh){
+  NSMutableDictionary *a=[old mutableCopy],*b=[fresh mutableCopy];
+  [a removeObjectForKey:@"com.apple.provenance"];[b removeObjectForKey:@"com.apple.provenance"];return [a isEqual:b];
+}
 static NSDictionary *transaction(NSDictionary *r) {
   __block BOOL exchanged=NO,attempted=NO;BOOL journalReady=NO;__block NSDictionary *receipt;
   __block int target=-1,recovery=-1,original=-1,candidate=-1,swap=-1,stageRoot=-1;
@@ -76,15 +83,16 @@ static NSDictionary *transaction(NSDictionary *r) {
         candidate=createBytes(swap,"exchanged.md",bytes);
         // Preserve supported native metadata, never drop unknown attributes/ACL.
         if(fcopyfile(original,candidate,NULL,COPYFILE_METADATA)||fchmod(candidate,[baseline[@"identity"][@"mode"] intValue]))refuse(@"metadata-copy-failed");
-        if(!same(identity(candidate),baseline[@"identity"],@[@"mode",@"uid",@"gid"])||![attributes(candidate) isEqual:baseline[@"attributes"]])refuse(@"metadata-copy-failed");
+        NSDictionary *preparedAttributes=attributes(candidate);
+        if(!same(identity(candidate),baseline[@"identity"],@[@"mode",@"uid",@"gid"])||!sameReplacementAttributes(baseline[@"attributes"],preparedAttributes))refuse(@"metadata-copy-failed");
         if(fsync(candidate)||fsync(swap)||fsync(recovery))refuse(@"sync-failed");
         NSDictionary *prepared=identity(candidate);
-        writeJSON(recovery,"prepared.json",@{@"version":@1,@"filePath":file,@"revision":r[@"revision"],@"expected":baseline,@"candidateIdentity":prepared,@"sha256":r[@"sha256"],@"state":@"prepared",@"assets":[r[@"assets"]?:@[] valueForKey:@"name"]});
+        writeJSON(recovery,"prepared.json",@{@"version":@1,@"filePath":file,@"revision":r[@"revision"],@"expected":baseline,@"candidateIdentity":prepared,@"candidateAttributes":preparedAttributes,@"sha256":r[@"sha256"],@"state":@"prepared",@"assets":[r[@"assets"]?:@[] valueForKey:@"name"]});
         NSArray *assets=prepareAssets(target,r[@"assets"]?:@[]);
         checkpoint(r,@"prepared");
         verifyAncestors(r[@"ancestors"]);
         if(![namedState(target,name.fileSystemRepresentation) isEqual:baseline])refuse(@"external-change");
-        if(![digest(readBytes(candidate)) isEqual:r[@"sha256"]]||![attributes(candidate) isEqual:baseline[@"attributes"]])refuse(@"candidate-changed");
+        if(![digest(readBytes(candidate)) isEqual:r[@"sha256"]]||![attributes(candidate) isEqual:preparedAttributes])refuse(@"candidate-changed");
         checkpoint(r,@"before-swap");
         verifyStaging(r,stage,target,stageRoot,swap);
         attempted=YES;
@@ -95,7 +103,7 @@ static NSDictionary *transaction(NSDictionary *r) {
         NSDictionary *displaced=namedState(swap,"exchanged.md");
         if(!same(displaced[@"identity"],baseline[@"identity"],@[@"dev",@"ino",@"size",@"mtimeNs",@"mode",@"uid",@"gid"])||![displaced[@"sha256"] isEqual:baseline[@"sha256"]]||![displaced[@"attributes"] isEqual:baseline[@"attributes"]])refuse(@"conflict-after-exchange");
         NSDictionary *current=namedState(target,name.fileSystemRepresentation);
-        if(!same(current[@"identity"],prepared,@[@"dev",@"ino",@"size",@"mtimeNs",@"mode",@"uid",@"gid"])||![current[@"sha256"] isEqual:r[@"sha256"]]||![current[@"attributes"] isEqual:baseline[@"attributes"]])refuse(@"target-changed-after-exchange");
+        if(!same(current[@"identity"],prepared,@[@"dev",@"ino",@"size",@"mtimeNs",@"mode",@"uid",@"gid"])||![current[@"sha256"] isEqual:r[@"sha256"]]||![current[@"attributes"] isEqual:preparedAttributes])refuse(@"target-changed-after-exchange");
         verifyAncestors(r[@"ancestors"]);verifyStaging(r,stage,target,stageRoot,swap);verifyAssets(target,assets);checkpoint(r,@"sync");
         if(fsync(candidate)||fsync(original)||fsync(target)||fsync(swap)||fsync(recovery))refuse(@"durability-uncertain");
         // Immutable recovery copy of the verified displaced bytes. The exchanged

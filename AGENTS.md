@@ -1,5 +1,7 @@
 # AGENTS.md
 
+**0.80.1 original-save metadata.** Only the cross-inode prepared-candidate comparison may differ in opaque `com.apple.provenance`. Do not remove/decode/force that attribute on disk. Pin the complete prepared candidate attributes independently, compare the actual displaced inode against the complete old attributes, and compare the new target against the complete prepared attributes. Unknown xattrs/ACL, permissions, bytes, volume and within-read identity guards remain. A failed Save must remain visible while the document is scrolled; preserve the editor position and dirty/draft state.
+
 **0.80.0 OneDrive local saving.** Only canonical current-user
 `Library/CloudStorage/OneDrive-*` domains with exact domain marker/ACL, owned
 ancestors and local writable APFS on the Home device receive the provider grant.
