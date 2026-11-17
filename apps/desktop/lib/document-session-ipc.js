@@ -55,7 +55,7 @@ function createDocumentSessions({ service, projectSource, mapTextEdit, mapFormat
   function copyState(s, receipt = service.getCopyState(s.document)) {
     if (!receipt) return null;
     const safe = {};
-    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId', 'attachments', 'attachmentPaths','localProvider'])
+    for (const key of ['ok', 'state', 'created', 'code', 'filePath', 'revision', 'sha256', 'byteLength', 'copyId', 'attachments', 'attachmentPaths','localProvider','purpose'])
       if (Object.hasOwn(receipt, key)) safe[key] = receipt[key];
     return safe;
   }

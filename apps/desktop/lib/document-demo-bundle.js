@@ -18459,14 +18459,17 @@
   }
 
   // lib/document-action-intent.mjs
+  function canNavigatePaused(s) {
+    return s?.inputPaused === true && s.syncLocked === false && !s.pending && !s.historyPending && s.source === s.confirmed?.source && s.recoveryRecords?.length > 0 && s.recoveryRecords.every((r) => r.reason === "edit-queue-full");
+  }
   function createActionIntent({ context, changed = () => {
   }, report = () => {
   }, timeoutMs = 5e3 }) {
     let waiting = false;
-    const unsafe2 = (c) => c.invalid || c.loading || c.nativeComposing || c.state?.composing || c.state?.compositionInvalid || c.state?.locked || c.state?.historyPending || c.state?.recoveryRecords?.length;
-    async function run3(label, action) {
+    const unsafe2 = (c, navigation = false) => c.invalid || c.loading || c.nativeComposing || c.state?.composing || c.state?.compositionInvalid || c.state?.historyPending || (c.state?.locked || c.state?.recoveryRecords?.length) && !(navigation && canNavigatePaused(c.state));
+    async function run3(label, action, { navigation = false } = {}) {
       const before = context();
-      if (waiting || unsafe2(before)) {
+      if (waiting || unsafe2(before, navigation)) {
         if (before.nativeComposing || before.state?.composing) report(`\u8BF7\u5148\u5B8C\u6210\u5F53\u524D\u9009\u8BCD\uFF0C\u518D${label}\u3002`);
         return false;
       }
@@ -18487,7 +18490,7 @@
           return false;
         }
         const now = context();
-        if (now.controller !== controller2 || unsafe2(now) || now.state?.source !== source || controller2 && (now.state.pending || now.state.source !== now.state.confirmed.source)) return false;
+        if (now.controller !== controller2 || unsafe2(now, navigation) || now.state?.source !== source || controller2 && (now.state.pending || now.state.source !== now.state.confirmed.source)) return false;
         return await action();
       } finally {
         clearTimeout(timer);
@@ -63983,7 +63986,7 @@ ${prefix2}
     const messages2 = /* @__PURE__ */ new Map();
     function current() {
       const c = context(), s = c.controller?.state(), receipt = s?.confirmed.confirmedCopy;
-      const available = s?.confirmed.temporary && receipt?.ok === true && receipt.state === "created-confirmed" && typeof receipt.copyId === "string";
+      const available = s?.confirmed.temporary && receipt?.purpose !== "save-as" && receipt?.ok === true && receipt.state === "created-confirmed" && typeof receipt.copyId === "string";
       const blocked = !available || c.loading || c.invalid || s.locked || s.pending || s.historyPending || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source;
       return { c, s, receipt, available, blocked };
     }
@@ -64487,6 +64490,7 @@ SHA-256: ${last.sha256}` : "";
         compositionInvalid: !!composition?.invalid,
         recoveryCopyCapacity: atCapacity(),
         historyPending,
+        syncLocked: locked || disposed || atCapacity(),
         locked: locked || disposed || atCapacity() || inputPaused()
       };
     }
@@ -65105,7 +65109,7 @@ SHA-256: ${last.sha256}` : "";
         label.textContent = option.textContent;
         button.title = option.textContent;
         button.setAttribute("aria-current", String(id2 === confirmed?.sessionId));
-        button.disabled = !!((c.run ? c.loading || c.state?.locked || c.state?.compositionInvalid || c.state?.historyPending : blocked()) || select.disabled || c.unavailable?.(id2));
+        button.disabled = !!((c.run ? c.loading || c.state?.locked && !canNavigatePaused(c.state) || c.state?.compositionInvalid || c.state?.historyPending : blocked()) || select.disabled || c.unavailable?.(id2));
         detail.textContent = c.unavailable?.(id2) ? "\u4F1A\u8BDD\u5DF2\u4E0D\u53EF\u7528" : c.pendingSession === id2 ? "\u6B63\u5728\u5207\u6362\u2026" : m?.detail || (m?.temporary ? "\u72EC\u7ACB\u8349\u7A3F" : m?.readOnly ? "\u539F\u6587\u53EA\u8BFB" : "\u5DF2\u6253\u5F00\u6587\u6863");
         button.hidden = !option.textContent.toLocaleLowerCase().includes(byId2("session-filter").value.trim().toLocaleLowerCase());
       }
@@ -65782,7 +65786,7 @@ SHA-256: ${last.sha256}` : "";
     }
   }) });
   var accessibility = createAccessibilityView({ byId, context: () => ({ editor, state: controller?.state(), loading }) });
-  var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2), run: (label, action) => fileIntent.run(label, action) }), refreshDrafts: () => draftView.refresh() });
+  var writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: (id2) => lifecycles.has(id2), run: (label, action) => fileIntent.run(label, action, { navigation: true }) }), refreshDrafts: () => draftView.refresh() });
   var findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
   var draftView = createDraftView({ api, byId, context: () => ({ hasSession: (id2) => [...byId("documents").options].some((o) => o.value === id2), state: controller?.state(), loading, invalid: activeInvalid() }), restore: (id2) => openDocument(true, false, id2) });
   var recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: (id2) => openDocument(false, false, null, null, id2), restore: (id2) => openDocument(true, false, id2) });
@@ -66009,7 +66013,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     if (records.some((r) => String(r.id) === recoveryId)) byId("recovery-record").value = recoveryId;
     const busy = loading || s.pending > 0 || s.composing || s.historyPending;
     for (const id2 of ["documents", "reload", "check", "save"]) byId(id2).disabled = busy;
-    byId("documents").disabled = loading || s.historyPending || s.locked || activeInvalid() || s.compositionInvalid;
+    byId("documents").disabled = loading || s.historyPending || s.locked && !canNavigatePaused(s) || activeInvalid() || s.compositionInvalid;
     for (const id2 of ["reload", "check", "save"]) byId(id2).disabled ||= activeInvalid();
     byId("undo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
     byId("redo").disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
@@ -66021,7 +66025,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       button.setAttribute("aria-disabled", String(button.disabled));
     }
     if (readOnlyWindow) {
-      for (const id2 of ["open-file", "empty-open", "new-temporary"]) byId(id2).disabled = loading || s.historyPending || s.locked || activeInvalid() || s.compositionInvalid;
+      for (const id2 of ["open-file", "empty-open", "new-temporary"]) byId(id2).disabled = loading || s.historyPending || s.locked && !canNavigatePaused(s) || activeInvalid() || s.compositionInvalid;
       const current = s.confirmed, temporary = current.temporary === true;
       byId("edit-copy").hidden = current.readOnly !== true || current.editCopyEnabled !== true;
       byId("edit-copy").disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
@@ -66566,8 +66570,8 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     byId("file-actions").open = false;
     return fileIntent.run("\u5BFC\u51FA", () => testCopyView.create("export"));
   };
-  byId("new-temporary").onclick = () => fileIntent.run("\u65B0\u5EFA", () => openDocument(true));
-  byId("open-file").onclick = () => fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly);
+  byId("new-temporary").onclick = () => fileIntent.run("\u65B0\u5EFA", () => openDocument(true), { navigation: true });
+  byId("open-file").onclick = () => fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly, { navigation: true });
   byId("empty-open").onclick = byId("open-file").onclick;
   byId("file-actions-toggle").onpointerdown = (event) => {
     if (editor?.view.composing || controller?.state().composing) event.preventDefault();
@@ -66632,7 +66636,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     }
     if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "o") {
       event.preventDefault();
-      void fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly);
+      void fileIntent.run("\u6253\u5F00\u6587\u6863", openReadOnly, { navigation: true });
     }
   });
   api.onReady((data2) => {

@@ -3,7 +3,7 @@ import {createImagePaste} from './document-image-paste.mjs';
 import {dropImage} from './document-image-drop.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {createPresentationScheduler} from './document-presentation-scheduler.mjs';
-import {createActionIntent} from './document-action-intent.mjs';
+import {createActionIntent,canNavigatePaused} from './document-action-intent.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
 import {createAccessibilityView} from './document-accessibility-view.mjs';
@@ -55,7 +55,7 @@ const sourceView = createSourceView({ byId, createEditor:createSourceEditor, sav
   restoreSelection:at=>{const source=controller.state().source,span=projectSource(source).spans.find(s=>at>=s.sourceFrom&&at<=s.sourceTo);if(span)resetSource(source,{from:span.from+at-span.sourceFrom,to:span.from+at-span.sourceFrom});}
 }) });
 const accessibility = createAccessibilityView({byId,context:()=>({editor,state:controller?.state(),loading})});
-const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id),run:(label,action)=>fileIntent.run(label,action) }), refreshDrafts: () => draftView.refresh() });
+const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id),run:(label,action)=>fileIntent.run(label,action,{navigation:true}) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ hasSession:id=>[...byId('documents').options].some(o=>o.value===id), state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 const recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: id => openDocument(false, false, null, null, id), restore: id => openDocument(true, false, id) });
@@ -186,7 +186,7 @@ function render(s) {
   if (records.some(r => String(r.id) === recoveryId)) byId('recovery-record').value = recoveryId;
   const busy = loading || s.pending > 0 || s.composing || s.historyPending;
   for (const id of ['documents', 'reload', 'check', 'save']) byId(id).disabled = busy;
-  byId('documents').disabled=loading||s.historyPending||s.locked||activeInvalid()||s.compositionInvalid;
+  byId('documents').disabled=loading||s.historyPending||(s.locked&&!canNavigatePaused(s))||activeInvalid()||s.compositionInvalid;
   for (const id of ['reload', 'check', 'save']) byId(id).disabled ||= activeInvalid();
   byId('undo').disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
   byId('redo').disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
@@ -198,7 +198,7 @@ function render(s) {
     button.setAttribute('aria-disabled',String(button.disabled));
   }
   if (readOnlyWindow) {
-    for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = loading||s.historyPending||s.locked||activeInvalid()||s.compositionInvalid;
+    for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = loading||s.historyPending||(s.locked&&!canNavigatePaused(s))||activeInvalid()||s.compositionInvalid;
     const current = s.confirmed, temporary = current.temporary === true;
     byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
     byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
@@ -522,8 +522,8 @@ const saveCurrent=()=>{
 byId('save-original').onclick=saveCurrent;
 byId('create-test-copy').onclick=()=>{byId('file-actions').open=false;return fileIntent.run('另存',()=>testCopyView.create('save-as'));};
 byId('export-copy').onclick=()=>{byId('file-actions').open=false;return fileIntent.run('导出',()=>testCopyView.create('export'));};
-byId('new-temporary').onclick=()=>fileIntent.run('新建',()=>openDocument(true));
-byId('open-file').onclick=()=>fileIntent.run('打开文档',openReadOnly);
+byId('new-temporary').onclick=()=>fileIntent.run('新建',()=>openDocument(true),{navigation:true});
+byId('open-file').onclick=()=>fileIntent.run('打开文档',openReadOnly,{navigation:true});
 byId('empty-open').onclick=byId('open-file').onclick;
 byId('file-actions-toggle').onpointerdown=event=>{if(editor?.view.composing||controller?.state().composing)event.preventDefault();};
 byId('file-actions-toggle').onclick=event=>{event.preventDefault();return fileIntent.run('打开文档操作',()=>{byId('file-actions').open=!byId('file-actions').open;});};
@@ -556,7 +556,7 @@ api.onSaveRequest(saveCurrent);
 window.addEventListener('keydown', event => {
   if(readOnlyWindow&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='s'&&!sourceView.isOpen()){event.preventDefault();saveCurrent();return;}
   if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'o') {
-    event.preventDefault(); void fileIntent.run('打开文档',openReadOnly);
+    event.preventDefault(); void fileIntent.run('打开文档',openReadOnly,{navigation:true});
   }
 });
 api.onReady(data => {

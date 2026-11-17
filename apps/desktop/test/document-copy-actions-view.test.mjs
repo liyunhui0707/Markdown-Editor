@@ -46,3 +46,8 @@ test('confirmed-close release drops only the named receipt notice',async()=>{
  h.view.release('confirmed');h.view.render();assert.equal(h.byId('copy-action-status').textContent,'');
  assert.equal(h.state.confirmed.confirmedCopy.copyId,'confirmed');
 });
+
+test('Save As does not display export shortcuts for the file already being edited',()=>{
+ const h=harness();h.state.confirmed.confirmedCopy.purpose='save-as';h.view.render();assert.equal(h.byId('confirmed-copy-actions').hidden,true);
+ h.state.confirmed.confirmedCopy.purpose='export';h.view.render();assert.equal(h.byId('confirmed-copy-actions').hidden,false);
+});

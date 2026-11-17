@@ -1,3 +1,4 @@
+import {canNavigatePaused} from './document-action-intent.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 // Presentation only: session authority, edits, composition and writes stay in their controllers.
 export function createWritingShell({ byId, context, refreshDrafts = () => {}, reading = null, sourceView = null }) {
@@ -102,7 +103,7 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
       const { button, label, detail } = rows.get(id), m = metadata.get(id);
       label.textContent = option.textContent; button.title = option.textContent;
       button.setAttribute('aria-current', String(id === confirmed?.sessionId));
-      button.disabled = !!((c.run?(c.loading||c.state?.locked||c.state?.compositionInvalid||c.state?.historyPending):blocked()) || select.disabled || c.unavailable?.(id));
+      button.disabled = !!((c.run?(c.loading||(c.state?.locked&&!canNavigatePaused(c.state))||c.state?.compositionInvalid||c.state?.historyPending):blocked()) || select.disabled || c.unavailable?.(id));
       detail.textContent = c.unavailable?.(id) ? '会话已不可用' : c.pendingSession === id ? '正在切换…'
         : m?.detail || (m?.temporary ? '独立草稿' : m?.readOnly ? '原文只读' : '已打开文档');
       button.hidden = !option.textContent.toLocaleLowerCase().includes(byId('session-filter').value.trim().toLocaleLowerCase());

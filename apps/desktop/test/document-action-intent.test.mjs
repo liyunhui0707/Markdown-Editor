@@ -23,3 +23,10 @@ test('a timed-out intent releases the workspace and never replays on a late ackn
  const intent=createActionIntent({context:()=>({controller,state}),report:m=>messages.push(m),timeoutMs:1});
  assert.equal(await intent.run('保存',()=>{calls++;}),false);assert.equal(intent.waiting(),false);assert.equal(aborted,true);assert.match(messages.at(-1),/尚未执行保存/);finish();await Promise.resolve();assert.equal(calls,0);
 });
+
+test('confirmed queue-pause navigation preserves recovery while Save and unknown state stay blocked',async()=>{
+ const f=fixture();Object.assign(f.c.state,{pending:0,source:'safe',confirmed:{source:'safe'},inputPaused:true,syncLocked:false,locked:true,recoveryRecords:[{reason:'edit-queue-full'}]});
+ f.c.controller.idle=async()=>{};
+ assert.equal(await f.intent.run('保存',f.act),false);assert.equal(await f.intent.run('新建',f.act,{navigation:true}),true);assert.equal(f.c.state.recoveryRecords.length,1);
+ f.c.state.syncLocked=true;assert.equal(await f.intent.run('新建',f.act,{navigation:true}),false);
+});

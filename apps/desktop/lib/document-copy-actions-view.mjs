@@ -3,7 +3,7 @@ export function createCopyActionsView({ api, byId, context, open, busy, rerender
   const messages = new Map();
   function current() {
     const c = context(), s = c.controller?.state(), receipt = s?.confirmed.confirmedCopy;
-    const available = s?.confirmed.temporary && receipt?.ok === true && receipt.state === 'created-confirmed'
+    const available = s?.confirmed.temporary && receipt?.purpose!=='save-as' && receipt?.ok === true && receipt.state === 'created-confirmed'
       && typeof receipt.copyId === 'string';
     const blocked = !available || c.loading || c.invalid || s.locked || s.pending || s.historyPending
       || s.composing || s.compositionInvalid || s.recoveryRecords.length || s.source !== s.confirmed.source;

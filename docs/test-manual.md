@@ -14,11 +14,11 @@ Use disposable local documents. These are proposed checks, not recorded passes.
    editor, not the document behind it. Cancelling a chooser retains all writing.
 4. Saved files and empty new drafts close quietly. Unsaved close offers Save,
    Keep Draft and Close, Cancel. Failed/cancelled Save leaves the document open.
-   Whole-window close handles all documents; unfinished Source/IME stays visible.
+   Whole-window close and Quit handle multiple documents even while the recent/draft lists refresh; unfinished Source/IME stays visible.
 5. Click New/Save/Save As during quick ordinary input: execute once after exact
    confirmation. During native candidate selection, retain the candidate and
    show a brief completion prompt. Do not automatically perform the old request
-   when selection later finishes. Test the real input methods separately.
+   when selection later finishes. A confirmed queue pause may navigate to a new/other document while retaining its overflow; it must not Save, Close or resume automatically. Test the real input methods separately.
 6. Check the file menu, narrow/normal windows, keyboard focus, Source, dark mode
    and VoiceOver. Ordinary writing stays quiet; failure remains visible near the
    end of a document with a usable recovery action. Backup and file-save labels

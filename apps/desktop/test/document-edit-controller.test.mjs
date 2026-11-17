@@ -227,7 +227,7 @@ test('the pending queue rejects its 65th edit without altering accepted source',
   assert.equal(h.edit(from + 64, from + 64, 'REJECT'), false);
   assert.equal(h.controller.state().code, 'edit-queue-full');
   h.delayed = false; await tick(); h.replies.shift()(); await h.controller.idle();
-  assert.equal(h.document.text, accepted); assert.equal(h.document.revision, 64);
+  assert.equal(h.document.text, accepted); assert.equal(h.document.revision, 64);assert.equal(h.controller.state().locked,true);assert.equal(h.controller.state().syncLocked,false);
 });
 
 for (const count of [2, 3]) test(`P1-1: ${count} consecutive refusals retain every unresolved input`, async () => {

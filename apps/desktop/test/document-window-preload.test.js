@@ -27,3 +27,25 @@ test('catalog timeout leaves the window open and a late response never replays c
  const recent=h.api.listRecents(),finish=h.api.finishWindowClose();
  assert.equal(h.timers.length,1);h.timers[0]();assert.equal((await finish).ok,false);release({ok:true,entries:[]});await recent;
 });
+
+test('the next document close waits for catalog refresh started by closing the previous document',async()=>{
+ const h=fixture();let release;
+ h.ipc.invoke=(channel,data)=>{h.calls.push({channel,data});return data?.operation==='list-recents'?new Promise(r=>release=r):Promise.resolve({ok:true,sessionId:data.sessionId,requestRevision:data.expectedRevision,closed:true});};
+ const recent=h.api.listRecents(),close=h.api.closeDocument({sessionId:'second-read-only-document',expectedRevision:0});
+ await Promise.resolve();assert.equal(h.calls.length,1);release({ok:true,entries:[]});await recent;
+ const r=await close;assert.equal(r.ok,true);assert.equal(r.closed,true);assert.equal(h.calls.at(-1).data.operation,'close-document');
+});
+
+test('waiting document close rechecks composition, unknown replies and invalidation before fencing the session',async()=>{
+ for(const kind of ['composition','unknown','invalidated']){
+  const h=fixture();let release;h.ipc.invoke=(_channel,data)=>data?.operation==='list-recents'?new Promise(r=>release=r):assert.fail('A protected close must not reach main');
+  const recent=h.api.listRecents(),close=h.api.closeDocument({sessionId:'second',expectedRevision:0});
+  if(kind==='composition')h.dom.emit('compositionstart');
+  if(kind==='invalidated')h.ipc.emit('document-demo:invalidated',{}, {sessionId:'second'});
+  release(kind==='unknown'?null:{ok:true,entries:[]});await recent;assert.equal((await close).ok,false);
+ }
+});
+test('timed-out document close stays open and never replays after a late catalog reply',async()=>{
+ const h=fixture();let release;h.ipc.invoke=(_channel,data)=>data?.operation==='list-recents'?new Promise(r=>release=r):assert.fail('No late document close');
+ const recent=h.api.listRecents(),close=h.api.closeDocument({sessionId:'second',expectedRevision:0});h.timers[0]();assert.equal((await close).code,'document-busy');release({ok:true,entries:[]});await recent;
+});
