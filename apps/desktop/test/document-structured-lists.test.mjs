@@ -41,7 +41,10 @@ test('cross sibling nested text replacement preserves nesting and task state',()
 });
 test('unsupported child-block, excessive depth and oversized lists remain protected',()=>{
  assert.equal(projectSource('- A\n\n  Second paragraph').doc.content[0].content[0].content.length,2);
- for(const s of ['- A\n  &amp;','- A\n  ```js\n  code\n  ```',Array.from({length:7},(_,i)=>'  '.repeat(i)+'- A').join('\n')])assert.equal(projectSource(s).doc.content[0].type,'codeBlock');
+ for(const s of ['- A\n  &amp;','- A\n  ```js\n  code\n  ```',Array.from({length:7},(_,i)=>'  '.repeat(i)+'- A').join('\n')]){
+  const p=projectSource(s);assert.equal(p.doc.content[0].type,'documentPreview');
+  assert.equal(p.spans.length,0);assert.equal(mapTextEdit(s,{from:0,to:1,insert:'x'}).ok,false);
+ }
  assert.equal(run('- A','indent-list').ok,false);
 });
 

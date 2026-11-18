@@ -35,7 +35,7 @@ function verifyDocumentRelease(appPath,team,{run=checked}={}){
 }
 module.exports={verifyDocumentRelease};
 if(require.main===module){
- try{if(process.argv.length!==4)throw Error('Usage: node tools/verify-document-release.cjs /absolute/Markdown.app TEAMID');
+ try{if(process.argv.length!==4)throw Error('Usage: node tools/verify-document-release.cjs /absolute/Markora.app TEAMID');
   console.log(JSON.stringify(verifyDocumentRelease(process.argv[2],process.argv[3]),null,2));
  }catch(error){console.error(error.message);process.exitCode=1;}
 }

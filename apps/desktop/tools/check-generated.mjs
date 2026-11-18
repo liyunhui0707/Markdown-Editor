@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const desktopRoot = fileURLToPath(new URL('../', import.meta.url));
 const generatedPaths = [
+  'lib/document-demo-bundle.js',
   'lib/toastui-bundle.js',
   'lib/cm6-bundle.js',
   'lib/tiptap-bundle.js',

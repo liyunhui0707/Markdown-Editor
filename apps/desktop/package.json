@@ -1,7 +1,7 @@
 {
-  "name": "markdown-vault-desktop",
-  "version": "0.81.0",
-  "description": "Desktop shell for the Markdown Vault App",
+  "name": "markora-desktop",
+  "version": "0.82.0",
+  "description": "Markora — a local Markdown editor for macOS",
   "main": "document-app-main.js",
   "scripts": {
     "dev": "electron .",
@@ -20,7 +20,7 @@
     "build:katex": "mkdir -p lib/vendor/katex && cp -R node_modules/katex/dist/. lib/vendor/katex/",
     "build:hljs": "mkdir -p lib/vendor/highlight && esbuild lib/highlight-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/highlight/highlight.min.js --minify && cp node_modules/highlight.js/styles/atom-one-light.css lib/vendor/highlight/hljs.css",
     "build:mermaid": "mkdir -p lib/vendor/mermaid && esbuild lib/mermaid-entry.js --bundle --format=iife --platform=browser --outfile=lib/vendor/mermaid/mermaid.min.js --minify",
-    "build:generated": "rm -rf lib/vendor/katex lib/vendor/highlight lib/vendor/mermaid && npm run build:editor && npm run build:cm6 && npm run build:tiptap && npm run build:spike-cm6 && npm run build:katex && npm run build:hljs && npm run build:mermaid",
+    "build:generated": "rm -rf lib/vendor/katex lib/vendor/highlight lib/vendor/mermaid && npm run build:editor && npm run build:cm6 && npm run build:tiptap && npm run build:spike-cm6 && npm run build:katex && npm run build:hljs && npm run build:mermaid && npm run build:document",
     "check:generated": "node tools/check-generated.mjs",
     "verify:generated": "npm run build:generated && npm run check:generated",
     "audit:prod": "npm audit --omit=dev --audit-level=low",
@@ -35,7 +35,8 @@
     "dev:legacy": "electron main.js",
     "build:document-save": "node tools/build-document-save.cjs",
     "pack:document:signed": "node -e \"require('./electron-builder.document-release.cjs')\" && npm run build:document-save && node tools/package-document.cjs --signed",
-    "verify:document:release": "node tools/verify-document-release.cjs"
+    "verify:document:release": "node tools/verify-document-release.cjs",
+    "build:document": "esbuild lib/document-demo-entry.js --bundle --format=iife --platform=browser --outfile=lib/document-demo-bundle.js"
   },
   "author": "",
   "license": "MIT",

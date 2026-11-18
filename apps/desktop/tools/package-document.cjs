@@ -28,7 +28,7 @@ async function packageDocument(argv){
  const opts=packageOptions({root,lock,...cli,identity:process.env.DOCUMENT_SIGNING_IDENTITY||''});
  const out=path.resolve(cli.out);assert(!['/',os.homedir(),os.tmpdir(),root,path.dirname(root)].includes(out),'Choose a dedicated output directory');
  if(fs.existsSync(out)){const s=fs.lstatSync(out);assert(s.isDirectory()&&!s.isSymbolicLink()&&s.uid===process.getuid());}
- const target=path.join(out,'Markdown-darwin-arm64'),archive=path.join(out,`Markdown-${pkg.version}-arm64-mac.zip`),receipt=path.join(out,'package-receipt.json');
+ const target=path.join(out,opts.name+'-darwin-arm64'),archive=path.join(out,`${opts.name}-${pkg.version}-arm64-mac.zip`),receipt=path.join(out,'package-receipt.json');
  for(const p of [target,archive,receipt])assert(!fs.existsSync(p),'Refusing existing output: '+p);
  const helper=root+'/build/document-save';assert(fs.statSync(helper).isFile());const helperBefore=sha(helper);
  const probe=spawnSync(helper,[],{input:'{"testPoint":"before-swap"}\n',encoding:'utf8'});assert.equal(probe.status,64,'Never package a test helper');
@@ -41,7 +41,7 @@ async function packageDocument(argv){
  let notices;
  opts.afterExtract=[async({buildPath})=>{notices=electronNotices(buildPath);}];
  opts.afterCopyExtraResources=[async({buildPath:build})=>{
-  const resources=path.join(build,'Markdown.app/Contents/Resources');assert.equal(sha(path.join(resources,'document-save')),helperBefore);
+  const resources=path.join(build,opts.name+'.app/Contents/Resources');assert.equal(sha(path.join(resources,'document-save')),helperBefore);
   for(const [name,bytes]of Object.entries(notices))fs.writeFileSync(path.join(resources,name),bytes,{flag:'wx'});
  }];
  if(cli.electronZipDir){
@@ -49,7 +49,7 @@ async function packageDocument(argv){
   assert(expected&&sha(path.join(cli.electronZipDir,name))===expected,'Offline Electron ZIP must match the locked official checksum');opts.electronZipDir=cli.electronZipDir;
  }
  const {packager}=await import('@electron/packager');const outputs=await packager(opts);
- assert.equal(outputs.length,1);const app=path.join(outputs[0],'Markdown.app'),contents=path.join(app,'Contents');
+ assert.equal(outputs.length,1);const app=path.join(outputs[0],opts.name+'.app'),contents=path.join(app,'Contents');
  command('/usr/bin/codesign',['--verify','--deep','--strict',app]);
  command('/usr/bin/codesign',['--verify','--strict',path.join(contents,'Resources/document-save')]);
  const asar=require('@electron/asar'),asarPath=path.join(contents,'Resources/app.asar');

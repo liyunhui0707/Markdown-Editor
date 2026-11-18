@@ -87,7 +87,8 @@ export function createWritingShell({ byId, context, refreshDrafts = () => {}, re
   function syncNavigation() {
     if (!enabled) return;
     const c = context(), confirmed = c.state?.confirmed, select = byId('documents');
-    if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly, detail:filePresentation(confirmed).kind });
+    if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly,
+      detail:confirmed.linkedFile?(confirmed.originalSave?.localProvider==='onedrive'?'OneDrive 文件':'文件'):filePresentation(confirmed).kind });
     const options = [...select.options], ids = new Set(options.map(o => o.value));
     for (const [id, row] of rows) if (!ids.has(id)) { row.button.remove(); rows.delete(id); metadata.delete(id); }
     const list = byId('session-list'), doc = list.ownerDocument;

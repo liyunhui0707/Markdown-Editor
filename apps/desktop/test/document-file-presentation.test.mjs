@@ -1,5 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {filePresentation,linkedFileMessage,originalSaveNotice} from '../lib/document-file-presentation.mjs';
+import {filePresentation,fileWindowTitle,linkedFileMessage,originalSaveNotice} from '../lib/document-file-presentation.mjs';
+test('bound file title stays stable while input, confirmation and backup states change',()=>{
+ const current={label:'Article.md',temporary:true,linkedFile:{filePath:'/synthetic/Article.md'}};
+ for(const state of [{},{pending:4},{composing:true},{historyPending:true},{source:'next'}])
+  assert.equal(fileWindowTitle(current,state),'Article.md');
+ assert.equal(fileWindowTitle({...current,linkedFile:null}),'Article.md — 草稿');
+ assert.equal(fileWindowTitle({...current,temporary:false}),'Article.md — 只读');
+});
 test('file status is based on current bound hash, not temporary dirty flag or export receipt',()=>{
  const c={temporary:true,dirty:true,copySha256:'saved',linkedFile:{filePath:'/synthetic/New.md',baselineSha256:'saved',checked:null},originalSave:{available:true}};
  assert.equal(filePresentation(c).label,'正文已保存');

@@ -1,6 +1,38 @@
-**0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. User requires current-version human acceptance after local/Air installation before formal publication.
+**Markora 0.82.0 candidate.** User selected Markora and authorized relocation to
+`/Users/liyunhui/Liyunhui/Github/Markora`, with the same GitHub repository renamed
+`liyunhui0707/Markora`. Keep the existing bundle ID and `Markdown Vault Document`
+profile/recovery paths so naming does not strand drafts. CLI/MCP source is now
+`integrations/markora`; retain an installed `mdapp` compatibility command.
+Semantic previews are inert read-only atoms, separate from exact editable source
+maps. HTML/resources never execute or auto-load. Heading/prose selected ranges
+retain the first block type, source frames, complete PM proof and exact inverses.
+Ordinary PM proofs compare the whole tree and schema defaults without allocating
+two new PM trees. Match PM's adjacent equal-mark text merging and schema mark
+rank normalization; compare all segments, neighboring nodes and nested attribute
+array lengths. Exact splice hints must match the entire source before reuse;
+old-global/context/cold-parser guards remain. No queue/history/write-limit change.
+Local raw-rate evidence does not erase the historical 0.81.0 CI failure or prove
+universal IME/performance acceptance. Complete applicable CI before integration.
+
+**Local App update policy (2026-11-18).** The user explicitly removed CI as a
+prerequisite for replacing the daily App. Matching local regression tests,
+candidate startup, artifact integrity, normal user exit and retained rollback
+remain required. Continue CI in the background; do not install a known material
+data/security or relevant feature regression. Merge/release checks remain separate.
+
+**0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. Formal 0.81.0 was published with explicit user authorization; human experience feedback is no longer a release prerequisite. The later raw near-capacity failure remains open and disclosed.
 
 # AGENTS.md
+
+**CLI/MCP companion.** `integrations/markora` is a separate local Node companion,
+not a new editor engine or a modified 0.81.0 App package. Status never reads
+document bodies; creation is exclusive in a pinned owned Inbox. MCP opens only
+explicit Inbox basenames; CLI may open an explicit ordinary `.md` path. Route
+through macOS open-file handling and preserve existing input/session guards.
+An OS open receipt is not displayed/saved proof. Retain uncertain creation or
+failed-delivery files; never overwrite, delete or retry them automatically.
+Keep newline JSON-RPC stdio isolated from logs. Do not call protected source
+fallback complete Markdown rendering. App UI/protocol/native helper unchanged.
 
 **Release policy (2026-11-18).** The user explicitly authorized formal 0.81.0
 publication now and future releases without waiting for their personal trial or
@@ -82,13 +114,14 @@ authority change. Reject failed performance experiments rather than weakening
 ownership tests; memory and profiler timings remain scoped observations.
 
 **Git workflow (2026-11-16).** The canonical local checkout is
-`/Users/liyunhui/Liyunhui/Codes/markdown-vault-app`; `main` is the integration
+`/Users/liyunhui/Liyunhui/Github/Markora`; `main` is the integration
 branch. The former `markdown-vault-app-phase1b3` worktree is retired, not a
 development entry point. Keep the recovery checkpoint as a historical ref.
 Follow [Git management](docs/git-workflow.md): coherent tested checkpoints,
-one short branch/PR per functional group, full applicable CI before merge and
-daily-App replacement, then verified main synchronization and authorized branch
-cleanup. Do not add a permanent develop branch or a worktree for every patch.
+one short branch/PR per functional group, full applicable CI before merge;
+daily-App replacement follows the local-update policy above. Verify main
+synchronization and authorized branch cleanup. Do not add a permanent develop
+branch or a worktree for every patch.
 
 **0.77.2 bounded mixed-block parsing.** Reuse only isolated single-line paragraphs/headings or supported list/quote containers with unchanged outer blank gaps, physical newline token sequence, trailing margin and container shape/flags. Require the old fragment to exactly reproduce its global subtree. Container edits must stay inside one text/code leaf; uncertain links/references/escapes/HTML/positions fall back to cold parsing. Translate offsets everywhere, columns only on the actual edited physical line. Keep immutable two-revision caching and complete projection/main proof; no serializer, new authority or limits. Differential and native-visible timing observations are separate from physical IME/paint latency and human daily-use acceptance.
 

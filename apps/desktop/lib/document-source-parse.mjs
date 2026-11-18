@@ -81,12 +81,20 @@ export function createSourceParser(parseFull) {
     }
     return Object.freeze(copy);
   }
-  function local(source, previous) {
+  function local(source, previous, hint) {
     if (!previous || source.length < 8192) return null;
     const [before, tree] = previous;
     let from = 0, to = before.length, end = source.length;
-    while (from < to && from < end && before[from] === source[from]) from++;
-    while (to > from && end > from && before[to - 1] === source[end - 1]) { to--; end--; }
+    // A planner already owns the exact source splice. Check its entire result,
+    // not a proof flag; malformed/stale hints use the original diff path.
+    if(hint?.before===before&&Number.isSafeInteger(hint.from)&&Number.isSafeInteger(hint.to)
+      &&hint.from>=0&&hint.to>=hint.from&&hint.to<=before.length&&typeof hint.insert==='string'
+      &&before.slice(0,hint.from)+hint.insert+before.slice(hint.to)===source){
+      from=hint.from;to=hint.to;end=from+hint.insert.length;
+    }else{
+      while (from < to && from < end && before[from] === source[from]) from++;
+      while (to > from && end > from && before[to - 1] === source[end - 1]) { to--; end--; }
+    }
     const index = tree.children.findIndex(node => node.position.start.offset <= from && node.position.end.offset >= to);
     if (index < 0) return null;
     const node = tree.children[index], start = node.position.start.offset, stop = node.position.end.offset;
@@ -129,12 +137,12 @@ export function createSourceParser(parseFull) {
       ...tree.children.slice(index + 1).map(child => translate(child, shift))]),
       position: Object.freeze({start: tree.position.start, end: freezePoint(shift(tree.position.end))})});
   }
-  return source => {
+  return (source,hint) => {
     if (cached.has(source)) {
       const tree = cached.get(source); cached.delete(source); cached.set(source, tree); return tree;
     }
     let reused;
-    try { reused=local(source,[...cached].at(-1)); } catch { /* Uncertain fragment/context: use the complete parser. */ }
+    try { reused=local(source,[...cached].at(-1),hint); } catch { /* Uncertain fragment/context: use the complete parser. */ }
     const tree = freezeGraph(reused || parseFull(source));
     cached.set(source, tree); if (cached.size > 2) cached.delete(cached.keys().next().value);
     return tree;

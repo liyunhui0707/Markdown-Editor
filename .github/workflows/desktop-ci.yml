@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify CLI and MCP companion
+        run: node --test ../../integrations/markora/test/*.test.cjs
+
       - name: Audit production dependencies
         run: npm run audit:prod
 
@@ -60,9 +63,9 @@ jobs:
           node node_modules/electron/install.js
           E2E_ELECTRON_EXECUTABLE="$PWD/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" \
             ./node_modules/.bin/playwright test --config=e2e/playwright.config.cjs \
-            e2e/dependency-rendering.spec.cjs e2e/document-p1-regressions.spec.cjs \
+            e2e/document-markora-quality.spec.cjs e2e/dependency-rendering.spec.cjs e2e/document-p1-regressions.spec.cjs \
             e2e/document-accessibility.spec.cjs e2e/document-replace.spec.cjs e2e/document-sustained-writing.spec.cjs e2e/document-mixed-inline.spec.cjs e2e/document-rich-writing.spec.cjs e2e/document-common-compat.spec.cjs e2e/document-file-workflow.spec.cjs e2e/document-input-lifecycle.spec.cjs e2e/document-resource-reuse.spec.cjs e2e/document-persistence-lifecycle.spec.cjs e2e/document-direct-writing.spec.cjs e2e/document-article-images.spec.cjs e2e/document-image-resources.spec.cjs e2e/document-literal-writing.spec.cjs e2e/document-formatted-inline.spec.cjs e2e/document-structure-continuation.spec.cjs e2e/document-rich-tables.spec.cjs e2e/document-prose-range.spec.cjs e2e/document-structured-range.spec.cjs e2e/document-wrapped-structures.spec.cjs e2e/document-daily-candidate.spec.cjs e2e/document-container-writing.spec.cjs e2e/document-image-portability.spec.cjs e2e/document-onedrive.spec.cjs e2e/document-save-feedback.spec.cjs e2e/document-workflow-clarity.spec.cjs \
-            --grep 'updated math|document-first read-only opens|confirmed export shortcuts|keyboard workspace|document replace|sustained writing|mixed inline authoring|rich long writing|common Markdown compatibility|daily file workflow|controlled input lifecycle|fixed draft reuse|persistence lifecycle|direct file writing|article and pasted images|image resource lifecycle|literal prose workflow|formatted inline workflow|structure continuation workflow|rich table workflow|formatted prose range workflow|structured range workflow|wrapped list/quote workflow|daily candidate workflow|complex container workflow|local image portability workflow|OneDrive local workflow|ordinary save feedback|document workflow clarity'
+            --grep 'Markora quality workflow|updated math|document-first read-only opens|confirmed export shortcuts|keyboard workspace|document replace|sustained writing|mixed inline authoring|rich long writing|common Markdown compatibility|daily file workflow|controlled input lifecycle|fixed draft reuse|persistence lifecycle|direct file writing|article and pasted images|image resource lifecycle|literal prose workflow|formatted inline workflow|structure continuation workflow|rich table workflow|formatted prose range workflow|structured range workflow|wrapped list/quote workflow|daily candidate workflow|complex container workflow|local image portability workflow|OneDrive local workflow|ordinary save feedback|document workflow clarity'
 
       - name: Verify input-pressure recovery
         run: |

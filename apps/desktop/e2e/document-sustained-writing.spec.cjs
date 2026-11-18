@@ -1,6 +1,7 @@
 const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const {createResourceProbe}=require('./helpers/document-resource-probe.cjs');
+const {stopOwnedElectron}=require('./helpers/document-owned-stop.cjs');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 
 test('sustained writing: repeated long-document sessions preserve edits, close and release renderer state',async({},info)=>{
@@ -50,7 +51,8 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   await expect(p.locator('#empty-open')).toBeEnabled();await focusNativeWindow(app,p);
   await p.evaluate(()=>{window.__soakQueuePeak=0;const n=document.querySelector('#status');new MutationObserver(()=>{window.__soakQueuePeak=Math.max(window.__soakQueuePeak,JSON.parse(n.textContent).pending||0);}).observe(n,{childList:true,subtree:true,characterData:true});});
  }
- async function stop(){if(app){await app.close();app=null;const result=await exit;evidence.exits.push(result);expect(result).toEqual({code:0,signal:null});}}
+ async function stop(){if(app){const result=await stopOwnedElectron({app,exit});app=null;evidence.exits.push(result);
+  if(evidence.passed||evidence.cycles.length===6)expect(result).toEqual({code:0,signal:null,forced:false});}}
  try{
   await launch();evidence.empty=await sample();await progress('empty');
   for(let cycle=0;cycle<6;cycle++){
@@ -91,5 +93,5 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source===resumed.replace('continued','continue')).toBe(true);await p.locator('#format-redo').click();await expect.poll(async()=>(await snap())?.source===resumed).toBe(true);
   evidence.restart={exact:true,continued:true,restoredHash:hash(Buffer.from(last.source)),sample:await sample()};expect(hash(await fs.readFile(original))).toBe(hash(bytes));expect(faults).toEqual([]);expect(network).toEqual([]);evidence.passed=true;
   console.log('soak-input-envelope:'+JSON.stringify({inputPacing:evidence.inputPacing,keyDelayMs:keyDelay,maxBurstUnits:evidence.maxBurstUnits,cycles:evidence.cycles.map(c=>({cycle:c.cycle,typingMs:c.typingMs,pendingPeak:c.pendingPeak,sourceSha256:c.sourceSha256})),restart:evidence.restart.exact}));
- }finally{await stop();await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,elapsedMs:Date.now()-evidence.startedAt,faults,network,artifacts:'only synthetic files in the named OS temporary directories; retained'},null,2));}
+ }finally{try{await stop();}finally{await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,elapsedMs:Date.now()-evidence.startedAt,faults,network,artifacts:'only synthetic files in the named OS temporary directories; retained'},null,2));}}
 });

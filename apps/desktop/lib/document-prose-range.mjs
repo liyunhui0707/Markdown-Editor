@@ -7,7 +7,7 @@ const paragraph=parts=>({type:'paragraph',content:articleNodes(parts)});
 // Only already-projected top-level prose. Reuse lexical article parts; for plain
 // soft wrapping retain the exact physical newline as a source-only space token.
 function proseParts(source,p,index){
- const block=p.blocks[index];if(!block||p.doc.content[index]?.type!=='paragraph')return null;
+ const block=p.blocks[index],node=p.doc.content[index];if(!block||!['paragraph','heading'].includes(node?.type))return null;
  if(block.article)return block.parts;
  const spans=p.spans.filter(s=>s.blockIndex===index),parts=[];let at=block.sourceFrom;
  if(!spans.length||spans.some(s=>s.itemIndex!==undefined||s.quoteIndex!==undefined||s.tableRow!==undefined||s.codeBlock))return null;
@@ -18,7 +18,9 @@ function proseParts(source,p,index){
   }
   parts.push({...span,frames});at=frames[0]?.to??span.sourceTo;
  }
- return renderArticleParts(parts,source)===source.slice(block.sourceFrom,block.sourceTo)?parts:null;
+ const raw=source.slice(block.sourceFrom,block.sourceTo),prefix=node.type==='heading'?raw.match(/^#{1,6}[ \t]+/)?.[0]:'';
+ if(prefix===undefined)return null;
+ return renderArticleParts(parts,source)===raw.slice(prefix.length)?parts:null;
 }
 // Coalesce only wrappers at the newly joined edge. Never normalize unrelated
 // adjacent emphasis/link runs elsewhere in either surviving paragraph.
@@ -51,7 +53,7 @@ export function mapProseRange(source,p,{from,to,insert},project){
  if(first<0||last<first||first===last&&!multiline||insert==='\n\n'&&from===to)return null;
  const blocks=p.blocks.slice(first,last+1),parts=blocks.map((_,i)=>proseParts(source,p,first+i));
  if(parts.some(p=>!p))return null;
- if(!blocks.some((b,i)=>b.article||parts[i].some(s=>s.textOffset!==undefined||s.frames.length)))return null;
+ if(!blocks.some((b,i)=>p.doc.content[first+i].type==='heading'||b.article||parts[i].some(s=>s.textOffset!==undefined||s.frames.length)))return null;
  if(blocks.length>32||!insert.isWellFormed()||/[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert))return reject();
  const values=insert.split('\n\n');
  if(values.length>32||values.some(v=>v.includes('\n'))||multiline&&values.some(v=>!v.trim()))return reject();
@@ -62,8 +64,10 @@ export function mapProseRange(source,p,{from,to,insert},project){
  const selected=parts[0].find(s=>from>=s.from&&from<s.to)||{frames:[]};
  const groups=values.map(text=>text?[multiline?{text,frames:[]}:{...selected,text,raw:undefined,breakKind:undefined}]:[]);
  groups[0]=join(left[0],groups[0]);groups[groups.length-1]=join(groups.at(-1),right[1]);
- const raw=groups.map(v=>renderArticleParts(v,source)).join(delimiter);
- const expected=structuredClone(p.doc);expected.content.splice(first,blocks.length,...groups.map(paragraph));
+ const firstNode=p.doc.content[first],prefix=firstNode.type==='heading'?source.slice(blocks[0].sourceFrom,blocks[0].sourceTo).match(/^#{1,6}[ \t]+/)[0]:'';
+ const raw=prefix+groups.map(v=>renderArticleParts(v,source)).join(delimiter);
+ const expected=structuredClone(p.doc);expected.content.splice(first,blocks.length,...groups.map((parts,i)=>
+  i===0&&firstNode.type==='heading'?{type:'heading',attrs:{...firstNode.attrs},content:articleNodes(parts)}:paragraph(parts)));
  const next=source.slice(0,blocks[0].sourceFrom)+raw+source.slice(blocks.at(-1).sourceTo),patch=sourceEdits.sourceDifference(source,next);
  if(!patch.ok||patch.change.to-patch.change.from>4096||patch.change.insert.length>4096)return reject();
  const projection=project(next);if(JSON.stringify(canonical(expected))!==JSON.stringify(canonical(projection.doc)))return reject();

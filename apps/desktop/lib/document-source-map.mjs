@@ -1,4 +1,5 @@
 import {equalProjection} from './document-projection-equal.mjs';
+import {semanticPreview} from './document-semantic-preview.mjs';
 import {mapBoundarySpace,ordinarySpaceChangesEmphasis} from './document-boundary-space.mjs';
 import {projectComplexContainer,containerNodeAt} from './document-container-source.mjs';
 import {mapContainerRange} from './document-container-edit.mjs';
@@ -35,12 +36,18 @@ const validText = s => typeof s === 'string' && !/[\0\r\n]/.test(s)
   && s.isWellFormed();
 const splits = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
 
-export function projectSource(source) {
+export function projectSource(source, spliceHint) {
   if (typeof source !== 'string' || source.length > MAX_SOURCE_UNITS) throw Error('Unsupported source');
-  const tree = parse(source), content = [], spans = [], blocks = [];
+  const tree = parse(source,spliceHint), content = [], spans = [], blocks = [];
+  const definitions=new Map();
+  const definitionNodes=[...tree.children].reverse();
+  while(definitionNodes.length){const n=definitionNodes.pop();
+    if(n.type==='definition'&&!definitions.has(n.identifier.toLowerCase()))definitions.set(n.identifier.toLowerCase(),n);
+    if(n.children)for(let i=n.children.length-1;i>=0;i--)definitionNodes.push(n.children[i]);
+  }
   const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
-    ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
+    ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || 0 : 0;
   let position = 0, previousEnd = fm;
   // Nodes are visited in source order. Scan line boundaries once; two backward
   // searches per paragraph become quadratic when one newline kind is absent.
@@ -73,6 +80,7 @@ export function projectSource(source) {
   for (let node of tree.children) {
     let start = node.position.start.offset, end = node.position.end.offset;
     if (start < fm) { if (end > fm) { opaque(source.slice(fm, end)); previousEnd = end; } continue; }
+    if(node.type==='definition'){previousEnd=end;continue;}
     // An empty fence prefix can sit before the original file's final newline.
     // Keep that newline outside the cursor span, as for an ordinary paragraph.
     const terminalPrefix = node.type === 'code' && !node.value && end === source.length
@@ -165,7 +173,11 @@ export function projectSource(source) {
       emptyParagraph(!content.length ? 0 : previousEnd + gap[0].length + gap[1].length);
     }
     previousEnd = end;
-    if (!supported || !parts.length) { opaque(raw); continue; }
+    if (!supported || !parts.length) {
+      const preview=semanticPreview(node,definitions,source);
+      if(preview){blocks.push(null);content.push(preview);position++;}else opaque(raw);
+      continue;
+    }
     const blockIndex = content.length;
     const block = { type: node.type, ...(node.type === 'heading' ? { attrs: { level: node.depth } } : {}), content: [] };
     let offset = 0;
@@ -321,7 +333,7 @@ function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProject
   const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
   const next = source.slice(0, sourceFrom) + insert + source.slice(sourceTo);
   if (next.length > MAX_SOURCE_UNITS) return unsafe();
-  const nextProjection = projectSource(next);
+  const nextProjection = projectSource(next,{before:source,from:sourceFrom,to:sourceTo,insert});
   const expected = copyEditedBlock(projection.doc,span.blockIndex);
   if (span.textOffset !== undefined) {
     const node = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;

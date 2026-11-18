@@ -19,7 +19,8 @@ body[data-document-viewer] ::selection {background:#cbdbc5}
 #writing-app {height:100dvh;display:grid;grid-template-columns:228px minmax(0,1fr);isolation:isolate}
 #document-sidebar {background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;padding:0 12px}
 .sidebar-brand {display:flex;align-items:center;gap:12px;min-height:74px;padding:0 9px;font-size:16px}
-.brand-mark {font:700 25px Georgia,serif;color:var(--accent);letter-spacing:-2px;border-bottom:2px solid var(--accent);line-height:1.15;padding-bottom:3px}
+.brand-mark {display:flex;color:var(--accent);width:32px;height:36px;flex:none}
+body[data-document-viewer] .brand-mark svg {width:32px;height:36px;stroke-width:2.5}
 .sidebar-brand strong {font-weight:600;letter-spacing:-.4px}
 #close-session-sidebar {margin-left:auto;border:0;background:transparent;font-size:23px;padding:4px 8px;color:var(--muted)}
 #sidebar-actions {display:flex;gap:7px;margin:3px 4px 17px}
@@ -98,6 +99,12 @@ body[data-document-viewer] .tiptap pre code {font:inherit;background:none;paddin
 #copy-operation-alert[data-tone=neutral] {background:var(--panel);color:var(--muted);border-color:#a6b2a3}
 #viewer-status {position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 #viewer-status[data-notice] {position:static;display:block;width:calc(100% - 2 * var(--gutter));height:auto;clip-path:none;white-space:normal;max-width:var(--reading-width);margin:18px auto -12px;padding:12px 15px;background:#f5f0e5;border-radius:5px;color:#785d33;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
+.document-preview {position:relative;cursor:default}
+.document-preview:focus-visible {outline:1px solid var(--accent);outline-offset:6px}
+.document-preview hr {border:0;border-top:1px solid #d9ddd5;margin:1.8em 0}
+.document-preview blockquote {border-left:3px solid #d9ddd5;margin:1em 0;padding-left:1.1em;color:#657067}
+.document-preview [data-document-link] {color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+#viewer-edit-source {margin-left:12px;border:0;background:transparent;color:inherit;text-decoration:underline;text-underline-offset:3px;padding:2px 4px;font:inherit;cursor:pointer}
 #empty-state {max-width:640px;margin:0 auto;padding:36px 32px 60px;display:flex;flex-direction:column;align-items:flex-start}
 body[data-document-viewer] .welcome-icon {width:30px;height:34px;color:#8c9c92;margin-bottom:28px;display:none}
 #empty-state .welcome-kicker {font-size:11px;letter-spacing:1px;color:var(--muted);margin:0 0 16px}

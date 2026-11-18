@@ -1,6 +1,6 @@
-# Project Roadmap — Markdown Vault App
+# Project Roadmap — Markora
 
-## Current direction (2026-11-17)
+## Current direction (2026-11-18)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -12,6 +12,28 @@ focused tests inside each batch rather than a new approval cycle for each contro
 The user approved the following **three delivery phases**, including all five
 remaining product limits. They are development commitments, not claims that the
 limits have already been removed.
+
+The older phase table below is historical. The 2026-11-18 release policy removes
+personal trial acceptance as a prerequisite; paid signing/notarization remains
+deferred. Current work follows the four quality stages immediately below.
+
+### Current batch — four quality stages and Markora, 0.82.0
+
+See the [approved TDD boundaries](audits/2026-11-18-writing-quality-plan.md).
+The accepted visual base and source-preserving architecture remain in place.
+
+| Stage | Deliverable |
+| --- | --- |
+| 1. Stable, quiet writing | Complete PM/schema comparison without disposable trees; independently checked exact splice hints; stable document title, concise protected-edit source action; bounded failed synthetic-test shutdown. Keep the unchanged raw-rate test and 64-entry protection. |
+| 2. Common semantic display | Inert read-only previews for rules, escapes/entities, autolinks/reference links and mixed quotes/lists, including nested definitions. HTML remains source; no automatic URL navigation or resource fetching. Exact editable spans stay separate. |
+| 3. Continuous authoring | Selected replacement/deletion and multi-paragraph plain paste across ordinary top-level prose and ATX headings; preserve first block type, lexical frames, newline spelling, exact inverses and full native PM equality. Existing container/table boundaries remain guarded and have lifecycle regression coverage. |
+| 4. Delivery and identity | Markora App/icon, companion 0.2.0, repository rename and canonical checkout at `/Users/liyunhui/Liyunhui/Github/Markora`; keep bundle/profile identity and `mdapp` compatibility. Full CI, artifact/install verification and release remain required. Other providers/filesystems are demand-led follow-up work, not newly granted save authority. |
+
+Local focused TDD and native-visible synthetic workflows are development evidence.
+The historical 0.81.0 raw-rate CI failure stays retained. A local successful raw
+run cannot alone close all CI, real IME, spoken feedback or sustained human-use
+questions. This batch does not require an App framework rewrite, paid account,
+new website or automatic updater.
 
 | Phase | Complete user outcome | Exit criteria / current position |
 | --- | --- | --- |
@@ -30,7 +52,7 @@ Keep one complete functional group per short branch/PR and the accepted visuals.
 | B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
 | C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
 
-### Current batch — document workflow consolidation, 0.81.0
+### Previous batch — document workflow consolidation, 0.81.0
 
 The user approved three connected groups: document lifecycle, input coordination
 and long-writing repair, then visual polish/full-flow acceptance. See the
@@ -48,7 +70,18 @@ raw-rate scenario; final full CI must confirm the resulting candidate, including
 passive-panel routing and existing file/provider workflows. No human writing,
 physical IME, VoiceOver or public-release acceptance is inferred from automation.
 
-2026-11-18 delivery continuation removes the vulnerable build-only builder chain using official Electron Packager/ASAR, retaining zero-advisory security gates and unchanged runtime sources. Complete full CI, merge/main synchronization, local and Air installation, then the user’s current-version real-input/VoiceOver/sustained-writing acceptance before formal 0.81.0 publication. Developer ID/notarization remains deferred; publish actual ad-hoc status and manual-update instructions.
+2026-11-18 delivery continuation removed the vulnerable build-only builder chain using official Electron Packager/ASAR, retaining zero-advisory security gates and unchanged runtime sources. The fixed 0.81.0 release passed PR/main CI and local/Air installation checks and is formally published. The user explicitly removed personal trial acceptance as a prerequisite for this and future releases; untested physical IME/VoiceOver/human writing remain untested. Developer ID/notarization remains deferred. The later documentation-only main run triggered queue protection in the unchanged raw near-capacity scenario and failed; preserve that result and prioritize a measured performance repair, not a slower test or a larger queue.
+
+### Local CLI/MCP companion and format inspection (2026-11-18)
+
+At the user's request, `integrations/markora` (originally `mdapp`) adds a separate Node companion for
+status, explicit file opening and exclusive Inbox creation followed by native
+open intent. No App framework, helper, profile or published binary changes.
+Its tests and local installation do not clear the existing App pressure failure.
+The format corpus also exposes protected-source fallback for rules, escapes,
+entities, autolinks and mixed quotes; preserving bytes is not full Markdown
+rendering support. Keep these findings distinct from the UI status-wording
+recommendations. See the [scoped report](audits/2026-11-18-cli-mcp-format-review.md).
 
 ### Previous batch — OneDrive local saving, 0.80.0
 

@@ -53,7 +53,10 @@ test('flat list marker variants keep unmodified spelling; unsupported syntax rem
     assert.equal(format(source,'paragraph','First').source,'First'+nl+nl+'Second'+nl);
   }
   assert.equal(projectSource('- a\n\n  second paragraph').doc.content[0].content[0].content.length,2);
-  for(const source of ['- a\n  lazy\ncontinuation','- [**link &amp;**](x)','- ``code``']) assert.equal(projectSource(source).doc.content[0].type,'codeBlock',source);
+  for(const source of ['- a\n  lazy\ncontinuation','- [**link &amp;**](x)','- ``code``']) {
+    const p=projectSource(source);assert.equal(p.doc.content[0].type,'documentPreview',source);
+    assert.equal(p.spans.length,0);assert.equal(mapTextEdit(source,{from:0,to:1,insert:'x'}).ok,false);
+  }
 });
 test('format source inverse exactly restores accepted byte ranges over a small boundary matrix',()=>{
   let accepted=0;

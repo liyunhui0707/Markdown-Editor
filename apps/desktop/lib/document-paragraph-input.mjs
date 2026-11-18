@@ -18,7 +18,7 @@ export function replaceParagraphRangeInput(view, event, { state, blocked = false
     && selection.$from.node(selection.$from.depth-1) !== selection.$to.node(selection.$to.depth-1)
     && selection.$to.parent.type.name === 'paragraph';
   const crossProse=selection.$from.depth===1&&selection.$to.depth===1
-    &&selection.$from.parent.type.name==='paragraph'&&selection.$to.parent.type.name==='paragraph'
+    &&['paragraph','heading'].includes(selection.$from.parent.type.name)&&['paragraph','heading'].includes(selection.$to.parent.type.name)
     &&!selection.$from.sameParent(selection.$to);
   const crossQuote=selection.$from.depth>1&&selection.$from.depth===selection.$to.depth
     &&selection.$from.node(selection.$from.depth-1)===selection.$to.node(selection.$to.depth-1)

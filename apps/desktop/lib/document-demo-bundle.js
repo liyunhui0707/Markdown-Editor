@@ -6345,6 +6345,63 @@
     return true;
   }
 
+  // lib/document-semantic-preview.mjs
+  var tags = /* @__PURE__ */ new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "s", "code", "pre", "br", "hr", "blockquote", "ul", "ol", "li", "span", "table", "thead", "tbody", "tr", "th", "td"]);
+  function previewDOMSpec(tree) {
+    if (typeof tree === "string") return tree;
+    if (!tree || !tags.has(tree.tag) || !Array.isArray(tree.children)) return ["span", {}, "\u65E0\u6CD5\u9884\u89C8\uFF0C\u8BF7\u67E5\u770B\u6E90\u7801"];
+    const attrs = {};
+    if (typeof tree.title === "string") attrs.title = tree.title;
+    if (tree.link) attrs["data-document-link"] = "";
+    if (tree.tag === "ol" && Number.isSafeInteger(tree.start) && tree.start >= 0) attrs.start = tree.start;
+    return [tree.tag, attrs, ...tree.children.map(previewDOMSpec)];
+  }
+  function semanticPreview(node2, definitions, source) {
+    if (!["paragraph", "heading", "blockquote", "list", "table", "thematicBreak"].includes(node2.type)) return null;
+    if (node2.type === "paragraph" && (/^:::/.test(source.slice(node2.position.start.offset, node2.position.end.offset)) || node2.children?.length === 1 && ["image", "imageReference"].includes(node2.children[0].type))) return null;
+    function convert2(n, depth2 = 0) {
+      if (depth2 > 32) return null;
+      if (n.type === "definition") return { tag: "span", children: [] };
+      if (n.type === "text") return n.value;
+      if (n.type === "inlineCode") return { tag: "code", children: [n.value] };
+      if (n.type === "code") return { tag: "pre", children: [{ tag: "code", children: [n.value] }] };
+      if (n.type === "break") return { tag: "br", children: [] };
+      if (n.type === "thematicBreak") return { tag: "hr", children: [] };
+      if (n.type === "image" || n.type === "imageReference") return { tag: "span", title: "\u56FE\u7247\u5F15\u7528\u672A\u81EA\u52A8\u52A0\u8F7D", children: ["[\u56FE\u7247\uFF1A" + (n.alt || "") + "]"] };
+      let tag = {
+        paragraph: "p",
+        heading: "h" + n.depth,
+        strong: "strong",
+        emphasis: "em",
+        delete: "s",
+        blockquote: "blockquote",
+        list: n.ordered ? "ol" : "ul",
+        listItem: "li",
+        link: "span",
+        linkReference: "span",
+        table: "table",
+        tableRow: "tr",
+        tableCell: "td"
+      }[n.type];
+      if (!tag || !Array.isArray(n.children)) return null;
+      const children = n.children.map((c) => convert2(c, depth2 + 1));
+      if (children.some((c) => c === null)) return null;
+      const tree2 = { tag, children };
+      if (n.type === "list" && n.ordered) tree2.start = n.start ?? 1;
+      if (n.type === "listItem" && typeof n.checked === "boolean") tree2.children.unshift(n.checked ? "\u2611 " : "\u2610 ");
+      if (n.type === "link" || n.type === "linkReference") {
+        const target = n.type === "link" ? n : definitions.get(n.identifier.toLowerCase());
+        if (!target) return null;
+        tree2.title = target.url + (target.title ? " \u2014 " + target.title : "");
+        tree2.link = true;
+      }
+      return tree2;
+    }
+    const tree = convert2(node2);
+    if (!tree) return null;
+    return { type: "documentPreview", attrs: { kind: node2.type === "thematicBreak" ? "horizontalRule" : node2.type, tree } };
+  }
+
   // lib/document-inline-leaf.mjs
   function projectInlineLeaf(child, source) {
     const bold = child.type === "strong", italic = child.type === "emphasis", code3 = child.type === "inlineCode", link2 = child.type === "link";
@@ -16875,8 +16932,8 @@
   var reject3 = () => ({ ok: false, code: "unsafe-source-range" });
   var paragraph3 = (parts) => ({ type: "paragraph", content: nodes(parts) });
   function proseParts(source, p, index2) {
-    const block = p.blocks[index2];
-    if (!block || p.doc.content[index2]?.type !== "paragraph") return null;
+    const block = p.blocks[index2], node2 = p.doc.content[index2];
+    if (!block || !["paragraph", "heading"].includes(node2?.type)) return null;
     if (block.article) return block.parts;
     const spans = p.spans.filter((s) => s.blockIndex === index2), parts = [];
     let at = block.sourceFrom;
@@ -16884,14 +16941,16 @@
     for (const span of spans) {
       const frames = inlineFrames(span, source), start = frames[0]?.from ?? span.sourceFrom;
       if (span.textOffset !== void 0 && start !== at) {
-        const raw = source.slice(at, start);
-        if (!/^(?:\r\n|\n|\r)$/.test(raw)) return null;
-        parts.push({ text: " ", raw, breakKind: "soft", frames: [], from: span.from - 1, to: span.from });
+        const raw2 = source.slice(at, start);
+        if (!/^(?:\r\n|\n|\r)$/.test(raw2)) return null;
+        parts.push({ text: " ", raw: raw2, breakKind: "soft", frames: [], from: span.from - 1, to: span.from });
       }
       parts.push({ ...span, frames });
       at = frames[0]?.to ?? span.sourceTo;
     }
-    return render(parts, source) === source.slice(block.sourceFrom, block.sourceTo) ? parts : null;
+    const raw = source.slice(block.sourceFrom, block.sourceTo), prefix2 = node2.type === "heading" ? raw.match(/^#{1,6}[ \t]+/)?.[0] : "";
+    if (prefix2 === void 0) return null;
+    return render(parts, source) === raw.slice(prefix2.length) ? parts : null;
   }
   function join3(left, right) {
     const a = left.at(-1), b = right[0];
@@ -16920,7 +16979,7 @@
     if (first2 < 0 || last < first2 || first2 === last && !multiline || insert2 === "\n\n" && from2 === to) return null;
     const blocks = p.blocks.slice(first2, last + 1), parts = blocks.map((_, i) => proseParts(source, p, first2 + i));
     if (parts.some((p2) => !p2)) return null;
-    if (!blocks.some((b, i) => b.article || parts[i].some((s) => s.textOffset !== void 0 || s.frames.length))) return null;
+    if (!blocks.some((b, i) => p.doc.content[first2 + i].type === "heading" || b.article || parts[i].some((s) => s.textOffset !== void 0 || s.frames.length))) return null;
     if (blocks.length > 32 || !insert2.isWellFormed() || /[\x00-\x09\x0b-\x1f\x7f\u2028\u2029]/u.test(insert2)) return reject3();
     const values2 = insert2.split("\n\n");
     if (values2.length > 32 || values2.some((v) => v.includes("\n")) || multiline && values2.some((v) => !v.trim())) return reject3();
@@ -16932,9 +16991,10 @@
     const groups = values2.map((text5) => text5 ? [multiline ? { text: text5, frames: [] } : { ...selected2, text: text5, raw: void 0, breakKind: void 0 }] : []);
     groups[0] = join3(left[0], groups[0]);
     groups[groups.length - 1] = join3(groups.at(-1), right[1]);
-    const raw = groups.map((v) => render(v, source)).join(delimiter);
+    const firstNode = p.doc.content[first2], prefix2 = firstNode.type === "heading" ? source.slice(blocks[0].sourceFrom, blocks[0].sourceTo).match(/^#{1,6}[ \t]+/)[0] : "";
+    const raw = prefix2 + groups.map((v) => render(v, source)).join(delimiter);
     const expected = structuredClone(p.doc);
-    expected.content.splice(first2, blocks.length, ...groups.map(paragraph3));
+    expected.content.splice(first2, blocks.length, ...groups.map((parts2, i) => i === 0 && firstNode.type === "heading" ? { type: "heading", attrs: { ...firstNode.attrs }, content: nodes(parts2) } : paragraph3(parts2)));
     const next = source.slice(0, blocks[0].sourceFrom) + raw + source.slice(blocks.at(-1).sourceTo), patch2 = import_document_source_edit.default.sourceDifference(source, next);
     if (!patch2.ok || patch2.change.to - patch2.change.from > 4096 || patch2.change.insert.length > 4096) return reject3();
     const projection = project(next);
@@ -17648,14 +17708,20 @@
       }
       return Object.freeze(copy2);
     }
-    function local(source, previous3) {
+    function local(source, previous3, hint) {
       if (!previous3 || source.length < 8192) return null;
       const [before, tree] = previous3;
       let from2 = 0, to = before.length, end = source.length;
-      while (from2 < to && from2 < end && before[from2] === source[from2]) from2++;
-      while (to > from2 && end > from2 && before[to - 1] === source[end - 1]) {
-        to--;
-        end--;
+      if (hint?.before === before && Number.isSafeInteger(hint.from) && Number.isSafeInteger(hint.to) && hint.from >= 0 && hint.to >= hint.from && hint.to <= before.length && typeof hint.insert === "string" && before.slice(0, hint.from) + hint.insert + before.slice(hint.to) === source) {
+        from2 = hint.from;
+        to = hint.to;
+        end = from2 + hint.insert.length;
+      } else {
+        while (from2 < to && from2 < end && before[from2] === source[from2]) from2++;
+        while (to > from2 && end > from2 && before[to - 1] === source[end - 1]) {
+          to--;
+          end--;
+        }
       }
       const index2 = tree.children.findIndex((node3) => node3.position.start.offset <= from2 && node3.position.end.offset >= to);
       if (index2 < 0) return null;
@@ -17697,7 +17763,7 @@
         position: Object.freeze({ start: tree.position.start, end: freezePoint(shift2(tree.position.end)) })
       });
     }
-    return (source) => {
+    return (source, hint) => {
       if (cached.has(source)) {
         const tree2 = cached.get(source);
         cached.delete(source);
@@ -17706,7 +17772,7 @@
       }
       let reused;
       try {
-        reused = local(source, [...cached].at(-1));
+        reused = local(source, [...cached].at(-1), hint);
       } catch {
       }
       const tree = freezeGraph(reused || parseFull(source));
@@ -17817,14 +17883,21 @@
   var unsafe = () => ({ ok: false, code: "unsafe-source-range" });
   var validText2 = (s) => typeof s === "string" && !/[\0\r\n]/.test(s) && s.isWellFormed();
   var splits2 = (s, n) => n > 0 && n < s.length && /[\uD800-\uDBFF]/.test(s[n - 1]) && /[\uDC00-\uDFFF]/.test(s[n]);
-  function projectSource(source) {
+  function projectSource(source, spliceHint) {
     if (typeof source !== "string" || source.length > MAX_SOURCE_UNITS4) throw Error("Unsupported source");
-    const tree = parse2(source), content5 = [], spans = [], blocks = [];
+    const tree = parse2(source, spliceHint), content5 = [], spans = [], blocks = [];
+    const definitions = /* @__PURE__ */ new Map();
+    const definitionNodes = [...tree.children].reverse();
+    while (definitionNodes.length) {
+      const n = definitionNodes.pop();
+      if (n.type === "definition" && !definitions.has(n.identifier.toLowerCase())) definitions.set(n.identifier.toLowerCase(), n);
+      if (n.children) for (let i = n.children.length - 1; i >= 0; i--) definitionNodes.push(n.children[i]);
+    }
     const lines = (text5) => {
       const tokens = text5.match(/\r\n|\n|\r/g) || [];
       return tokens.join("") === text5 ? tokens : [];
     };
-    const fm = /^---(?:\r\n|\n|\r)/.test(source) ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || source.length : 0;
+    const fm = /^---(?:\r\n|\n|\r)/.test(source) ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || 0 : 0;
     let position2 = 0, previousEnd = fm;
     const newline3 = /[\r\n]/g;
     let boundary = newline3.exec(source), lineStart = 0;
@@ -17869,6 +17942,10 @@
           opaque(source.slice(fm, end));
           previousEnd = end;
         }
+        continue;
+      }
+      if (node2.type === "definition") {
+        previousEnd = end;
         continue;
       }
       const terminalPrefix = node2.type === "code" && !node2.value && end === source.length && source.slice(start, end).match(/^(```[A-Za-z0-9_+-]{0,32})(\r\n|\n|\r)$/);
@@ -17976,7 +18053,12 @@
       }
       previousEnd = end;
       if (!supported || !parts.length) {
-        opaque(raw);
+        const preview = semanticPreview(node2, definitions, source);
+        if (preview) {
+          blocks.push(null);
+          content5.push(preview);
+          position2++;
+        } else opaque(raw);
         continue;
       }
       const blockIndex = content5.length;
@@ -18158,7 +18240,7 @@
     const sourceFrom = span.sourceFrom + a, sourceTo = span.sourceFrom + b;
     const next = source.slice(0, sourceFrom) + insert2 + source.slice(sourceTo);
     if (next.length > MAX_SOURCE_UNITS4) return unsafe();
-    const nextProjection = projectSource(next);
+    const nextProjection = projectSource(next, { before: source, from: sourceFrom, to: sourceTo, insert: insert2 });
     const expected = copyEditedBlock(projection.doc, span.blockIndex);
     if (span.textOffset !== void 0) {
       const node2 = expected.content[span.blockIndex].content[span.childIndex], at = span.textOffset;
@@ -18555,6 +18637,10 @@
   }
 
   // lib/document-file-presentation.mjs
+  function fileWindowTitle(current) {
+    if (!current) return "Markora";
+    return current.label + (current.temporary ? current.linkedFile ? "" : " \u2014 \u8349\u7A3F" : " \u2014 \u53EA\u8BFB");
+  }
   function filePresentation(current, state) {
     if (!current) return { label: "\u672A\u6253\u5F00\u6587\u6863", kind: "\u672A\u6253\u5F00\u6587\u6863", location: "" };
     const file = current.linkedFile, o = current.originalSave;
@@ -41223,9 +41309,9 @@
   function styleTags(spec) {
     let byName = /* @__PURE__ */ Object.create(null);
     for (let prop in spec) {
-      let tags3 = spec[prop];
-      if (!Array.isArray(tags3))
-        tags3 = [tags3];
+      let tags4 = spec[prop];
+      if (!Array.isArray(tags4))
+        tags4 = [tags4];
       for (let part of prop.split(" "))
         if (part) {
           let pieces = [], mode = 2, rest = part;
@@ -41253,7 +41339,7 @@
           let last = pieces.length - 1, inner = pieces[last];
           if (!inner)
             throw new RangeError("Invalid path: " + part);
-          let rule = new Rule(tags3, mode, last > 0 ? pieces.slice(0, last) : null);
+          let rule = new Rule(tags4, mode, last > 0 ? pieces.slice(0, last) : null);
           byName[inner] = rule.sort(byName[inner]);
         }
     }
@@ -41283,8 +41369,8 @@
     }
   });
   var Rule = class {
-    constructor(tags3, mode, context, next) {
-      this.tags = tags3;
+    constructor(tags4, mode, context, next) {
+      this.tags = tags4;
       this.mode = mode;
       this.context = context;
       this.next = next;
@@ -41308,9 +41394,9 @@
     }
   };
   Rule.empty = new Rule([], 2, null);
-  function tagHighlighter(tags3, options) {
+  function tagHighlighter(tags4, options) {
     let map4 = /* @__PURE__ */ Object.create(null);
-    for (let style2 of tags3) {
+    for (let style2 of tags4) {
       if (!Array.isArray(style2.tag))
         map4[style2.tag.id] = style2.class;
       else
@@ -41319,9 +41405,9 @@
     }
     let { scope, all: all2 = null } = options || {};
     return {
-      style: (tags4) => {
+      style: (tags5) => {
         let cls = all2;
-        for (let tag of tags4) {
+        for (let tag of tags5) {
           for (let sub of tag.set) {
             let tagClass = map4[sub.id];
             if (tagClass) {
@@ -41335,10 +41421,10 @@
       scope
     };
   }
-  function highlightTags(highlighters, tags3) {
+  function highlightTags(highlighters, tags4) {
     let result = null;
     for (let highlighter of highlighters) {
-      let value = highlighter.style(tags3);
+      let value = highlighter.style(tags4);
       if (value)
         result = result ? result + " " + value : value;
     }
@@ -41450,7 +41536,7 @@
   var punctuation = t();
   var bracket = t(punctuation);
   var meta = t();
-  var tags = {
+  var tags2 = {
     /**
     A comment.
     */
@@ -41816,42 +41902,42 @@
     */
     special: Tag.defineModifier("special")
   };
-  for (let name2 in tags) {
-    let val = tags[name2];
+  for (let name2 in tags2) {
+    let val = tags2[name2];
     if (val instanceof Tag)
       val.name = name2;
   }
   var classHighlighter = tagHighlighter([
-    { tag: tags.link, class: "tok-link" },
-    { tag: tags.heading, class: "tok-heading" },
-    { tag: tags.emphasis, class: "tok-emphasis" },
-    { tag: tags.strong, class: "tok-strong" },
-    { tag: tags.keyword, class: "tok-keyword" },
-    { tag: tags.atom, class: "tok-atom" },
-    { tag: tags.bool, class: "tok-bool" },
-    { tag: tags.url, class: "tok-url" },
-    { tag: tags.labelName, class: "tok-labelName" },
-    { tag: tags.inserted, class: "tok-inserted" },
-    { tag: tags.deleted, class: "tok-deleted" },
-    { tag: tags.literal, class: "tok-literal" },
-    { tag: tags.string, class: "tok-string" },
-    { tag: tags.number, class: "tok-number" },
-    { tag: [tags.regexp, tags.escape, tags.special(tags.string)], class: "tok-string2" },
-    { tag: tags.variableName, class: "tok-variableName" },
-    { tag: tags.local(tags.variableName), class: "tok-variableName tok-local" },
-    { tag: tags.definition(tags.variableName), class: "tok-variableName tok-definition" },
-    { tag: tags.special(tags.variableName), class: "tok-variableName2" },
-    { tag: tags.definition(tags.propertyName), class: "tok-propertyName tok-definition" },
-    { tag: tags.typeName, class: "tok-typeName" },
-    { tag: tags.namespace, class: "tok-namespace" },
-    { tag: tags.className, class: "tok-className" },
-    { tag: tags.macroName, class: "tok-macroName" },
-    { tag: tags.propertyName, class: "tok-propertyName" },
-    { tag: tags.operator, class: "tok-operator" },
-    { tag: tags.comment, class: "tok-comment" },
-    { tag: tags.meta, class: "tok-meta" },
-    { tag: tags.invalid, class: "tok-invalid" },
-    { tag: tags.punctuation, class: "tok-punctuation" }
+    { tag: tags2.link, class: "tok-link" },
+    { tag: tags2.heading, class: "tok-heading" },
+    { tag: tags2.emphasis, class: "tok-emphasis" },
+    { tag: tags2.strong, class: "tok-strong" },
+    { tag: tags2.keyword, class: "tok-keyword" },
+    { tag: tags2.atom, class: "tok-atom" },
+    { tag: tags2.bool, class: "tok-bool" },
+    { tag: tags2.url, class: "tok-url" },
+    { tag: tags2.labelName, class: "tok-labelName" },
+    { tag: tags2.inserted, class: "tok-inserted" },
+    { tag: tags2.deleted, class: "tok-deleted" },
+    { tag: tags2.literal, class: "tok-literal" },
+    { tag: tags2.string, class: "tok-string" },
+    { tag: tags2.number, class: "tok-number" },
+    { tag: [tags2.regexp, tags2.escape, tags2.special(tags2.string)], class: "tok-string2" },
+    { tag: tags2.variableName, class: "tok-variableName" },
+    { tag: tags2.local(tags2.variableName), class: "tok-variableName tok-local" },
+    { tag: tags2.definition(tags2.variableName), class: "tok-variableName tok-definition" },
+    { tag: tags2.special(tags2.variableName), class: "tok-variableName2" },
+    { tag: tags2.definition(tags2.propertyName), class: "tok-propertyName tok-definition" },
+    { tag: tags2.typeName, class: "tok-typeName" },
+    { tag: tags2.namespace, class: "tok-namespace" },
+    { tag: tags2.className, class: "tok-className" },
+    { tag: tags2.macroName, class: "tok-macroName" },
+    { tag: tags2.propertyName, class: "tok-propertyName" },
+    { tag: tags2.operator, class: "tok-operator" },
+    { tag: tags2.comment, class: "tok-comment" },
+    { tag: tags2.meta, class: "tok-meta" },
+    { tag: tags2.invalid, class: "tok-invalid" },
+    { tag: tags2.punctuation, class: "tok-punctuation" }
   ]);
 
   // node_modules/@codemirror/language/dist/index.js
@@ -42834,80 +42920,80 @@
   }));
   var defaultHighlightStyle = /* @__PURE__ */ HighlightStyle.define([
     {
-      tag: tags.meta,
+      tag: tags2.meta,
       color: "#404740"
     },
     {
-      tag: tags.link,
+      tag: tags2.link,
       textDecoration: "underline"
     },
     {
-      tag: tags.heading,
+      tag: tags2.heading,
       textDecoration: "underline",
       fontWeight: "bold"
     },
     {
-      tag: tags.emphasis,
+      tag: tags2.emphasis,
       fontStyle: "italic"
     },
     {
-      tag: tags.strong,
+      tag: tags2.strong,
       fontWeight: "bold"
     },
     {
-      tag: tags.strikethrough,
+      tag: tags2.strikethrough,
       textDecoration: "line-through"
     },
     {
-      tag: tags.keyword,
+      tag: tags2.keyword,
       color: "#708"
     },
     {
-      tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
+      tag: [tags2.atom, tags2.bool, tags2.url, tags2.contentSeparator, tags2.labelName],
       color: "#219"
     },
     {
-      tag: [tags.literal, tags.inserted],
+      tag: [tags2.literal, tags2.inserted],
       color: "#164"
     },
     {
-      tag: [tags.string, tags.deleted],
+      tag: [tags2.string, tags2.deleted],
       color: "#a11"
     },
     {
-      tag: [tags.regexp, tags.escape, /* @__PURE__ */ tags.special(tags.string)],
+      tag: [tags2.regexp, tags2.escape, /* @__PURE__ */ tags2.special(tags2.string)],
       color: "#e40"
     },
     {
-      tag: /* @__PURE__ */ tags.definition(tags.variableName),
+      tag: /* @__PURE__ */ tags2.definition(tags2.variableName),
       color: "#00f"
     },
     {
-      tag: /* @__PURE__ */ tags.local(tags.variableName),
+      tag: /* @__PURE__ */ tags2.local(tags2.variableName),
       color: "#30a"
     },
     {
-      tag: [tags.typeName, tags.namespace],
+      tag: [tags2.typeName, tags2.namespace],
       color: "#085"
     },
     {
-      tag: tags.className,
+      tag: tags2.className,
       color: "#167"
     },
     {
-      tag: [/* @__PURE__ */ tags.special(tags.variableName), tags.macroName],
+      tag: [/* @__PURE__ */ tags2.special(tags2.variableName), tags2.macroName],
       color: "#256"
     },
     {
-      tag: /* @__PURE__ */ tags.definition(tags.propertyName),
+      tag: /* @__PURE__ */ tags2.definition(tags2.propertyName),
       color: "#00c"
     },
     {
-      tag: tags.comment,
+      tag: tags2.comment,
       color: "#940"
     },
     {
-      tag: tags.invalid,
+      tag: tags2.invalid,
       color: "#f00"
     }
   ]);
@@ -43030,7 +43116,7 @@
     for (let name3 of tagStr.split(" ")) {
       let found2 = [];
       for (let part of name3.split(".")) {
-        let value = extra[part] || tags[part];
+        let value = extra[part] || tags2[part];
         if (!value) {
           warnForPart(part, `Unknown highlighting tag ${part}`);
         } else if (typeof value == "function") {
@@ -46367,28 +46453,28 @@
     return pos;
   }
   var markdownHighlighting = styleTags({
-    "Blockquote/...": tags.quote,
-    HorizontalRule: tags.contentSeparator,
-    "ATXHeading1/... SetextHeading1/...": tags.heading1,
-    "ATXHeading2/... SetextHeading2/...": tags.heading2,
-    "ATXHeading3/...": tags.heading3,
-    "ATXHeading4/...": tags.heading4,
-    "ATXHeading5/...": tags.heading5,
-    "ATXHeading6/...": tags.heading6,
-    "Comment CommentBlock": tags.comment,
-    Escape: tags.escape,
-    Entity: tags.character,
-    "Emphasis/...": tags.emphasis,
-    "StrongEmphasis/...": tags.strong,
-    "Link/... Image/...": tags.link,
-    "OrderedList/... BulletList/...": tags.list,
-    "BlockQuote/...": tags.quote,
-    "InlineCode CodeText": tags.monospace,
-    "URL Autolink": tags.url,
-    "HeaderMark HardBreak QuoteMark ListMark LinkMark EmphasisMark CodeMark": tags.processingInstruction,
-    "CodeInfo LinkLabel": tags.labelName,
-    LinkTitle: tags.string,
-    Paragraph: tags.content
+    "Blockquote/...": tags2.quote,
+    HorizontalRule: tags2.contentSeparator,
+    "ATXHeading1/... SetextHeading1/...": tags2.heading1,
+    "ATXHeading2/... SetextHeading2/...": tags2.heading2,
+    "ATXHeading3/...": tags2.heading3,
+    "ATXHeading4/...": tags2.heading4,
+    "ATXHeading5/...": tags2.heading5,
+    "ATXHeading6/...": tags2.heading6,
+    "Comment CommentBlock": tags2.comment,
+    Escape: tags2.escape,
+    Entity: tags2.character,
+    "Emphasis/...": tags2.emphasis,
+    "StrongEmphasis/...": tags2.strong,
+    "Link/... Image/...": tags2.link,
+    "OrderedList/... BulletList/...": tags2.list,
+    "BlockQuote/...": tags2.quote,
+    "InlineCode CodeText": tags2.monospace,
+    "URL Autolink": tags2.url,
+    "HeaderMark HardBreak QuoteMark ListMark LinkMark EmphasisMark CodeMark": tags2.processingInstruction,
+    "CodeInfo LinkLabel": tags2.labelName,
+    LinkTitle: tags2.string,
+    Paragraph: tags2.content
   });
   var parser3 = new MarkdownParser(new NodeSet(nodeTypes).extend(markdownHighlighting), Object.keys(DefaultBlockParsers).map((n) => DefaultBlockParsers[n]), Object.keys(DefaultBlockParsers).map((n) => DefaultLeafBlocks[n]), Object.keys(DefaultBlockParsers), DefaultEndLeaf, DefaultSkipMarkup, Object.keys(DefaultInline).map((n) => DefaultInline[n]), Object.keys(DefaultInline), []);
   function leftOverSpace(node2, from2, to) {
@@ -46428,10 +46514,10 @@
   var Strikethrough = {
     defineNodes: [{
       name: "Strikethrough",
-      style: { "Strikethrough/...": tags.strikethrough }
+      style: { "Strikethrough/...": tags2.strikethrough }
     }, {
       name: "StrikethroughMark",
-      style: tags.processingInstruction
+      style: tags2.processingInstruction
     }],
     parseInline: [{
       name: "Strikethrough",
@@ -46521,10 +46607,10 @@
   var Table = {
     defineNodes: [
       { name: "Table", block: true },
-      { name: "TableHeader", style: { "TableHeader/...": tags.heading } },
+      { name: "TableHeader", style: { "TableHeader/...": tags2.heading } },
       "TableRow",
-      { name: "TableCell", style: tags.content },
-      { name: "TableDelimiter", style: tags.processingInstruction }
+      { name: "TableCell", style: tags2.content },
+      { name: "TableDelimiter", style: tags2.processingInstruction }
     ],
     parseBlock: [{
       name: "Table",
@@ -46554,8 +46640,8 @@
   };
   var TaskList = {
     defineNodes: [
-      { name: "Task", block: true, style: tags.list },
-      { name: "TaskMarker", style: tags.atom }
+      { name: "Task", block: true, style: tags2.list },
+      { name: "TaskMarker", style: tags2.atom }
     ],
     parseBlock: [{
       name: "TaskList",
@@ -46657,8 +46743,8 @@
   }
   var Superscript = {
     defineNodes: [
-      { name: "Superscript", style: tags.special(tags.content) },
-      { name: "SuperscriptMark", style: tags.processingInstruction }
+      { name: "Superscript", style: tags2.special(tags2.content) },
+      { name: "SuperscriptMark", style: tags2.processingInstruction }
     ],
     parseInline: [{
       name: "Superscript",
@@ -46667,8 +46753,8 @@
   };
   var Subscript = {
     defineNodes: [
-      { name: "Subscript", style: tags.special(tags.content) },
-      { name: "SubscriptMark", style: tags.processingInstruction }
+      { name: "Subscript", style: tags2.special(tags2.content) },
+      { name: "SubscriptMark", style: tags2.processingInstruction }
     ],
     parseInline: [{
       name: "Subscript",
@@ -46676,7 +46762,7 @@
     }]
   };
   var Emoji = {
-    defineNodes: [{ name: "Emoji", style: tags.character }],
+    defineNodes: [{ name: "Emoji", style: tags2.character }],
     parseInline: [{
       name: "Emoji",
       parse(cx, next, pos) {
@@ -48694,17 +48780,17 @@
   var styleTokens = contentTokenizer("style", styleText, StartCloseStyleTag);
   var textareaTokens = contentTokenizer("textarea", textareaText, StartCloseTextareaTag);
   var htmlHighlighting = styleTags({
-    "Text RawText IncompleteTag IncompleteCloseTag": tags.content,
-    "StartTag StartCloseTag SelfClosingEndTag EndTag": tags.angleBracket,
-    TagName: tags.tagName,
-    "MismatchedCloseTag/TagName": [tags.tagName, tags.invalid],
-    AttributeName: tags.attributeName,
-    "AttributeValue UnquotedAttributeValue": tags.attributeValue,
-    Is: tags.definitionOperator,
-    "EntityReference CharacterReference": tags.character,
-    Comment: tags.blockComment,
-    ProcessingInst: tags.processingInstruction,
-    DoctypeDecl: tags.documentMeta
+    "Text RawText IncompleteTag IncompleteCloseTag": tags2.content,
+    "StartTag StartCloseTag SelfClosingEndTag EndTag": tags2.angleBracket,
+    TagName: tags2.tagName,
+    "MismatchedCloseTag/TagName": [tags2.tagName, tags2.invalid],
+    AttributeName: tags2.attributeName,
+    "AttributeValue UnquotedAttributeValue": tags2.attributeValue,
+    Is: tags2.definitionOperator,
+    "EntityReference CharacterReference": tags2.character,
+    Comment: tags2.blockComment,
+    ProcessingInst: tags2.processingInstruction,
+    DoctypeDecl: tags2.documentMeta
   });
   var parser4 = LRParser.deserialize({
     version: 14,
@@ -48741,17 +48827,17 @@
     let tagNameNode = openTag.getChild(TagName);
     return tagNameNode ? input.read(tagNameNode.from, tagNameNode.to) : " ";
   }
-  function maybeNest(node2, input, tags3) {
+  function maybeNest(node2, input, tags4) {
     let attrs;
-    for (let tag of tags3) {
+    for (let tag of tags4) {
       if (!tag.attrs || tag.attrs(attrs || (attrs = getAttrs2(node2.node.parent.firstChild, input))))
         return { parser: tag.parser, bracketed: true };
     }
     return null;
   }
-  function configureNesting(tags3 = [], attributes = []) {
+  function configureNesting(tags4 = [], attributes = []) {
     let script = [], style2 = [], textarea = [], other = [];
-    for (let tag of tags3) {
+    for (let tag of tags4) {
       let array = tag.tag == "script" ? script : tag.tag == "style" ? style2 : tag.tag == "textarea" ? textarea : other;
       array.push(tag);
     }
@@ -48908,38 +48994,38 @@
     }
   });
   var cssHighlighting = styleTags({
-    "AtKeyword import charset namespace keyframes media supports font-feature-values": tags.definitionKeyword,
-    "from to selector scope MatchFlag": tags.keyword,
-    NamespaceName: tags.namespace,
-    KeyframeName: tags.labelName,
-    KeyframeRangeName: tags.operatorKeyword,
-    TagName: tags.tagName,
-    ClassName: tags.className,
-    PseudoClassName: tags.constant(tags.className),
-    IdName: tags.labelName,
-    "FeatureName PropertyName": tags.propertyName,
-    AttributeName: tags.attributeName,
-    NumberLiteral: tags.number,
-    KeywordQuery: tags.keyword,
-    UnaryQueryOp: tags.operatorKeyword,
-    "CallTag ValueName FontName": tags.atom,
-    VariableName: tags.variableName,
-    Callee: tags.operatorKeyword,
-    Unit: tags.unit,
-    "UniversalSelector NestingSelector": tags.definitionOperator,
-    "MatchOp CompareOp": tags.compareOperator,
-    "ChildOp SiblingOp, LogicOp": tags.logicOperator,
-    BinOp: tags.arithmeticOperator,
-    Important: tags.modifier,
-    Comment: tags.blockComment,
-    ColorLiteral: tags.color,
-    "ParenthesizedContent StringLiteral": tags.string,
-    ":": tags.punctuation,
-    "PseudoOp #": tags.derefOperator,
-    "; , |": tags.separator,
-    "( )": tags.paren,
-    "[ ]": tags.squareBracket,
-    "{ }": tags.brace
+    "AtKeyword import charset namespace keyframes media supports font-feature-values": tags2.definitionKeyword,
+    "from to selector scope MatchFlag": tags2.keyword,
+    NamespaceName: tags2.namespace,
+    KeyframeName: tags2.labelName,
+    KeyframeRangeName: tags2.operatorKeyword,
+    TagName: tags2.tagName,
+    ClassName: tags2.className,
+    PseudoClassName: tags2.constant(tags2.className),
+    IdName: tags2.labelName,
+    "FeatureName PropertyName": tags2.propertyName,
+    AttributeName: tags2.attributeName,
+    NumberLiteral: tags2.number,
+    KeywordQuery: tags2.keyword,
+    UnaryQueryOp: tags2.operatorKeyword,
+    "CallTag ValueName FontName": tags2.atom,
+    VariableName: tags2.variableName,
+    Callee: tags2.operatorKeyword,
+    Unit: tags2.unit,
+    "UniversalSelector NestingSelector": tags2.definitionOperator,
+    "MatchOp CompareOp": tags2.compareOperator,
+    "ChildOp SiblingOp, LogicOp": tags2.logicOperator,
+    BinOp: tags2.arithmeticOperator,
+    Important: tags2.modifier,
+    Comment: tags2.blockComment,
+    ColorLiteral: tags2.color,
+    "ParenthesizedContent StringLiteral": tags2.string,
+    ":": tags2.punctuation,
+    "PseudoOp #": tags2.derefOperator,
+    "; , |": tags2.separator,
+    "( )": tags2.paren,
+    "[ ]": tags2.squareBracket,
+    "{ }": tags2.brace
   });
   var spec_callee = { __proto__: null, lang: 44, "nth-child": 44, "nth-last-child": 44, "nth-of-type": 44, "nth-last-of-type": 44, dir: 44, "host-context": 44, if: 90, url: 132, "url-prefix": 132, domain: 132, regexp: 132 };
   var spec_queryIdentifier = { __proto__: null, or: 104, and: 104, not: 112, only: 112, layer: 186 };
@@ -49618,7 +49704,7 @@
     "yellow",
     "yellowgreen"
   ].map((name2) => ({ type: "constant", label: name2 })));
-  var tags2 = /* @__PURE__ */ [
+  var tags3 = /* @__PURE__ */ [
     "a",
     "abbr",
     "address",
@@ -49792,7 +49878,7 @@
       for (let { parent } = node2; parent; parent = parent.parent)
         if (parent.name == "Block")
           return { from: node2.from, options: properties(), validFor: identifier2 };
-      return { from: node2.from, options: tags2, validFor: identifier2 };
+      return { from: node2.from, options: tags3, validFor: identifier2 };
     }
     if (node2.name == "AtKeyword")
       return { from: node2.from, options: atRules, validFor: identifier2 };
@@ -49956,62 +50042,62 @@
     input.acceptToken(JSXStartTag, -back);
   });
   var jsHighlight = styleTags({
-    "get set async static": tags.modifier,
-    "for while do if else switch try catch finally return throw break continue default case defer": tags.controlKeyword,
-    "in of await yield void typeof delete instanceof as satisfies": tags.operatorKeyword,
-    "let var const using function class extends": tags.definitionKeyword,
-    "import export from": tags.moduleKeyword,
-    "with debugger new": tags.keyword,
-    TemplateString: tags.special(tags.string),
-    super: tags.atom,
-    BooleanLiteral: tags.bool,
-    this: tags.self,
-    null: tags.null,
-    Star: tags.modifier,
-    VariableName: tags.variableName,
-    "CallExpression/VariableName TaggedTemplateExpression/VariableName": tags.function(tags.variableName),
-    VariableDefinition: tags.definition(tags.variableName),
-    Label: tags.labelName,
-    PropertyName: tags.propertyName,
-    PrivatePropertyName: tags.special(tags.propertyName),
-    "CallExpression/MemberExpression/PropertyName": tags.function(tags.propertyName),
-    "FunctionDeclaration/VariableDefinition": tags.function(tags.definition(tags.variableName)),
-    "ClassDeclaration/VariableDefinition": tags.definition(tags.className),
-    "NewExpression/VariableName": tags.className,
-    PropertyDefinition: tags.definition(tags.propertyName),
-    PrivatePropertyDefinition: tags.definition(tags.special(tags.propertyName)),
-    UpdateOp: tags.updateOperator,
-    "LineComment Hashbang": tags.lineComment,
-    BlockComment: tags.blockComment,
-    Number: tags.number,
-    String: tags.string,
-    Escape: tags.escape,
-    ArithOp: tags.arithmeticOperator,
-    LogicOp: tags.logicOperator,
-    BitOp: tags.bitwiseOperator,
-    CompareOp: tags.compareOperator,
-    RegExp: tags.regexp,
-    Equals: tags.definitionOperator,
-    Arrow: tags.function(tags.punctuation),
-    ": Spread": tags.punctuation,
-    "( )": tags.paren,
-    "[ ]": tags.squareBracket,
-    "{ }": tags.brace,
-    "InterpolationStart InterpolationEnd": tags.special(tags.brace),
-    ".": tags.derefOperator,
-    ", ;": tags.separator,
-    "@": tags.meta,
-    TypeName: tags.typeName,
-    TypeDefinition: tags.definition(tags.typeName),
-    "type enum interface implements namespace module declare": tags.definitionKeyword,
-    "abstract global Privacy readonly override": tags.modifier,
-    "is keyof unique infer asserts": tags.operatorKeyword,
-    JSXAttributeValue: tags.attributeValue,
-    JSXText: tags.content,
-    "JSXStartTag JSXStartCloseTag JSXSelfCloseEndTag JSXEndTag": tags.angleBracket,
-    "JSXIdentifier JSXNameSpacedName": tags.tagName,
-    "JSXAttribute/JSXIdentifier JSXAttribute/JSXNameSpacedName": tags.attributeName,
-    "JSXBuiltin/JSXIdentifier": tags.standard(tags.tagName)
+    "get set async static": tags2.modifier,
+    "for while do if else switch try catch finally return throw break continue default case defer": tags2.controlKeyword,
+    "in of await yield void typeof delete instanceof as satisfies": tags2.operatorKeyword,
+    "let var const using function class extends": tags2.definitionKeyword,
+    "import export from": tags2.moduleKeyword,
+    "with debugger new": tags2.keyword,
+    TemplateString: tags2.special(tags2.string),
+    super: tags2.atom,
+    BooleanLiteral: tags2.bool,
+    this: tags2.self,
+    null: tags2.null,
+    Star: tags2.modifier,
+    VariableName: tags2.variableName,
+    "CallExpression/VariableName TaggedTemplateExpression/VariableName": tags2.function(tags2.variableName),
+    VariableDefinition: tags2.definition(tags2.variableName),
+    Label: tags2.labelName,
+    PropertyName: tags2.propertyName,
+    PrivatePropertyName: tags2.special(tags2.propertyName),
+    "CallExpression/MemberExpression/PropertyName": tags2.function(tags2.propertyName),
+    "FunctionDeclaration/VariableDefinition": tags2.function(tags2.definition(tags2.variableName)),
+    "ClassDeclaration/VariableDefinition": tags2.definition(tags2.className),
+    "NewExpression/VariableName": tags2.className,
+    PropertyDefinition: tags2.definition(tags2.propertyName),
+    PrivatePropertyDefinition: tags2.definition(tags2.special(tags2.propertyName)),
+    UpdateOp: tags2.updateOperator,
+    "LineComment Hashbang": tags2.lineComment,
+    BlockComment: tags2.blockComment,
+    Number: tags2.number,
+    String: tags2.string,
+    Escape: tags2.escape,
+    ArithOp: tags2.arithmeticOperator,
+    LogicOp: tags2.logicOperator,
+    BitOp: tags2.bitwiseOperator,
+    CompareOp: tags2.compareOperator,
+    RegExp: tags2.regexp,
+    Equals: tags2.definitionOperator,
+    Arrow: tags2.function(tags2.punctuation),
+    ": Spread": tags2.punctuation,
+    "( )": tags2.paren,
+    "[ ]": tags2.squareBracket,
+    "{ }": tags2.brace,
+    "InterpolationStart InterpolationEnd": tags2.special(tags2.brace),
+    ".": tags2.derefOperator,
+    ", ;": tags2.separator,
+    "@": tags2.meta,
+    TypeName: tags2.typeName,
+    TypeDefinition: tags2.definition(tags2.typeName),
+    "type enum interface implements namespace module declare": tags2.definitionKeyword,
+    "abstract global Privacy readonly override": tags2.modifier,
+    "is keyof unique infer asserts": tags2.operatorKeyword,
+    JSXAttributeValue: tags2.attributeValue,
+    JSXText: tags2.content,
+    "JSXStartTag JSXStartCloseTag JSXSelfCloseEndTag JSXEndTag": tags2.angleBracket,
+    "JSXIdentifier JSXNameSpacedName": tags2.tagName,
+    "JSXAttribute/JSXIdentifier JSXAttribute/JSXNameSpacedName": tags2.attributeName,
+    "JSXBuiltin/JSXIdentifier": tags2.standard(tags2.tagName)
   });
   var spec_identifier2 = { __proto__: null, export: 20, as: 25, from: 33, default: 36, async: 41, function: 42, in: 52, out: 55, const: 56, extends: 60, this: 64, true: 72, false: 72, null: 84, void: 88, typeof: 92, super: 108, new: 142, delete: 154, yield: 163, await: 167, class: 172, public: 235, private: 235, protected: 235, readonly: 237, instanceof: 256, satisfies: 259, import: 292, keyof: 349, unique: 353, infer: 359, asserts: 395, is: 397, abstract: 417, implements: 419, type: 421, let: 424, var: 426, using: 429, interface: 435, enum: 439, namespace: 445, module: 447, declare: 451, global: 455, defer: 471, for: 476, of: 485, while: 488, with: 492, do: 496, if: 500, else: 502, switch: 506, case: 512, try: 518, catch: 522, finally: 526, return: 530, throw: 534, break: 538, continue: 542, debugger: 546 };
   var spec_word = { __proto__: null, async: 129, get: 131, set: 133, declare: 195, public: 197, private: 197, protected: 197, static: 199, abstract: 201, override: 203, readonly: 209, accessor: 211, new: 401 };
@@ -52556,13 +52642,13 @@
 
   // lib/document-source-editor.mjs
   var sourceHighlight = HighlightStyle.define([
-    { tag: [tags.keyword, tags.bool, tags.number, tags.url, tags.link], color: "var(--accent)" },
-    { tag: [tags.tagName, tags.attributeName, tags.string], color: "var(--ink)" },
-    { tag: [tags.comment, tags.meta, tags.processingInstruction], color: "var(--muted)" },
-    { tag: tags.heading, fontWeight: "600" },
-    { tag: tags.strong, fontWeight: "700" },
-    { tag: tags.emphasis, fontStyle: "italic" },
-    { tag: tags.strikethrough, textDecoration: "line-through" }
+    { tag: [tags2.keyword, tags2.bool, tags2.number, tags2.url, tags2.link], color: "var(--accent)" },
+    { tag: [tags2.tagName, tags2.attributeName, tags2.string], color: "var(--ink)" },
+    { tag: [tags2.comment, tags2.meta, tags2.processingInstruction], color: "var(--muted)" },
+    { tag: tags2.heading, fontWeight: "600" },
+    { tag: tags2.strong, fontWeight: "700" },
+    { tag: tags2.emphasis, fontStyle: "italic" },
+    { tag: tags2.strikethrough, textDecoration: "line-through" }
   ]);
   function createSourceEditor({ parent, source, selection = 0, changed = () => {
   }, rejected = () => {
@@ -58662,6 +58748,29 @@ img.ProseMirror-separator {
     ]
   });
 
+  // lib/document-preview-node.mjs
+  var DocumentPreview = Node2.create({
+    name: "documentPreview",
+    group: "block",
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes() {
+      return { kind: { default: "paragraph", rendered: false }, tree: { default: null, rendered: false } };
+    },
+    renderHTML({ node: node2 }) {
+      return ["section", {
+        "data-document-preview": "",
+        class: "document-preview",
+        contenteditable: "false",
+        role: "group",
+        "aria-readonly": "true",
+        "aria-label": "Markdown \u9884\u89C8\uFF1B\u901A\u8FC7\u6E90\u7801\u7F16\u8F91",
+        title: "\u6B64\u533A\u57DF\u4E3A\u53EA\u8BFB\u9884\u89C8\uFF0C\u53EF\u901A\u8FC7\u5DE5\u5177\u680F\u7684\u201C\u6E90\u7801\u201D\u7F16\u8F91\u3002"
+      }, previewDOMSpec(node2.attrs.tree)];
+    }
+  });
+
   // lib/document-table-nodes.mjs
   var Table2 = Node2.create({
     name: "table",
@@ -64030,7 +64139,7 @@ ${prefix2}
     return { ...this.parent?.(), sourceEditable: { default: false, rendered: false } };
   } });
   function documentEditorExtensions(onTaskToggle, imageNodeView = null) {
-    return [DocumentImage.configure({ nodeView: imageNodeView }), ...documentTableNodes, DocumentStarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
+    return [DocumentPreview, DocumentImage.configure({ nodeView: imageNodeView }), ...documentTableNodes, DocumentStarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
   }
 
   // lib/document-copy-actions-view.mjs
@@ -64432,6 +64541,73 @@ SHA-256: ${last.sha256}` : "";
   // lib/document-edit-controller.mjs
   var import_document_capacity19 = __toESM(require_document_capacity(), 1);
   var import_document_source_edit7 = __toESM(require_document_source_edit(), 1);
+
+  // lib/document-pm-projection.mjs
+  function sameValue(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a) && a.length !== b.length) return false;
+    const keys2 = Object.keys(a), other = Object.keys(b);
+    return keys2.length === other.length && keys2.every((k) => Object.hasOwn(b, k) && sameValue(a[k], b[k]));
+  }
+  function sameAttrs(actual, json, type) {
+    if (json != null && (typeof json !== "object" || Array.isArray(json))) return false;
+    if (json && Object.keys(json).some((k) => !Object.hasOwn(type.attrs, k))) return false;
+    for (const key2 of Object.keys(type.attrs)) {
+      const attribute = type.attrs[key2], value = json?.[key2] === void 0 ? attribute.default : json[key2];
+      if (!sameValue(actual[key2], value)) return false;
+    }
+    return true;
+  }
+  function markup(node2, json, schema) {
+    if (!node2 || !json || typeof json !== "object" || node2.type.schema !== schema || schema.nodes[json.type] !== node2.type) return false;
+    if (Object.keys(json).some((k) => !["type", "attrs", "marks", "text", "content"].includes(k))) return false;
+    let marks2 = json.marks ?? [];
+    if (!Array.isArray(marks2) || marks2.length !== node2.marks.length) return false;
+    let rank = -1, ordered = true;
+    for (const mark2 of marks2) {
+      const type = mark2 && schema.marks[mark2.type];
+      if (!type) return false;
+      if (type.rank < rank) ordered = false;
+      rank = type.rank;
+    }
+    if (!ordered) marks2 = marks2.slice().sort((a, b) => schema.marks[a.type].rank - schema.marks[b.type].rank);
+    for (let i = 0; i < marks2.length; i++) {
+      const mark2 = marks2[i], actual = node2.marks[i];
+      if (!mark2 || schema.marks[mark2.type] !== actual.type || !sameAttrs(actual.attrs, mark2.attrs, actual.type)) return false;
+    }
+    if (!sameAttrs(node2.attrs, json.attrs, node2.type)) return false;
+    return true;
+  }
+  function matchesPMProjection(node2, json, schema = node2?.type?.schema) {
+    if (!markup(node2, json, schema)) return false;
+    if (node2.isText) return typeof json.text === "string" && json.text === node2.text && json.content === void 0;
+    if (json.text !== void 0) return false;
+    const children = json.content === void 0 ? [] : json.content;
+    if (!Array.isArray(children)) return false;
+    let actualIndex = 0;
+    for (let i = 0; i < children.length; ) {
+      const actual = node2.maybeChild(actualIndex++), child = children[i];
+      if (!actual) return false;
+      if (child?.type !== "text") {
+        if (!matchesPMProjection(actual, child, schema)) return false;
+        i++;
+        continue;
+      }
+      if (!actual.isText || !markup(actual, child, schema)) return false;
+      let offset = 0;
+      do {
+        const part = children[i];
+        if (typeof part.text !== "string" || !part.text || part.content !== void 0 || !actual.text.startsWith(part.text, offset)) return false;
+        offset += part.text.length;
+        i++;
+      } while (i < children.length && children[i]?.type === "text" && markup(actual, children[i], schema));
+      if (offset !== actual.text.length) return false;
+    }
+    return actualIndex === node2.childCount;
+  }
+
+  // lib/document-edit-controller.mjs
   var { MAX_SOURCE_UNITS: MAX_SOURCE_UNITS12 } = import_document_capacity19.default;
   function transactionEdit(source, tr2) {
     if (!tr2.docChanged || tr2.steps.length !== 1) return null;
@@ -64457,7 +64633,7 @@ SHA-256: ${last.sha256}` : "";
     } else return null;
     const edit = { from: step.from, to: step.to, insert: insert2 };
     const mapped = mapTransactionTextEdit(source, edit), schema = tr2.doc.type.schema;
-    if (!mapped.ok || !tr2.before.eq(schema.nodeFromJSON(mapped.beforeDoc)) || !tr2.doc.eq(schema.nodeFromJSON(mapped.projection.doc))) return null;
+    if (!mapped.ok || !matchesPMProjection(tr2.before, mapped.beforeDoc, schema) || !matchesPMProjection(tr2.doc, mapped.projection.doc, schema)) return null;
     if (source.slice(mapped.change.from, mapped.change.to).length > 4096) return null;
     return { edit, source: mapped.source, structural: !!mapped.structural };
   }
@@ -64979,7 +65155,7 @@ SHA-256: ${last.sha256}` : "";
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject13("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u652F\u6301\u666E\u901A\u6BB5\u843D\u3001\u540C\u4E00\u5217\u8868\u9879\u7684\u6BB5\u843D\u3001\u540C\u4E00\u7EA7\u5F15\u7528\u6BB5\u843D\uFF0C\u4EE5\u53CA\u539F\u6709\u540C\u7EA7\u53F6\u5217\u8868\u9879\u7684\u66FF\u6362\u548C\u591A\u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\u3002\u8DE8\u5C42\u7EA7\u3001\u5B50\u6811\u3001\u6807\u9898\u6216\u8868\u683C\u8FB9\u754C\u4ECD\u53D7\u4FDD\u62A4\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject13("\u672A\u7C98\u8D34\uFF1A\u6B64\u9009\u533A\u6682\u4E0D\u652F\u6301\u53EF\u89C6\u5316\u4FEE\u6539\uFF0C\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002\u666E\u901A\u6BB5\u843D\u4E0E\u6807\u9898\u3001\u540C\u9879\u5217\u8868\u6BB5\u843D\u548C\u540C\u7EA7\u5F15\u7528\u53EF\u7F16\u8F91\uFF1B\u8DE8\u5C42\u7EA7\u3001\u590D\u6742\u5B50\u6811\u53CA\u8868\u683C\u8FB9\u754C\u8BF7\u4F7F\u7528\u6E90\u7801\u3002");
     }
     return true;
   }
@@ -64993,7 +65169,7 @@ SHA-256: ${last.sha256}` : "";
     if (!(selection instanceof TextSelection) || selection.empty) return false;
     const inItem = selection.$from.depth > 1 && selection.$from.node(selection.$from.depth - 1).type.name === "listItem";
     const crossItems = inItem && selection.$from.depth === selection.$to.depth && selection.$from.node(selection.$from.depth - 2) === selection.$to.node(selection.$to.depth - 2) && selection.$from.node(selection.$from.depth - 1) !== selection.$to.node(selection.$to.depth - 1) && selection.$to.parent.type.name === "paragraph";
-    const crossProse = selection.$from.depth === 1 && selection.$to.depth === 1 && selection.$from.parent.type.name === "paragraph" && selection.$to.parent.type.name === "paragraph" && !selection.$from.sameParent(selection.$to);
+    const crossProse = selection.$from.depth === 1 && selection.$to.depth === 1 && ["paragraph", "heading"].includes(selection.$from.parent.type.name) && ["paragraph", "heading"].includes(selection.$to.parent.type.name) && !selection.$from.sameParent(selection.$to);
     const crossQuote = selection.$from.depth > 1 && selection.$from.depth === selection.$to.depth && selection.$from.node(selection.$from.depth - 1) === selection.$to.node(selection.$to.depth - 1) && selection.$from.node(selection.$from.depth - 1).type.name === "blockquote" && !selection.$from.sameParent(selection.$to);
     const crossItemParagraph = inItem && selection.$from.depth === selection.$to.depth && selection.$from.node(selection.$from.depth - 1) === selection.$to.node(selection.$to.depth - 1) && selection.$to.parent.type.name === "paragraph" && !selection.$from.sameParent(selection.$to);
     if (keyDelete && !crossItems && !crossProse && !crossQuote && !crossItemParagraph) return false;
@@ -65134,7 +65310,11 @@ SHA-256: ${last.sha256}` : "";
     function syncNavigation() {
       if (!enabled) return;
       const c = context(), confirmed = c.state?.confirmed, select = byId2("documents");
-      if (confirmed) metadata.set(confirmed.sessionId, { temporary: confirmed.temporary, readOnly: confirmed.readOnly, detail: filePresentation(confirmed).kind });
+      if (confirmed) metadata.set(confirmed.sessionId, {
+        temporary: confirmed.temporary,
+        readOnly: confirmed.readOnly,
+        detail: confirmed.linkedFile ? confirmed.originalSave?.localProvider === "onedrive" ? "OneDrive \u6587\u4EF6" : "\u6587\u4EF6" : filePresentation(confirmed).kind
+      });
       const options = [...select.options], ids = new Set(options.map((o) => o.value));
       for (const [id2, row] of rows) if (!ids.has(id2)) {
         row.button.remove();
@@ -66090,10 +66270,10 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       byId("document-info-note").textContent = temporary ? current.originalSave?.available ? "\u5DF2\u5173\u8054\u6587\u4EF6\u3002\u4FDD\u5B58\u9700\u70B9\u51FB\u4FDD\u5B58\uFF1B\u78C1\u76D8\u68C0\u67E5\u548C\u6253\u5F00\u78C1\u76D8\u7248\u5728\u8BE6\u60C5\u4E2D\u3002\u53E6\u5B58\u65B0\u6587\u4EF6\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u6807\u3002" : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? "Limited writing. Test copies are disposable; this document remains Not saved." : "Limited paragraph writing. No save or export is available." : "\u539F\u6587\u4EF6\u53EA\u8BFB\u3002\u6682\u4E0D\u652F\u6301\u7684 Markdown \u683C\u5F0F\u6309\u539F\u6587\u663E\u793A\u3002";
       byId("temporary-notice").hidden = !temporary;
       byId("documents").hidden = byId("documents").options.length < 2;
-      document.title = current.label + (temporary ? current.linkedFile ? " \u2014 " + filePresentation(current, s).label : " \u2014 \u8349\u7A3F" : " \u2014 \u539F\u6587\u53EA\u8BFB");
+      document.title = fileWindowTitle(current);
       if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus("");
       else if (navigationError || activeInvalid() || s.locked) viewerStatus("Editing unavailable: " + (navigationError || lifecycleCode(selected) || s.code) + ". Retained input copies remain in this window.", true);
-      else if (["unsafe-source-range", "unsafe-format-range"].includes(s.code)) viewerStatus("\u6B64\u5904\u6682\u4E0D\u652F\u6301\u8BE5\u4FEE\u6539\uFF0C\u539F\u6709\u5185\u5BB9\u5DF2\u4FDD\u7559\u3002\u8BF7\u5728\u53D7\u652F\u6301\u7684\u6BB5\u843D\u3001\u6807\u9898\u3001\u5217\u8868\u6BB5\u843D\u3001\u666E\u901A\u8868\u683C\u5355\u5143\u683C\u3001\u660E\u786E\u524D\u7F00\u7684\u5F15\u7528\u6216\u57FA\u672C\u4EE3\u7801\u5757\u5185\u7F16\u8F91\uFF1B\u8DE8\u5C42\u9009\u533A\u548C\u590D\u6742\u6DF7\u5408\u5B50\u5757\u53EF\u901A\u8FC7\u300C\u6E90\u7801\u300D\u7F16\u8F91\u3002", true);
+      else if (["unsafe-source-range", "unsafe-format-range"].includes(s.code)) viewerStatus("\u6B64\u5904\u6682\u4E0D\u652F\u6301\u53EF\u89C6\u5316\u4FEE\u6539\u3002\u5185\u5BB9\u5DF2\u4FDD\u7559\uFF0C\u53EF\u5728\u6E90\u7801\u4E2D\u7F16\u8F91\u3002", true, true);
       else if (s.code === "memory-edited") viewerStatus(current.originalSave?.available ? "\u4FEE\u6539\u4FDD\u7559\u5728\u8349\u7A3F\u4E2D\uFF0C\u70B9\u51FB\u4FDD\u5B58\u540E\u5199\u56DE\u6587\u4EF6\u3002" : "\u4FEE\u6539\u4FDD\u7559\u5728\u5F53\u524D\u8349\u7A3F\u4E2D\uFF0C\u539F\u6587\u4EF6\u672A\u6539\u5199\u3002");
     }
     byId("composition-status").hidden = !s.composing || readOnlyWindow;
@@ -66465,7 +66645,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       "save-version-list"
     ]) byId(name2).textContent = "";
     document.body.dataset.documentState = "empty";
-    document.title = "Markdown";
+    document.title = "Markora";
     byId("empty-state").hidden = false;
     for (const name2 of ["open-file", "empty-open", "new-temporary", "documents"]) byId(name2).disabled = false;
     loading = false;
@@ -66491,9 +66671,25 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
     void draftView.refresh();
     void recentView.refresh();
   }
-  function viewerStatus(message, notice = false) {
+  function viewerStatus(message, notice = false, sourceAction = false) {
     const node2 = byId("viewer-status");
-    if (node2.textContent !== message) node2.textContent = message;
+    let text5 = byId("viewer-status-message");
+    if (!text5) {
+      text5 = document.createElement("span");
+      text5.id = "viewer-status-message";
+      node2.append(text5);
+    }
+    if (text5.textContent !== message) text5.textContent = message;
+    let action = byId("viewer-edit-source");
+    if (!action) {
+      action = document.createElement("button");
+      action.id = "viewer-edit-source";
+      action.type = "button";
+      action.textContent = "\u6E90\u7801\u7F16\u8F91";
+      node2.append(action);
+    }
+    action.hidden = !sourceAction;
+    action.onclick = () => byId("show-source").click();
     byId("viewer-status").toggleAttribute("data-notice", notice);
   }
   async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {
@@ -66714,7 +66910,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       closeView.configure();
       recentView.configure(data2);
       byId("open-file").disabled = false;
-      document.title = "Markdown";
+      document.title = "Markora";
       nativeOpenView.configure();
       accessibility.configure();
     } else byId("connect").disabled = false;

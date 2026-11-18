@@ -48,7 +48,7 @@ export function pastePlainText(view, event, { state, blocked = false, report }) 
   } else tr = view.state.tr.insertText(text).scrollIntoView();
   view.dispatch(tr); // No direct model mutation or bypass of verifiedSourceRange.
   if (!view.state.doc.eq(tr.doc)) {
-    return reject('未粘贴：所选范围或文字涉及暂不支持的 Markdown 结构。支持普通段落、同一列表项的段落、同一级引用段落，以及原有同级叶列表项的替换和多段纯文本粘贴。跨层级、子树、标题或表格边界仍受保护；当前文字未改变。');
+    return reject('未粘贴：此选区暂不支持可视化修改，当前文字未改变。普通段落与标题、同项列表段落和同级引用可编辑；跨层级、复杂子树及表格边界请使用源码。');
   }
   return true;
 }

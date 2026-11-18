@@ -2,7 +2,7 @@
 
 ## Checkout and Git management
 
-Use `/Users/liyunhui/Liyunhui/Codes/markdown-vault-app` as this Mac's development
+Use `/Users/liyunhui/Liyunhui/Github/Markora` as this Mac's development
 entry point. The former `Worktrees/markdown-vault-app-phase1b3` checkout has been
 archived and unregistered. Other machines choose their own checkout path.
 `main` is the integration branch; work on a short branch for one complete
