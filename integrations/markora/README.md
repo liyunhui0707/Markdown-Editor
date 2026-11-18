@@ -30,7 +30,7 @@ App 仍通过原有的原生打开队列和输入保护处理请求，可能等�
 
 ## 安装
 
-需要 macOS、Node 24+、已安装的 Markdown，以及已经存在、归当前用户所有的普通 Inbox。
+需要 macOS、Node 24+、已安装的 Markora，以及已经存在、归当前用户所有的普通 Inbox。
 App 本身继续独立运行，不要求 Node。
 
 从仓库根目录执行：
@@ -69,7 +69,7 @@ args 为 `["mcp"]`。该服务器没有 HTTP 端口、账号或远程服务。
 | `open_document` | `filename`：固定 Inbox 内的明确 `.md` 文件名 |
 | `create_document` | `filename`、`markdown`，可选 `open`；独占创建，默认显示 |
 
-示例提示：“请调用 markdown-editor 的 create_document，文件名为‘学习计划.md’，
+示例提示：“请调用 markora 的 create_document，文件名为‘学习计划.md’，
 正文使用你刚生成的 Markdown，并打开它。”
 
 采用标准换行 JSON-RPC stdio，兼容 2024-11-05 至 2025-11-25 的初始化协议。

@@ -14,6 +14,12 @@ old-global/context/cold-parser guards remain. No queue/history/write-limit chang
 Local raw-rate evidence does not erase the historical 0.81.0 CI failure or prove
 universal IME/performance acceptance. Complete applicable CI before integration.
 
+**Local App update policy (2026-11-18).** The user explicitly removed CI as a
+prerequisite for replacing the daily App. Matching local regression tests,
+candidate startup, artifact integrity, normal user exit and retained rollback
+remain required. Continue CI in the background; do not install a known material
+data/security or relevant feature regression. Merge/release checks remain separate.
+
 **0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. Formal 0.81.0 was published with explicit user authorization; human experience feedback is no longer a release prerequisite. The later raw near-capacity failure remains open and disclosed.
 
 # AGENTS.md
@@ -112,9 +118,10 @@ ownership tests; memory and profiler timings remain scoped observations.
 branch. The former `markdown-vault-app-phase1b3` worktree is retired, not a
 development entry point. Keep the recovery checkpoint as a historical ref.
 Follow [Git management](docs/git-workflow.md): coherent tested checkpoints,
-one short branch/PR per functional group, full applicable CI before merge and
-daily-App replacement, then verified main synchronization and authorized branch
-cleanup. Do not add a permanent develop branch or a worktree for every patch.
+one short branch/PR per functional group, full applicable CI before merge;
+daily-App replacement follows the local-update policy above. Verify main
+synchronization and authorized branch cleanup. Do not add a permanent develop
+branch or a worktree for every patch.
 
 **0.77.2 bounded mixed-block parsing.** Reuse only isolated single-line paragraphs/headings or supported list/quote containers with unchanged outer blank gaps, physical newline token sequence, trailing margin and container shape/flags. Require the old fragment to exactly reproduce its global subtree. Container edits must stay inside one text/code leaf; uncertain links/references/escapes/HTML/positions fall back to cold parsing. Translate offsets everywhere, columns only on the actual edited physical line. Keep immutable two-revision caching and complete projection/main proof; no serializer, new authority or limits. Differential and native-visible timing observations are separate from physical IME/paint latency and human daily-use acceptance.
 
