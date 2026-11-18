@@ -1,4 +1,5 @@
 import {DocumentImage} from './document-image-node.mjs';
+import {DocumentPreview} from './document-preview-node.mjs';
 import {documentTableNodes} from './document-table-nodes.mjs';
 import { Mark } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -26,5 +27,5 @@ const DocumentStarterKit=StarterKit.extend({addExtensions(){
 }});
 const SourceCodeBlock=CodeBlock.extend({addAttributes(){return {...this.parent?.(),sourceEditable:{default:false,rendered:false}};}});
 export function documentEditorExtensions(onTaskToggle, imageNodeView = null) {
-  return [DocumentImage.configure({nodeView:imageNodeView}),...documentTableNodes, DocumentStarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
+  return [DocumentPreview,DocumentImage.configure({nodeView:imageNodeView}),...documentTableNodes, DocumentStarterKit.configure({ undoRedo: false, trailingNode: false, link: false, codeBlock: false, listItem: false }), SourceLink, SourceCodeBlock, taskListItem(onTaskToggle)];
 }

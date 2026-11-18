@@ -28,10 +28,10 @@ test('surrogate splitting, cross-block edits and structural syntax fail closed',
   const h = spans[0], bold = spans[2];
   for (const change of [
     { from: h.to - 1, to: h.to, insert: 'x' },
-    { from: h.from, to: bold.to, insert: 'x' },
     { from: bold.from, to: bold.to, insert: '**new**' },
     { from: h.from, to: h.to, insert: 'line\nbreak' },
   ]) assert.equal(mapTextEdit(source, change).ok, false);
+  assert.equal(mapTextEdit(source,{from:h.from,to:bold.to,insert:'x'}).ok,true);
 });
 test('HTML, images, tables, unknown syntax, escaped/entities and unsupported multiline syntax are not editable', () => {
   for (const s of ['<script>synthetic</script>', '![p](../x.png)', '| a |\n| - |\n| b |', '::: unknown', 'a &amp; b', 'a\\*b']) {
@@ -172,7 +172,8 @@ test('multiline paste V1: empty slots preserve terminal newline and surrounding 
 test('multiline paste V1: forbidden structure and ambiguous whitespace reject atomically', () => {
   const nested='> > nested quote',nestedSpan=projectSource(nested).spans[0];
   assert.equal(mapTextEdit(nested,{from:nestedSpan.from,to:nestedSpan.from,insert:'One\n\nTwo'}).source,'> > One\n> > \n> > Twonested quote');
-  for (const source of ['# Heading', 'A &amp; tail.', '```md extra\ncode\n```']) {
+  assert.equal(mapTextEdit('# Heading',{from:1,to:1,insert:'One\n\nTwo'}).source,'# One\n\nTwoHeading');
+  for (const source of ['A &amp; tail.', '```md extra\ncode\n```']) {
     const span = projectSource(source).spans[0];
     assert.equal(mapTextEdit(source, { from: span?.from || 1, to: span?.from || 1, insert: 'One\n\nTwo' }).ok, false);
   }

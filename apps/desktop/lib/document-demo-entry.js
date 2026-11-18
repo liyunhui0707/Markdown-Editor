@@ -5,7 +5,7 @@ import {dropImage} from './document-image-drop.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
 import {createPresentationScheduler} from './document-presentation-scheduler.mjs';
 import {createActionIntent,canNavigatePaused} from './document-action-intent.mjs';
-import {filePresentation} from './document-file-presentation.mjs';
+import {filePresentation,fileWindowTitle} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
 import {createAccessibilityView} from './document-accessibility-view.mjs';
 import { createNativeOpenView } from './document-native-open-view.mjs';
@@ -211,10 +211,10 @@ function render(s) {
     byId('document-info-note').textContent = temporary ? (current.originalSave?.available ? '已关联文件。保存需点击保存；磁盘检查和打开磁盘版在详情中。另存新文件不会覆盖已有目标。' : current.persistentCopyEnabled ? persistentCopyNote(current.copyState) : current.copyEnabled ? 'Limited writing. Test copies are disposable; this document remains Not saved.' : 'Limited paragraph writing. No save or export is available.') : '原文件只读。暂不支持的 Markdown 格式按原文显示。';
     byId('temporary-notice').hidden = !temporary;
     byId('documents').hidden = byId('documents').options.length < 2;
-    document.title = current.label + (temporary ? current.linkedFile?' — '+filePresentation(current,s).label:' — 草稿' : ' — 原文只读');
+    document.title = fileWindowTitle(current);
     if (s.inputPaused && !navigationError && !activeInvalid()) viewerStatus('');
     else if (navigationError || activeInvalid() || s.locked) viewerStatus('Editing unavailable: ' + (navigationError || lifecycleCode(selected) || s.code) + '. Retained input copies remain in this window.', true);
-    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持该修改，原有内容已保留。请在受支持的段落、标题、列表段落、普通表格单元格、明确前缀的引用或基本代码块内编辑；跨层选区和复杂混合子块可通过「源码」编辑。', true);
+    else if (['unsafe-source-range','unsafe-format-range'].includes(s.code)) viewerStatus('此处暂不支持可视化修改。内容已保留，可在源码中编辑。', true, true);
     else if (s.code === 'memory-edited') viewerStatus(current.originalSave?.available ? '修改保留在草稿中，点击保存后写回文件。' : '修改保留在当前草稿中，原文件未改写。');
   }
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
@@ -427,9 +427,15 @@ async function finishDocumentClose(id) {
   } else byId('empty-new').focus();
   void draftView.refresh(); void recentView.refresh();
 }
-function viewerStatus(message, notice = false) {
+function viewerStatus(message, notice = false, sourceAction = false) {
   const node=byId('viewer-status');
-  if(node.textContent!==message)node.textContent=message; // Avoid re-announcing unchanged status on every render.
+  let text=byId('viewer-status-message');
+  // Close/navigation teardown may clear the entire live region.
+  if(!text){text=document.createElement('span');text.id='viewer-status-message';node.append(text);}
+  if(text.textContent!==message)text.textContent=message;
+  let action=byId('viewer-edit-source');
+  if(!action){action=document.createElement('button');action.id='viewer-edit-source';action.type='button';action.textContent='源码编辑';node.append(action);}
+  action.hidden=!sourceAction;action.onclick=()=>byId('show-source').click();
   byId('viewer-status').toggleAttribute('data-notice', notice);
 }
 async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {

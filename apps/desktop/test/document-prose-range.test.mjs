@@ -8,6 +8,17 @@ import {projectSource,mapTextEdit} from '../lib/document-source-map.mjs';
 import {mapFormatEdit} from '../lib/document-format-edit.mjs';
 const schema=getSchema(documentEditorExtensions());
 const paragraph=text=>schema.nodes.paragraph.create(null,schema.text(text));
+test('heading/prose selections and multiline paste preserve the first block type with exact history',()=>{
+ for(const nl of ['\n','\r\n','\r'])for(const body of ['# Title **bold**'+nl+nl+'Last *word*',
+  'First plain'+nl+nl+'## Other title', '# First'+nl+nl+'Middle'+nl+nl+'### Last']){
+  const source='Before'+nl+nl+body+nl+nl+'After',p=projectSource(source),a=p.blocks[1],b=p.blocks.at(-2);
+  for(const insert of ['', '新😀','One\n\nTwo']){
+   const from=a.from+3,to=b.to-2,r=mapTextEdit(source,{from,to,insert});inverse(r,source);
+   assert(native(source,from,to,insert).doc.eq(schema.nodeFromJSON(r.projection.doc)),r.source);
+   assert(r.source.startsWith('Before'+nl+nl));assert(r.source.endsWith(nl+nl+'After'));
+  }
+ }
+});
 function inverse(r,source){assert(r.ok,JSON.stringify(r));const x=r.inverseSource;assert(x);assert.equal(r.source.slice(0,x.from)+x.insert+r.source.slice(x.to),source);}
 function native(source,from,to,insert){const p=projectSource(source),doc=schema.nodeFromJSON(p.doc),state=EditorState.create({schema,doc,selection:TextSelection.create(doc,from,to)});
  return insert.includes('\n')?state.tr.replaceSelection(new Slice(Fragment.fromArray(insert.split('\n\n').map(paragraph)),1,1)):state.tr.insertText(insert);
@@ -46,7 +57,7 @@ test('prose range matrix agrees with native PM and exact source inverse includin
  assert(accepted>150,accepted);
 });
 test('prose range retains protected blocks, ambiguous gaps, Unicode, paragraph and source budgets',()=>{
- for(const middle of ['# Heading','- list','> quote','```js\ncode\n```','![image](asset.png)','<b>html</b>']){
+ for(const middle of ['- list','> quote','```js\ncode\n```','![image](asset.png)','<b>html</b>']){
   const source='First **bold**\n\n'+middle+'\n\nLast *italic*',p=projectSource(source);assert.equal(mapTextEdit(source,{from:p.blocks[0].from+2,to:p.blocks.at(-1).to-2,insert:'No'}).ok,false,middle);
  }
  for(const source of ['First **bold**\n \nLast *italic*','First **bold**\n\n\nLast *italic*',Array(33).fill('**word**').join('\n\n'),'**'+ 'x'.repeat(4100)+'**\n\nLast *word*']){

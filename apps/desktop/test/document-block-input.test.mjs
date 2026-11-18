@@ -33,7 +33,8 @@ test('shortcut rejects selections, mid-line prefixes, protected blocks and paylo
   for(const [source,from,to] of [['word #',7,7],['#',1,2],['#######',8,8],['1000000000.',12,12],['> quote',2,2],['`#`',2,2],['- one\n  - nested',2,2]])
     assert.equal(mapFormatEdit(source,{action:'block-shortcut',from,to}).ok,false,source);
   assert.equal(mapFormatEdit('#',{action:'block-shortcut',from:2,to:2,source:'# injected'}).ok,false);
-  assert.equal(projectSource('---').doc.content[0].type,'codeBlock');
+  assert.equal(projectSource('---').doc.content[0].type,'documentPreview');
+  assert.equal(mapFormatEdit('---',{action:'block-shortcut',from:0,to:1}).ok,false);
 });
 test('all heading levels work in an empty paragraph and can return to a paragraph',()=>{
   for(let level=1;level<=6;level++){

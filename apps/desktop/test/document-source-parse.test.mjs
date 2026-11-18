@@ -10,6 +10,20 @@ const padding = Array.from({length:100},(_,i)=>`## Section ${i}\n\n${'Unchanged 
 function fixture(text,nl='\n') { return ('# Heading\n\n'+text+'\n\n'+padding+'[ref]: /target\n\n[ref]\n').replaceAll('\n',nl); }
 function harness() { const calls=[];return {calls,parse:createSourceParser(s=>{calls.push(s);return full.parse(s);})}; }
 
+test('exact splice hints and stale or forged hints retain complete cold-parser equivalence',()=>{
+ const source=fixture('Plain text.');
+ const from=source.indexOf('text'),to=from+4,insert='new 😀';
+ const next=source.slice(0,from)+insert+source.slice(to);
+ for(const hint of [{before:source,from,to,insert},{before:'stale',from,to,insert},
+  {before:source,from:from-1,to,insert},{before:source,from,to,insert:'wrong'},
+  {before:source,from:-1,to:Infinity,insert:null},null]){
+  const {parse}=harness();parse(source);assert.deepEqual(parse(next,hint),full.parse(next));
+ }
+ const {parse}=harness();parse(source);
+ const structural=source.slice(0,from)+'\n\n# New'+source.slice(to);
+ assert.deepEqual(parse(structural,{before:source,from,to,insert:'\n\n# New'}),full.parse(structural));
+});
+
 test('long ordinary paragraph edits parse only that paragraph and match the complete parser',()=>{
  for(const nl of ['\n','\r\n','\r']) for(const text of ['Hello world.','中文 😀 e\u0301 ordinary.','See example.','Contact person.']) {
   const {parse,calls}=harness();let source=fixture(text,nl);parse(source);
