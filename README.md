@@ -25,6 +25,12 @@
 `.md` 默认打开方式由你决定。需要更改时，在 Finder 的文件「显示简介」中选择 Markdown，
 再选择「全部更改」。开发安装流程不自动抢占默认关联。
 
+需要由 AI 生成后立即打开文件，可使用独立的 [mdapp CLI / MCP 伴侣](integrations/mdapp/README.md)：
+提供状态查询、打开明确文件、独占生成新 Markdown 并提交打开请求。
+伴侣需要 Node 24+，不包含在现有 0.81.0 ZIP 中；图形 App 本身仍不需要 Node。
+格式检查样本见 [Markdown 格式边界测试](examples/format-boundaries.md)，实际支持与缺口见
+[检查记录](docs/audits/2026-11-18-cli-mcp-format-review.md)。
+
 ## 写作与文档操作
 
 | 能力 | 当前范围 |

@@ -1,6 +1,16 @@
-**0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. User requires current-version human acceptance after local/Air installation before formal publication.
+**0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. Formal 0.81.0 was published with explicit user authorization; human experience feedback is no longer a release prerequisite. The later raw near-capacity failure remains open and disclosed.
 
 # AGENTS.md
+
+**CLI/MCP companion.** `integrations/mdapp` is a separate local Node companion,
+not a new editor engine or a modified 0.81.0 App package. Status never reads
+document bodies; creation is exclusive in a pinned owned Inbox. MCP opens only
+explicit Inbox basenames; CLI may open an explicit ordinary `.md` path. Route
+through macOS open-file handling and preserve existing input/session guards.
+An OS open receipt is not displayed/saved proof. Retain uncertain creation or
+failed-delivery files; never overwrite, delete or retry them automatically.
+Keep newline JSON-RPC stdio isolated from logs. Do not call protected source
+fallback complete Markdown rendering. App UI/protocol/native helper unchanged.
 
 **Release policy (2026-11-18).** The user explicitly authorized formal 0.81.0
 publication now and future releases without waiting for their personal trial or

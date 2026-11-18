@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify CLI and MCP companion
+        run: node --test ../../integrations/mdapp/test/*.test.cjs
+
       - name: Audit production dependencies
         run: npm run audit:prod
 

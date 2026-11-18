@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-17)
+## Current direction (2026-11-18)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -48,7 +48,18 @@ raw-rate scenario; final full CI must confirm the resulting candidate, including
 passive-panel routing and existing file/provider workflows. No human writing,
 physical IME, VoiceOver or public-release acceptance is inferred from automation.
 
-2026-11-18 delivery continuation removes the vulnerable build-only builder chain using official Electron Packager/ASAR, retaining zero-advisory security gates and unchanged runtime sources. Complete full CI, merge/main synchronization, local and Air installation, then the user’s current-version real-input/VoiceOver/sustained-writing acceptance before formal 0.81.0 publication. Developer ID/notarization remains deferred; publish actual ad-hoc status and manual-update instructions.
+2026-11-18 delivery continuation removed the vulnerable build-only builder chain using official Electron Packager/ASAR, retaining zero-advisory security gates and unchanged runtime sources. The fixed 0.81.0 release passed PR/main CI and local/Air installation checks and is formally published. The user explicitly removed personal trial acceptance as a prerequisite for this and future releases; untested physical IME/VoiceOver/human writing remain untested. Developer ID/notarization remains deferred. The later documentation-only main run triggered queue protection in the unchanged raw near-capacity scenario and failed; preserve that result and prioritize a measured performance repair, not a slower test or a larger queue.
+
+### Local CLI/MCP companion and format inspection (2026-11-18)
+
+At the user's request, `integrations/mdapp` adds a separate Node companion for
+status, explicit file opening and exclusive Inbox creation followed by native
+open intent. No App framework, helper, profile or published binary changes.
+Its tests and local installation do not clear the existing App pressure failure.
+The format corpus also exposes protected-source fallback for rules, escapes,
+entities, autolinks and mixed quotes; preserving bytes is not full Markdown
+rendering support. Keep these findings distinct from the UI status-wording
+recommendations. See the [scoped report](audits/2026-11-18-cli-mcp-format-review.md).
 
 ### Previous batch — OneDrive local saving, 0.80.0
 

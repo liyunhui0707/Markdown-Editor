@@ -1,0 +1,10 @@
+{
+  "name": "markdown-editor-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local CLI and stdio MCP companion for the installed Markdown editor",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "bin": { "mdapp": "cli.cjs" },
+  "scripts": { "test": "node --test test/*.test.cjs" }
+}
