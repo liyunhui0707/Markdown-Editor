@@ -5,6 +5,12 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
 const {spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
 const {packageOptions}=require('./document-package-policy.cjs');
 const root=path.resolve(__dirname,'..'),sha=p=>createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+function electronNotices(extracted){
+ return Object.fromEntries([['LICENSE','LICENSE.electron.txt'],['LICENSES.chromium.html','LICENSES.chromium.html']].map(([from,to])=>{
+  const p=path.join(extracted,from),s=fs.lstatSync(p);assert(s.isFile()&&!s.isSymbolicLink()&&s.size>0,'Missing or unsafe Electron notice: '+from);
+  return [to,fs.readFileSync(p)];
+ }));
+}
 function command(binary,args){const r=spawnSync(binary,args,{encoding:'utf8',timeout:120000,maxBuffer:8*1024*1024});if(r.error||r.status!==0)throw Error(path.basename(binary)+' failed: '+(r.error?.message||r.stderr));return r.stdout;}
 function argumentsFor(argv){
  const options={zip:false,signed:false,out:path.join(root,'dist')};
@@ -32,8 +38,16 @@ async function packageDocument(argv){
   fs.writeFileSync(path.join(build,'package.json'),JSON.stringify(metadata,null,2)+'\n');
   fs.copyFileSync(path.join(root,'../../LICENSE'),path.join(build,'LICENSE'));
  }];
- opts.afterCopyExtraResources=[async({buildPath:build})=>assert.equal(sha(path.join(build,'Markdown.app/Contents/Resources/document-save')),helperBefore)];
- if(cli.electronZipDir)opts.electronZipDir=cli.electronZipDir;
+ let notices;
+ opts.afterExtract=[async({buildPath})=>{notices=electronNotices(buildPath);}];
+ opts.afterCopyExtraResources=[async({buildPath:build})=>{
+  const resources=path.join(build,'Markdown.app/Contents/Resources');assert.equal(sha(path.join(resources,'document-save')),helperBefore);
+  for(const [name,bytes]of Object.entries(notices))fs.writeFileSync(path.join(resources,name),bytes,{flag:'wx'});
+ }];
+ if(cli.electronZipDir){
+  const name=`electron-v${opts.electronVersion}-darwin-arm64.zip`,expected=require('electron/checksums.json')[name];
+  assert(expected&&sha(path.join(cli.electronZipDir,name))===expected,'Offline Electron ZIP must match the locked official checksum');opts.electronZipDir=cli.electronZipDir;
+ }
  const {packager}=await import('@electron/packager');const outputs=await packager(opts);
  assert.equal(outputs.length,1);const app=path.join(outputs[0],'Markdown.app'),contents=path.join(app,'Contents');
  command('/usr/bin/codesign',['--verify','--deep','--strict',app]);
@@ -52,6 +66,7 @@ async function packageDocument(argv){
  }
  const result={version:pkg.version,app,asarSha256:sha(asarPath),helperBuildSha256:helperBefore,helperSha256:sha(path.join(contents,'Resources/document-save')),
   arch:'arm64',electron:opts.electronVersion,signing:cli.signed?'Developer ID Application':'ad-hoc',notarized:false,sourceFiles:{}};
+ result.notices={};for(const [name,bytes]of Object.entries(notices)){const expected=createHash('sha256').update(bytes).digest('hex');assert.equal(sha(path.join(contents,'Resources',name)),expected);result.notices[name]=expected;}
  for(const n of ['document-app-main.js','lib/editor-path-policy.js',...fs.readdirSync(root+'/lib').filter(n=>n.startsWith('document-')&&!['document-demo-entry.js','document-demo-main.js'].includes(n)).map(n=>'lib/'+n)]){
   const h=sha(path.join(root,n));assert.equal(createHash('sha256').update(asar.extractFile(asarPath,n)).digest('hex'),h,n);result.sourceFiles[n]=h;
  }
@@ -59,5 +74,5 @@ async function packageDocument(argv){
  if(cli.zip){command('/usr/bin/ditto',['-c','-k','--sequesterRsrc','--keepParent',app,archive]);result.zip=archive;result.zipSha256=sha(archive);}
  fs.writeFileSync(receipt,JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({...result,sourceFiles:Object.keys(result.sourceFiles).length}));return result;
 }
-module.exports={argumentsFor,packageDocument};
+module.exports={argumentsFor,packageDocument,electronNotices};
 if(require.main===module)packageDocument(process.argv.slice(2)).catch(e=>{console.error(e);process.exitCode=1;});

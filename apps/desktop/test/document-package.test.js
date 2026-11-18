@@ -1,5 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {runtimeFilter,packageOptions}=require('../tools/document-package-policy.cjs');
+const {electronNotices}=require('../tools/package-document.cjs');
 const root=path.resolve(__dirname,'..'),lock=require('../package-lock.json');
 test('actual Document copy filter includes required runtime and rejects private, legacy and development inputs',()=>{
  const include=runtimeFilter(root,lock);
@@ -12,6 +13,16 @@ test('actual Document copy filter includes required runtime and rejects private,
  for(const prefix of ['','lib/','node_modules/unified/'])for(const file of ['.env','.env.production','secrets/canary.json',
   '.git/config','.local/private.json','Inbox/canary.md','test/canary.js','e2e/canary.js'])assert(!include(path.join(root,prefix,file)),prefix+file);
  assert(!include(path.resolve(root,'../outside')));assert(!include(path.join(root,'lib/document-private/.env')));
+});
+test('release packaging requires complete Electron notices and refuses missing, empty or linked notices',()=>{
+ const fs=require('node:fs'),os=require('node:os');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'document-package-notices-'));
+ assert.throws(()=>electronNotices(dir));fs.writeFileSync(path.join(dir,'LICENSE'),'Electron license canary');
+ fs.writeFileSync(path.join(dir,'LICENSES.chromium.html'),'');assert.throws(()=>electronNotices(dir));
+ fs.writeFileSync(path.join(dir,'LICENSES.chromium.html'),'Chromium notices canary');
+ const notices=electronNotices(dir);assert.equal(notices['LICENSE.electron.txt'].toString(),'Electron license canary');
+ assert.equal(notices['LICENSES.chromium.html'].toString(),'Chromium notices canary');
+ const linked=fs.mkdtempSync(path.join(os.tmpdir(),'document-package-notices-link-'));fs.symlinkSync(path.join(dir,'LICENSE'),path.join(linked,'LICENSE'));
+ assert.throws(()=>electronNotices(linked));
 });
 test('packager metadata preserves installed identity, Markdown association, helper and explicit local signature',()=>{
  const o=packageOptions({root,out:'/private/tmp/document-package-policy',lock});

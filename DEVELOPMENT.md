@@ -102,7 +102,10 @@ Production dependencies are still shared with historical source; pruning them is
 separate work. The Vault/CM6/spike runtime and private/test/tool trees are excluded.
 
 For an offline build, provide a verified `electron-v<locked-version>-darwin-arm64.zip`
-in a dedicated directory. From `apps/desktop` (use separate flag and path arguments):
+in a dedicated directory. The complete official ZIP must match the checksum in the
+locked Electron package and include its LICENSE and LICENSES.chromium.html; a
+repacked Electron.app-only archive is refused. Both notices ship inside the App.
+From `apps/desktop` (use separate flag and path arguments):
 
 ```sh
 mise exec -- node tools/package-document.cjs \
