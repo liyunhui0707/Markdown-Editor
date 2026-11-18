@@ -26,7 +26,7 @@ test('release packaging requires complete Electron notices and refuses missing, 
 });
 test('packager metadata preserves installed identity, Markdown association, helper and explicit local signature',()=>{
  const o=packageOptions({root,out:'/private/tmp/document-package-policy',lock});
- assert.equal(o.appBundleId,'com.markdownvault.document.dev');assert.equal(o.name,'Markdown');
+ assert.equal(o.appBundleId,'com.markdownvault.document.dev');assert.equal(o.name,'Markora');
  assert.equal(o.arch,'arm64');assert.equal(o.platform,'darwin');assert.equal(o.overwrite,false);assert.equal(o.asar,true);
  assert.equal(o.extendInfo.LSMinimumSystemVersion,'12.0');
  assert.deepEqual(o.extendInfo.CFBundleDocumentTypes,[{CFBundleTypeName:'Markdown document',CFBundleTypeExtensions:['md'],CFBundleTypeRole:'Editor',LSHandlerRank:'Alternate'}]);

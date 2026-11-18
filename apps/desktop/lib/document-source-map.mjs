@@ -40,7 +40,11 @@ export function projectSource(source, spliceHint) {
   if (typeof source !== 'string' || source.length > MAX_SOURCE_UNITS) throw Error('Unsupported source');
   const tree = parse(source,spliceHint), content = [], spans = [], blocks = [];
   const definitions=new Map();
-  for(const n of tree.children)if(n.type==='definition'&&!definitions.has(n.identifier.toLowerCase()))definitions.set(n.identifier.toLowerCase(),n);
+  const definitionNodes=[...tree.children].reverse();
+  while(definitionNodes.length){const n=definitionNodes.pop();
+    if(n.type==='definition'&&!definitions.has(n.identifier.toLowerCase()))definitions.set(n.identifier.toLowerCase(),n);
+    if(n.children)for(let i=n.children.length-1;i>=0;i--)definitionNodes.push(n.children[i]);
+  }
   const lines = text => { const tokens = text.match(/\r\n|\n|\r/g) || []; return tokens.join('') === text ? tokens : []; };
   const fm = /^---(?:\r\n|\n|\r)/.test(source)
     ? source.match(/^---(?:\r\n|\n|\r)[\s\S]*?(?:\r\n|\n|\r)---(?=\r\n|\n|\r|$)/)?.[0].length || 0 : 0;

@@ -9,10 +9,10 @@ test('builds a relocatable, dependency-free companion with the shared capacity r
  assert.equal(Object.keys(r.files).length,7);for(const [key,value]of Object.entries(shared))if(typeof value!=='function')assert.equal(copied[key],value);
  assert.equal(copied.base64Limit(4),shared.base64Limit(4));
  const run=args=>spawnSync(process.execPath,[path.join(dest,'cli.cjs'),...args],{cwd:root,encoding:'utf8',timeout:5000});
- const help=run(['help']);assert.equal(help.status,0);assert.match(help.stdout,/mdapp create/);assert.equal(help.stderr,'');
+ const help=run(['help']);assert.equal(help.status,0);assert.match(help.stdout,/markora create/);assert.match(help.stdout,/mdapp/);assert.equal(help.stderr,'');
  const bad=run(['create','--name','x.md','--overwrite']);assert.equal(bad.status,1);assert.equal(JSON.parse(bad.stderr).code,'invalid-options');
  const mcp=spawnSync(process.execPath,[path.join(dest,'cli.cjs'),'mcp'],{cwd:root,encoding:'utf8',timeout:5000,input:JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'process-smoke',version:'1'}}})+'\n'});
- assert.equal(mcp.status,0);assert.equal(mcp.stderr,'');assert.equal(JSON.parse(mcp.stdout).result.serverInfo.name,'markdown-editor');
+ assert.equal(mcp.status,0);assert.equal(mcp.stderr,'');assert.equal(JSON.parse(mcp.stdout).result.serverInfo.name,'markora');
  assert.throws(()=>build(dest,{app:'other',inbox:'other'}));assert.equal(JSON.parse(fs.readFileSync(path.join(dest,'config.json'),'utf8')).app,'/Synthetic/Markdown.app');
 });
 test('actual standalone CLI preserves a stdin BOM/CRLF and refuses malformed UTF-8',t=>{

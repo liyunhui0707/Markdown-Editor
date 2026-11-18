@@ -2,14 +2,14 @@
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
-<title>Restricted synthetic document QA</title>
+<title>Markora</title>
 <style>body{font:16px system-ui;margin:24px;color:#222}button,select{margin:4px;padding:7px}#editor{border:1px solid #aaa;padding:18px;max-width:760px}.tiptap:focus{outline:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:10px}#status{display:block;margin:14px 0}h1{font-size:1.8em}#composition-copy-panel pre{user-select:text;max-height:240px;overflow:auto}#composition-warning,#composition-copy-panel{border:1px solid #9a6b00;padding:12px;margin:12px 0;max-width:760px}[hidden]{display:none!important}
 
 </style><link rel="stylesheet" href="document-writing-shell.css"><link rel="stylesheet" href="document-reading-view.css"><link rel="stylesheet" href="document-panels.css"><link rel="stylesheet" href="document-find.css"><link rel="stylesheet" href="document-file-comparison.css"></head>
 <body>
 <div id="writing-app" hidden>
   <aside id="document-sidebar" aria-label="文档导航">
-    <div class="sidebar-brand"><span class="brand-mark" aria-hidden="true">m↓</span><strong>Markdown</strong><button id="close-session-sidebar" class="icon-button" aria-label="收起文档侧栏" title="收起侧栏">‹</button></div>
+    <div class="sidebar-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 39V9h20l10 10v20Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M29 9v10h10M16 32V21l8 8 8-8v11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong>Markora</strong><button id="close-session-sidebar" class="icon-button" aria-label="收起文档侧栏" title="收起侧栏">‹</button></div>
     <div id="sidebar-actions"></div>
     <label class="session-filter" for="session-filter"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="session-filter" aria-label="筛选已打开文档" type="search" placeholder="筛选已打开文档" autocomplete="off"></label>
     <div class="session-heading"><span>当前窗口</span><span id="session-count">0</span></div>

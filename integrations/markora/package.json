@@ -1,0 +1,17 @@
+{
+  "name": "markora-companion",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local CLI and stdio MCP companion for Markora",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "markora": "cli.cjs",
+    "mdapp": "cli.cjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.cjs"
+  }
+}

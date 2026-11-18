@@ -30,6 +30,12 @@ test('rules, decoded text, autolinks and reference links display semantically wi
  const ref=projectSource(cases[3][0]);assert.equal(ref.doc.content.length,1);
  assert.match(JSON.stringify(ref.doc),/https:\/\/example.test/);
 });
+test('references resolve definitions inside containers without displaying definition syntax',()=>{
+ const p=projectSource('[Label][id]\n\n> [id]: https://example.test/nested\n>\n> Quote');
+ const reference=p.doc.content[0];assert.equal(reference.type,'documentPreview');
+ assert.match(JSON.stringify(reference.attrs.tree),/https:\/\/example.test\/nested/);
+ assert(!JSON.stringify(p.doc).includes('[id]:'));
+});
 test('semantic previews retain neighboring exact edits and never execute HTML or fetch images',()=>{
  const source='Before\r\n\r\nEscaped \\*text\\* &amp;.\r\n\r\nAfter';
  const p=projectSource(source),span=p.spans.find(s=>s.text==='After');

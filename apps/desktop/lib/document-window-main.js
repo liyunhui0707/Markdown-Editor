@@ -22,7 +22,7 @@ if (nativeOpens) app.on('open-file', (event, file) => {
   event.preventDefault(); nativeOpens.enqueue(file); focusDocumentWindow();
 });
 if (product) {
-  app.setName('Markdown');
+  app.setName('Markora');
   // Stable profile supplies a single-instance lock; drafts keep their existing location.
   app.setPath('userData', path.join(app.getPath('appData'), 'Markdown Vault Document'));
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
@@ -36,7 +36,7 @@ const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'document-dem
 fs.chmodSync(root, 0o700);
 const profile = path.join(root, 'profile'); fs.mkdirSync(profile, { mode: 0o700 });
 if (!product) {
-  app.setName(readOnlyWindow ? 'Markdown Document Viewer' : 'Document synthetic memory QA');
+  app.setName(readOnlyWindow ? 'Markora QA' : 'Document synthetic memory QA');
   app.setPath('userData', profile);
 }
 app.setPath('sessionData', profile);

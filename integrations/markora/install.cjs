@@ -25,10 +25,10 @@ function ownedDirectory(home,target){
 }
 function install(){
  if(process.argv.length!==2||process.platform!=='darwin'||Number(process.versions.node.split('.')[0])<24)throw Error('Run with Node 24+ on macOS, without arguments');
- const home=fs.realpathSync(os.homedir()),config={home,app:path.join(home,'Applications/Markdown.app'),inbox:path.join(home,'Liyunhui/Inbox')};
- const info=createBridge(config).status();if(!info.installed||!info.creation_available)throw Error('Installed Markdown App and an owned ordinary Inbox are required');
- const base=path.join(home,'.local/share/mdapp'),bin=path.join(home,'.local/bin'),shim=path.join(bin,'mdapp'),destination=path.join(base,version);
- if(fs.existsSync(shim)||fs.existsSync(destination))throw Error('Existing mdapp installation retained; inspect it before updating');
+ const home=fs.realpathSync(os.homedir()),config={home,app:path.join(home,'Applications/Markora.app'),inbox:path.join(home,'Liyunhui/Inbox')};
+ const info=createBridge(config).status();if(!info.installed||!info.creation_available)throw Error('Installed Markora App and an owned ordinary Inbox are required');
+ const base=path.join(home,'.local/share/markora'),bin=path.join(home,'.local/bin'),shim=path.join(bin,'markora'),destination=path.join(base,version);
+ if(fs.existsSync(shim)||fs.existsSync(destination))throw Error('Existing Markora installation retained; inspect it before updating');
  ownedDirectory(home,base);ownedDirectory(home,bin);const receipt=build(destination,config);
  const q=s=>"'"+s.replace(/'/g,"'\"'\"'")+"'";
  const script='#!/bin/sh\nexec '+q(process.execPath)+' '+q(path.join(destination,'cli.cjs'))+' "$@"\n';

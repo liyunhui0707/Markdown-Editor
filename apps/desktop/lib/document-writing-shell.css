@@ -19,7 +19,8 @@ body[data-document-viewer] ::selection {background:#cbdbc5}
 #writing-app {height:100dvh;display:grid;grid-template-columns:228px minmax(0,1fr);isolation:isolate}
 #document-sidebar {background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;padding:0 12px}
 .sidebar-brand {display:flex;align-items:center;gap:12px;min-height:74px;padding:0 9px;font-size:16px}
-.brand-mark {font:700 25px Georgia,serif;color:var(--accent);letter-spacing:-2px;border-bottom:2px solid var(--accent);line-height:1.15;padding-bottom:3px}
+.brand-mark {display:flex;color:var(--accent);width:32px;height:36px;flex:none}
+body[data-document-viewer] .brand-mark svg {width:32px;height:36px;stroke-width:2.5}
 .sidebar-brand strong {font-weight:600;letter-spacing:-.4px}
 #close-session-sidebar {margin-left:auto;border:0;background:transparent;font-size:23px;padding:4px 8px;color:var(--muted)}
 #sidebar-actions {display:flex;gap:7px;margin:3px 4px 17px}

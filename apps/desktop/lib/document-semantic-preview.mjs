@@ -19,6 +19,7 @@ export function semanticPreview(node,definitions,source){
    ||node.children?.length===1&&['image','imageReference'].includes(node.children[0].type)))return null;
  function convert(n,depth=0){
   if(depth>32)return null;
+  if(n.type==='definition')return {tag:'span',children:[]};
   if(n.type==='text')return n.value;
   if(n.type==='inlineCode')return {tag:'code',children:[n.value]};
   if(n.type==='code')return {tag:'pre',children:[{tag:'code',children:[n.value]}]};

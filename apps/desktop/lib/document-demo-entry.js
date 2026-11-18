@@ -418,7 +418,7 @@ async function finishDocumentClose(id) {
     'composition-status', 'composition-copy-panel', 'input-pressure-panel', 'recovery-panel']) byId(name).hidden = true;
   for (const name of ['source', 'recovery', 'viewer-status', 'test-copy-result', 'test-copy-summary', 'test-copy-operation',
     'linked-file-path','linked-file-status','linked-file-checked','original-save-receipt', 'draft-backup-status', 'copy-action-status', 'input-pressure-source', 'save-version-list']) byId(name).textContent = '';
-  document.body.dataset.documentState = 'empty'; document.title = 'Markdown'; byId('empty-state').hidden = false;
+  document.body.dataset.documentState = 'empty'; document.title = 'Markora'; byId('empty-state').hidden = false;
   for (const name of ['open-file', 'empty-open', 'new-temporary', 'documents']) byId(name).disabled = false;
   loading = false; inputPressure.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); findView.sync(); copyActionsView.render(); writingShell.sync(); recentView.sync();
   if (next) {
@@ -579,7 +579,7 @@ api.onReady(data => {
     byId('writing-actions').hidden = false; byId('new-temporary').disabled = false;
     byId('documents').hidden = true; byId('documents').setAttribute('aria-label', '切换已打开文档');
     writingShell.configure(); findView.configure(); closeView.configure(); recentView.configure(data);
-    byId('open-file').disabled = false; document.title = 'Markdown';
+    byId('open-file').disabled = false; document.title = 'Markora';
     nativeOpenView.configure(); accessibility.configure();
   } else byId('connect').disabled = false;
 });

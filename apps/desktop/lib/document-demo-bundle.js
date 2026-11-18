@@ -6361,6 +6361,7 @@
     if (node2.type === "paragraph" && (/^:::/.test(source.slice(node2.position.start.offset, node2.position.end.offset)) || node2.children?.length === 1 && ["image", "imageReference"].includes(node2.children[0].type))) return null;
     function convert2(n, depth2 = 0) {
       if (depth2 > 32) return null;
+      if (n.type === "definition") return { tag: "span", children: [] };
       if (n.type === "text") return n.value;
       if (n.type === "inlineCode") return { tag: "code", children: [n.value] };
       if (n.type === "code") return { tag: "pre", children: [{ tag: "code", children: [n.value] }] };
@@ -17886,7 +17887,12 @@
     if (typeof source !== "string" || source.length > MAX_SOURCE_UNITS4) throw Error("Unsupported source");
     const tree = parse2(source, spliceHint), content5 = [], spans = [], blocks = [];
     const definitions = /* @__PURE__ */ new Map();
-    for (const n of tree.children) if (n.type === "definition" && !definitions.has(n.identifier.toLowerCase())) definitions.set(n.identifier.toLowerCase(), n);
+    const definitionNodes = [...tree.children].reverse();
+    while (definitionNodes.length) {
+      const n = definitionNodes.pop();
+      if (n.type === "definition" && !definitions.has(n.identifier.toLowerCase())) definitions.set(n.identifier.toLowerCase(), n);
+      if (n.children) for (let i = n.children.length - 1; i >= 0; i--) definitionNodes.push(n.children[i]);
+    }
     const lines = (text5) => {
       const tokens = text5.match(/\r\n|\n|\r/g) || [];
       return tokens.join("") === text5 ? tokens : [];
@@ -18632,7 +18638,7 @@
 
   // lib/document-file-presentation.mjs
   function fileWindowTitle(current) {
-    if (!current) return "Markdown";
+    if (!current) return "Markora";
     return current.label + (current.temporary ? current.linkedFile ? "" : " \u2014 \u8349\u7A3F" : " \u2014 \u53EA\u8BFB");
   }
   function filePresentation(current, state) {
@@ -58759,7 +58765,8 @@ img.ProseMirror-separator {
         contenteditable: "false",
         role: "group",
         "aria-readonly": "true",
-        "aria-label": "Markdown \u9884\u89C8\uFF1B\u901A\u8FC7\u6E90\u7801\u7F16\u8F91"
+        "aria-label": "Markdown \u9884\u89C8\uFF1B\u901A\u8FC7\u6E90\u7801\u7F16\u8F91",
+        title: "\u6B64\u533A\u57DF\u4E3A\u53EA\u8BFB\u9884\u89C8\uFF0C\u53EF\u901A\u8FC7\u5DE5\u5177\u680F\u7684\u201C\u6E90\u7801\u201D\u7F16\u8F91\u3002"
       }, previewDOMSpec(node2.attrs.tree)];
     }
   });
@@ -65117,7 +65124,7 @@ SHA-256: ${last.sha256}` : "";
     } else tr2 = view.state.tr.insertText(text5).scrollIntoView();
     view.dispatch(tr2);
     if (!view.state.doc.eq(tr2.doc)) {
-      return reject13("\u672A\u7C98\u8D34\uFF1A\u6240\u9009\u8303\u56F4\u6216\u6587\u5B57\u6D89\u53CA\u6682\u4E0D\u652F\u6301\u7684 Markdown \u7ED3\u6784\u3002\u652F\u6301\u666E\u901A\u6BB5\u843D\u3001\u540C\u4E00\u5217\u8868\u9879\u7684\u6BB5\u843D\u3001\u540C\u4E00\u7EA7\u5F15\u7528\u6BB5\u843D\uFF0C\u4EE5\u53CA\u539F\u6709\u540C\u7EA7\u53F6\u5217\u8868\u9879\u7684\u66FF\u6362\u548C\u591A\u6BB5\u7EAF\u6587\u672C\u7C98\u8D34\u3002\u8DE8\u5C42\u7EA7\u3001\u5B50\u6811\u3001\u6807\u9898\u6216\u8868\u683C\u8FB9\u754C\u4ECD\u53D7\u4FDD\u62A4\uFF1B\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002");
+      return reject13("\u672A\u7C98\u8D34\uFF1A\u6B64\u9009\u533A\u6682\u4E0D\u652F\u6301\u53EF\u89C6\u5316\u4FEE\u6539\uFF0C\u5F53\u524D\u6587\u5B57\u672A\u6539\u53D8\u3002\u666E\u901A\u6BB5\u843D\u4E0E\u6807\u9898\u3001\u540C\u9879\u5217\u8868\u6BB5\u843D\u548C\u540C\u7EA7\u5F15\u7528\u53EF\u7F16\u8F91\uFF1B\u8DE8\u5C42\u7EA7\u3001\u590D\u6742\u5B50\u6811\u53CA\u8868\u683C\u8FB9\u754C\u8BF7\u4F7F\u7528\u6E90\u7801\u3002");
     }
     return true;
   }
@@ -66607,7 +66614,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       "save-version-list"
     ]) byId(name2).textContent = "";
     document.body.dataset.documentState = "empty";
-    document.title = "Markdown";
+    document.title = "Markora";
     byId("empty-state").hidden = false;
     for (const name2 of ["open-file", "empty-open", "new-temporary", "documents"]) byId(name2).disabled = false;
     loading = false;
@@ -66872,7 +66879,7 @@ ${r.visibleText ?? "[unavailable]"}` : ""}`).join("\n\n----\n\n");
       closeView.configure();
       recentView.configure(data2);
       byId("open-file").disabled = false;
-      document.title = "Markdown";
+      document.title = "Markora";
       nativeOpenView.configure();
       accessibility.configure();
     } else byId("connect").disabled = false;

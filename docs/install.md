@@ -1,22 +1,25 @@
 # 安装、更新与回退
 
-当前版本为 **0.81.0**，使用独立的 `Markdown.app`。打开 App 不需要终端、
+当前版本为 **0.82.0**，使用独立的 `Markora.app`。打开 App 不需要终端、
 Node.js 或仓库，也不需要选择 Vault。实际发行状态、安装包、校验值和适用验收结果见
-[GitHub Releases](https://github.com/liyunhui0707/Markdown-Editor/releases)。
+[GitHub Releases](https://github.com/liyunhui0707/Markora/releases)。
 本轮为 Apple Silicon / arm64，采用 ad-hoc 完整性签名，未进行 Developer ID 签名和公证。
 历史输入法和旁白记录保留原版本及范围；不能推断其他版本或场景通过。
 
+更名兼容：Markora 继续使用原有应用身份和 `Markdown Vault Document` 数据目录，
+原有草稿、最近文档与恢复版本无需迁移。更新时保留旧 App 作为回退，只注册新安装版。
+
 ## 安装与打开文件
 
-1. 使用维护者交付且已核对版本和 SHA-256 的本地 App 或 ZIP。ZIP 展开后保留完整的 `Markdown.app`，
-   放在固定位置，例如 `~/Applications/Markdown.app`。已经安装时先按下文更新。
+1. 使用维护者交付且已核对版本和 SHA-256 的本地 App 或 ZIP。ZIP 展开后保留完整的 `Markora.app`，
+   放在固定位置，例如 `~/Applications/Markora.app`。已经安装时先按下文更新。
 2. 双击 App；可把它拖到 Dock，以后从 Dock 启动。安装包声明 macOS 12 或更新版本；
    本批实际构建和测试的是 Apple Silicon / arm64，不能据此宣称 Intel 或所有系统版本通过。
-3. 点「打开…」选择 `.md`，或在 Finder 右键文件 →「打开方式」→ Markdown。
+3. 点「打开…」选择 `.md`，或在 Finder 右键文件 →「打开方式」→ Markora。
    普通打开直接建立独立的文件编辑缓冲区，保存前不改写原文件；无法建立绑定的文件和显式磁盘检查视图仍只读，可创建编辑副本。源码窗口支持修改，
    「应用并返回」只应用到正文；源码中的 ⌘S 会应用并保存文件，⌘Enter 仍只应用到正文。
 4. 如需双击 `.md` 默认使用本 App，在 Finder「显示简介」→「打开方式」选择
-   Markdown，再自行选择「全部更改」。安装程序不会替你更改默认关联。
+   Markora，再自行选择「全部更改」。安装程序不会替你更改默认关联。
 
 草稿备份、导出副本和保存回绑定文件有不同状态。另存为会切换到新文件，导出副本保持当前目标；新文件绝不覆盖已有目标。
 普通本地保存直接执行并保留历史版本，OneDrive 首次写入仍显示恢复与同步说明。支持符合检查且未同步的普通本地 APFS 目录，包括桌面、文稿、下载、主目录外和外接 APFS 卷；
@@ -125,14 +128,14 @@ mise exec -- npm run pack:document:signed
 不包含用户文档或私有记录。为每次候选使用新的产物路径，不覆盖旧包：
 
 ```sh
-ditto -c -k --sequesterRsrc --keepParent dist/signed/mac-arm64/Markdown.app /本次候选目录/submission.zip
+ditto -c -k --sequesterRsrc --keepParent dist/signed/Markora-darwin-arm64/Markora.app /本次候选目录/submission.zip
 xcrun notarytool submit /本次候选目录/submission.zip --keychain-profile 已配置的profile名称 --wait
 # 仅在上一步明确 Accepted 后执行：
-xcrun stapler staple dist/signed/mac-arm64/Markdown.app
-mise exec -- npm run verify:document:release -- "$PWD/dist/signed/mac-arm64/Markdown.app" 实际十位TEAMID
+xcrun stapler staple dist/signed/Markora-darwin-arm64/Markora.app
+mise exec -- npm run verify:document:release -- "$PWD/dist/signed/Markora-darwin-arm64/Markora.app" 实际十位TEAMID
 # Staple 改变了 App，重新制作最终交付 ZIP；不能发布之前的 submission.zip：
-ditto -c -k --sequesterRsrc --keepParent dist/signed/mac-arm64/Markdown.app /本次候选目录/Markdown-版本-arm64-mac.zip
-shasum -a 256 /本次候选目录/Markdown-版本-arm64-mac.zip
+ditto -c -k --sequesterRsrc --keepParent dist/signed/Markora-darwin-arm64/Markora.app /本次候选目录/Markora-版本-arm64-mac.zip
+shasum -a 256 /本次候选目录/Markora-版本-arm64-mac.zip
 ```
 
 `verify:document:release` 只读检查包内版本/身份、App 和保存 helper 的 Developer ID、

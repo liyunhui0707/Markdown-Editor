@@ -1,15 +1,15 @@
-# mdapp：Markdown 的 CLI 与 MCP 伴侣
+# Markora CLI 与 MCP 伴侣
 
-让 AI 或命令行生成 Markdown 后，立即交给已安装的 Markdown App。伴侣工具为 0.1.0，
-已验证连接 App 0.81.0；它独立于 App 安装包，不改变应用身份、草稿、保存权限或已发布 ZIP。
+让 AI 或命令行生成 Markdown 后，立即交给已安装的 Markora。伴侣工具为 0.2.0，
+配合 App 0.82.0；它独立于 App 安装包，不改变应用身份、草稿、保存权限或已发布 ZIP。
 
 ## 命令
 
 ```sh
-mdapp status
-mdapp open "/absolute/path/文章.md"
-printf '# 标题\n\n正文。\n' | mdapp create --name "新文章.md" --stdin
-mdapp help
+markora status
+markora open "/absolute/path/文章.md"
+printf '# 标题\n\n正文。\n' | markora create --name "新文章.md" --stdin
+markora help
 ```
 
 `create` 默认将新文件写入固定 Inbox，再打开它。当前个人安装沿用
@@ -36,10 +36,10 @@ App 本身继续独立运行，不要求 Node。
 从仓库根目录执行：
 
 ```sh
-node integrations/mdapp/install.cjs
+node integrations/markora/install.cjs
 ```
 
-安装器只创建 `~/.local/share/mdapp/0.1.0` 与 `~/.local/bin/mdapp`，不覆盖已有安装。
+安装器只创建 `~/.local/share/markora/0.2.0` 与 `~/.local/bin/markora`，不覆盖已有安装。
 运行文件、共享容量规则、许可、配置与哈希清单一起复制；命令不依赖源码目录、
 `node_modules` 或临时测试目录。安装使用执行安装器的既有 Node，不下载运行时。
 需要让 `~/.local/bin` 已位于 PATH 中；安装回执会报告这一状态，不修改 shell 配置。
@@ -47,7 +47,7 @@ node integrations/mdapp/install.cjs
 源码运行时可显式选择位置：
 
 ```sh
-node integrations/mdapp/cli.cjs --app "/path/Markdown.app" --inbox "/existing/Inbox" status
+node integrations/markora/cli.cjs --app "/path/Markora.app" --inbox "/existing/Inbox" status
 ```
 
 固定 Inbox 限当前用户主目录内、非隐藏、非敏感、不可被其他用户写入的普通目录。
@@ -57,10 +57,10 @@ node integrations/mdapp/cli.cjs --app "/path/Markdown.app" --inbox "/existing/In
 ## MCP
 
 ```sh
-codex mcp add markdown-editor -- "$HOME/.local/bin/mdapp" mcp
+codex mcp add markora -- "$HOME/.local/bin/markora" mcp
 ```
 
-在支持自定义 MCP 的客户端中，配置 stdio command 为 `~/.local/bin/mdapp` 的实际绝对路径，
+在支持自定义 MCP 的客户端中，配置 stdio command 为 `~/.local/bin/markora` 的实际绝对路径，
 args 为 `["mcp"]`。该服务器没有 HTTP 端口、账号或远程服务。
 
 | 工具 | 作用 |
@@ -84,9 +84,13 @@ args 为 `["mcp"]`。该服务器没有 HTTP 端口、账号或远程服务。
 ## 验证
 
 ```sh
-node --test integrations/mdapp/test/*.test.cjs
+node --test integrations/markora/test/*.test.cjs
 ```
 
 覆盖独占创建、容量与 Unicode、路径边界、目录替换、未知创建结果、打开失败保留文件、
 安装副本独立运行、初始化/发现/调用、错误和 UTF-8 分片。测试使用合成资料。
 协议自测不代表物理中文输入、旁白或所有 Markdown 格式已通过。
+
+本机从早期伴侣升级时，旧 `mdapp` 命令可指向同一固定运行副本作为兼容入口。
+更名不修改应用 bundle ID 或草稿数据目录。MCP 配置更新后，客户端需要重新连接；
+命令行提交的打开请求不能证明当前会话的模型工具已加载，也不能证明文件已保存。

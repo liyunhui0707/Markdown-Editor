@@ -31,7 +31,7 @@ function nativeHost(config){
    const read=k=>execFileSync('/usr/bin/plutil',['-extract',k,'raw','-o','-',plist],{encoding:'utf8',timeout:5000,maxBuffer:4096}).trim();
    if(read('CFBundleIdentifier')!=='com.markdownvault.document.dev')throw Error();
    const version=read('CFBundleShortVersionString');let running=null;
-   try{const names=execFileSync('/bin/ps',['-axo','comm='],{encoding:'utf8',timeout:5000,maxBuffer:4*1024*1024}).split('\n');running=names.includes(path.join(config.app,'Contents/MacOS/Markdown'));}catch{/* Unknown, never report false from a denied process query. */}
+   try{const names=execFileSync('/bin/ps',['-axo','comm='],{encoding:'utf8',timeout:5000,maxBuffer:4*1024*1024}).split('\n');running=names.includes(path.join(config.app,'Contents/MacOS',read('CFBundleExecutable')));}catch{/* Unknown, never report false from a denied process query. */}
    return {installed:true,version,running,app_path:config.app};
   }catch{return {installed:false,running:null,app_path:config.app,reason:'app-unavailable'};}
  }
