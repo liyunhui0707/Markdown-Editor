@@ -64546,6 +64546,7 @@ SHA-256: ${last.sha256}` : "";
   function sameValue(a, b) {
     if (a === b) return true;
     if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a) && a.length !== b.length) return false;
     const keys2 = Object.keys(a), other = Object.keys(b);
     return keys2.length === other.length && keys2.every((k) => Object.hasOwn(b, k) && sameValue(a[k], b[k]));
   }
@@ -64558,22 +64559,52 @@ SHA-256: ${last.sha256}` : "";
     }
     return true;
   }
-  function matchesPMProjection(node2, json, schema = node2?.type?.schema) {
+  function markup(node2, json, schema) {
     if (!node2 || !json || typeof json !== "object" || node2.type.schema !== schema || schema.nodes[json.type] !== node2.type) return false;
     if (Object.keys(json).some((k) => !["type", "attrs", "marks", "text", "content"].includes(k))) return false;
-    const marks2 = json.marks ?? [];
+    let marks2 = json.marks ?? [];
     if (!Array.isArray(marks2) || marks2.length !== node2.marks.length) return false;
+    let rank = -1, ordered = true;
+    for (const mark2 of marks2) {
+      const type = mark2 && schema.marks[mark2.type];
+      if (!type) return false;
+      if (type.rank < rank) ordered = false;
+      rank = type.rank;
+    }
+    if (!ordered) marks2 = marks2.slice().sort((a, b) => schema.marks[a.type].rank - schema.marks[b.type].rank);
     for (let i = 0; i < marks2.length; i++) {
       const mark2 = marks2[i], actual = node2.marks[i];
       if (!mark2 || schema.marks[mark2.type] !== actual.type || !sameAttrs(actual.attrs, mark2.attrs, actual.type)) return false;
     }
     if (!sameAttrs(node2.attrs, json.attrs, node2.type)) return false;
+    return true;
+  }
+  function matchesPMProjection(node2, json, schema = node2?.type?.schema) {
+    if (!markup(node2, json, schema)) return false;
     if (node2.isText) return typeof json.text === "string" && json.text === node2.text && json.content === void 0;
     if (json.text !== void 0) return false;
     const children = json.content === void 0 ? [] : json.content;
-    if (!Array.isArray(children) || children.length !== node2.childCount) return false;
-    for (let i = 0; i < children.length; i++) if (!matchesPMProjection(node2.child(i), children[i], schema)) return false;
-    return true;
+    if (!Array.isArray(children)) return false;
+    let actualIndex = 0;
+    for (let i = 0; i < children.length; ) {
+      const actual = node2.maybeChild(actualIndex++), child = children[i];
+      if (!actual) return false;
+      if (child?.type !== "text") {
+        if (!matchesPMProjection(actual, child, schema)) return false;
+        i++;
+        continue;
+      }
+      if (!actual.isText || !markup(actual, child, schema)) return false;
+      let offset = 0;
+      do {
+        const part = children[i];
+        if (typeof part.text !== "string" || !part.text || part.content !== void 0 || !actual.text.startsWith(part.text, offset)) return false;
+        offset += part.text.length;
+        i++;
+      } while (i < children.length && children[i]?.type === "text" && markup(actual, children[i], schema));
+      if (offset !== actual.text.length) return false;
+    }
+    return actualIndex === node2.childCount;
   }
 
   // lib/document-edit-controller.mjs

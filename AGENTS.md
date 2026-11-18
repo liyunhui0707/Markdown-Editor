@@ -7,7 +7,9 @@ Semantic previews are inert read-only atoms, separate from exact editable source
 maps. HTML/resources never execute or auto-load. Heading/prose selected ranges
 retain the first block type, source frames, complete PM proof and exact inverses.
 Ordinary PM proofs compare the whole tree and schema defaults without allocating
-two new PM trees. Exact splice hints must match the entire source before reuse;
+two new PM trees. Match PM's adjacent equal-mark text merging and schema mark
+rank normalization; compare all segments, neighboring nodes and nested attribute
+array lengths. Exact splice hints must match the entire source before reuse;
 old-global/context/cold-parser guards remain. No queue/history/write-limit change.
 Local raw-rate evidence does not erase the historical 0.81.0 CI failure or prove
 universal IME/performance acceptance. Complete applicable CI before integration.

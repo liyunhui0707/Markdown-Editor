@@ -6,6 +6,27 @@ import {projectSource} from '../lib/document-source-map.mjs';
 import {matchesPMProjection} from '../lib/document-pm-projection.mjs';
 
 const schema=getSchema(documentEditorExtensions());
+test('nested preview attribute arrays compare their complete length as well as values',()=>{
+ const json=projectSource('Escape \\*text\\* &amp;.').doc,pm=schema.nodeFromJSON(json),changed=structuredClone(json);
+ changed.content[0].attrs.tree.children.length++;
+ assert(!matchesPMProjection(pm,changed));
+});
+test('PM fragment canonicalization merges adjacent identical marks but preserves distinct frames and distant text',()=>{
+ for(const source of ['A **one**__two__ tail','- [X] Before **word** tail\n- [ ] End [**link** plain](target)\n- Keep **one**__two__',
+  '> **one**__two__\n>\n> Next *three*']){
+  const json=projectSource(source).doc,pm=schema.nodeFromJSON(json);
+  assert(matchesPMProjection(pm,json),source);
+  const copy=structuredClone(json);let changed=false;
+  function walk(n){for(const [key,value]of Object.entries(n)){
+   if(typeof value==='string'&&value.includes('two')){n[key]=value.replace('two','different');changed=true;}
+   else if(value&&typeof value==='object')walk(value);
+  }}
+  walk(copy);assert(changed);assert(!matchesPMProjection(pm,copy));
+ }
+ const json=projectSource('[**word**](target)').doc,pm=schema.nodeFromJSON(json);
+ json.content[0].content[0].marks.reverse();
+ assert(pm.eq(schema.nodeFromJSON(json)));assert(matchesPMProjection(pm,json));
+});
 test('complete PM comparison agrees with schema conversion including default attributes and marks',()=>{
  const sources=['# Title\n\nText **bold *both* tail** and [link](guide "keep").',
   '- [x] task\n  - child\n\n> quote\n\n| A | B |\n| --- | --- |\n| cell | next |',
