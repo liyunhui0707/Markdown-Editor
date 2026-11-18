@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 const {createHomeFixture}=require('../test/helpers/home-fixture.cjs');
@@ -40,7 +41,7 @@ test('image references: panel, keyboard, history, exclusive export, reopen and r
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(780,720));await p.locator('#show-reading-settings').click();await p.locator('#reading-theme-dark').click();await p.locator('#close-reading-settings').click();await p.screenshot({path:info.outputPath('image-narrow-dark.png')});await p.locator('#format-image').click();await p.screenshot({path:info.outputPath('image-panel-dark.png')});await p.locator('#image-cancel').click();
   expect(await p.evaluate(()=>document.body.scrollWidth<=innerWidth)).toBe(true);await expect(p.locator('#editor [src],#editor [href]')).toHaveCount(0);
   fixture=createHomeFixture('Writing-synthetic-E2E-');const target=path.join(fixture.dir,'Images.md');await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);
-  await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect(p.locator('#open-confirmed-copy')).toBeVisible();
+  await createMarkdownCopy(p);await expect(p.locator('#open-confirmed-copy')).toBeVisible();
   const exported=await current(p),bytes=await fs.readFile(target),sha=crypto.createHash('sha256').update(bytes).digest('hex');expect(bytes.toString()).toBe(body);expect(exported.confirmedCopy.state).toBe('created-confirmed');expect(exported.confirmedCopy.sha256).toBe(sha);fixture.recordFile('Images.md',bytes);
   await expect.poll(async()=>{const s=await current(p);return s.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
   const draftId=await p.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,exported.label);

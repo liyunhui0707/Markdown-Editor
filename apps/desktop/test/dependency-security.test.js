@@ -2,14 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
 const { mergeAttributes, createAtomBlockMarkdownSpec, createInlineMarkdownSpec } = require('@tiptap/core');
 const { DOMSerializer } = require('@tiptap/pm/model');
-// Exercise the URI resolver used by the packaging schema validator.
-const fastURI = createRequire(require.resolve('ajv/package.json'))('fast-uri');
-const packagingYaml = createRequire(require.resolve('app-builder-lib/package.json'))('js-yaml');
-
 const projectRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package-lock.json'), 'utf8'));
@@ -80,8 +75,8 @@ test('KaTeX ignores inherited trust while preserving ordinary formula rendering'
   }
 });
 
-test('locked Tiptap and packaging URI dependencies exclude known vulnerable releases', () => {
-  for (const [name, minimum] of [['@tiptap/core', '3.30.5'], ['fast-uri', '3.1.6']]) {
+test('locked Tiptap excludes known vulnerable releases', () => {
+  for (const [name, minimum] of [['@tiptap/core', '3.30.5']]) {
     const copies = Object.entries(packageLock.packages)
       .filter(([key]) => key.endsWith(`node_modules/${name}`));
     assert.ok(copies.length > 0, name);
@@ -93,14 +88,11 @@ test('locked Tiptap and packaging URI dependencies exclude known vulnerable rele
   }
 });
 
-test('packaging YAML lockfile excludes vulnerable 4.x merge-budget releases', () => {
-  const copies = Object.entries(packageLock.packages)
-    .filter(([key]) => key.endsWith('node_modules/js-yaml'));
-  assert.ok(copies.length > 0);
-  for (const [key, metadata] of copies) {
-    assert.equal(metadata.version.split('.')[0], '4', `${key}: reviewed major`);
-    assert.ok(atLeast(metadata.version, '4.3.2'), `${key}: patched merge budget`);
-  }
+test('the retired builder chain and its vulnerable parsers are absent from the complete lock',()=>{
+ for(const name of ['electron-builder','app-builder-lib','@electron/rebuild','node-gyp','tinyglobby','picomatch','fast-uri','js-yaml'])
+  assert(!Object.keys(packageLock.packages).some(p=>p.endsWith('node_modules/'+name)),name);
+ assert.equal(packageJson.devDependencies['@electron/packager'],'20.3.0');
+ assert.equal(packageJson.devDependencies['@electron/asar'],'4.3.2');
 });
 
 // GHSA-j95f-988m-3j2f. Run bounded synthetic adversarial inputs in a child:
@@ -138,18 +130,6 @@ test('Tiptap Markdown helper attributes retain ordinary quoted values', () => {
   assert.equal(b.attributes.label, '中文 text');
 });
 
-test('packaging YAML counts empty mappings against its configured merge budget', () => {
-  const text = 'empty: &empty {}\ncombined:\n  <<: [*empty, *empty, *empty]\n';
-  assert.throws(() => packagingYaml.load(text, { maxTotalMergeKeys: 2 }), /maxTotalMergeKeys/);
-});
-
-test('packaging YAML still loads ordinary config and allowed merges', () => {
-  const text = 'base: &base {arch: arm64}\nmac:\n  <<: *base\n  target: dir\n';
-  assert.deepEqual(packagingYaml.load(text, { maxTotalMergeKeys: 10 }), {
-    base: { arch: 'arm64' }, mac: { arch: 'arm64', target: 'dir' },
-  });
-});
-
 test('Tiptap attribute merging cannot inject inherited DOM event attributes', () => {
   // GHSA-cp6q-959q-f8rh: JSON has an OWN __proto__ property (unlike a literal).
   const input = JSON.parse('{"__proto__":{"onerror":"synthetic-canary","src":"invalid:"},"alt":"safe"}');
@@ -171,37 +151,4 @@ test('Tiptap still merges ordinary classes, styles and image attributes', () => 
   assert.equal(attrs.alt, '中文');
   assert.match(attrs.style, /color: blue/);
   assert.match(attrs.style, /text-align: center/);
-});
-
-test('fast-uri canonicalizes scheme-relative Unicode hosts', () => {
-  assert.equal(fastURI.resolve('https://base.example/', '//ｅxample.com/a'), 'https://example.com/a');
-  assert.equal(fastURI.resolve('https://base.example/a/', '../b'), 'https://base.example/b');
-  assert.equal(fastURI.normalize('https://example.com/a'), 'https://example.com/a');
-});
-
-test('fast-uri rejects malformed IPv6 instead of converting it to a private address', () => {
-  for (const host of ['::not-valid', 'fc00::not-hex', 'fe80::not-hex']) {
-    assert.ok(fastURI.parse(`http://[${host}]/private`).error, host);
-  }
-  assert.equal(fastURI.parse('http://[2001:db8::1]/').error, undefined);
-});
-
-test('fast-uri never double-decodes an encoded host into localhost', () => {
-  const input = 'http://%256c%256f%2563%2561%256c%2568%256f%2573%2574/';
-  let output;
-  try { output = fastURI.normalize(input); } catch (error) {
-    assert.ok(error instanceof Error); return; // Rejection is safe too.
-  }
-  assert.notEqual(output, 'http://localhost/');
-});
-
-test('fast-uri never turns encoded scheme characters into authority or header syntax', () => {
-  for (const input of ['%2f%2fother.example:/pwn', '%u002f%u002fother.example:/pwn', 'http%0d%0a:/path']) {
-    let output;
-    try { output = fastURI.normalize(input); } catch (error) {
-      assert.ok(error instanceof Error); continue;
-    }
-    assert.equal(output.startsWith('//'), false, input);
-    assert.doesNotMatch(output, /[\r\n]/);
-  }
 });

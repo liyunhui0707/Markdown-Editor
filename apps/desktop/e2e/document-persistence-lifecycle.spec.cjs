@@ -1,3 +1,4 @@
+const {closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs'),fsp=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{randomUUID,createHash}=require('node:crypto');
 const {createDraftStore}=require('../lib/document-draft-store');
@@ -35,6 +36,13 @@ test('persistence lifecycle: full workspace offload, automatic backup retry, ind
   await old.getByRole('button',{name:'归档旧版本',exact:true}).click();await old.getByRole('button',{name:'确认归档旧版本',exact:true}).click();await expect(p.locator('#save-version-list')).toContainText('已归档，保存名额已释放');
   expect(fs.existsSync(path.join(versions+'-archive',oldId,'previous.md'))).toBe(true);
   await p.screenshot({path:info.outputPath('recovery-archive.png')});await p.locator('#close-draft-dialog').click();
+  // Restoring at the exact record ceiling cannot write its new session revision.
+  // Keep Draft must refuse until an inactive synthetic record is offloaded.
+  await expect.poll(async()=>(await snap())?.draftBackup?.code).toBe('draft-record-capacity');
+  await p.locator('#close-current-document').click();await expect(p.locator('#viewer-status')).toContainText('本地草稿尚未通过完整性验证');expect((await snap()).source).toBe('归档正文 0');
+  await p.locator('#show-drafts').click();await p.locator('#draft-archive-panel').evaluate(el=>el.open=true);
+  await p.locator(`[data-draft-id="${second}"]`).getByRole('button',{name:'移入恢复归档',exact:true}).click();await p.locator('#confirm-draft-management').click();
+  await expect.poll(async()=>{const s=await snap();return s.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);await p.locator('#close-draft-dialog').click();
   expect(faults).toEqual([]);expect(requests).toEqual([]);passed=true;
- }finally{await app.close();const ended=await exit;expect(ended).toEqual({code:0,signal:null});await fsp.writeFile(info.outputPath('evidence.json'),JSON.stringify({passed,root,restoredId,second,faults,requests,exit:ended,nativeIME:'NOT VERIFIED'},null,2));}
+ }finally{await closeDocumentApp(app,{page:p,evidencePath:info.outputPath('close-diagnostic.json')});const ended=await exit;expect(ended).toEqual({code:0,signal:null});await fsp.writeFile(info.outputPath('evidence.json'),JSON.stringify({passed,root,restoredId,second,faults,requests,exit:ended,nativeIME:'NOT VERIFIED'},null,2));}
 });

@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { authorMixedDocument } = require('./common-authoring.cjs');
 const fs = require('node:fs/promises'), os = require('node:os'), path = require('node:path');
@@ -150,11 +151,11 @@ test('installed document app: exclusive export, readonly reopen, restart and dra
     await expect(page.locator('#editor a')).toHaveCount(0);
     await boundaryKey('Meta+z',beforeLink);await boundaryKey('Meta+Shift+z',linkSource);
     await authorMixedDocument(page,async()=>(await snapshot(page,id)).source,{append:true,newline:'\r\n'});
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#open-confirmed-copy')).toBeVisible();
     exported = await snapshot(page, id); expect(exported.confirmedCopy.state).toBe('created-confirmed'); expect(exported.dirty).toBe(true);
     const bytes = await fs.readFile(target); expect(hash(bytes)).toBe(exported.confirmedCopy.sha256); fixture.recordFile('export.md', bytes);
-    await page.locator('#create-test-copy').click(); await page.locator('#confirm-test-copy').click();
+    await createMarkdownCopy(page);
     await expect(page.locator('#copy-operation-alert')).toContainText('同名目标已存在');
     await page.locator('#open-confirmed-copy').click(); await expect(page.locator('#editor .tiptap')).toHaveAttribute('contenteditable', 'false');
     expect((await snapshot(page, await page.locator('#documents').inputValue())).source).toBe(exported.source);

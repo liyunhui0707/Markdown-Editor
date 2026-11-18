@@ -1,3 +1,4 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const {createResourceProbe}=require('./helpers/document-resource-probe.cjs');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
@@ -46,7 +47,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   p.on('pageerror',e=>faults.push(e.message));p.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;
    const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},original);
-  await expect(p.locator('#empty-open')).toBeEnabled();
+  await expect(p.locator('#empty-open')).toBeEnabled();await focusNativeWindow(app,p);
   await p.evaluate(()=>{window.__soakQueuePeak=0;const n=document.querySelector('#status');new MutationObserver(()=>{window.__soakQueuePeak=Math.max(window.__soakQueuePeak,JSON.parse(n.textContent).pending||0);}).observe(n,{childList:true,subtree:true,characterData:true});});
  }
  async function stop(){if(app){await app.close();app=null;const result=await exit;evidence.exits.push(result);expect(result).toEqual({code:0,signal:null});}}
@@ -55,7 +56,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   for(let cycle=0;cycle<6;cycle++){
    await p.locator('#empty-open').click();await p.locator('#edit-copy').click();await p.evaluate(()=>{window.__soakQueuePeak=0;});
    const paragraphIndex=[0,350,700][cycle%3],para=p.locator('#editor .tiptap > p').nth(paragraphIndex);
-   await para.click();await para.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);range.collapse(false);
+   await para.click();await settleNativeCaret(para);await para.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);range.collapse(false);
     const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));});
    await expect.poll(()=>para.evaluate(n=>{const s=n.closest('.tiptap').editor.state.selection;return s.empty&&s.$from.parentOffset===s.$from.parent.content.size;})).toBe(true);await idle();
    const marker=paragraphIndex===0?'Opening paragraph.':`## Chapter ${paragraphIndex-1}\n\n${paragraph}`;
@@ -84,7 +85,7 @@ test('sustained writing: repeated long-document sessions preserve edits, close a
   await stop();await launch();await p.locator('#show-drafts').click();const last=retained.at(-1);
   await p.locator(`[data-draft-id="${last.id}"]`).getByRole('button',{name:'恢复副本'}).click();await expect.poll(async()=>(await snap())?.source===last.source).toBe(true);
   const restored=await snap();expect(restored.originalSave).toBeNull();expect(restored.linkedFile).toBeNull();expect(restored.canUndo).toBe(false);
-  const para=p.locator('#editor .tiptap > p').first();await para.click();await para.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
+  const para=p.locator('#editor .tiptap > p').first();await para.click();await settleNativeCaret(para);await para.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
   await expect.poll(()=>para.evaluate(n=>n.closest('.tiptap').editor.state.selection.$from.parentOffset===n.textContent.length)).toBe(true);
   await typeConfirmed(' continued');const resumed=last.source.replace('Opening paragraph.','Opening paragraph. continued');expect((await snap()).source).toBe(resumed);
   await p.locator('#format-undo').click();await expect.poll(async()=>(await snap())?.source===resumed.replace('continued','continue')).toBe(true);await p.locator('#format-redo').click();await expect.poll(async()=>(await snap())?.source===resumed).toBe(true);

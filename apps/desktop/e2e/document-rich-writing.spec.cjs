@@ -1,3 +1,5 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
+const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -15,14 +17,14 @@ test('rich long writing: headings, formatted paragraphs, source, history, export
   const cwd=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-rich-session-')));sessionRoots.push(cwd);
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+path.join(root,'drafts')],cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>faults.push(e.message));
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
   await expect(page.locator('#empty-open')).toBeEnabled();
  }
- async function stop(){if(app){await app.close();app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
+ async function stop(){if(app){await closeDocumentApp(app,{page,evidencePath:info.outputPath('close-diagnostic.json')});app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
  try{
   await launch();await page.locator('#empty-open').click();await page.locator('#edit-copy').click();
   for(const [selector,index,marker] of [['p',0,'target.'],['h2',300,'## Chapter 300 **bold** heading.'],['p',599,'target.']]){
-   const node=page.locator(`#editor .tiptap > ${selector}`).nth(index);await node.click();
+   const node=page.locator(`#editor .tiptap > ${selector}`).nth(index);await node.click();await settleNativeCaret(node);
    await node.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);range.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(range);});
    const text='abcdefghijklmnop',start=Date.now();await page.keyboard.type(text,{delay:50});
    const raw=selector==='h2'?marker:`Paragraph ${index} **bold** *italic* \`code\` ${'中文 🌿 ordinary text. '.repeat(25)}target.`;
@@ -35,7 +37,7 @@ test('rich long writing: headings, formatted paragraphs, source, history, export
   await page.locator('#show-document-find').click();await page.locator('#find-query').fill('target.');await expect(page.locator('#find-count')).toHaveText('1 / 600');await page.keyboard.press('Escape');
   await expect.poll(async()=>{const s=await snap();return s?.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);const before=await snap();
   await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});dialog.showMessageBox=async()=>({response:1});},target);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
   expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);await page.locator('#open-confirmed-copy').click();await expect.poll(async()=>(await snap())?.readOnly).toBe(true);expect((await snap()).source).toBe(expected);
   const id=await page.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,before.label);
   await stop();await launch();await page.locator('#show-drafts').click();await page.locator(`[data-draft-id="${id}"]`).getByRole('button',{name:'恢复副本'}).click();await expect.poll(async()=>(await snap())?.source===expected).toBe(true);

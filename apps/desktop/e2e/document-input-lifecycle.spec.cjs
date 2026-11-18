@@ -1,3 +1,5 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
+const {closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
 test('controlled input lifecycle: composed text, cancellation and history across common writing contexts',async({},info)=>{
@@ -12,16 +14,19 @@ test('controlled input lifecycle: composed text, cancellation and history across
  const snap=()=>p.evaluate(async()=>(await window.documentDemo.snapshot({sessionId:document.querySelector('#documents').value})).snapshot);
  const idle=()=>expect.poll(()=>p.locator('#status').textContent().then(JSON.parse).then(s=>!s.composing&&!s.pending&&!s.historyPending&&!s.locked)).toBe(true);
  const backup=()=>expect.poll(async()=>{const s=await snap();return s?.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);
- async function caret(node){await node.click();await node.evaluate(n=>{const t=n.firstChild;if(t.nodeType!==Node.TEXT_NODE)throw Error('expected a synthetic text leaf');const r=document.createRange();r.setStart(t,2);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
+ async function caret(node){await node.click();await settleNativeCaret(node);await node.evaluate(n=>{const t=n.firstChild;if(t.nodeType!==Node.TEXT_NODE)throw Error('expected a synthetic text leaf');const r=document.createRange();r.setStart(t,2);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
   await expect.poll(()=>node.evaluate(n=>{const v=n.closest('.tiptap').editor.view,s=getSelection();return v.state.selection.empty&&v.state.selection.from===v.posAtDOM(s.anchorNode,s.anchorOffset);})).toBe(true);}
  try{
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.hide();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();await p.locator('#empty-open').click();await p.locator('#edit-copy').click();await backup();
   for(const [selector,text] of [['#editor h1','标题中文'],['#editor .tiptap > p:first-of-type','普通中文段落。'],['#editor strong','粗体中文'],['#editor strong em','组合中文'],['#editor li p','列表中文'],['#editor td p',' 表格内容 ']]){
    const node=p.locator(selector).filter({hasText:text}).first();await caret(node);const before=await snap();
    await cdp.send('Input.imeSetComposition',{text:'mo',selectionStart:2,selectionEnd:2});await expect(p.locator('#status')).toContainText('"composing":true');
    await cdp.send('Input.imeSetComposition',{text:'moxing',selectionStart:6,selectionEnd:6});expect((await snap()).source).toBe(source);expect((await snap()).revision).toBe(before.revision);
-   for(const id of ['show-source','show-details','create-test-copy','save-original','close-current-document'])await expect(p.locator('#'+id)).toBeDisabled();
+   // Stable controls retain an intent entry; native composition still prevents execution.
+   for(const id of ['show-source','create-test-copy','save-original','close-current-document'])await expect(p.locator('#'+id)).toBeEnabled();
+   await app.evaluate(({Menu})=>{const item=Menu.getApplicationMenu().items.find(i=>i.label==='文件').submenu.items.find(i=>i.label==='保存');item.click();});
+   await expect(p.locator('#workflow-status')).toContainText('请先完成当前选词');expect((await snap()).revision).toBe(before.revision);await expect(p.locator('dialog[open]')).toHaveCount(0);
    const backupDuring=await snap();expect(backupDuring.draftBackup.revision).toBe(before.revision);await p.keyboard.press('F6');await expect(p.locator('#editor .tiptap')).toBeFocused();
    await cdp.send('Input.insertText',{text:'模型😀'});await idle();const expected=source.replace(text,text.slice(0,2)+'模型😀'+text.slice(2));
    expect((await snap()).source).toBe(expected);expect((await snap()).revision).toBe(before.revision+1);await backup();
@@ -33,5 +38,5 @@ test('controlled input lifecycle: composed text, cancellation and history across
   await cdp.send('Input.imeSetComposition',{text:'yuanma',selectionStart:6,selectionEnd:6});await expect(p.locator('#apply-source')).toBeDisabled();expect((await snap()).source).toBe(source);
   await cdp.send('Input.imeSetComposition',{text:'',selectionStart:0,selectionEnd:0});await expect(p.locator('#apply-source')).toBeEnabled();await p.keyboard.press('Escape');await expect(p.locator('#source-dialog')).toBeHidden();expect((await snap()).source).toBe(source);
   expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+source);expect(faults).toEqual([]);expect(network).toEqual([]);evidence.sourceCancellation=true;evidence.passed=true;
- }finally{await app.close();evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,network},null,2));}
+ }finally{await closeDocumentApp(app,{page:p,evidencePath:info.outputPath('close-diagnostic.json')});evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,network},null,2));}
 });

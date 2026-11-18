@@ -1,3 +1,4 @@
+const {closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 
@@ -25,7 +26,7 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   expect(nodes.find(n=>n.role==='heading'&&n.name==='Heading').level).toBe(1);
  }
  try{
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;
    const window=BrowserWindow.getAllWindows()[0];window.setContentSize(1280,850);window.hide();},original);
   await expect(p.locator('#empty-open')).toBeEnabled();await p.locator('#empty-open').click();
   const editor=p.locator('#editor .tiptap');
@@ -112,6 +113,6 @@ test('keyboard workspace: named content, roving tools, modal focus and contrast 
   await p.screenshot({path:info.outputPath('keyboard-workspace.png')});evidence.passed=true;
  }finally{evidence.focus=await p.evaluate(()=>({active:document.activeElement?.id||document.activeElement?.className,
    dialog:document.querySelector('dialog[open]')?.id||null,windowFocused:document.hasFocus(),selectionLength:getSelection()?.toString().length})).catch(()=>null);
-  console.log('accessibility-evidence:'+JSON.stringify(evidence));await app.close();evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});
+  console.log('accessibility-evidence:'+JSON.stringify(evidence));await closeDocumentApp(app,{page:p,evidencePath:info.outputPath('close-diagnostic.json')});evidence.exit=await exit;expect(evidence.exit).toEqual({code:0,signal:null});
   await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({...evidence,faults,requests,artifacts:'OS temporary synthetic files only; no Home fixtures'},null,2));}
 });

@@ -1,3 +1,5 @@
+const {settleNativeCaret}=require('./helpers/document-native-selection.cjs');
+const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -15,11 +17,11 @@ test('common Markdown compatibility: combined marks, soft lines, continuation, r
   const cwd=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'document-safe-create-common-session-')));
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-drafts-test-root='+path.join(root,'drafts')],cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>faults.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
-  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBoxSync=()=>1;BrowserWindow.getAllWindows()[0].hide();},original);
+  await app.evaluate(({dialog,BrowserWindow},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;BrowserWindow.getAllWindows()[0].hide();},original);
   await expect(page.locator('#empty-open')).toBeEnabled();
  }
- async function stop(){if(app){await app.close();app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
- async function select(node,word,caret=null){await node.click();await node.evaluate((node,{word,caret})=>{
+ async function stop(){if(app){await closeDocumentApp(app,{page,evidencePath:info.outputPath('close-diagnostic.json')});app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
+ async function select(node,word,caret=null){await node.click();await settleNativeCaret(node);await node.evaluate((node,{word,caret})=>{
   const nodes=[],walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode())nodes.push(n);
   const start=node.textContent.indexOf(word);if(start<0)throw Error('Synthetic selection not found');
   const end=caret===null?start+word.length:start+caret,begin=caret===null?start:end;let offset=0,a,b;
@@ -45,7 +47,7 @@ test('common Markdown compatibility: combined marks, soft lines, continuation, r
   await page.locator('#show-source').click();await expect(page.locator('#source-editor .cm-content')).toBeVisible();await page.keyboard.press('Escape');await check();
   await expect.poll(async()=>{const s=await snap();return s?.draftBackup?.state==='backed-up'&&s.draftBackup.revision===s.revision;}).toBe(true);const saved=await snap();
   await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});dialog.showMessageBox=async()=>({response:1});},target);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
   expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);await page.locator('#open-confirmed-copy').click();await expect.poll(async()=>(await snap())?.readOnly).toBe(true);await check();
   const id=await page.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,saved.label);
   await stop();await launch();await page.locator('#show-drafts').click();await page.locator(`[data-draft-id="${id}"]`).getByRole('button',{name:'恢复副本'}).click();await check();

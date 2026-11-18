@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 const {createHomeFixture}=require('../test/helpers/home-fixture.cjs');
@@ -56,7 +57,7 @@ test('task and nested lists: native keys, checkbox, range paste, history, export
  await p.locator('#editor .tiptap').dispatchEvent('compositionend');await p.waitForTimeout(50);await expect(p.locator('#editor [role=checkbox]').first()).toBeEnabled();
  fixture=createHomeFixture('Writing-synthetic-E2E-');const target=path.join(fixture.dir,'Lists.md');
  await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);
- await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect(p.locator('#open-confirmed-copy')).toBeVisible();
+ await createMarkdownCopy(p);await expect(p.locator('#open-confirmed-copy')).toBeVisible();
  const exported=await current(p);expect(exported.confirmedCopy.state).toBe('created-confirmed');const bytes=await fs.readFile(target);const sha=crypto.createHash('sha256').update(bytes).digest('hex');expect(sha).toBe(exported.confirmedCopy.sha256);fixture.recordFile('Lists.md',bytes);
  await expect.poll(async()=>(await current(p)).draftBackup?.state).toBe('backed-up');
  const draftId=await p.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,exported.label);

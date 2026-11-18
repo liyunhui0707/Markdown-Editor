@@ -69,7 +69,9 @@ export function createSourceParser(parseFull) {
     if (Array.isArray(value)) return Object.freeze(value.map(v => translate(v, point)));
     if (!value || typeof value !== 'object') return value;
     const copy = {};
-    for (const [key, v] of Object.entries(value)) {
+    for (const key in value) {
+      if(!Object.hasOwn(value,key))continue;
+      const v=value[key];
       const next = key === 'position'
         ? Object.freeze({start: freezePoint(point(v.start)), end: freezePoint(point(v.end))})
         : translate(v, point);

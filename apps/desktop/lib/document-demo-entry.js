@@ -1,7 +1,10 @@
+import {dismissPassivePanels} from './document-window-panels.mjs';
 import {applyBoundarySpace} from './document-boundary-space-input.mjs';
 import {createImagePaste} from './document-image-paste.mjs';
 import {dropImage} from './document-image-drop.mjs';
 import {createFileComparisonView} from './document-file-comparison-view.mjs';
+import {createPresentationScheduler} from './document-presentation-scheduler.mjs';
+import {createActionIntent,canNavigatePaused} from './document-action-intent.mjs';
 import {filePresentation} from './document-file-presentation.mjs';
 import {createLinkedFileView} from './document-linked-file-view.mjs';
 import {createAccessibilityView} from './document-accessibility-view.mjs';
@@ -37,9 +40,10 @@ import { applyBlockShortcut, applyStructuredKey, applyTaskToggle } from './docum
 import { createLinkView } from './document-link-view.mjs';
 
 const api = window.documentDemo, byId = id => document.getElementById(id);
-let controller = null, editor = null, resetting = false, loading = false, selected = null;
+let controller = null, editor = null, resetting = false, loading = false, selected = null, closingWindow=false;
 let switching = false, switchEpoch = 0, pendingSession = null, failedSession = null, navigationError = '';
 const drafts = new Map(), lifecycles = new Map();
+const fileIntent=createActionIntent({context:()=>({controller,state:controller?.state(),loading,invalid:activeInvalid(),nativeComposing:editor?.view.composing}),changed:()=>{if(controller)render(controller.state());},report:message=>{byId('workflow-status').textContent=message;}});
 const formatView = createFormatView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const tableView=createTableView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const imagePreviews=createImagePreviews({api,context:()=>({state:controller?.state(),loading})});
@@ -47,12 +51,12 @@ const imagePaste=createImagePaste({api,context:()=>({controller,editor,state:con
 const imageView=createImageView({api,byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const linkView = createLinkView({byId,context:()=>({controller,editor,state:controller?.state(),loading,invalid:activeInvalid()}),report:viewerStatus});
 const readingView = createReadingView({ byId, context: () => ({ editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
-const sourceView = createSourceView({ byId, createEditor:createSourceEditor, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid(),
+const sourceView = createSourceView({ byId, createEditor:createSourceEditor, saveFile:()=>fileIntent.run('保存',saveFile),run:(label,action)=>fileIntent.run(label,action), context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid(),
   sourceSelection:()=>{const at=editor.state.selection.from,span=projectSource(controller.state().source).spans.find(s=>at>=s.from&&at<=s.to);return span?span.sourceFrom+at-span.from:0;},
   restoreSelection:at=>{const source=controller.state().source,span=projectSource(source).spans.find(s=>at>=s.sourceFrom&&at<=s.sourceTo);if(span)resetSource(source,{from:span.from+at-span.sourceFrom,to:span.from+at-span.sourceFrom});}
 }) });
 const accessibility = createAccessibilityView({byId,context:()=>({editor,state:controller?.state(),loading})});
-const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id) }), refreshDrafts: () => draftView.refresh() });
+const writingShell = createWritingShell({ byId, reading: readingView, sourceView, context: () => ({ state: controller?.state(), loading, selected, pendingSession, unavailable: id => lifecycles.has(id),run:(label,action)=>fileIntent.run(label,action,{navigation:true}) }), refreshDrafts: () => draftView.refresh() });
 const findView = createFindView({ byId, context: () => ({ controller, editor, state: controller?.state(), loading, invalid: activeInvalid() }) });
 const draftView = createDraftView({ api, byId, context: () => ({ hasSession:id=>[...byId('documents').options].some(o=>o.value===id), state: controller?.state(), loading, invalid: activeInvalid() }), restore: id => openDocument(true, false, id) });
 const recentView = createRecentView({ api, byId, context: () => ({ state: controller?.state(), loading, invalid: activeInvalid() }), open: id => openDocument(false, false, null, null, id), restore: id => openDocument(true, false, id) });
@@ -137,7 +141,7 @@ const copyActionsView = createCopyActionsView({ api, byId,
   busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
 });
 const testCopyView = createTestCopyView({ api, byId,
-  context: () => ({ controller, selected, loading, invalid: activeInvalid() }),
+  context: () => ({ controller, selected, loading, coordinate:true, invalid: activeInvalid() }),
   busy: value => { loading = value; }, rerender: () => { if (controller) render(controller.state()); },
   focus: () => { if (editor?.isEditable) editor.view.focus(); },
 });
@@ -148,9 +152,9 @@ const comparisonView=createFileComparisonView({api,byId,context:()=>({controller
   busy:value=>{loading=value;},rerender:()=>{if(controller)render(controller.state());},
   open:request=>openDocument(false,false,null,null,null,null,null,request),focus:()=>{if(editor?.isEditable)editor.view.focus();}});
 const originalSaveView = createOriginalSaveView({api,byId,
-  context:()=>({controller,selected,loading,invalid:activeInvalid()}),busy:value=>{loading=value;},
+  context:()=>({controller,selected,loading,coordinate:true,invalid:activeInvalid()}),busy:value=>{loading=value;},
   rerender:()=>{if(controller)render(controller.state());},focus:()=>{if(editor?.isEditable)editor.view.focus();}});
-const closeView = createCloseView({ api, byId,
+const closeView = createCloseView({ api, byId,run:(label,action)=>fileIntent.run(label,action),
   context: () => ({ controller, selected, loading, invalid: activeInvalid(), nativeComposing: editor?.view.composing }),
   busy: value => { loading = value; }, report: viewerStatus, closed: finishDocumentClose,
   rerender: () => { if (controller) render(controller.state()); else { writingShell.sync(); recentView.sync(); closeView.sync(); nativeOpenView.sync(); show(); } },
@@ -166,10 +170,13 @@ function show(code) {
     canUndo: current?.canUndo, canRedo: current?.canRedo });
 }
 function render(s) {
+  presentation.clear();
+  if(!s.composing&&!editor?.view.composing&&byId('workflow-status').textContent.startsWith('请先完成当前选词'))byId('workflow-status').textContent='';
   drafts.set(selected, s.recoveryRecords);
   const records = s.recoveryRecords.filter(r => r.reason !== 'edit-queue-full');
   byId('documents').value = selected;
-  byId('source').textContent = s.confirmed.source;
+  const currentOption=[...byId('documents').options].find(o=>o.value===selected);if(currentOption&&currentOption.textContent!==s.confirmed.label)currentOption.textContent=s.confirmed.label;
+  if(byId('source').textContent!==s.confirmed.source)byId('source').textContent=s.confirmed.source;
   byId('recovery').textContent = records.map(r => `Record ${r.id}: ${r.reason}; base revision ${r.baseRevision}; ${r.mainMatchesDraft ? 'snapshot matches' : 'not reapplied'}\n${r.source}${'visibleText' in r ? `\nPartial DOM text (possibly incomplete):\n${r.visibleText ?? '[unavailable]'}` : ''}`).join('\n\n----\n\n');
   byId('recovery-panel').hidden = records.length === 0;
   byId('recovery-status').textContent = `${records.length} retained record(s). Confirmed Markdown is shown separately above.`;
@@ -180,18 +187,19 @@ function render(s) {
   if (records.some(r => String(r.id) === recoveryId)) byId('recovery-record').value = recoveryId;
   const busy = loading || s.pending > 0 || s.composing || s.historyPending;
   for (const id of ['documents', 'reload', 'check', 'save']) byId(id).disabled = busy;
+  byId('documents').disabled=loading||s.historyPending||(s.locked&&!canNavigatePaused(s))||activeInvalid()||s.compositionInvalid;
   for (const id of ['reload', 'check', 'save']) byId(id).disabled ||= activeInvalid();
   byId('undo').disabled = busy || activeInvalid() || s.locked || !s.confirmed.canUndo;
   byId('redo').disabled = busy || activeInvalid() || s.locked || !s.confirmed.canRedo;
   byId('discard-recovery').disabled = busy || records.length === 0;
-  const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading;
+  const editable = !readOnlyDocument() && !activeInvalid() && !s.locked && !s.historyPending && !loading && !fileIntent.waiting();
   if (editor && editor.isEditable !== editable) editor.setEditable(editable, false);
   for(const button of editor?.view.dom.querySelectorAll('.document-task-toggle')||[]) {
     button.disabled=!editable||s.composing||s.compositionInvalid||s.recoveryRecords.length>0;
     button.setAttribute('aria-disabled',String(button.disabled));
   }
   if (readOnlyWindow) {
-    for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = busy;
+    for (const id of ['open-file', 'empty-open', 'new-temporary']) byId(id).disabled = loading||s.historyPending||(s.locked&&!canNavigatePaused(s))||activeInvalid()||s.compositionInvalid;
     const current = s.confirmed, temporary = current.temporary === true;
     byId('edit-copy').hidden = current.readOnly !== true || current.editCopyEnabled !== true;
     byId('edit-copy').disabled = busy || activeInvalid() || s.locked || s.recoveryRecords.length > 0;
@@ -212,6 +220,7 @@ function render(s) {
   byId('composition-status').hidden = !s.composing || readOnlyWindow;
   inputPressure.sync(); draftView.render(s); testCopyView.render(s); originalSaveView.render(s); linkedFileView.render();comparisonView.render(); copyActionsView.render(); renderCompositionCopies(s); writingShell.sync(); recentView.sync(); nameView.sync(); formatView.sync();tableView.sync(); linkView.sync();imageView.sync(); imagePreviews.sync(); findView.sync(); closeView.sync(); nativeOpenView.sync(); accessibility.sync(); show();
 }
+const presentation=createPresentationScheduler({render,fast:s=>{byId('readonly-badge').textContent=filePresentation(s.confirmed,s).label;byId('backup-summary').textContent='正在确认修改…';show();}});
 function resetSource(source, selection) {
   if (!editor) return;
   const old = selection || { from: editor.state.selection.from, to: editor.state.selection.to };
@@ -257,12 +266,13 @@ function finishCompositionForPointer(view, event) {
   return false; // Keep the normal pointer selection/focus behavior.
 }
 function install(snapshot) {
+  presentation.clear();
   if (lifecycles.has(snapshot.sessionId)) throw Error('Blocked session');
   projectSource(snapshot.source); // Validate before changing the active identity.
   controller?.dispose(); selected = snapshot.sessionId;
   compositionView = null; copyPanelOpen = false; copyMessage = ''; ++copyEpoch;
   controller = createEditController(snapshot, {
-    send: (operation, data) => operation==='source-edit'?api.sourceEdit(data):api[operation](data), onChange: render, onReset: resetSource,
+    send: (operation, data) => operation==='source-edit'?api.sourceEdit(data):api[operation](data), onChange: presentation.update, onReset: resetSource,
     recoveryRecords: drafts.get(selected) || [],
   });
   if (!editor) {
@@ -390,6 +400,7 @@ api.onLifecycle(({ sessionId, state }) => {
   if (controller) render(controller.state()); else { writingShell.sync(); recentView.sync(); show(); }
 });
 async function finishDocumentClose(id) {
+  presentation.clear();
   const options = [...byId('documents').options], index = options.findIndex(o => o.value === id);
   const next = options[index + 1] || options[index - 1];
   // Called only after the matched main-owned close receipt. Release presentation
@@ -423,7 +434,7 @@ function viewerStatus(message, notice = false) {
 }
 async function openDocument(temporary = false, editingCopy = false, draftId = null, confirmedCopy = null, recentId = null, nativeRequestId = null, linkedRequest = null, comparedRequest = null) {
   const state = controller?.state();
-  if (!readOnlyWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
+  if (!readOnlyWindow || closingWindow || loading || state?.pending || state?.composing || state?.compositionInvalid || state?.historyPending) return;
   const original = state?.confirmed;
   if (confirmedCopy && (activeInvalid() || state.locked || state.compositionInvalid || state.recoveryRecords.length
       || state.source !== original.source || confirmedCopy.sessionId !== selected
@@ -494,23 +505,63 @@ async function openDocument(temporary = false, editingCopy = false, draftId = nu
     if ((temporary||candidate?.temporary) && candidate?.sessionId === selected && !activeInvalid()) editor?.view.focus();
   }
 }
-const openReadOnly = () => { if (!document.querySelector('dialog[open]') && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
+const openReadOnly = () => { dismissPassivePanels(byId);if (!document.querySelector('dialog[open]') && !linkView.isOpen() && !imageView.isOpen() && !nameView.isOpen() && !sourceView.isOpen()) return openDocument(false); };
 byId('new-temporary').onclick = () => openDocument(true);
 byId('edit-copy').onclick = () => openDocument(true, true);
 byId('open-file').onclick = openReadOnly;
 byId('empty-open').onclick = openReadOnly;
 api.onOpenRequest(openReadOnly);
+async function saveFile(){
+  if(controller?.state().confirmed.originalSave?.available)return originalSaveView.save();
+  return testCopyView.create('save-as');
+}
 const saveCurrent=()=>{
-  if(sourceView.isOpen()){byId('apply-source').click();return;}
-  if(document.querySelector('dialog[open]'))return;
-  if(controller?.state().confirmed.originalSave?.available)void originalSaveView.save();
-  else byId('create-test-copy').click();
+  if(sourceView.isOpen())return sourceView.save();
+  dismissPassivePanels(byId);
+  if(document.querySelector('dialog[open]'))return false;
+  return fileIntent.run('保存',saveFile);
 };
+byId('save-original').onclick=saveCurrent;
+byId('create-test-copy').onclick=()=>{byId('file-actions').open=false;return fileIntent.run('另存',()=>testCopyView.create('save-as'));};
+byId('export-copy').onclick=()=>{byId('file-actions').open=false;return fileIntent.run('导出',()=>testCopyView.create('export'));};
+byId('new-temporary').onclick=()=>fileIntent.run('新建',()=>openDocument(true),{navigation:true});
+byId('open-file').onclick=()=>fileIntent.run('打开文档',openReadOnly,{navigation:true});
+byId('empty-open').onclick=byId('open-file').onclick;
+byId('file-actions-toggle').onpointerdown=event=>{if(editor?.view.composing||controller?.state().composing)event.preventDefault();};
+byId('file-actions-toggle').onclick=event=>{event.preventDefault();return fileIntent.run('打开文档操作',()=>{byId('file-actions').open=!byId('file-actions').open;});};
+api.onFileAction?.(action=>{
+  if(closingWindow)return;
+  if(action==='save')return void saveCurrent();
+  if(['undo','redo'].includes(action)){
+    if(sourceView.isOpen()){byId('source-'+action).click();return;}
+    if(document.activeElement?.matches('input,textarea')){document.execCommand(action);return;}
+  }
+  if(action==='close'&&sourceView.isOpen()){sourceView.close();return;}
+  if(action==='close'&&dismissPassivePanels(byId))return;
+  if(['new','open','save-as','export'].includes(action))dismissPassivePanels(byId);
+  if(document.querySelector('dialog[open]'))return;
+  if(action==='new')void byId('new-temporary').onclick();
+  if(action==='open')void byId('open-file').onclick();
+  if(action==='save-as'||action==='export')void fileIntent.run(action==='export'?'导出':'另存',()=>testCopyView.create(action));
+  if(action==='close')void byId('close-current-document').onclick();
+  if(action==='undo'||action==='redo')void history(action);
+});
+api.onWindowCloseRequest?.(async()=>{
+  if(closingWindow)return;
+  if(sourceView.isOpen()){sourceView.close();if(sourceView.isOpen())return;}
+  dismissPassivePanels(byId);
+  if(document.querySelector('dialog[open]')){viewerStatus('请先完成或取消当前对话框，再关闭窗口。',true);return;}
+  closingWindow=true;
+  try{
+    while(controller){if(!await fileIntent.run('关闭文档',()=>closeView.close()))return;}
+    const result=await api.finishWindowClose();if(!result?.ok)viewerStatus('还有未完成的文档操作，窗口保持打开。',true);
+  }finally{closingWindow=false;}
+});
 api.onSaveRequest(saveCurrent);
 window.addEventListener('keydown', event => {
-  if(readOnlyWindow&&(event.metaKey||event.ctrlKey)&&!event.altKey&&event.key.toLowerCase()==='s'&&!sourceView.isOpen()){event.preventDefault();saveCurrent();return;}
+  if(readOnlyWindow&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='s'&&!sourceView.isOpen()){event.preventDefault();saveCurrent();return;}
   if (readOnlyWindow && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'o') {
-    event.preventDefault(); void openReadOnly();
+    event.preventDefault(); void fileIntent.run('打开文档',openReadOnly,{navigation:true});
   }
 });
 api.onReady(data => {

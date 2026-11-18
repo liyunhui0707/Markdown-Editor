@@ -1,6 +1,7 @@
+import {equalCanonicalProjection} from './document-canonical-equal.mjs';
 import {rowParts,renderRow} from './document-prefixed-paragraph.mjs';
 import {splitArticleParts,articleNodes} from './document-article-source.mjs';
-import {joinProseParts,canonicalDocument} from './document-prose-range.mjs';
+import {joinProseParts} from './document-prose-range.mjs';
 import {listNodeAt,sameListParent} from './document-list-source.mjs';
 import sourceEdits from './document-source-edit.js';
 import {copyEditedBlock} from './document-edit-projection.mjs';
@@ -45,7 +46,7 @@ export function mapStructuredRange(source,p,{from,to,insert},project){
  }
  const a=rows[first].bodyFrom,b=rows[last].sourceTo,next=source.slice(0,a)+raw+source.slice(b),patch=sourceEdits.sourceDifference(source,next);
  if(!patch.ok||patch.change.to-patch.change.from>4096||patch.change.insert.length>4096)return reject();
- const projection=project(next);if(JSON.stringify(canonicalDocument(expected))!==JSON.stringify(canonicalDocument(projection.doc)))return reject();
+ const projection=project(next);if(!equalCanonicalProjection(expected,projection.doc))return reject();
  const at=from+insert.length+(list?2*(values.length-1):0);
  const leaf=first===last&&p.spans.find(s=>s.blockIndex===index&&from>=s.from&&to<=s.to);
  const simple=leaf&&source.slice(0,leaf.sourceFrom+from-leaf.from)+insert+source.slice(leaf.sourceFrom+to-leaf.from)===next;

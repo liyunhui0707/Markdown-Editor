@@ -4,8 +4,18 @@ const { contextBridge, ipcRenderer } = require('electron');
 const MAX_IMAGE_DATA_URL = 5592434;
 // Sandboxed isolated preload: no generic invoke, paths, fs or policy options.
 const states = new Map(), listeners = new Set(), lifecycleListeners = new Set();
-let pending = 0, composing = false, draftManagementUnknown = false;
-const copies = new Set(), unknown = new Map();
+let pending = 0, catalogPending = 0, composing = false, draftManagementUnknown = false;
+const copies = new Set(), unknown = new Map(), idleWaiters = new Set();
+// A user-requested close may overlap background catalog reads. Wait once for
+// those requests, then re-check every fence; a late reply never replays closing.
+function awaitRequests(){
+  if(!pending)return Promise.resolve(true);
+  return new Promise(resolve=>{
+    const finish=ok=>{clearTimeout(timer);idleWaiters.delete(settled);resolve(ok);};
+    const settled=()=>finish(true),timer=setTimeout(()=>finish(false),5000);
+    idleWaiters.add(settled);
+  });
+}
 document.addEventListener('compositionstart', () => { composing = true; }, true);
 document.addEventListener('compositionend', () => { composing = false; }, true);
 function lifecycle(sessionId, state) {
@@ -20,9 +30,15 @@ const request = async (operation, data = {}) => {
   const sessionId = data?.sessionId;
   if (states.has(sessionId)) return blocked(sessionId);
   const userClosing = operation === 'close-document';
+  const catalogRead=['list','list-recents','list-drafts','list-save-recoveries','list-native-opens'].includes(operation);
   if (userClosing) {
     if (typeof sessionId !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) return { ok: false, code: 'invalid-request' };
     if (composing) return { ok: false, code: 'composition-active' };
+    if(pending&&pending===catalogPending){
+      if(!await awaitRequests())return {ok:false,code:'document-busy'};
+      if(states.has(sessionId))return blocked(sessionId);
+    }
+    if(composing)return {ok:false,code:'composition-active'};
     if (pending) return { ok: false, code: 'document-busy' };
     if (unknown.has(sessionId) || unknown.has(undefined)) return { ok: false, code: 'ipc-outcome-unknown' };
   }
@@ -61,7 +77,7 @@ const request = async (operation, data = {}) => {
   // Establish the fence synchronously, before IPC can close main's session.
   if (closing) lifecycle(sessionId, 'close-pending');
   let result;
-  ++pending;
+  ++pending;if(catalogRead)++catalogPending;
   try { result = await ipcRenderer.invoke('document-demo:request', { ...data, operation }); }
   catch (error) {
     if (following) { unknown.set(sessionId, 'copy-action-unknown'); return { ok: false, code: 'copy-action-unknown' }; }
@@ -71,7 +87,7 @@ const request = async (operation, data = {}) => {
     if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing || renaming || nativeOpening) return { ok: false, code: unknown.get(sessionId) };
     if (!closing) throw error;
     lifecycle(sessionId, 'close-outcome-unknown'); return blocked(sessionId);
-  } finally { --pending; if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
+  } finally { --pending;if(catalogRead)--catalogPending; if(!pending)for(const settled of [...idleWaiters])settled(); if (comparisonAction || linkedAction || originalSaving || creating || forking || managing || following || importing) copies.delete(sessionId); }
   if(standardOpening&&(!result||typeof result.ok!=='boolean'||(result.ok&&(!writingSnapshot(result)||states.has(result.snapshot?.sessionId))))){unknown.set(undefined,'ipc-outcome-unknown');return {ok:false,code:'ipc-outcome-unknown'};}
   if(comparisonAction&&(!result||typeof result.ok!=='boolean'||(result.ok&&(operation==='compare-linked-file'
     ? result.snapshot?.sessionId!==sessionId||result.snapshot.revision!==data.expectedRevision||typeof result.comparison?.source!=='string'||result.comparison.source.length>524288||!/^[a-f0-9-]{36}$/.test(result.comparison.token)||!/^[a-f0-9]{64}$/.test(result.comparison.sha256)
@@ -190,6 +206,9 @@ contextBridge.exposeInMainWorld('documentDemo', {
   editCopy: data => request('edit-copy', data),
   createTestCopy: data => request('create-test-copy', data),
   createPersistentCopy: data => request('create-persistent-copy', data),
+  finishWindowClose:async()=>{if(composing||unknown.size||!await awaitRequests()||composing||pending||unknown.size)return {ok:false,code:'document-busy'};return ipcRenderer.invoke('document-demo:finish-window-close');},
+  onWindowCloseRequest:handler=>ipcRenderer.on('document-demo:window-close-request',()=>handler()),
+  onFileAction:handler=>ipcRenderer.on('document-demo:file-action',(_event,action)=>{if(['new','open','save','save-as','export','close','undo','redo'].includes(action))handler(action);}),
   onSaveRequest: handler => ipcRenderer.on('document-demo:save-request', () => handler()),
   onOpenRequest: handler => ipcRenderer.on('document-demo:open-request', () => handler()),
   list: () => request('list'),

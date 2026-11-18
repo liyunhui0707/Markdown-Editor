@@ -1,5 +1,43 @@
 # Stage History
 
+## Document workflow consolidation — 0.81.0 (2026-11-17)
+
+- Save opens one destination panel for an unbound draft; Save As binds the new
+  verified file and updates its name/baseline without resetting Undo. Export
+  explicitly preserves the current target and dirty state. Ordinary local Save
+  has no routine warning; OneDrive keeps provider-specific disclosure.
+- Source Cmd-S applies then saves; Cmd-Enter and Apply and Return remain buffer-only.
+  Native menus include New, Save As, export and history, with Source/field history
+  routed to their own editing context. Saved/empty close is quiet; dirty close
+  offers Save, Keep Draft, Cancel. Whole-window closure revokes each document via
+  the same checks, and a revoked renderer requires explicit native confirmation.
+- One bounded action intent drains exact confirmed input without forcing IME
+  candidates; unknown, changed and recovery states cancel it. Ordinary optimistic
+  presentation coalesces one frame, while settled/error/IME/pressure stays
+  immediate. JSON projection equality checks every node/key/type without making
+  two whole-document strings; AST relocation retains immutable own properties.
+- Retain the approved visual baseline, emphasize Save, group secondary file
+  actions, tighten sidebar/status and shorten contextual notices. Existing large
+  entry/IPC/source-map modules receive scoped routing; new helpers stay under
+  100 lines rather than unrelated architecture restructuring.
+- File commands dismiss passive presentation panels through their guarded controls; Cmd-W closes a panel first. Unapplied source/link/name/image input and pending management remain protected.
+- Multi-document close waits only for overlapping catalog reads, then rechecks every fence. Confirmed queue pauses may retain overflow while navigating; sync failure, editing, Save and Close remain protected. Save As receipts hide export-only shortcuts.
+- Node/native, unchanged raw-rate input, native-window flows, screenshot review,
+  full CI and package checks are required before delivery. Checkpoint 5d5273d
+  passed seven Air workflows. Panel-routing checkpoint 501421d has 3,701 Node
+  passes / two existing skips and 110 matching packaged runtime files; its full
+  CI is required before installation. Keep finite first-key observations separate
+  from physical IME/VoiceOver and long human writing acceptance.
+- CI 111 exposed mixed-list raw-input saturation. Two container planners
+  compare the entire canonical tree without whole-tree normalization copies or
+  JSON strings; retain neighboring attributes, adjacent-text semantics, mutable
+  projection ownership, PM/main proofs and unchanged pressure limits. Full GUI/CI
+  remains required; Node component samples alone do not close that performance gate.
+  Canonical-comparison checks pass 3,704 Node cases / two existing skips; its
+  package matches all 111 runtime files. Final flow results are tracked by PR #175.
+
+- 2026-11-18: replace build-only electron-builder with official Packager 20.3.0 / ASAR 4.3.2 after an unpatched picomatch advisory. Both audit gates are zero; no production dependency versions or Document runtime files change. A closed lockfile-backed copy policy retains identity, association, icon and helper, excludes private/legacy files and verifies ASAR/ZIP hashes and signatures. Retired build-parser tests become whole-chain absence checks; original tests remain in Git. Full final CI, installed acceptance and user-selected human acceptance remain required before formal publication.
+
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
 
 - A real ordinary Markdown file reported `metadata-copy-failed` before replacement. Metadata-only comparison showed matching mode/owner/last-used attributes but different provenance on original/candidate objects. The original was never updated; the failed-write notice could be outside the scrolled viewport.

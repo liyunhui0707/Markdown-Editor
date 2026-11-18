@@ -84,7 +84,7 @@ test('sidebar guards pending/composition states and ignores revoked or removed s
     c.state[field] = 1; shell.sync(); let prevented = false;
     row('draft').onpointerdown({ preventDefault() { prevented = true; } }); row('draft').onclick();
     assert.equal(prevented, true); assert.equal(calls, 0); assert.equal(byId('documents').value, 'original');
-    assert.equal(byId('session-filter').disabled, true); c.state[field] = 0;
+    assert.equal(byId('session-filter').disabled, field !== 'pending'); c.state[field] = 0;
   }
   c.unavailable = id => id === 'draft'; shell.sync();
   row('draft').onclick(); assert.equal(calls, 0); assert.equal(row('draft').disabled, true);
@@ -169,7 +169,7 @@ test('title dismissal leaves composing, pending and modal-owned interactions alo
 
 test('confirmed export shortcuts belong to the scrollable writing area beside the receipt', () => {
   const { byId } = fixture(), contents = byId('document-scroll').children;
-  const actions = contents.indexOf(byId('confirmed-copy-actions'));
-  assert.ok(actions > contents.indexOf(byId('copy-summary-compact')));
-  assert.ok(actions < contents.indexOf(byId('editor')));
+  const feedback=byId('copy-feedback'),row=feedback.children;
+  assert.ok(contents.indexOf(feedback)<contents.indexOf(byId('editor')));
+  assert.deepEqual(row,[byId('copy-summary-compact'),byId('confirmed-copy-actions')]);
 });

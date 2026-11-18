@@ -208,7 +208,7 @@ for (const raw of ['\ufeff---\r\nkind: test\r\n---\r\n\r\nFirst 中文😀\r\n\r
     const result = await call(q); assert.equal(result.ok, true, JSON.stringify(result));
     const expected = Buffer.from(raw.replace('First 中文😀', 'First 中文😀 EDITED'));
     d.owned.recordFile('copy.md', expected);
-    assert.deepEqual(fs.readFileSync(d.filePath), expected); assert.equal(result.copy.sha256, hash(expected));
+    assert.deepEqual(fs.readFileSync(d.filePath), expected); assert.equal(result.copy.sha256, hash(expected));assert.equal(result.snapshot.copyState.purpose,'save-as');assert.equal(result.snapshot.confirmedCopy.purpose,'save-as');
     for (const field of ['source','revision','dirty','canUndo','canRedo']) assert.equal(result.snapshot[field], copy[field]);
     assert.deepEqual(call({ operation: 'snapshot', sessionId: id }).snapshot, original);
     assert.deepEqual(fs.readFileSync(originalPath), bytes);

@@ -1,6 +1,6 @@
 {
   "name": "markdown-vault-desktop",
-  "version": "0.80.1",
+  "version": "0.81.0",
   "description": "Desktop shell for the Markdown Vault App",
   "main": "document-app-main.js",
   "scripts": {
@@ -29,12 +29,12 @@
     "test:spike-cm6": "node --test test/spike-cm6/*.test.js",
     "pack": "npm run pack:document",
     "dist": "npm run dist:mac",
-    "dist:mac": "npm run build:document-save && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir zip",
+    "dist:mac": "npm run build:document-save && node tools/package-document.cjs --zip",
     "dev:document": "electron document-app-main.js",
-    "pack:document": "npm run build:document-save && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.document.cjs --mac dir",
+    "pack:document": "npm run build:document-save && node tools/package-document.cjs",
     "dev:legacy": "electron main.js",
     "build:document-save": "node tools/build-document-save.cjs",
-    "pack:document:signed": "node -e \"require('./electron-builder.document-release.cjs')\" && npm run build:document-save && electron-builder --config electron-builder.document-release.cjs --mac dir --arm64 --publish never",
+    "pack:document:signed": "node -e \"require('./electron-builder.document-release.cjs')\" && npm run build:document-save && node tools/package-document.cjs --signed",
     "verify:document:release": "node tools/verify-document-release.cjs"
   },
   "author": "",
@@ -63,8 +63,9 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "electron": "^43.8.1",
-    "electron-builder": "^26.15.7",
-    "esbuild": "^0.25.12"
+    "esbuild": "^0.25.12",
+    "@electron/packager": "20.3.0",
+    "@electron/asar": "4.3.2"
   },
   "dependencies": {
     "@codemirror/commands": "^6.6.0",

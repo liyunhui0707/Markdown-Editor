@@ -1,3 +1,4 @@
+const {createMarkdownCopy,closeDocumentApp}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createHash}=require('node:crypto');
 const {createOneDriveFixture}=require('../test/helpers/onedrive-fixture.cjs'),{syntheticPNG}=require('../test/helpers/synthetic-raster.cjs');
@@ -14,10 +15,10 @@ test('OneDrive local workflow: coordinated save, attachments, alias export, conf
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-writing-open','--document-drafts-test-root='+path.join(root,'drafts'),'--document-recents-test-root='+path.join(root,'recents'),'--document-original-saves-test-root='+path.join(root,'versions')],cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   let selected=target;if(fixture.kind==='real-onedrive')selected=path.join(os.homedir(),'OneDrive',path.relative(path.join(os.homedir(),'Library/CloudStorage',fixture.dir.split('/Library/CloudStorage/')[1].split('/')[0]),target));
-  await app.evaluate(({dialog,BrowserWindow},{original,selected})=>{global.syntheticOneDriveConsents=[];dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:selected});dialog.showMessageBox=async(_win,options)=>{global.syntheticOneDriveConsents.push(options.detail);return {response:1};};dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},{original,selected});
+  await app.evaluate(({dialog,BrowserWindow},{original,selected})=>{global.syntheticOneDriveConsents=[];dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:selected});dialog.showMessageBox=async(_win,options)=>{global.syntheticOneDriveConsents.push(options.detail);return {response:options.message.startsWith('保存对')?1:0};};dialog.showMessageBoxSync=()=>1;const w=BrowserWindow.getAllWindows()[0];w.setContentSize(1280,850);w.showInactive();},{original,selected});
   await expect(page.locator('#empty-open')).toBeEnabled();
  }
- async function stop(){if(app){await app.close();app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
+ async function stop(){if(app){await closeDocumentApp(app,{page,evidencePath:info.outputPath('close-diagnostic.json')});app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
  try{
   await launch();await page.locator('#empty-open').click();const opened=await snap();expect(opened.readOnly).toBe(false);expect(opened.originalSave?.localProvider).toBe('onedrive');
   const paragraph=page.locator('#editor .tiptap > p').filter({hasText:'Before.'});await paragraph.click();await page.keyboard.press('Meta+ArrowRight');await page.keyboard.insertText(' Edited.');expected=initial.replace('Before.','Before. Edited.');await check();
@@ -25,8 +26,8 @@ test('OneDrive local workflow: coordinated save, attachments, alias export, conf
   await expect(page.locator('#editor img.document-local-image')).toBeVisible();expected=expected.replace('Before. Edited.','Before. Edited.\r\n\r\n![粘贴的图片](<'+href+'>)');await check();await backup();
   await page.keyboard.press('Meta+s');await expect(page.locator('#original-save-status')).toContainText('本机文件写入');await expect.poll(async()=>(await snap())?.dirty).toBe(false);
   expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+expected);expect(await fs.readFile(path.join(fixture.dir,href))).toEqual(png);
-  const consents=await app.evaluate(()=>global.syntheticOneDriveConsents);expect(consents.some(s=>s?.includes('旧正文可能被同步'))).toBe(true);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect(page.locator('#test-copy-operation')).toContainText('OneDrive 本机文件写入');await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
+  const consents=await app.evaluate(()=>global.syntheticOneDriveConsents);expect(consents.some(s=>s?.includes('可能一起同步'))).toBe(true);
+  await createMarkdownCopy(page,'save-as');await expect(page.locator('#test-copy-operation')).toContainText('OneDrive 本机文件写入');await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);
   expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);const exported=await snap();expect(exported.confirmedCopy.localProvider).toBe('onedrive');expect(exported.confirmedCopy.attachments).toHaveLength(1);
   await page.screenshot({path:info.outputPath('onedrive-saved-normal.png')});await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(920,760));await page.screenshot({path:info.outputPath('onedrive-saved-narrow.png')});expect(await page.evaluate(()=>document.body.scrollWidth<=innerWidth)).toBe(true);
   await page.locator('#editor .tiptap > h1').click();await page.keyboard.press('Meta+ArrowRight');await page.keyboard.insertText(' More');expected=expected.replace('# OneDrive','# OneDrive More');await check();await backup();

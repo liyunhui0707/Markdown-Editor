@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),zlib=require('node:zlib');
 const {createHomeFixture}=require('../test/helpers/home-fixture.cjs');
@@ -24,7 +25,7 @@ test('local images: choose, preview, exact attachments export, reuse, readonly r
  async function stop(){if(app){await app.close();app=null;const result=await exit;exits.push(result);expect(result).toEqual({code:0,signal:null});}}
  const loaded=p=>p.locator('#editor img[src]');
  async function choose(file){await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);}
- async function exportTo(p,target){await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect(p.locator('#open-confirmed-copy')).toBeVisible();await expect.poll(async()=> (await current(p))?.confirmedCopy?.filePath).toBe(target);}
+ async function exportTo(p,target){await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);await createMarkdownCopy(p);await expect(p.locator('#open-confirmed-copy')).toBeVisible();await expect.poll(async()=> (await current(p))?.confirmedCopy?.filePath).toBe(target);}
  try{
   let p=await launch();await p.locator('#empty-open').click();await p.locator('#edit-copy').click();await p.locator('#editor p').click();await p.locator('#format-image').click();
   await app.evaluate(({dialog})=>{dialog.showOpenDialog=async()=>({canceled:true,filePaths:[]});});await p.locator('#image-choose').click();await expect(p.locator('#image-choose')).toBeEnabled();await expect(p.locator('#image-href')).toHaveValue('');

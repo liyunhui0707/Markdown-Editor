@@ -1,3 +1,5 @@
+const {focusNativeWindow,settleNativeCaret}=require('./helpers/document-native-selection.cjs');
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {createSaveFolderFixture}=require('../test/helpers/save-folder-fixture.cjs');
@@ -14,12 +16,12 @@ test('formatted inline workflow: marks, link panel, history, source, save/export
   app=await _electron.launch({executablePath:process.env.E2E_ELECTRON_EXECUTABLE,args:[path.resolve(__dirname,'../main.js'),'--document-readonly','--document-persistent-copy','--document-writing-open','--document-drafts-test-root='+path.join(root,'drafts'),'--document-original-saves-test-root='+path.join(root,'versions')],cwd,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'en_US.UTF-8',TMPDIR:os.tmpdir()},chromiumSandbox:true});
   exit=new Promise(resolve=>app.process().once('close',(code,signal)=>resolve({code,signal})));page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
   await app.evaluate(({dialog,BrowserWindow,shell},{original,target,hidden})=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[original]});dialog.showSaveDialog=async()=>({canceled:false,filePath:target});dialog.showMessageBox=async()=>({response:1});dialog.showMessageBoxSync=()=>1;shell.showItemInFolder=()=>{};if(hidden)BrowserWindow.getAllWindows()[0].hide();else BrowserWindow.getAllWindows()[0].showInactive();},{original,target,hidden:process.env.DOCUMENT_FORMATTED_INLINE_HIDDEN==='1'});
-  await expect(page.locator('#empty-open')).toBeEnabled();
+  await expect(page.locator('#empty-open')).toBeEnabled();await focusNativeWindow(app,page,process.env.DOCUMENT_FORMATTED_INLINE_HIDDEN==='1');
  }
  async function stop(){if(app){await app.close();app=null;const e=await exit;exits.push(e);expect(e).toEqual({code:0,signal:null});}}
  async function select(node,word,caret=null){
   await expect(page.locator('dialog[open]')).toHaveCount(0);await node.click();
-  await page.locator('#editor .tiptap').focus();await expect(page.locator('#editor .tiptap')).toBeFocused();
+  await page.locator('#editor .tiptap').focus();await expect(page.locator('#editor .tiptap')).toBeFocused();await settleNativeCaret(node);
   const wanted=await node.evaluate((node,{word,caret})=>{
    const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT),nodes=[];let n;while(n=walker.nextNode())nodes.push(n);
    const i=node.textContent.indexOf(word);if(i<0)throw Error('synthetic text not found');
@@ -63,7 +65,7 @@ test('formatted inline workflow: marks, link panel, history, source, save/export
   await expect(page.locator('#link-dialog')).not.toBeVisible();await expect(page.locator('#editor .tiptap')).toBeFocused();
   await page.locator('#show-source').click();await expect(page.locator('#source-editor .cm-content')).toContainText('[**中文😀** plain *tail*](<https://new.invalid/changed> "keep")');await page.keyboard.press('Escape');await check();await backup();expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+source);
   await page.locator('#save-original').click();await expect.poll(async()=>(await snap())?.dirty).toBe(false);expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+expected);
-  await page.locator('#create-test-copy').click();await page.locator('#confirm-test-copy').click();await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);await backup();const saved=await snap(),id=await page.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,saved.label);
+  await createMarkdownCopy(page);await expect.poll(async()=>(await snap())?.confirmedCopy?.filePath).toBe(target);expect(await fs.readFile(target,'utf8')).toBe('\ufeff'+expected);await backup();const saved=await snap(),id=await page.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,saved.label);
   await page.screenshot({path:info.outputPath('formatted-inline.png')});await stop();await launch();await page.locator('#show-drafts').click();await page.locator(`[data-draft-id="${id}"]`).getByRole('button',{name:'恢复副本'}).click();await check();expect((await snap()).originalSave).toBeNull();expect(await fs.readFile(original,'utf8')).toBe('\ufeff'+expected);expect(errors).toEqual([]);expect(network).toEqual([]);passed=true;
  }catch(e){if(page)await fs.writeFile(info.outputPath('failure.json'),JSON.stringify({expected,actual:await snap(),errors,status:await page.locator('#viewer-status').textContent()},null,2));throw e;}
  finally{await stop();const archived=fixture.archive({quiescent:!app});await fs.writeFile(info.outputPath('evidence.json'),JSON.stringify({passed,root,archived,exits,errors,network,physicalIME:'NOT TESTED',dialogs:'controlled',hiddenNativeWindow:process.env.DOCUMENT_FORMATTED_INLINE_HIDDEN==='1'},null,2));}

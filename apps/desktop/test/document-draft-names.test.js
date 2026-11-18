@@ -61,7 +61,7 @@ test('save dialog receives only the current main-owned name; cancellation retain
  const f=fixture(),s=f.call({operation:'new-temporary'}).snapshot;
  const r=f.call({operation:'rename-draft',sessionId:s.sessionId,expectedRevision:0,expectedLabel:s.label,label:'旅行计划'});assert.equal(r.ok,true);
  const before=f.snapshot(s.sessionId),saved=await f.call({operation:'create-persistent-copy',sessionId:s.sessionId,expectedRevision:0,expectedSha256:before.copySha256});
- assert.equal(saved.code,'create-cancelled');assert.deepEqual(f.selection(),{suggestedName:'旅行计划.md'});assert.equal(saved.snapshot.label,'旅行计划');assert.equal(saved.snapshot.source,'');f.win.emit('closed');
+ assert.equal(saved.code,'create-cancelled');assert.deepEqual(f.selection(),{suggestedName:'旅行计划.md',mode:'save-as'});assert.equal(saved.snapshot.label,'旅行计划');assert.equal(saved.snapshot.source,'');f.win.emit('closed');
 });
 test('pending body backup failure prevents a second write in the same rename operation',()=>{
  const f=fixture(),s=f.call({operation:'new-temporary'}).snapshot;

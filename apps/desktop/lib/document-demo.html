@@ -40,7 +40,7 @@
       <input id="outline-filter" type="search" aria-label="筛选标题" placeholder="筛选标题…" maxlength="256" autocomplete="off">
       <nav id="outline-list" aria-label="跳转到标题"></nav><p id="outline-empty">添加标题后，<br>大纲会显示在这里。</p>
     </aside></div>
-    <footer id="writing-footer"><span id="document-statistics" title="已确认 Markdown 原文字符数（不计空白）"></span></footer>
+    <footer id="writing-footer"><output id="workflow-status" role="status" aria-live="polite"></output><span id="document-statistics" title="已确认 Markdown 原文字符数（不计空白）"></span></footer>
   </section>
 </div>
 <header id="document-header" hidden>
@@ -57,7 +57,7 @@
   </details>
 <div id="header-end"><button id="close-current-document" class="icon-button" hidden aria-label="关闭当前文档" title="关闭当前文档（⌘W）">×</button><button id="show-drafts" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="draft-dialog" aria-expanded="false">草稿</button><button id="show-details" class="quiet-button" disabled aria-haspopup="dialog" aria-controls="document-details-dialog" aria-expanded="false">详情</button></div>
 </header>
-<div id="writing-actions" hidden><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="save-original" type="button" hidden>保存</button><button id="create-test-copy" hidden>创建测试副本</button></div>
+<div id="writing-actions" hidden><details id="file-actions" hidden><summary id="file-actions-toggle" aria-label="更多文档操作" title="更多文档操作">•••</summary><div id="file-actions-content"></div></details><button id="new-temporary" disabled>新建</button><button id="edit-copy" hidden>编辑副本</button><button id="save-original" type="button" hidden>保存</button><button id="export-copy" hidden title="导出 Markdown 和图片，保持当前保存位置">导出副本…</button><button id="create-test-copy" hidden>创建测试副本</button></div>
 <div id="writing-status" hidden><span id="readonly-badge"></span><output id="backup-summary" role="status" hidden></output></div>
 <div id="format-toolbar" hidden role="group" aria-label="正文格式">
 <select id="format-block" aria-label="段落格式" title="对当前段落应用格式；列表内 Tab 缩进、Shift+Tab 提升"><option value="paragraph">正文</option><option value="heading-1">标题 1</option><option value="heading-2">标题 2</option><option value="heading-3">标题 3</option><option value="heading-4">标题 4</option><option value="heading-5">标题 5</option><option value="heading-6">标题 6</option><option value="bullet-list">无序列表</option><option value="ordered-list">有序列表</option><option value="task-list">任务列表</option><option value="blockquote">引用</option><option value="code-block">代码块</option><option value="image" disabled>图片引用</option><option value="table" disabled>表格</option><option value="unsupported" disabled>只读结构</option></select>
@@ -72,7 +72,7 @@
 </div>
 </div>
 
-<section id="original-save-status" role="status" hidden></section><output id="copy-summary-compact" role="status" hidden></output><output id="copy-operation-alert" role="status" hidden></output>
+<section id="original-save-status" role="status" hidden></section><div id="copy-feedback" hidden><output id="copy-summary-compact" role="status" hidden></output></div><output id="copy-operation-alert" role="status" hidden></output>
 <div id="confirmed-copy-actions" hidden><div class="copy-action-buttons"><button id="open-confirmed-copy" title="只读打开最近确认的新文件，保留当前草稿">打开已导出文件</button><button id="reveal-confirmed-copy">在 Finder 中显示</button></div><output id="copy-action-status" role="status"></output></div>
 <p id="temporary-notice" hidden>Not saved — 当前写作与恢复副本仅在内存中；关闭、刷新或崩溃可能丢失。请另存新文件以保留已确认内容。支持纯文本粘贴：普通段落最多 32 段；单个普通段落或简单列表项内，普通文字、粗体与斜体之间支持单行替换，新文字沿用选区起点的格式。连续空段落及其他复杂格式暂不支持。</p>
 <output id="draft-backup-status" role="status" hidden></output>
@@ -93,7 +93,7 @@
 <section id="confirmed-copy-card" class="detail-card" hidden><h3>最近确认的新文件</h3><output id="test-copy-summary" role="status" aria-label="Confirmed file summary"></output>
 <details id="test-copy-receipt" hidden><summary>修订与 SHA-256</summary><output id="test-copy-result" aria-label="Last confirmed copy"></output></details></section>
 <section id="latest-copy-card" class="detail-card" hidden><h3>本次操作</h3><output id="test-copy-operation" role="status" aria-label="Latest copy operation"></output></section>
-<details><summary>如何重新打开已创建文件</summary><p>点击正文上方的「打开已导出文件」即可只读打开最近确认的新文件，或使用「在 Finder 中显示」定位。文件身份或内容无法核对时不会自动打开，可用「打开…」（⌘O）手动检查。新文件以只读方式打开；继续编辑请创建独立副本。之后的修改不会自动写回任何文件。</p></details>
+<details><summary>如何重新打开已创建文件</summary><p>点击正文上方的「打开已导出文件」即可只读打开最近确认的新文件，或使用「在 Finder 中显示」定位。文件身份或内容无法核对时不会自动打开，可用「打开…」（⌘O）手动检查。新文件以只读方式打开；继续编辑请创建独立副本。保存会更新当前绑定文件；导出副本保持独立。</p></details>
 </section>
 <section id="native-open-panel" hidden aria-label="Finder 打开请求"><output id="native-open-status" role="status"></output><div><button id="native-open-next">打开文件</button><button id="native-open-skip">跳过此请求</button></div></section>
 <div id="input-alerts"></div>
@@ -164,7 +164,7 @@
 <dialog id="recent-dialog" class="writing-dialog side-panel" aria-labelledby="recent-title"><div class="panel-heading"><h2 id="recent-title">最近文档</h2><button id="close-recent-dialog" autofocus aria-label="关闭最近文档">关闭</button></div><div class="panel-content"><p id="recent-status" role="status"></p><div id="recent-list"></div><div class="recent-actions"><button id="refresh-recents">刷新</button><button id="clear-recents">清空列表</button></div><p>仅清除本机最近列表，不删除 Markdown 文件或草稿。</p></div></dialog>
 <dialog id="draft-dialog" class="writing-dialog side-panel" aria-labelledby="draft-dialog-title"><div class="panel-heading"><h2 id="draft-dialog-title">本地草稿</h2><button id="close-draft-dialog" autofocus aria-label="关闭草稿面板">关闭</button></div><div id="draft-dialog-content" class="panel-content"><section id="save-versions"><h3>保存版本</h3><p>保留每次保存的原文、草稿及被换下的文件。需要恢复时，在 Finder 检查 baseline.md（保存前）、draft.md（待保存正文）、previous.md（已核实旧正文）；exchanged.md 保留换下的原对象，可能仍被其他程序修改；跨卷时它位于目标文件夹的隐藏恢复区，可用“查看目标卷恢复区”定位，本机保留前述正文副本。请复制需要的版本到新位置，再在本应用打开；不会自动覆盖原文件。工作区最多 128 次记录；达到上限前可明确归档已确认的旧版本，保留本机记录并腾出保存名额，目标卷交换材料保持原样。最新版本、正在使用及不确定记录不参与整理。归档仍占用磁盘空间，不会自动删除历史版本。</p><button id="refresh-save-versions" type="button">刷新保存记录</button><div id="save-version-list"></div></section></div></dialog>
 <dialog id="document-details-dialog" class="writing-dialog side-panel" aria-labelledby="document-details-title"><div class="panel-heading"><h2 id="document-details-title">文档与保存详情</h2><button id="close-document-details-dialog" autofocus aria-label="关闭详情面板">关闭</button></div><pre id="original-save-receipt" hidden></pre><div id="document-details-content" class="panel-content"><section class="detail-card document-identity"><span class="section-label">当前文档</span><h3 id="details-document-name"></h3><span id="details-document-kind" class="state-pill"></span><p id="details-document-location"></p><dl class="document-facts"><div><dt>已确认修订</dt><dd id="details-document-revision"></dd></div><div><dt>原文字符</dt><dd id="details-document-count"></dd></div></dl></section><section id="details-backup-card" class="detail-card"><h3>本地备份</h3><div id="details-backup-content"></div><details class="panel-help" id="details-writing-help"><summary>备份与编辑范围</summary></details></section></div></dialog>
-<dialog id="copy-confirm-dialog" class="writing-dialog" aria-labelledby="copy-confirm-title"><div class="save-dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 14h8M8 17h5"/></svg></div><p class="section-label">保留一份 Markdown</p><h2 id="copy-confirm-title">另存为新文件</h2><p>选择一个新文件名，保留此刻已确认的内容。已有文件不会被覆盖。</p><p class="save-dialog-note">另存后仍可继续编辑草稿；后续修改不会自动写回新文件。</p></dialog>
+<dialog id="copy-confirm-dialog" class="writing-dialog" aria-labelledby="copy-confirm-title"><div class="save-dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 14h8M8 17h5"/></svg></div><p class="section-label">保留一份 Markdown</p><h2 id="copy-confirm-title">另存为新文件</h2><p>选择一个新文件名，保留此刻已确认的内容。已有文件不会被覆盖。</p><p class="save-dialog-note">另存后会切换到新文件；后续可继续保存。导出副本保持当前保存位置不变。</p></dialog>
 <dialog id="source-dialog" class="writing-dialog" aria-labelledby="source-title">
 <div class="panel-heading"><div><h2 id="source-title">Markdown 源码</h2><p id="source-name"></p></div><button id="close-source" aria-label="关闭源码">返回</button></div>
 <div class="source-actions"><span id="source-metadata"></span><button id="source-undo" hidden>撤销</button><button id="source-redo" hidden>重做</button><button id="source-wrap" aria-pressed="true">自动换行</button><button id="select-source">全选</button></div>

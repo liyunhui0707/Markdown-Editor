@@ -1,3 +1,4 @@
+import {equalProjection} from './document-projection-equal.mjs';
 import {mapBoundarySpace,ordinarySpaceChangesEmphasis} from './document-boundary-space.mjs';
 import {projectComplexContainer,containerNodeAt} from './document-container-source.mjs';
 import {mapContainerRange} from './document-container-edit.mjs';
@@ -225,7 +226,7 @@ function paragraphEdit(source, projection, change, verify = true, paragraphSepar
   const next = source.slice(0, a) + text + source.slice(b);
   if (next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
-  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  if (!equalProjection(expected,nextProjection.doc)) return unsafe();
   if (verify) {
     const back = paragraphEdit(next, nextProjection, inverse, false, paragraphSeparator);
     if (!back?.ok || back.source !== source) return unsafe();
@@ -265,7 +266,7 @@ function paragraphReplace(source, projection, change, separator, verify = true) 
   const text = parts.join(delimiter), next = source.slice(0, a) + text + source.slice(b);
   if (text.length > 4096 || next.length > MAX_SOURCE_UNITS) return unsafe();
   const nextProjection = projectSource(next);
-  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  if (!equalProjection(expected,nextProjection.doc)) return unsafe();
   const inverse = { from, to: from + insert.length, insert: inverseInsert };
   if (verify) {
     const back = paragraphReplace(next, nextProjection, inverse, delimiter, false);
@@ -328,7 +329,7 @@ function mapTextEditCore(source, change, leaf, paragraphSeparator, beforeProject
   } else if (!span.text || !text) spanBlock({doc:expected}, span).content = text ? [{ type: 'text', text }] : [];
   else spanBlock({doc:expected}, span).content[span.inlineIndex ?? span.childIndex].text = text;
   if (!text && !nextProjection.spans.some(s => s.blockIndex === span.blockIndex && !s.text)) return unsafe();
-  if (JSON.stringify(expected) !== JSON.stringify(nextProjection.doc)) return unsafe();
+  if (!equalProjection(expected,nextProjection.doc)) return unsafe();
   return { ok: true, source: next, change: { from: sourceFrom, to: sourceTo, insert }, projection: nextProjection,
     leaf: { blockIndex: span.blockIndex, childIndex: span.childIndex, bold: span.bold } };
 }

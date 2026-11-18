@@ -2,11 +2,11 @@
 export function createNameView({ api, byId, context, busy, rerender, changed }) {
   const button = byId('rename-draft'), dialog = byId('name-dialog'), input = byId('draft-name-input'), error = byId('draft-name-error');
   let captured = null, inFlight = false, composing = false;
-  const blocked = c => !c.state?.confirmed.temporary || c.loading || c.invalid || c.nativeComposing
+  const blocked = c => !!c.state?.confirmed.linkedFile || !c.state?.confirmed.temporary || c.loading || c.invalid || c.nativeComposing
     || c.state.pending || c.state.composing || c.state.compositionInvalid || c.state.historyPending
     || c.state.locked || c.state.recoveryRecords.length || c.state.source !== c.state.confirmed.source;
   function sync() {
-    const c = context(); button.hidden = !c.state?.confirmed.temporary; button.disabled = inFlight || !!blocked(c);
+    const c = context(); button.hidden = !!c.state?.confirmed.linkedFile || !c.state?.confirmed.temporary; button.disabled = inFlight || !!blocked(c);
     byId('name-apply').disabled = inFlight || composing; byId('name-cancel').disabled = inFlight;
     input.disabled = inFlight;
   }

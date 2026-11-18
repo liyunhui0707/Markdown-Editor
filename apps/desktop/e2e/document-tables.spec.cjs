@@ -1,3 +1,4 @@
+const {createMarkdownCopy}=require('./helpers/document-file-actions.cjs');
 const {test,expect,_electron}=require('@playwright/test');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 const {createHomeFixture}=require('../test/helpers/home-fixture.cjs');
@@ -47,7 +48,7 @@ test('basic tables: create, cells, navigation, rows/columns, history, export/reo
   await p.keyboard.type('After table.');await source(final+'\n\nAfter table.');
   fixture=createHomeFixture('Writing-synthetic-E2E-');const target=path.join(fixture.dir,'Table.md');
   await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);
-  await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect(p.locator('#open-confirmed-copy')).toBeVisible();
+  await createMarkdownCopy(p);await expect(p.locator('#open-confirmed-copy')).toBeVisible();
   const exported=await current(p),bytes=await fs.readFile(target),sha=crypto.createHash('sha256').update(bytes).digest('hex');expect(exported.confirmedCopy.state).toBe('created-confirmed');expect(exported.confirmedCopy.sha256).toBe(sha);expect(bytes.toString()).toBe(exported.source);fixture.recordFile('Table.md',bytes);
   await expect.poll(async()=>(await current(p)).draftBackup?.state).toBe('backed-up');
   const draftId=await p.evaluate(async label=>(await window.documentDemo.listDrafts()).drafts.find(d=>d.label===label).id,exported.label);
@@ -112,7 +113,7 @@ test('structured document: mixed authoring, switching, export snapshot and resta
   await p.screenshot({path:info.outputPath('mixed-table-narrow.png')});
   fixture=createHomeFixture('Writing-synthetic-E2E-');const target=path.join(fixture.dir,'Mixed.md');
   await app.evaluate(({dialog},target)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:target});},target);
-  await p.locator('#create-test-copy').click();await p.locator('#confirm-test-copy').click();await expect(p.locator('#open-confirmed-copy')).toBeVisible();
+  await createMarkdownCopy(p);await expect(p.locator('#open-confirmed-copy')).toBeVisible();
   const exported=await current(p),bytes=await fs.readFile(target),sha=crypto.createHash('sha256').update(bytes).digest('hex');
   expect(bytes.toString()).toBe(body);expect(exported.confirmedCopy.sha256).toBe(sha);expect(exported.confirmedCopy.state).toBe('created-confirmed');fixture.recordFile('Mixed.md',bytes);
   // Further edits remain in the draft; reopening the export must show its earlier revision.

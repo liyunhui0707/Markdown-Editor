@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
     return !decoded.isEmpty() && size.width === asset.width && size.height === asset.height;
   }});
   const writer = persistentCopies ? require('./document-copy-process').createCopyProcess({ fork: utilityProcess.fork.bind(utilityProcess) }) : null;
-  if (writer) app.on('before-quit', () => writer.cancelAll());
+  if (writer) app.on('will-quit', () => writer.cancelAll());
   let originalWriter=null;
   if(persistentCopies&&drafts){
     try{
@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
         binary:app.isPackaged?path.join(process.resourcesPath,'document-save'):path.join(__dirname,'../build/document-save')});
     }catch{/* No original-write capability if recovery storage cannot be established. */}
   }
-  if(originalWriter)app.on('before-quit',()=>originalWriter.cancelAll());
+  if(originalWriter)app.on('will-quit',()=>originalWriter.cancelAll());
   const service = createDocumentService(testCopies ? { isolatedCreateRoot: process.cwd(), attachmentsFor: images.attachments, ...(originalWriter?{originalWriter}:{}), ...(writer ? { persistentWriter: writer.create } : {}) } : {}); // Never unsafeExperimentalRoot.
   let draftStore = null, draftError = null;
   if (drafts) {
@@ -88,36 +88,39 @@ app.whenReady().then(async () => {
       recentFiles = require('./document-recent-files').createRecentFiles(override || path.join(app.getPath('userData'), 'Recent Documents'));
     } catch { /* History unavailable: native open and drafts remain usable. */ }
   }
-  let temporaryCreated = false, temporaryNumber = 0;
+  let temporaryNumber = 0;
   const openForWriting=!!originalWriter&&!!draftStore&&(product||(!app.isPackaged&&process.argv.includes('--document-writing-open')));
   const manager = createDocumentSessions({ openForWriting, service, draftStore, recentFiles, images, nativeOpens,
     confirmOriginalSave: originalWriter?async(win,file)=>{
-      const r=await dialog.showMessageBox(win,{type:'warning',message:'保存回原文件？',detail:`${file}\n已确认正文将写回这个文件，旧正文副本保留在本机恢复目录；跨卷时，交换材料同时保留在目标文件夹的隐藏恢复区。请勿移动或清理恢复区。外部修改会报告冲突；极窄竞态下原路径可能已更新，被换下的版本会保留，不会自动覆盖回去。支持受检查的普通本地文件和已下载的 OneDrive 文件。OneDrive 内也会保留隐藏恢复区，其中的旧正文可能被同步；请勿自行清理。本机保存确认不代表云端上传完成，上传状态请在 OneDrive 中查看。之后点击保存仍使用这个目标。`,buttons:['取消','保存并保留旧版本'],defaultId:0,cancelId:0,noLink:true});return r.response===1;
+      const provider=require('./document-onedrive-policy').oneDriveLayout(path.dirname(file));
+      if(!provider)return true;
+      const r=await dialog.showMessageBox(win,{type:'info',message:'保存到 OneDrive 本机文件',
+        detail:'旧版本会保留在文件旁的隐藏恢复区，可能一起同步。请保留恢复区。本机保存成功不代表云端上传完成，可在 OneDrive 中查看上传状态。',
+        buttons:['保存','取消'],defaultId:0,cancelId:1,noLink:true});return r.response===0;
     }:null,
     chooseImage: win => dialog.showOpenDialog(win, {title: '选择本地图片', properties: ['openFile', 'dontAddToRecent'], filters: [{name: 'PNG / JPEG · 每张最多 4 MiB', extensions: ['png','jpg','jpeg']}] }),
     confirmClose: readOnlyWindow ? async (win, label) => {
-      const result = await dialog.showMessageBox(win, { type: 'question',
-        message: `关闭“${label}”？`, detail: '关闭前会验证本地草稿。正文可从“草稿”恢复；撤销历史与文件导出回执不会随草稿恢复。原文件和已导出的文件保持不变。',
-        buttons: ['取消', '保留草稿并关闭'], defaultId: 0, cancelId: 0, noLink: true });
-      return result.response === 1;
-    } : null, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async (win, { suggestedName } = {}) => {
-      const accepted = await dialog.showMessageBox(win, { type: 'warning', message: '另存为新的 Markdown 文件？',
-        detail: '请选择归你所有的普通本地 APFS 文件夹及其子文件夹（包括主目录之外及外接 APFS 卷），例如下载或你自行准备的 Markdown Writing；目录仍需通过 APFS、所有权、权限与身份检查。仅支持 macOS 防止删除目录自身的默认权限，其他额外权限仍可能被拒绝。本地且未同步的桌面、文稿也需通过检查。另支持受检查的 OneDrive 本机文件夹；本机写入确认不等于云端上传完成。其他同步服务、网络盘、主文件夹本身、应用程序及任意资源库/隐藏目录仍不支持。只创建新的 .md；所选本地图片会作为同目录附件导出，移动时请一起移动。已有文件绝不覆盖。后续修改保留在草稿中，不会自动更新新文件。',
-        buttons: ['取消', '选择本地文件夹…'], defaultId: 0, cancelId: 0, noLink: true });
-      if (accepted.response !== 1 || win.isDestroyed()) return { canceled: true };
-      const selected = await dialog.showSaveDialog(win, { title: '另存为新 Markdown 文件', defaultPath: suggestCopyPath(app.getPath('downloads'), suggestedName),
-        message: '请选择归你所有的普通本地 APFS 文件夹及其子文件夹（包括主目录之外及外接 APFS 卷）；仍需通过权限检查。支持通过检查的下载目录；其他额外权限仍可能被拒绝。支持通过检查的本地桌面、文稿；iCloud 同步的桌面、文稿仍不支持。另支持已验证的 OneDrive 本机目录；其他同步服务、网络盘及任意资源库/隐藏目录仍不支持。只创建新文件，不覆盖。',
-        nameFieldLabel: '新文件名：', filters: [{ name: 'Markdown', extensions: ['md'] }],
-        properties: ['showOverwriteConfirmation', 'dontAddToRecent'], securityScopedBookmarks: false });
-      if (!win.isDestroyed()) win.focus();
-      return selected; // Non-MAS, bookmarks disabled; no file precreation is requested.
+      const result=await dialog.showMessageBox(win,{type:'question',message:`保存对“${label}”的更改？`,
+        detail:'保存会更新当前文件。也可以保留本地草稿后关闭，稍后从“草稿”恢复。',
+        buttons:['保存','保留草稿并关闭','取消'],defaultId:0,cancelId:2,noLink:true});
+      return ['save','keep-draft',false][result.response]??false;
+    } : null, revealFile: file => shell.showItemInFolder(file), allowTestCopies: testCopies, chooseCopy: persistentCopies ? async (win, { suggestedName, mode='save-as' } = {}) => {
+      const selected=await dialog.showSaveDialog(win,{title:mode==='export'?'导出 Markdown 副本':'另存为 Markdown',
+        defaultPath:suggestCopyPath(app.getPath('downloads'),suggestedName),
+        message:mode==='export'?'创建 Markdown 副本及图片附件，当前保存位置不变。':'选择新文件名。保存后继续编辑此文件；已有文件不会被覆盖。',
+        nameFieldLabel:'文件名：',filters:[{name:'Markdown',extensions:['md']}],
+        properties:['showOverwriteConfirmation','dontAddToRecent'],securityScopedBookmarks:false});
+      if(!selected.canceled&&!win.isDestroyed()){
+        let provider=null;try{provider=require('./document-onedrive-policy').oneDriveLayout(fs.realpathSync(path.dirname(selected.filePath)));}catch{/* Writer validates the selected destination independently. */}
+        if(provider){const result=await dialog.showMessageBox(win,{type:'info',message:'创建 OneDrive 本机文件',detail:'本机写入成功不代表云端上传完成。图片附件会和 Markdown 一起创建，移动时请一起移动。之后保存此文件会保留可能同步的隐藏恢复区。',buttons:['继续','取消'],defaultId:0,cancelId:1,noLink:true});if(result.response!==0)return {canceled:true};}
+      }
+      if(!win.isDestroyed())win.focus();return selected;
     } : null, projectSource, mapTextEdit, mapFormatEdit, windowFor: wc => BrowserWindow.fromWebContents(wc),
     createTemporary: readOnlyWindow ? (bytes = Buffer.alloc(0)) => {
       // Trusted main-owned bytes only: empty document or independent copy of an opened snapshot.
       const file = path.join(testCopies ? process.cwd() : root, `temporary-${++temporaryNumber}.md`);
       fs.writeFileSync(file, bytes, { flag: 'wx', mode: 0o600 });
       const opened = service.open(file, { parse: projectSource, maxBytes: MAX_DOCUMENT_BYTES, ...(testCopies ? { syntheticTemporary: true } : {}) });
-      if (opened.ok) temporaryCreated = true;
       return opened;
     } : null,
     chooseFile: readOnlyWindow ? async win => {
@@ -132,23 +135,16 @@ app.whenReady().then(async () => {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false,
       preload: path.join(__dirname, 'document-demo-preload.js') } });
   productWindow = win;
-  if (readOnlyWindow) Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu' }, { label: '文件', submenu: [
-      { label: '打开 Markdown…', accelerator: 'CmdOrCtrl+O', click: () => {
-        if (!win.isDestroyed()) win.webContents.send('document-demo:open-request');
-      } }, {label:'保存',accelerator:'CmdOrCtrl+S',click:()=>{if(!win.isDestroyed())win.webContents.send('document-demo:save-request');}}, { label: '关闭当前文档', accelerator: 'CmdOrCtrl+W', click: () => {
-        if (!win.isDestroyed()) win.webContents.send('document-demo:close-request');
-      } }, { role: 'close', label: '关闭窗口', accelerator: 'CmdOrCtrl+Shift+W' } ] },
-    { label: '编辑', submenu: [{ role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-  ]));
-  win.on('close', event => {
-    manager.flushDrafts();
-    // Keep the warning even after session revocation: renderer-only drafts may exist.
-    if (temporaryCreated && dialog.showMessageBoxSync(win, { type: 'warning',
-      message: '关闭当前草稿窗口？',
-      detail: draftStore ? '仅最近已确认并成功备份的正文可在下次启动时恢复。尚未备份、未应用的源码修改、未提交的输入法文字及输入恢复记录仍可能丢失。草稿备份不等于已保存 Markdown；新文件也不会自动更新。取消可返回检查备份状态。' : testCopies ? 'Temporary writing and recovery records remain in memory. Test copy receipts describe files that may exist in the disposable test directory. Only confirmed revisions have verified contents. New files explicitly created with Save as new file remain at their last verified location; later changes are not saved. Cancel to review or copy your text.' : 'Temporary writing and recovery copies exist only in this process. Closing, refreshing or a crash loses them. No edited text has been saved to disk. Cancel to select and copy text before closing.',
-      buttons: ['取消', '关闭窗口'], defaultId: 0, cancelId: 0, noLink: true }) !== 1) event.preventDefault();
-  });
+  if(readOnlyWindow){
+    const command=(label,accelerator,action)=>({label,accelerator,click:()=>{if(!win.isDestroyed())win.webContents.send('document-demo:file-action',action);}});
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      {role:'appMenu'},{label:'文件',submenu:[command('新建','CmdOrCtrl+N','new'),command('打开…','CmdOrCtrl+O','open'),
+        {type:'separator'},command('保存','CmdOrCtrl+S','save'),command('另存为…','CmdOrCtrl+Shift+S','save-as'),command('导出 Markdown 副本…',undefined,'export'),
+        {type:'separator'},command('关闭当前文档','CmdOrCtrl+W','close'),{role:'close',label:'关闭窗口',accelerator:'CmdOrCtrl+Shift+W'}]},
+      {label:'编辑',submenu:[command('撤销','CmdOrCtrl+Z','undo'),command('重做','CmdOrCtrl+Shift+Z','redo'),{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
+    ]));
+    require('./document-window-close').installWindowClose({win,ipcMain,manager,confirmUnavailable:()=>dialog.showMessageBoxSync(win,{type:'warning',message:'关闭状态不可用的窗口？',detail:'无法确认窗口中的输入。已备份正文仍可从“草稿”恢复；未备份、未应用的源码或输入法候选可能丢失。',buttons:['取消','关闭窗口'],defaultId:0,cancelId:0,noLink:true})===1});
+  }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => { event.preventDefault(); manager.revoke(win); });
   win.webContents.on('will-attach-webview', event => event.preventDefault());

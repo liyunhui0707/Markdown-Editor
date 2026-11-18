@@ -1,6 +1,6 @@
 # Project Roadmap — Markdown Vault App
 
-## Current direction (2026-11-16)
+## Current direction (2026-11-17)
 
 The product goal is a complete, attractive, simple, independent local Mac
 Markdown editor: open a standard file from Finder, write in the accepted visual
@@ -30,7 +30,28 @@ Keep one complete functional group per short branch/PR and the accepted visuals.
 | B. Complex Markdown authoring | Complete common multi-paragraph list items and nested quotes as writing workflows, then bounded cross-structure operations: typing, selection, continuation, Source, history, Save and recovery. Preserve untouched syntax; extend the current Document/Tiptap model rather than replacing the framework. |
 | C. File and image compatibility | Prioritize actual commonly used sync locations and image workflows. Establish filesystem-specific conflict/recovery proofs before enabling network or non-APFS writes; extend size/format/count only with latency, decoding, memory and portability checks. Do not remove safety checks or simply increase every limit. |
 
-### Current batch — OneDrive local saving, 0.80.0 candidate
+### Current batch — document workflow consolidation, 0.81.0
+
+The user approved three connected groups: document lifecycle, input coordination
+and long-writing repair, then visual polish/full-flow acceptance. See the
+[approved contract](audits/2026-11-17-document-workflow-plan.md). Complete these in
+one dependent candidate before installation; do not fragment every button into
+another stage. Save/Save As/export and Source save must have one clear meaning;
+clean/dirty/empty/window closure shares the same native lifecycle. Preserve all
+existing native write, unknown-result, recovery and queue guards.
+
+Ordinary optimistic presentation may coalesce one frame; editing/IPC, settled
+receipts and protected input remain immediate. Full projection comparison avoids
+large temporary JSON strings without skipping neighbors. The existing main CI
+unpaced-input failure is preserved. Checkpoint 5d5273d passed the unchanged Air
+raw-rate scenario; final full CI must confirm the resulting candidate, including
+passive-panel routing and existing file/provider workflows. No human writing,
+physical IME, VoiceOver or public-release acceptance is inferred from automation.
+
+2026-11-18 delivery continuation removes the vulnerable build-only builder chain using official Electron Packager/ASAR, retaining zero-advisory security gates and unchanged runtime sources. Complete full CI, merge/main synchronization, local and Air installation, then the user’s current-version real-input/VoiceOver/sustained-writing acceptance before formal 0.81.0 publication. Developer ID/notarization remains deferred; publish actual ad-hoc status and manual-update instructions.
+
+### Previous batch — OneDrive local saving, 0.80.0
+
 
 Complete one provider-specific workflow: open locally materialized Markdown,
 Save with independent local old/draft copies, export exclusively with managed

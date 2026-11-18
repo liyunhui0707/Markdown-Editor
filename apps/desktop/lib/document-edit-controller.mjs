@@ -88,10 +88,14 @@ export function createEditController(initial, { send, onChange = () => {}, onRes
   }
   function state() { return { confirmed, source, code, recoveryDraft: recoveries.at(-1)?.source || '',
     recoveryRecords: structuredClone(recoveries), pending: queue.length, inputPaused: inputPaused(),
-    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, locked: locked || disposed || atCapacity() || inputPaused() }; }
+    composing: !!composition, compositionInvalid: !!composition?.invalid, recoveryCopyCapacity: atCapacity(), historyPending, syncLocked: locked || disposed || atCapacity(), locked: locked || disposed || atCapacity() || inputPaused() }; }
   const notify = () => { if (!disposed) onChange(state()); };
   const settle = () => { if (!flight && !queue.length) for (const resolve of waiters.splice(0)) resolve(); };
-  const idle = () => !flight && !queue.length ? Promise.resolve() : new Promise(resolve => waiters.push(resolve));
+  const idle = ({signal}={}) => !flight && !queue.length ? Promise.resolve() : new Promise(resolve => {
+    const finish=()=>{signal?.removeEventListener('abort',cancel);resolve();};
+    const cancel=()=>{const index=waiters.indexOf(finish);if(index>=0)waiters.splice(index,1);finish();};
+    waiters.push(finish);if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
+  });
   async function reconcile(reply, reason) {
     const recovery = rememberDraft(reason); queue.length = 0; locked = true; failures++;
     let snapshot = reply?.snapshot;
