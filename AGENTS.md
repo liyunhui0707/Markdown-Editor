@@ -2,6 +2,15 @@
 
 # AGENTS.md
 
+**Release policy (2026-11-18).** The user explicitly authorized formal 0.81.0
+publication now and future releases without waiting for their personal trial or
+manual acceptance. Required engineering checks, relevant CI, artifact verification
+and applicable installation checks still apply. Record untested physical IME,
+VoiceOver and human sustained-writing scenarios as untested, never as PASS.
+Do not introduce another user-experience approval gate by default. Known material
+data/security regressions remain release blockers. Developer ID/notarization
+remain deferred; disclose ad-hoc signing and actual distribution status.
+
 **0.81.0 document workflow candidate.** Save As explicitly rebinds a verified new
 file and clears only its saved baseline; Export preserves the target/dirty/history.
 Source Cmd-S applies then saves; Cmd-Enter remains Apply and Return. No renderer-supplied paths or overwrite policy.
