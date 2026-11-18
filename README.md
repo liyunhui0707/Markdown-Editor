@@ -4,8 +4,9 @@
 使用源码模式处理完整 Markdown，明确保存，并保留本地草稿和保存版本。
 不需要账号、Vault 或托管服务。
 
-当前源码版本为 **0.81.0 本地开发候选**。已实现日常文件编辑流程，仍在进行稳定性验收；
-尚未提供经过 Developer ID 签名、公证的正式公开版本。
+当前版本为 **0.81.0**；发行状态、安装包及适用验收结果以
+[GitHub Releases](https://github.com/liyunhui0707/Markdown-Editor/releases) 为准。
+当前支持 Apple Silicon / arm64。本轮构建采用 ad-hoc 签名，未进行 Developer ID 签名和公证。
 
 ## 开始使用
 
@@ -96,7 +97,7 @@ OneDrive 保存会在目标目录保留隐藏恢复区，其中旧正文可能�
   空段操作会拒绝；列表项最前面的空段加后续文字不被静默改成两个不同结构。
 - 新建、保存、另存和切换会等待已有输入确认；候选尚未提交时提示先完成选词，不强行提交或事后自动执行。格式操作仍受保护。跨行/跨格式的输入法预编辑仍有约束。
 - 自动化已经覆盖受控输入、保存冲突、恢复和长文循环；实际中文输入、旁白及较长真实写作
-  的结论按版本和场景记录，不能由自动化替代。当前真人持续写作仍待完成。
+  的结论按版本和场景记录，不能由自动化替代。真人持续写作的版本、环境与结果在发行记录中分别列明。
 - 长混合文章的逐键延迟仍需优化；较长自动化运行和有限内存样本不能证明所有场景长期稳定。
   接近容量上限时，快速连续输入仍可能达到确认队列上限并暂停，需核对保留内容后明确恢复。
 
@@ -120,7 +121,7 @@ mise exec -- npm run dev      # 当前 Document App
 mise exec -- npm run test:ci  # Node 测试与基线门槛
 mise exec -- npm run audit:prod
 mise exec -- npm run audit:full
-mise exec -- npm run pack     # 本地未签名 App，不等于正式发布
+mise exec -- npm run pack     # 本地 ad-hoc App，不等于公开发布
 ```
 
 修改 `lib/document-demo-entry.js` 后必须重建对应 Document bundle，并核对产物与源码一致。

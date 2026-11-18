@@ -1,9 +1,10 @@
 # 安装、更新与回退
 
-当前源码为 **0.81.0 本地开发候选**，使用独立的 `Markdown.app`。打开 App 不需要
-终端、Node.js 或仓库，也不需要选择 Vault。当前尚无正式公开下载版本；本地交付包尚未
-完成 Developer ID 签名、公证和公开发布验收。历史输入法和基础旁白通过记录保留原版本
-及范围；当前真人持续写作与剩余旁白验收仍待完成，详见[本轮记录](audits/2026-11-15-local-stable-candidate.md)。
+当前版本为 **0.81.0**，使用独立的 `Markdown.app`。打开 App 不需要终端、
+Node.js 或仓库，也不需要选择 Vault。实际发行状态、安装包、校验值和适用验收结果见
+[GitHub Releases](https://github.com/liyunhui0707/Markdown-Editor/releases)。
+本轮为 Apple Silicon / arm64，采用 ad-hoc 完整性签名，未进行 Developer ID 签名和公证。
+历史输入法和旁白记录保留原版本及范围；不能推断其他版本或场景通过。
 
 ## 安装与打开文件
 
@@ -52,8 +53,8 @@ OneDrive 额外支持受检查且本机已下载的文件；其他同步目录�
 - `Markdown Vault Document/Original Save Versions/`：保存版本与恢复记录。
 
 更新不应清空这些目录。需要备份时，退出 App 后完整保留记录、权限和目录结构；
-不要只复制部分 JSON。App 内备份不保护磁盘损坏。此版本没有自动更新器，
-没有正式公开 Release 下载页；不要把未验证的任意构建当成正式升级。
+不要只复制部分 JSON。App 内备份不保护磁盘损坏。此版本没有自动更新器；通过上述 Releases 页面手动下载明确版本，
+核对校验值后更新，不要把任意构建当成正式升级。
 
 ## 键盘操作
 
@@ -145,4 +146,5 @@ Team ID、Hardened Runtime、时间戳、票据和 Gatekeeper；任一步失败�
 
 流程依据：[Electron 签名文档](https://www.electronjs.org/docs/latest/tutorial/code-signing)、
 [Apple 公证说明](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)。
-配置语法按仓库锁定的 electron-builder 26 验证，不直接套用新版配置格式。
+打包使用锁定的 Electron Packager 与 ASAR；静态产品策略保留历史配置文件名，
+签名选择经适配器验证，缺证书或签名失败时不会退回 ad-hoc 成功。

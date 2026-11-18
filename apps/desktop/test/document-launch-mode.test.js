@@ -21,29 +21,16 @@ test('unsupported platform and MAS product entry are refused', () => {
   assert.throws(() => resolveLaunchMode({ ...base, product: true, platform: 'linux' }));
 });
 
-test('document package includes shared runtime and excludes legacy and private trees', () => {
-  const path = require('node:path');
-  const { getMainFileMatchers } = require('app-builder-lib/out/fileMatcher');
-  const config = require('../electron-builder.document.cjs');
-  const root = path.resolve(__dirname, '..'), dest = path.join(root, 'dist', 'document-policy-test');
-  const info = { config, projectDir: root, buildResourcesDir: 'build', isPrepackedAppAsar: false, debugLogger: { isEnabled: false } };
-  const filter = getMainFileMatchers(root, dest, value => value, config.mac, { info }, path.join(root, 'dist'), false)[0].createFilter();
-  const has = file => filter(path.join(root, file), { isDirectory: () => false });
-  for (const file of ['document-app-main.js', 'package.json', 'lib/document-window-main.js', 'lib/document-demo-preload.js',
-    'lib/document-demo.html', 'lib/document-demo-bundle.js', 'lib/document-copy-writer.js', 'lib/document-launch-mode.js',
-    'lib/document-source-map.mjs', 'lib/document-writing-shell.css', 'lib/editor-path-policy.js']) assert.equal(has(file), true, file);
-  for (const file of ['main.js', 'index.html', 'preload.js', 'lib/cm6-bundle.js', 'lib/spike-cm6-bundle.js',
-    'lib/document-demo-entry.js', 'lib/document-demo-main.js', 'lib/.env', 'lib/secrets/sample.json', '.local/backups/sample', 'tools/launcher.cjs',
-    'e2e/test.cjs', 'lib/session-viewer/private.js']) assert.equal(has(file), false, file);
-  assert.equal(config.extraMetadata.main, 'document-app-main.js');
+test('document copy policy retains the product entry and excludes legacy and retired dependencies',()=>{
+ const path=require('node:path'),root=path.resolve(__dirname,'..');
+ const include=require('../tools/document-package-policy.cjs').runtimeFilter(root,require('../package-lock.json'));
+ for(const n of ['document-app-main.js','package.json','lib/document-window-main.js','lib/document-demo-preload.js','lib/document-demo.html','lib/document-demo-bundle.js','lib/editor-path-policy.js'])assert(include(path.join(root,n)),n);
+ for(const n of ['main.js','index.html','lib/document-demo-entry.js','lib/document-demo-main.js','lib/cm6-bundle.js','.local/private','tools/launcher.cjs'])assert(!include(path.join(root,n)),n);
+ assert.equal(require('../package.json').main,'document-app-main.js');
 });
-
-test('Document dependency rules exclude retired Toast UI while retaining its current parser',()=>{
- const path=require('node:path'),{getNodeModuleFileMatcher}=require('app-builder-lib/out/fileMatcher');
- const config=require('../electron-builder.document.cjs'),root=path.resolve(__dirname,'..');
- const info={config,projectDir:root,buildResourcesDir:'build',isPrepackedAppAsar:false,debugLogger:{isEnabled:false}};
- const filter=getNodeModuleFileMatcher(root,path.join(root,'dist/document-policy-test'),v=>v,config.mac,info).createFilter();
- const has=file=>filter(path.join(root,file),{isDirectory:()=>false});
- for(const f of ['node_modules/@toast-ui/editor/dist/toastui-editor.js','node_modules/@toast-ui/editor/dist/esm/index.js','node_modules/@toast-ui/toastmark/dist/toastmark.js'])assert.equal(has(f),false,f);
- for(const f of ['node_modules/unified/index.js','node_modules/remark-parse/index.js','node_modules/remark-gfm/index.js'])assert.equal(has(f),true,f);
+test('Document dependency policy excludes retired Toast UI while retaining its current parser',()=>{
+ const path=require('node:path'),root=path.resolve(__dirname,'..');
+ const include=require('../tools/document-package-policy.cjs').runtimeFilter(root,require('../package-lock.json'));
+ for(const n of ['node_modules/@toast-ui/editor/dist/toastui-editor.js','node_modules/@toast-ui/toastmark/dist/toastmark.js'])assert(!include(path.join(root,n)),n);
+ for(const n of ['node_modules/unified/index.js','node_modules/remark-parse/index.js','node_modules/remark-gfm/index.js'])assert(include(path.join(root,n)),n);
 });

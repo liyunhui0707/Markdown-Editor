@@ -1,3 +1,5 @@
+**0.81.0 delivery build.** Official Electron Packager/ASAR replaces the vulnerable build-only electron-builder chain. The historical config filename is static product policy only. Preserve the closed Document/locked-production dependency filter, private/legacy exclusions, source/helper hashes, `.md` association and fixed identity. Explicit ad-hoc is not Developer ID; signed mode fails closed, and notarization/upload remain separate. No advisory exceptions or reduced CI gates. User requires current-version human acceptance after local/Air installation before formal publication.
+
 # AGENTS.md
 
 **0.81.0 document workflow candidate.** Save As explicitly rebinds a verified new

@@ -94,18 +94,20 @@ do not infer it is safe to delete from its name alone.
 
 `npm run dev` starts `document-app-main.js`; `npm run dev:legacy` explicitly starts
 the historical Vault app. `npm run pack` / `pack:document` use the dedicated
-`electron-builder.document.cjs` config, never the legacy package build manifest.
-The artifact is an unsigned, unnotarized local WIP named `Markdown.app`.
+`tools/package-document.cjs` with official Electron Packager. The historical
+`electron-builder.document.cjs` filename now holds static product metadata only;
+the builder and legacy package build manifest are not used. The artifact is an
+ad-hoc signed, unnotarized `Markdown.app`; ad-hoc is integrity, not Developer ID.
 Production dependencies are still shared with historical source; pruning them is
 separate work. The Vault/CM6/spike runtime and private/test/tool trees are excluded.
 
-For an offline build using the already installed Electron, from `apps/desktop`:
+For an offline build, provide a verified `electron-v<locked-version>-darwin-arm64.zip`
+in a dedicated directory. From `apps/desktop` (use separate flag and path arguments):
 
 ```sh
-mise exec -- node node_modules/electron-builder/out/cli/cli.js \
-  --config electron-builder.document.cjs --mac dir --arm64 \
-  --config.electronDist="$PWD/node_modules/electron/dist" \
-  --config.directories.output=/private/tmp/markdown-document-build-UNIQUE
+mise exec -- node tools/package-document.cjs \
+  --electron-zip-dir /absolute/path/to/verified-electron-zips \
+  --out /private/tmp/markdown-document-build-UNIQUE
 ```
 
 Choose a fresh output path. Validate ASAR membership and source hashes before

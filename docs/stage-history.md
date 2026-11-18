@@ -1,6 +1,6 @@
 # Stage History
 
-## Document workflow consolidation — 0.81.0 candidate (2026-11-17)
+## Document workflow consolidation — 0.81.0 (2026-11-17)
 
 - Save opens one destination panel for an unbound draft; Save As binds the new
   verified file and updates its name/baseline without resetting Undo. Export
@@ -36,6 +36,7 @@
   Canonical-comparison checks pass 3,704 Node cases / two existing skips; its
   package matches all 111 runtime files. Final flow results are tracked by PR #175.
 
+- 2026-11-18: replace build-only electron-builder with official Packager 20.3.0 / ASAR 4.3.2 after an unpatched picomatch advisory. Both audit gates are zero; no production dependency versions or Document runtime files change. A closed lockfile-backed copy policy retains identity, association, icon and helper, excludes private/legacy files and verifies ASAR/ZIP hashes and signatures. Retired build-parser tests become whole-chain absence checks; original tests remain in Git. Full final CI, installed acceptance and user-selected human acceptance remain required before formal publication.
 
 ## Original-file saving and visible failure — 0.80.1 (2026-11-17)
 

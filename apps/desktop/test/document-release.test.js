@@ -33,7 +33,8 @@ test('distribution config preserves product identity and packaging while requiri
  assert.equal(config.mac.hardenedRuntime,true);assert.equal(config.mac.strictVerify,true);assert.deepEqual(config.mac.binaries,['Contents/Resources/document-save']);
  assert.equal(config.mac.notarize,false);assert.equal(base.mac.identity,null);
  assert.equal(config.directories.output,'dist/signed');
- await require('app-builder-lib/out/util/config/config').validateConfiguration(config,{isEnabled:false});
+ const actual=require('../tools/document-package-policy.cjs').packageOptions({root,out:'/private/tmp/document-release-policy',lock:require('../package-lock.json'),signed:true,identity:'Developer ID Application: Synthetic (TESTTEAM01)'});
+ assert.equal(actual.appBundleId,config.appId);assert.equal(actual.osxSign.continueOnError,false);assert.equal(actual.osxSign.optionsForFile().hardenedRuntime,true);assert.equal(actual.extraResource[0],path.join(root,'build/document-save'));
 });
 test('release verifier requires both signatures, stapled ticket and Gatekeeper in order (synthetic tools)',()=>{
  const p=probe();const result=verifyDocumentRelease(app,team,p);assert.equal(result.ok,true);

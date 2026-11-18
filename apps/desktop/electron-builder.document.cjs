@@ -1,5 +1,7 @@
 'use strict';
-// Local development app only. Legacy code remains in Git, outside this artifact.
+// Static product policy (historical filename). Official Electron Packager reads
+// identity/resources here through tools/document-package-policy.cjs. No builder
+// dependency or legacy Vault manifest is used by the current packaging command.
 module.exports = {
   extends: null,
   appId: 'com.markdownvault.document.dev', productName: 'Markdown',
